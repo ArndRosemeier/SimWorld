@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.037 — Trees in the streets and forests in the country
+
+- Street trees, park trees, yews, bushes and hedges now grow where the town plan puts them: plane, linden, maple, oak, birch, chestnut, ginkgo, pine, cypress and palm, picked by street, park and climate like in Scale.
+- The countryside gets its forests, hedgerows and orchards: real trees round the town, canopy clumps farther out.
+- Leaves move in the wind and cast shadows; distant trees turn into simple canopies, so the town stays smooth.
+
+## v0.036 — Street lamps, benches and parked cars
+
+- The streets are furnished: lamp posts (modern, classic lanterns in the old town and parks, double lamps on the main roads), benches, bins, hydrants, mailboxes, bollards, planters, kiosks, fountains, statues, playgrounds, bus stops, manhole covers and café terraces with tables, chairs, parasols and awnings.
+- Junctions get traffic lights or stop signs; the lights cycle by themselves, and lamps glow at night.
+- Parked cars line the kerbs: sedans, hatchbacks, wagons, SUVs, vans, pickups, sports cars and delivery vans, each with its own paint; some bays have an EV charging post.
+- Cars far off are drawn as simple shapes, so the town stays smooth.
+
+## v0.035 — Sound: coastal flag follows the weather world shape
+
+- Fixes the typecheck on main where the audio clock still used the old region shape after the weather change.
+
 ## v0.034 — Holidays away, and the weather matters
 
 - Families go away in the school holidays, most of them once in the summer, for one or two weeks. Other people take a week or two at any time, more often in summer. While they are away the house stands empty, nobody goes to work or school, and the neighbours know. A burglar might know too. When they come back, they remember where they went.

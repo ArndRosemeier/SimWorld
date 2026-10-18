@@ -49,7 +49,7 @@ export class LiveClock implements SoundWorld {
   readonly epoch: number;
   readonly latitude = DEFAULT_LATITUDE;
   clock = 0;
-  region: { region: { coastal: boolean } } = { region: { coastal: false } };
+  region = { region: { coastal: false } };
   readonly overrides: EnvOverrides = {};
   private readonly startMinute: number;
   private readonly startMs = performance.now();
