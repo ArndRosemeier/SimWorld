@@ -66,6 +66,60 @@ export function checkBanned(root, files, rules = RULES.banned) {
   return problems;
 }
 
+/** The index of the bracket closing the one at `open` (code from `codeOnly`), or -1. */
+function closing(code, open) {
+  let depth = 0;
+  for (let i = open; i < code.length; i++) {
+    const c = code[i];
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if ((c === ')' || c === ']' || c === '}') && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/** Where the top-level argument after `i` starts: the index past the last top-level comma inside `[from, to)`. */
+function lastArgStart(code, from, to) {
+  let depth = 0, at = -1;
+  for (let i = from; i < to; i++) {
+    const c = code[i];
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth--;
+    else if (c === ',' && depth === 0) at = i + 1;
+  }
+  return at;
+}
+
+const SHADER_INPUT = '(?:uniform|uniformArray|attribute|texture|storage)';
+
+/**
+ * A typed TSL Fn (one with a layout: `Fn(f, { p: 'vec2', return: 'vec4' })`) reads only its parameters (docs/SHADERS.md):
+ * three builds its code once per backend and reuses it in every later build, so a uniform, attribute or texture it
+ * closed over is declared only in the first build and the next one fails. Flags a typed Fn's body that names an
+ * uppercase bag's member (`P.rot`, `LIGHT.night`), makes a shader input, or names one the file made at its top.
+ */
+export function checkTypedFns(root, files) {
+  const problems = [];
+  for (const file of files) {
+    const src = fs.readFileSync(path.join(root, file), 'utf8');
+    if (!/\bFn\s*\(/.test(src)) continue;
+    const code = codeOnly(src);
+    const inputs = new Set([...code.matchAll(new RegExp(`\\b(?:const|let)\\s+(\\w+)\\s*=\\s*${SHADER_INPUT}\\s*\\(`, 'g'))].map((m) => m[1]));
+    for (const m of code.matchAll(/\bFn\s*\(/g)) {
+      const open = m.index + m[0].length - 1, close = closing(code, open);
+      const split = close < 0 ? -1 : lastArgStart(code, open + 1, close);
+      if (split < 0 || !/^\s*\{[\s\S]*\breturn\s*:/.test(code.slice(split, close))) continue;
+      const body = code.slice(open + 1, split - 1), names = new Set();
+      // Its own names: the parameters it destructures and whatever it declares or assigns.
+      const own = new Set([...(/^\s*\(\s*[[{]([^\]}]*)[\]}]/.exec(body)?.[1].match(/\w+/g) ?? []), ...[...body.matchAll(/\b(\w+)\s*=(?![=>])/g)].map((h) => h[1])]);
+      for (const h of body.matchAll(/\b([A-Z][A-Z0-9_]*)\s*\.\s*[A-Za-z_]/g)) if (!own.has(h[1])) names.add(`${h[1]}.`);
+      for (const h of body.matchAll(new RegExp(`\\b(${SHADER_INPUT})\\s*\\(`, 'g'))) names.add(`${h[1]}()`);
+      for (const h of body.matchAll(/\b\w+\b/g)) if (inputs.has(h[0]) && !own.has(h[0])) names.add(h[0]);
+      if (names.size) problems.push(`${file}:${code.slice(0, m.index).split('\n').length}  typed Fn reads ${[...names].join(', ')}: a typed Fn reads only its parameters; pass them in, or leave the layout off (docs/SHADERS.md)`);
+    }
+  }
+  return problems;
+}
+
 const IMPORT_RE = /(?:import|export)\s[^'"]*?from\s*(['"])([^'"]+)\1|import\s*\(\s*(['"])([^'"]+)\3\s*\)|import\s*(['"])([^'"]+)\5/g;
 /** `import type { … } from` / `export type { … } from`: erased at build time, no code dependency. */
 const TYPE_ONLY_RE = /^(?:import|export)\s+type\s/;
@@ -185,7 +239,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const t0 = performance.now();
     const files = listFiles(REPO, 'src');
     const stray = readBaseline().filter((b) => !/^(clone|idiom|same name):/.test(b.key)).map((b) => `STRAY baseline line (no finder makes such keys): ${b.key}`);
-    const all = [...checkBanned(REPO, files), ...checkLayers(REPO, files), ...checkDuplication(duplicationFindings(), readBaseline()), ...stray];
+    const all = [...checkBanned(REPO, files), ...checkTypedFns(REPO, files), ...checkLayers(REPO, files), ...checkDuplication(duplicationFindings(), readBaseline()), ...stray];
     const ms = performance.now() - t0;
     const cap = JSON.parse(fs.readFileSync(path.join(HERE, '../ci/budget.json'), 'utf8')).guardsMs * Number(process.env.CI_BUDGET_SCALE || 1);
     if (ms > cap) all.push(`guards over ${cap} ms: ${ms.toFixed(0)} ms (docs/CI.md)`);

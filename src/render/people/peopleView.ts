@@ -33,13 +33,15 @@ export interface Figure {
 }
 
 /**
- * Sitting on a seat or lying on a bed: `seat` is the seat's or mattress's height (m) above the figure's y (the
- * floor). A sitter stands SEAT_REACH (@futuremagic/humanoid) in front of the seat's middle, facing `face`: they
+ * Sitting on a seat, lying on a bed or riding a bicycle: `seat` is the seat's, mattress's or saddle's height (m)
+ * above the figure's y (the floor, the road). A sitter stands SEAT_REACH (@futuremagic/humanoid) in front of the seat's middle, facing `face`: they
  * sit down there and get up there. A sleeper's (x, z) is on the mattress under the hips, `face` from head to feet.
+ * A rider's (x, z) is under the saddle, and they face the way they ride: hands on the bars, feet on the pedals,
+ * which turn with the distance ridden (RIDE in @futuremagic/humanoid has where a bicycle drawn to match puts them).
  * Sitting down, lying down and getting up play when `rest` comes and goes; keep them in place meanwhile.
  */
 export interface Rest {
-  kind: 'sit' | 'lie';
+  kind: 'sit' | 'lie' | 'ride';
   seat: number;
 }
 
@@ -180,7 +182,7 @@ export class PeopleView {
       h.object.traverse((o) => { if ((o as Mesh).isMesh) o.castShadow = near && casts(o as Mesh); });
     }
     const r = f.rest;
-    const anim: AnimState = r ? { move: r.kind === 'sit' ? 'sit' : 'sleep', seat: r.seat } : { move: speed > 2.6 ? 'run' : speed > 0.15 ? 'walk' : 'idle' };
+    const anim: AnimState = r ? { move: r.kind === 'lie' ? 'sleep' : r.kind, seat: r.seat } : { move: speed > 2.6 ? 'run' : speed > 0.15 ? 'walk' : 'idle' };
     h.update({ pos: [f.x, f.y, f.z], vel: [f.vx, 0, f.vz], yaw: s.yaw, anim }, dt, time, null);
   }
 

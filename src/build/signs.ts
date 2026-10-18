@@ -30,7 +30,8 @@ export const SIGN_STRIDE = 10;
  *    free-standing one, else the one on a wall); notice: pin `k` of the notices up at `place` (a
  *    board place's board, a shop's window, a street's lamp posts; `every`: the street's posts show
  *    its notices in turn, so post k shows notice k mod n); clock: a public clock's dial (the time
- *    of day, all clocks alike); timetable, busFlag: bus stop `stop`'s timetable and its flag (the stops
+ *    of day, all clocks alike); works: the council's works board (shown while it builds there);
+ *    banner: "now open" under a new shop's fascia; sale: a sale sign in a struggling shop's window; timetable, busFlag: bus stop `stop`'s timetable and its flag (the stops
  *    come from the sim worker, src/street/stops.ts, and join the signs later: `SignsShown.addStops`).
  */
 export type SignWhat =
@@ -44,6 +45,9 @@ export type SignWhat =
   | { t: 'cork'; stand: boolean; slot: SlotSize }
   | { t: 'notice'; place: number; k: number; every: boolean; slot: SlotSize }
   | { t: 'clock'; slot: SlotSize }
+  | { t: 'works'; at: 'sports' | 'gateway'; slot: SlotSize }
+  | { t: 'banner'; place: number; slot: SlotSize }
+  | { t: 'sale'; place: number; slot: SlotSize }
   | { t: 'timetable'; stop: number; slot: SlotSize }
   | { t: 'busFlag'; stop: number; slot: SlotSize };
 
@@ -158,13 +162,17 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
       board(bd.place, bd.x, y + bd.y, bd.z, bd.yaw, true);
     } else board(bd.place, bd.x, base(bd.code) + bd.y, bd.z, bd.yaw, false);
   }
-  // Notices in shop windows (a shop's opening or closing): low in the window, away from the door.
+  // Notices in shop windows (a shop's opening or closing): low in the window, away from the door; a sale sign
+  // on the door's side; a "now open" banner under a new shop's fascia.
   for (const f of spots.fronts) {
     const place = work.get(f.code);
-    if (place === undefined || f.style !== 'fascia' || boarded.has(place)) continue;
+    if (place === undefined || f.style !== 'fascia') continue;
     const { ax, az, nx, nz } = yawAxes(f.yaw);
     const side = (f.hours.x - f.x) * ax + (f.hours.z - f.z) * az >= 0 ? -1 : 1, off = Math.min(0.6, f.width / 4) * side;
-    addSign(BOARD, f.x + ax * off - nx * 0.04, base(f.code) + 1.3, f.z + az * off - nz * 0.04, f.yaw, 0.58 * SHEET, 0.58, say({ t: 'notice', place, k: 0, every: false, slot: 'sheet' }), [0.96, 0.96, 0.94]);
+    if (!boarded.has(place)) addSign(BOARD, f.x + ax * off - nx * 0.04, base(f.code) + 1.3, f.z + az * off - nz * 0.04, f.yaw, 0.58 * SHEET, 0.58, say({ t: 'notice', place, k: 0, every: false, slot: 'sheet' }), [0.96, 0.96, 0.94]);
+    addSign(BOARD, f.x - ax * off - nx * 0.04, base(f.code) + 1.45, f.z - az * off - nz * 0.04, f.yaw, 0.5, 0.5, say({ t: 'sale', place, slot: 'card' }), [0.96, 0.96, 0.94]);
+    const bw = Math.min(2.4, f.width * 0.7);
+    addSign(BOARD, f.x + nx * 0.01, base(f.code) + f.y - f.height / 2 - 0.2, f.z + nz * 0.01, f.yaw, bw, bw / 8, say({ t: 'banner', place, slot: 'strip' }), [0.96, 0.96, 0.94]);
   }
   // Posters on the streets' lamp posts.
   const streetPlace = new Map<string, number>();
@@ -180,6 +188,14 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
     addSign('f:signFrame:0', g.x, y, g.z, g.yaw, 1, 1, post);
     addSign(BOARD, g.x, y + 1.6, g.z, g.yaw, 2.4, 1.2, front, [0.9, 0.9, 0.88]);
     addSign(BOARD, g.x, y + 1.6, g.z, g.yaw + Math.PI, 2.4, 1.2, back, [0.9, 0.9, 0.88]);
+  }
+  // The council's works boards (shown while it builds): a large board on the town sign's frame.
+  for (const w of spots.works) {
+    const y = terrain.height(w.x, w.z);
+    const said = say({ t: 'works', at: w.at, slot: 'board' });
+    // (The frame goes with its board: there only while the works are on.)
+    addSign('f:signFrame:0', w.x, y, w.z, w.yaw, 1, 1, said);
+    addSign(BOARD, w.x, y + 1.6, w.z, w.yaw, 2.4, 1.2, said, [0.95, 0.95, 0.93]);
   }
   // Public clocks: a dial on each landmark clock face (src/plan/signs.ts `clockSpots`).
   const clock = say({ t: 'clock', slot: 'card' });

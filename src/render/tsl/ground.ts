@@ -53,27 +53,32 @@ const lb32 = Fn(([x0]) => {
 const hash2u = (seed, a, b) => lb32(uint(seed).bitXor(lb32(uint(a).mul(uint(0x27d4eb2d)).bitXor(lb32(uint(b).mul(uint(0x165667b1)))))));
 const u2f = (h) => float(h.shiftRight(8)).div(16777216.0);
 
-/** x = distance to the parcel's edge (m), y = its id hash, z = row coordinate (m), w = crop (world/landuse `Crop`). */
-const parcelAt = Fn(([p]) => {
-  const su = P.rot.z, sv = P.rot.w;
-  const q = p.add(vec2(sin(p.y.mul(WARP_K1).add(P.warp.y)), sin(p.x.mul(WARP_K2).add(P.warp.z))).mul(P.warp.x));
-  const u = q.x.mul(P.rot.x).add(q.y.mul(P.rot.y)), v = q.x.negate().mul(P.rot.y).add(q.y.mul(P.rot.x));
+/**
+ * x = distance to the parcel's edge (m), y = its id hash, z = row coordinate (m), w = crop (world/landuse `Crop`).
+ * The grid's uniforms come in as parameters: a typed Fn's code is built once per backend and reused by every
+ * later build (another material or render target), so a uniform it closed over would go undeclared there.
+ */
+const parcelFn = Fn(([p, seed, rot, warp]) => {
+  const su = rot.z, sv = rot.w;
+  const q = p.add(vec2(sin(p.y.mul(WARP_K1).add(warp.y)), sin(p.x.mul(WARP_K2).add(warp.z))).mul(warp.x));
+  const u = q.x.mul(rot.x).add(q.y.mul(rot.y)), v = q.x.negate().mul(rot.y).add(q.y.mul(rot.x));
   const vv = v.div(sv);
   const j = int(floor(vv)), fv = vv.sub(floor(vv));
-  const off = u2f(hash2u(P.seed, int(7), j)).mul(su);
+  const off = u2f(hash2u(seed, int(7), j)).mul(su);
   const uu = u.add(off).div(su);
   const i = int(floor(uu)), fu = uu.sub(floor(uu));
-  const h = hash2u(P.seed, i, j);
+  const h = hash2u(seed, i, j);
   const k = float(uint(1).add(h.mod(uint(3))));
   const fsk = fu.mul(k), si = floor(fsk), fs = fsk.sub(si);
-  const id = hash2u(P.seed.bitXor(uint(0x9e37)), i.mul(4).add(int(si)), j);
+  const id = hash2u(seed.bitXor(uint(0x9e37)), i.mul(4).add(int(si)), j);
   const ci = int(id.mod(uint(16)));
   const crop = select(ci.lessThan(3), 0.0, select(ci.equal(3), 1.0, select(ci.lessThan(7), 2.0, select(ci.lessThan(9), 3.0,
     select(ci.lessThan(11), 4.0, select(ci.lessThan(14), 5.0, select(ci.equal(14), 6.0, 7.0)))))));
   const w = su.div(k);
   const border = min(min(fs, sub(1.0, fs)).mul(w), min(fv, sub(1.0, fv)).mul(sv));
   return vec4(border, u2f(id), select(w.lessThan(sv), u, v), crop);
-}, { p: 'vec2', return: 'vec4' });
+}, { p: 'vec2', seed: 'uint', rot: 'vec4', warp: 'vec4', return: 'vec4' });
+const parcelAt = (p) => parcelFn(p, P.seed, P.rot, P.warp);
 
 /** A value per crop (world/landuse `Crop` order) as a chain of selects. */
 const byCrop = (crop, values: unknown[]) => values.slice(0, -1).reduceRight((rest, v, i) => select(crop.lessThan(i + 0.5), v, rest), values[values.length - 1]);

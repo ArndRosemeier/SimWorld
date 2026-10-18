@@ -28,9 +28,12 @@ import { PEOPLE_PER_HOME, type Town } from './town';
  */
 export const SITE = 0x40000000, FARM = 0x50000000;
 
+/** The `Place.building` code of building `index` of cell `cell`. */
+export const buildingCode = (cell: number, index: number): number => cell * 65536 + index;
+
 /** Every building of the town's cells with its `Place.building` code (and its cell and index in it). */
 export function eachBuilding(cells: readonly CellPlan[], fn: (b: BuildingDesc, code: number, cell: number, index: number) => void): void {
-  cells.forEach((plan, ci) => plan.buildings.forEach((b, bi) => fn(b, ci * 65536 + bi, ci, bi)));
+  cells.forEach((plan, ci) => plan.buildings.forEach((b, bi) => fn(b, buildingCode(ci, bi), ci, bi)));
 }
 
 /** Decode `Place.building` (null for -1). */

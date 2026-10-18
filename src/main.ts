@@ -16,7 +16,9 @@
  * many times faster than real time (default 1), `?street=x,z&yaw=…` and `?follow=<id>` start on the street.
  *
  * Once the town shows, the picker comes up over it (src/game/playing.ts): pick an inhabitant and the camera flies
- * down to them and stays with them while you play as them. `?be=<id>` starts as that inhabitant.
+ * down to them and stays with them while you play as them. `?be=<id>` starts as that inhabitant. `?still` keeps the
+ * drone view without the picker, for screenshots (the looks check, tools/looks/check.mjs): once the town is built the
+ * page's root gets `data-town="built"`.
  * On the street, T talks to the person nearest you (or the one you follow).
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
@@ -63,6 +65,7 @@ import { hhmm, minuteOfDay, MINUTES_PER_DAY } from './sim/time';
 import type { MediaView } from './sim/media';
 import type { TownFace } from './sim/view';
 import { formatDate } from './sim/calendar';
+import { StreetSounds } from './traffic/sounds';
 import { TownAudio } from './audio/townAudio';
 import { soundEnvFromSim, soundEnvOf, soundOverrides } from './audio/env';
 import { soundNote, soundOpener } from './app/soundPanel';
@@ -198,6 +201,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   // The traffic runs in the sim worker beside the world; its vehicles come with every street update.
   const vehicles = new VehiclesView(stage, pool, 70 + town.cells);
   const rail = new RailView(stage);
+  const streetSounds = new StreetSounds();
 
   // The drone drift: a slow circle around the town, high enough to see it whole (or fixed by ?at=…).
   const q = new URLSearchParams(location.search);
@@ -220,7 +224,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     const ref = buildingRef(building), m = ref && 'site' in ref ? view.landmarks[ref.site] : undefined;
     if (m) m.visible = shown;
   });
-  const playing = new Playing(sim, cam, street, settings.seed);
+  const playing = new Playing(sim, cam, street, settings.seed, goingIn);
   shell.add({ label: 'Choose who to be', group: 'Play', open: () => void playing.choose() });
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
@@ -250,6 +254,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);
     vehicles.show(camera, sim.clock, sim.traffic, sim.parked);
     rail.animate(camera, dt, sim.clock, sim.crossingPosts, sim.traffic, audio);
+    streetSounds.listen(dt, camera.position.x, camera.position.y, camera.position.z, sim.clock, sim.traffic, audio);
     // The sun's shadow covers the whole town from above, the streets around you down there.
     if (cam.mode !== 'drone') fitSunShadow(lights, camera.position.x, camera.position.y, camera.position.z, 70);
     else if (shadowMode !== 'drone') fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
@@ -264,7 +269,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     if (view.signs && sim.town && sim.town !== shownFace) {
       // The town's face (once a game day, and after a time skip): shop names, hours, to-let and for-sale boards.
       shownFace = sim.town;
-      view.signs.setFacts({ kind: shownFace.kind, name: shownFace.name, flags: shownFace.looks.flags, hours: shownFace.hours });
+      view.signs.setFacts({ kind: shownFace.kind, name: shownFace.name, flags: shownFace.looks.flags, hours: shownFace.hours, works: shownFace.rules.works, day: Math.floor(sim.view.clock / MINUTES_PER_DAY) });
     }
     if (view.signs && !stopsShown) { stopsShown = true; void view.signs.addStops(sim.stops); }
     view.signs?.setTime(minuteOfDay(sim.clock));
@@ -289,7 +294,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       shown = true;
       document.getElementById('loading')?.remove();
       audio.startTown();
-      if (q.has('be') || (!q.has('street') && followId < 0)) void playing.takeOver(q.has('be') ? num('be', -1) : null);
+      if (q.has('be') || (!q.has('street') && !q.has('still') && followId < 0)) void playing.takeOver(q.has('be') ? num('be', -1) : null);
     }
     shell.setWhen(`${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(sim.clock)))} · ${describeWeather(w)}`);
     if (hud) {
@@ -301,6 +306,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     }
   });
   await view.ready;
+  document.documentElement.dataset.town = 'built';
 }
 
 /**

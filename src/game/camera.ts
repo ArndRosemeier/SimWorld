@@ -174,6 +174,12 @@ export class CameraControl {
     return { x, z, hurry: k.has('ShiftLeft') || k.has('ShiftRight') };
   }
 
+  /** Steer from behind someone facing `yaw` (0 looks to −z): the camera swings round behind them. */
+  behind(yaw: number): void {
+    this.orbit = yaw;
+    this.steering = true;
+  }
+
   /**
    * Place the camera for this frame while the player steers their person (`head`: their eye point): behind them
    * where the player looks (drag to turn and tilt), pulled in where a wall or a ceiling would come between

@@ -12,7 +12,8 @@
     "guards": "node tools/guards/guards.mjs",
     "dup": "node tools/duplicate-candidates/find-duplicate-candidates.mjs",
     "repeated": "node tools/repeated-code/find-repeated-code.mjs",
-    "test:slow": "node --import tsx --test \"test/slow/**/*.slow.test.ts\""
+    "test:slow": "node --import tsx --test \"test/slow/**/*.slow.test.ts\"",
+    "looks": "node tools/looks/check.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

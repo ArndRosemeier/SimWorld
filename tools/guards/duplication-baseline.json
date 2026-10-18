@@ -204,6 +204,22 @@
     "reason": "The leaf atlas's species table (ported from Scale's props/vegetation.ts): each entry's leaf is one call to the shared leaf painter with that species' shape numbers; data, not code."
   },
   {
+    "key": "idiom: [.P] in simworld/interior/cores.ts + simworld/interior/fill/split.ts + simworld/plan/landmarkParts.ts",
+    "reason": "Each reads its own record's point list `P`; a field name, not a copied step (tipped over the threshold by the traffic sounds' new files)."
+  },
+  {
+    "key": "idiom: [.fillRect] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D fills for three different drawings (map, sign faces, text atlas); the canvas API used, not copied."
+  },
+  {
+    "key": "idiom: [.overlap] in simworld/build/decorProps.ts + simworld/street/clearance.ts + simworld/street/streetMap.ts",
+    "reason": "Each calls the one footprint overlap test (Footprints.overlap); used, not copied."
+  },
+  {
+    "key": "idiom: [.ridged] in simworld/build/texgen/facade.ts + simworld/build/texgen/masonry.ts + simworld/build/texgen/roof.ts",
+    "reason": "Each texture calls the one ridged-noise helper for its own pattern; used, not copied."
+  },
+  {
     "key": "idiom: [.coastDistance .coastal .profile] in simworld/build/forest.ts + simworld/plan/landmarks.ts + simworld/world/rural.ts",
     "reason": "Each reads the terrain profile's coast to keep its own things (forest, landmarks, farms) off the shore; the one way is terrain.profile, used, not copied."
   },
@@ -432,10 +448,6 @@
     "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
   {
-    "key": "idiom: [.members .some] in simworld/sim/groups.ts + simworld/sim/politics.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
-    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
-  },
-  {
     "key": "idiom: [.add .mul] in simworld/render/tsl/furniture.ts + simworld/render/tsl/smoke.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
@@ -512,6 +524,10 @@
     "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
   },
   {
+    "key": "idiom: [.find .kind .landmarks] in simworld/plan/signs.ts + simworld/plan/town.ts + simworld/street/streetMap.ts",
+    "reason": "Finding a landmark of a kind in the town's list is one Array.find; the town plan, the walkers' map and the signs (the sports ground's works board) each look up the one they need, and a helper would only rename find."
+  },
+  {
     "key": "idiom: [.beginPath .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the map, the signs' painters (a clock's dial) and the atlas pictures each paint their own shapes; a wrapper would only rename the canvas API."
   },
@@ -576,18 +592,6 @@
     "reason": "Skipping empty households in a loop over world.households (one guard line); each system goes on to read different columns of the household."
   },
   {
-    "key": "same name: simworld/game/inside.ts#enter + simworld/render/interiorView.ts#enter",
-    "reason": "Layers of one thing: going into a building in the game (people, light) calls the view that draws its interior."
-  },
-  {
-    "key": "same name: simworld/game/inside.ts#enter + simworld/traffic/traffic.ts#enter",
-    "reason": "Unrelated: the player going into a building, and a vehicle entering the traffic."
-  },
-  {
-    "key": "same name: simworld/game/inside.ts#leave + simworld/sim/groups.ts#leave",
-    "reason": "Unrelated: the player stepping out of a building, and a person leaving a group."
-  },
-  {
     "key": "idiom: [.Path .cls .streets] in simworld/build/decorProps.ts + simworld/build/streetProps.ts + simworld/plan/terrace.ts",
     "reason": "Walking a cell's streets and skipping footpaths (RoadClass.Path): each caller dresses the carriageways for its own purpose (bunting spans, street props, terrace fronts); the street list itself is the one seam."
   },
@@ -600,7 +604,23 @@
     "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
   },
   {
+    "key": "same name: simworld/game/inside.ts#enter + simworld/render/interiorView.ts#enter",
+    "reason": "Layers of one thing: going into a building in the game (people, light) calls the view that draws its interior."
+  },
+  {
+    "key": "same name: simworld/game/inside.ts#enter + simworld/traffic/traffic.ts#enter",
+    "reason": "Unrelated: the player going into a building, and a vehicle entering the traffic."
+  },
+  {
+    "key": "same name: simworld/game/inside.ts#leave + simworld/sim/groups.ts#leave",
+    "reason": "Unrelated: the player stepping out of a building, and a person leaving a group."
+  },
+  {
     "key": "idiom: [.from Array] in simworld/interior/building.ts + simworld/render/railView.ts + simworld/render/textures.ts",
     "reason": "Array.from({ length }) is the language's way to fill a list of n; the three lists (storeys, rail lamps, bark strips) share nothing else."
+  },
+  {
+    "key": "idiom: [.members .some] in simworld/sim/groups.ts + simworld/sim/politics.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
+    "reason": "Asking whether any member of a group, club or household meets a condition (members.some); each system asks a different question of its own members."
   }
 ]

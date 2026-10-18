@@ -15,7 +15,7 @@ import type { TownAudio } from '../audio/townAudio';
 import type { LoopHandle } from '../audio/engine';
 import { ARM_LENGTH, ARM_PIVOT, LENS_AT, crossingArm, crossingLens, crossingPost } from '../build/crossing';
 import { CAR_STRIDE, POST_STRIDE, vehiclePose, type TrafficMsg } from '../traffic/feed';
-import { TRAIN_KEY } from '../traffic/trains';
+import { isTrainKey } from '../traffic/trains';
 import { VEHICLE } from './materials';
 import { instancedFromData, radiusOf, showInstances } from './meshes';
 import type { Stage } from './stage';
@@ -149,7 +149,7 @@ export class RailView {
     const near = new Map<number, { cross: number[]; at: number[]; me: number; x: number; y: number; z: number }>();
     for (let i = 0; i < n; i++) {
       const key = m.cars[i * CAR_STRIDE];
-      if (key < TRAIN_KEY) continue;
+      if (!isTrainKey(key)) continue;
       vehiclePose(m, i, clock, p);
       const train = key >> 3;
       let t = near.get(train);
