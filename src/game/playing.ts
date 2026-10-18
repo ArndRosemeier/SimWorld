@@ -21,12 +21,13 @@ import type { InhabitantCard } from '../sim/profile';
 import { minutesUntil } from '../sim/time';
 import type { NearSolids } from '../workers/simProtocol';
 import type { Physics } from '../physics/physics';
-import { rampBox, wallBoxes, type SolidBox, type SolidPost } from '../physics/solids';
+import { rampBox, wallBoxes, type SolidBox } from '../physics/solids';
 import { pointInPoly } from '../geom/geom2';
 import type { Indoors } from '../interior/indoors';
 import { reachOf } from '../interior/reach';
 import type { GoingInside } from './inside';
 import { Avatar } from './avatar';
+import { BODY_H, BODY_R, GROUND_EDGE, landOutdoors, placeSolids } from './standing';
 import { EYE_BALL, type CameraControl, type PlayTarget } from './camera';
 import type { SimClient } from './SimClient';
 import type { Street } from './street';
@@ -39,6 +40,8 @@ export class Playing {
   private phys: Promise<Physics> | null = null;
   /** The body you steer (null on autopilot, or while the sim walks you somewhere you picked). */
   private avatar: Avatar | null = null;
+  /** Where the body last stood safely on ground or floor (it goes back there if it ever drops through). */
+  private safe: { x: number; y: number; z: number } | null = null;
   /** Taking over is under way (the physics loading, the first solids coming). */
   private taking = false;
   /** Where the solids around were last fetched for, and whether a fetch is out. */
@@ -114,15 +117,17 @@ export class Playing {
     const av = this.avatar;
     if (!av) return false;
     const phys = av.phys;
-    let at = { x, y: this.sim.standHeight(x, z), z, yaw: av.yaw }, inside = -1;
+    let at: { x: number; y: number; z: number; yaw: number } | null = null, inside = -1;
     if (building >= 0 && (await this.goIn(phys, building)) && this.goingIn.inside) {
       const d = this.goingIn.inside.indoors.doors[0];
       if (d) { at = { x: d.x - d.nx * 1.0, y: d.y, z: d.z - d.nz * 1.0, yaw: Math.atan2(d.nx, d.nz) }; inside = building; }
     }
     if (inside < 0) this.goOut();
-    await this.fetchSolids(phys, at.x, at.z);
+    await this.fetchSolids(phys, at?.x ?? x, at?.z ?? z);
+    at ??= { ...landOutdoors(phys, this.sim.ground, this.lastNear, x, z), yaw: av.yaw };
     if (this.avatar !== av) return false;
     av.putAt(at.x, at.y, at.z, at.yaw);
+    this.safe = { x: at.x, y: at.y, z: at.z };
     this.cam.behind(at.yaw);
     await this.tell(at.x, at.z, inside);
     return true;
@@ -230,13 +235,15 @@ export class Playing {
         if (at) building = s.building;
       }
       if (!at) {
+        // Their figure where it walks, else the doorstep of where they are (someone out of town: where their road leaves it).
         const f = this.sim.walkers.has(s.id) ? this.street.where(s.id) : null;
-        const p = f ? { x: f.x, z: f.z, yaw: Math.atan2(-f.vx, -f.vz) || (f.face ?? 0) } : s.exit ?? { x: s.x, z: s.z, yaw: 0 };
-        at = { ...p, y: this.sim.standHeight(p.x, p.z) };
-      }
-      await this.fetchSolids(phys, at.x, at.z);
+        const p = f && this.sim.onGround(f.x, f.z, GROUND_EDGE) ? { x: f.x, z: f.z, yaw: Math.atan2(-f.vx, -f.vz) || (f.face ?? 0) } : s.exit ?? { x: s.x, z: s.z, yaw: 0 };
+        await this.fetchSolids(phys, p.x, p.z);
+        at = { ...landOutdoors(phys, this.sim.ground, this.lastNear, p.x, p.z), yaw: p.yaw };
+      } else await this.fetchSolids(phys, at.x, at.z);
       if (this.sim.player?.id !== s.id) return;
       this.avatar = new Avatar(phys, at.x, at.y, at.z, at.yaw);
+      this.safe = { x: at.x, y: at.y, z: at.z };
       this.street.setSelf(s.id, this.avatar);
       this.cam.behind(want?.look?.orbit ?? at.yaw, want?.look?.pitch);
       this.told.t = 0;
@@ -376,9 +383,10 @@ export class Playing {
         return { x: p.x, z: p.z };
       }
     } else if (this.interior >= 0 || this.goingIn.inside) this.goOut();
-    const f = this.street.where(s.id);
+    // Off the ground (on the road to the city): the camera waits where their road leaves the town (the sim's x, z).
+    const f = this.street.where(s.id), onGround = f ? this.sim.onGround(f.x, f.z, GROUND_EDGE) : false;
     const tg = this.target;
-    if (f) Object.assign(tg, { x: f.x, y: f.y, z: f.z, vx: f.vx, vz: f.vz, outside: true });
+    if (f && onGround) Object.assign(tg, { x: f.x, y: f.y, z: f.z, vx: f.vx, vz: f.vz, outside: true });
     // Indoors: their building. Out of doors but not near the camera yet: where the worker says they are on the street.
     else Object.assign(tg, { x: s.x, y: this.sim.standHeight(s.x, s.z), z: s.z, vx: 0, vz: 0, outside: false });
     this.street.hide(-1);
@@ -391,6 +399,7 @@ export class Playing {
     const phys = av.phys;
     av.step(dt, w.x, w.z, w.hurry);
     phys.world.step();
+    this.keepOnGround(av);
     if (!this.fetching && this.solidsAt && Math.hypot(av.x - this.solidsAt.x, av.z - this.solidsAt.z) > SOLIDS_R / 3) void this.fetchSolids(phys, av.x, av.z);
     const head = { x: av.x, y: av.y + 1.55, z: av.z };
     this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max, av.body, EYE_BALL), (x, y, z) => phys.roomAround(x, y, z, av.body));
@@ -399,6 +408,20 @@ export class Playing {
     const now = performance.now();
     if (!this.told.busy && (building !== this.told.building || now - this.told.t > TELL_MS || Math.hypot(av.x - this.told.x, av.z - this.told.z) > 6)) void this.tell(av.x, av.z, building);
     return { x: av.x, z: av.z };
+  }
+
+  /**
+   * Never under the world: a body that has dropped below the ground (or the lowest floor of the building it is in)
+   * or left the ground grid goes back to the last place it stood safely.
+   */
+  private keepOnGround(av: Avatar): void {
+    const ins = this.interior >= 0 ? this.goingIn.inside : null;
+    let floor = this.sim.standHeight(av.x, av.z);
+    if (ins) for (const st of ins.indoors.storeys) floor = Math.min(floor, st.y);
+    if (av.y < floor - FELL || !this.sim.onGround(av.x, av.z)) {
+      const back = this.safe ?? landOutdoors(av.phys, this.sim.ground, this.lastNear, av.x, av.z);
+      av.putAt(back.x, back.y, back.z);
+    } else if (av.grounded && av.y > floor - 0.2) this.safe = { x: av.x, y: av.y, z: av.z };
   }
 
   /**
@@ -432,12 +455,10 @@ export interface Stand { x: number; y: number; z: number; yaw: number; building:
 const SOLIDS_R = 75;
 /** Real milliseconds between telling the sim where you are (sooner after a few metres). */
 const TELL_MS = 2000;
-/** Height of the street's posts, trees and parked cars as the body meets them (m). */
-const POST_H = 2.2;
 /** How close to a street door its building's interior comes up, and how far from its walls it goes again (m). */
 const DOOR_NEAR = 4, LEAVE_AT = 8;
-/** The body as the room it needs: radius and height (src/game/avatar.ts). */
-const BODY_R = 0.3, BODY_H = 1.8;
+/** How far below the ground or floor counts as fallen through (m). */
+const FELL = 1;
 /** Room to stand up in when there is a choice: free all round to this radius (m). */
 const ROOMY = 0.6;
 /** Enough room ahead to walk off into (m). */
@@ -477,19 +498,4 @@ function interiorBoxes(I: Indoors, ground: (x: number, z: number) => number): So
     if (d.y - g > 0.15) out.push(rampBox({ x0: ox, y0: g, z0: oz, x1: d.x, y1: d.y, z1: d.z, width: d.w }));
   }
   return out;
-}
-
-/** Put `near` in the physics world: each building's walls (kept while it stays near; not `interior`'s, whose inside stands), the street's posts afresh. */
-function placeSolids(phys: Physics, near: NearSolids, interior: number): void {
-  const keep = new Set<string>();
-  for (const b of near.buildings) {
-    const key = `b:${b.code}`;
-    keep.add(key);
-    if (b.code !== interior && !phys.hasSolids(key)) phys.setSolids(key, wallBoxes(b.poly, b.y0, b.y1));
-  }
-  for (const key of [...phys.keys()]) if (key.startsWith('b:') && !keep.has(key)) phys.dropSolids(key);
-  const posts: SolidPost[] = [];
-  const c = near.circles;
-  for (let i = 0; i < c.length; i += 4) posts.push({ x: c[i], z: c[i + 1], r: c[i + 2], y: c[i + 3] - 0.5, h: POST_H + 0.5 });
-  phys.setSolids('posts', [], posts);
 }

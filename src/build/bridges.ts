@@ -11,7 +11,7 @@
  */
 import type { Terrain } from '../world/terrain';
 import type { ArterialEdge, Bridge } from '../plan/types';
-import { CURB_H } from '../world/ground';
+import { CURB_H, deckHeight, type DeckSpan } from '../world/ground';
 import { MeshBuilder } from './meshBuilder';
 import { groundSpecs, GroundLayer } from './ground';
 import { facadeSpecs, paint } from './massing';
@@ -62,20 +62,26 @@ function profileOf(br: Bridge, terrain: Terrain): Profile | null {
 }
 
 /**
+ * The water spans of all bridges as plain data (each within half its width plus `margin`): what the street layer
+ * stands people on and the physics world makes decks of (src/world/ground.ts `deckHeight`, `deckAlong`).
+ */
+export function deckSpans(bridges: readonly Bridge[], terrain: Terrain, margin = 1): DeckSpan[] {
+  return bridges.flatMap((br) => {
+    const p = profileOf(br, terrain);
+    if (!p) return [];
+    const at = (s: number) => p.y(s), mid = (p.s0 + p.s1) / 2, h0 = at(p.s0), h1 = at(p.s1);
+    return [{ ax: p.ax, az: p.az, dx: p.dx, dz: p.dz, s0: p.s0, s1: p.s1, h0, h1, arch: at(mid) - (h0 + h1) / 2, hw: br.width / 2 + margin }];
+  });
+}
+
+/**
  * The deck heights of all bridges at a point: a function of (x, z) giving the deck surface of the bridge whose
  * water span it lies on (within half its width plus `margin`), or null off every deck. For things placed by
  * position (people on the street layer); traffic follows a deck by arc length (`bridgeDeckSurface`).
  */
 export function bridgeDecksAt(bridges: readonly Bridge[], terrain: Terrain, margin = 1): (x: number, z: number) => number | null {
-  const decks = bridges.flatMap((br) => { const p = profileOf(br, terrain); return p ? [{ p, hw: br.width / 2 + margin }] : []; });
-  return (x, z) => {
-    for (const { p, hw } of decks) {
-      const s = (x - p.ax) * p.dx + (z - p.az) * p.dz;
-      if (s < p.s0 || s > p.s1) continue;
-      if (Math.abs((x - p.ax) * p.dz - (z - p.az) * p.dx) < hw) return p.y(s);
-    }
-    return null;
-  };
+  const spans = deckSpans(bridges, terrain, margin);
+  return (x, z) => deckHeight(spans, x, z);
 }
 
 /**

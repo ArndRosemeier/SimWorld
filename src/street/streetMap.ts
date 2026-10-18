@@ -9,8 +9,9 @@
 import { hash3f } from '@futuremagic/core';
 import { offsetPolyline, pointInPoly, polyArea, polyBounds, type Poly } from '../geom/geom2';
 import { inShape, type Shape } from '../geom/clip';
-import { bridgeDecksAt } from '../build/bridges';
+import { deckSpans } from '../build/bridges';
 import type { Town } from '../plan/town';
+import type { HeightGrid } from '../workers/simProtocol';
 import { footprintsOf, type Footprints } from '../plan/footprints';
 import { townRoads, type TownRoads } from '../plan/roads';
 import { signFootprints, signSpots } from '../plan/signs';
@@ -18,7 +19,7 @@ import { buildingRef, eachBuilding } from '../plan/placeGraph';
 import { buildingBase, buildingHeight } from '../build/massing';
 import { BODY } from './clearance';
 import type { PlaceGraph, PlaceId, PlaceKind } from '../sim/places';
-import { CURB_H } from '../world/ground';
+import { CURB_H, deckHeight, type DeckSpan } from '../world/ground';
 import { SeatBook, seatsOf, type Seat } from './seats';
 
 /** Place kinds people are seen at while they stay (everything else is indoors). */
@@ -56,8 +57,8 @@ export class StreetMap {
   private readonly edgeOf = new Map<number, number>();
   /** The outline of each outdoor place that has one (parks, squares, cemeteries, sports grounds). */
   private readonly areas = new Map<PlaceId, Shape>();
-  /** The bridge deck height at a point, null off the decks. */
-  private readonly deck: (x: number, z: number) => number | null;
+  /** The bridges' decks over water (src/world/ground.ts `deckHeight`). */
+  readonly decks: DeckSpan[];
   /** Everything standing on the ground (props, parked cars, buildings), to keep clear of. */
   readonly fp: Footprints;
   /** The town's roads (the signs' and bus stops' placement reads them). */
@@ -75,7 +76,7 @@ export class StreetMap {
   constructor(readonly town: Town, readonly graph: PlaceGraph) {
     const n = graph.nodes.length;
     graph.edges.forEach((e, i) => { this.edgeOf.set(e.a * n + e.b, i); this.edgeOf.set(e.b * n + e.a, i); });
-    this.deck = bridgeDecksAt(town.macro.bridges, town.terrain);
+    this.decks = deckSpans(town.macro.bridges, town.terrain);
     this.fp = footprintsOf(town.cells);
     this.roads = townRoads(town);
     this.seats = seatsOf(town.cells);
@@ -101,7 +102,19 @@ export class StreetMap {
 
   /** Ground height where people stand: the sidewalk level (terrain plus the curb), a bridge deck over water. */
   groundY(x: number, z: number): number {
-    return (this.deck(x, z) ?? this.town.terrain.height(x, z)) + CURB_H;
+    return (deckHeight(this.decks, x, z) ?? this.town.terrain.height(x, z)) + CURB_H;
+  }
+
+  /**
+   * What the player's body walks on (src/physics/solids.ts `heightOnGrid`): the ground at sidewalk level as a grid
+   * of heights, `half` metres from the centre either way, every `step` metres, and the bridge decks over it (a
+   * deck in the grid would smear into a slope down to the water).
+   */
+  heightGrid(half: number, step: number): HeightGrid {
+    const n = Math.ceil((half * 2) / step) + 1, x0 = -half, z0 = -half;
+    const h = new Float32Array(n * n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) h[j * n + i] = this.town.terrain.height(x0 + i * step, z0 + j * step) + CURB_H;
+    return { x0, z0, step, n, h, decks: this.decks };
   }
 
   /** The road edge between two nodes, -1 if none. */
