@@ -9,5 +9,5 @@ export { route, qualifies, blendedPrice, type Routing } from './router';
 export { TASKS, cleanSpeech, type TaskName, type TaskIO, type TaskSpec, type SummaryOutput, type ReflectionInput, type ReflectionOutput, type Insight, type DigestInput } from './tasks';
 export { UsageLedger, estimateCost, type UsageEntry, type UsageTotals, type UsageAxis, type LedgerSnapshot } from './usage';
 export { RefTable, refsFor, speechMessages, SPEECH_RULES, type NpcPromptInput, type NpcCard, type PersonRef, type PlaceRef, type Belief, type Memory, type Turn, type Feelings, type Traits } from './prompt';
-export { APPRAISAL_SCHEMA, parseAppraisal, atMinute, PLAUSIBILITY, type AppraisalInput, type AppraisalResult, type Proposal, type ProposalChange, type Claim } from './appraisal';
+export { APPRAISAL_SCHEMA, parseAppraisal, atMinute, PLAUSIBILITY, type AppraisalInput, type AppraisalResult } from './appraisal';
 export { replayTransport, recordingTransport, chunksFor, requestHash, type Recording, type ReplayTransport } from './recorded';
