@@ -19,7 +19,7 @@ export interface Sample { town: string; clock: number; place: string; kind: Exch
 
 /** A town to listen in (British or American English). */
 export function sampleTown(american: boolean, seed = 3): World {
-  const region = planRegion({ seed, town: american ? 'Cedar Falls' : 'Saveham', coastal: false, seaBearing: 0, hilliness: 0.3, warmth: 0.5, american, oldWorld: american ? 0.2 : 0.7, railBearing: 90, railTerminus: false, downstreamBearing: 200 });
+  const region = planRegion({ seed, town: american ? 'Cedar Falls' : 'Saveham', coastal: false, seaBearing: 0, hilliness: 0.3, warmth: 0.5, oldWorld: american ? 0.2 : 0.7, railBearing: 90, railTerminus: false, downstreamBearing: 200 });
   const w = createWorld(testTown(seed + 2, 400), seed + 2, { region });
   history(w, 1);
   return w;
