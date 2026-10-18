@@ -7,8 +7,10 @@
  *     queued build under the cap) and only then puts it into the scene. Nothing ever draws with a
  *     shader that is not ready, so nothing compiles on the render path.
  */
-import { BufferGeometry, Float32BufferAttribute, Group, Mesh, type Camera, type InstancedMesh, type Material, type Object3D, type Scene, type WebGPURenderer } from 'three/webgpu';
+import { Group, Mesh, type Camera, type InstancedMesh, type Material, type Object3D, type Scene, type WebGPURenderer } from 'three/webgpu';
 import { allKinds, type MaterialKind } from './materials';
+import { meshFromData } from './meshes';
+import { MeshBuilder } from '../build/meshBuilder';
 import { ShaderCap } from './shaders/cap';
 import { ShaderMonitor } from './shaders/monitor';
 import { installShaderPolicy } from './shaders/patches';
@@ -222,16 +224,11 @@ export class Stage {
 
 /** A tiny mesh with the kind's attributes, so its warm-up build matches real meshes of the kind. */
 function standIn(kind: MaterialKind): Mesh {
-  const g = new BufferGeometry();
-  const tri = [0, 0, 0, 1, 0, 0, 0, 1, 0];
-  g.setAttribute('position', new Float32BufferAttribute(tri, 3));
-  g.setIndex([0, 1, 2]); // part of the shader's cache key: every kind's meshes are indexed
-  if (kind.attributes.includes('normal')) g.setAttribute('normal', new Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
-  if (kind.attributes.includes('color')) g.setAttribute('color', new Float32BufferAttribute([1, 1, 1, 1, 1, 1, 1, 1, 1], 3));
-  if (kind.attributes.includes('uv')) g.setAttribute('uv', new Float32BufferAttribute([0, 0, 1, 0, 0, 1], 2));
-  if (kind.attributes.includes('look')) g.setAttribute('look', new Float32BufferAttribute(new Array(12).fill(0.5), 4));
-  const m = new Mesh(g, kind.make());
-  m.castShadow = kind.shadow.cast;
-  m.receiveShadow = kind.shadow.receive;
-  return m;
+  const mb = new MeshBuilder([...kind.attributes]);
+  for (const a of kind.attributes) mb.set(a.name, ...new Array(a.size).fill(0.5));
+  mb.v(0, 0, 0, 0, 0, 1);
+  mb.v(1, 0, 0, 0, 0, 1);
+  mb.v(0, 1, 0, 0, 0, 1);
+  mb.tri(0, 1, 2); // indexed, like every mesh of every kind
+  return meshFromData(mb.build(), kind);
 }
