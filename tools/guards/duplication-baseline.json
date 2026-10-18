@@ -36,6 +36,14 @@
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
+    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops. (The idiom finder reports these once the corpus grows past its noise threshold.)"
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops. (The idiom finder reports these once the corpus grows past its noise threshold.)"
+  },
+  {
     "key": "idiom: [.filter .households .length .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
     "reason": "Different questions over the household list (who lives alone, which care-home rooms are taken, which households still have members; emptied households stay as records): each is a one-line Array.filter with its own predicate, and the shared part is Array.filter itself."
   },
@@ -126,6 +134,10 @@
   {
     "key": "idiom: [.each .fbm] in simworld/build/texgen/ground.ts + simworld/build/texgen/paint.ts + simworld/build/texgen/roof.ts",
     "reason": "The shape of every texture generator: a per-pixel Tex.each loop sampling tileable TNoise.fbm; it is the generator contract, not a copy."
+  },
+  {
+    "key": "idiom: [.each .round Math] in simworld/build/texgen/ground.ts + simworld/build/texgen/interior.ts + simworld/build/texgen/roof.ts",
+    "reason": "Texture generators round a feature size to a whole count per tile (Math.round(W / size)) so the pattern wraps, then loop Tex.each; the tiling contract, not a copy."
   },
   {
     "key": "same name: simworld/build/texgen/facade.ts#extra + simworld/build/texgen/ground.ts#extra",

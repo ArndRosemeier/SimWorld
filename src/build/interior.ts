@@ -2,26 +2,33 @@
  * Mesh data for a building's interior (src/interior): per storey the floor finishes, the slab and
  * ceiling with the stairwell cut out, the inner walls painted per room on each side (baseboards,
  * door frames, tiles in bathrooms), the switchback stairs with landings and handrails, every piece
- * of furniture, and the ceiling fixtures. One vertex-coloured solid (`VERTEX_COLOR_SOLID`), so no
- * new shader. Deterministic: the furniture's small details come from the piece's position.
+ * of furniture, and the ceiling fixtures. One material kind (`INTERIOR`): every surface a layer of
+ * the interior texture family (wood boards, tiles, carpet, paint, wallpaper, fabric, wood; uv in
+ * metres) times its colour, the lamps glowing. Deterministic: the furniture's small details come
+ * from the piece's position.
  *
  * `buildCutaway` is the dollhouse view of one storey: the storeys below as a shell, this storey
  * without its ceiling and with its outer walls cut at sill height.
  *
  * Ported from Scale (src/interior/InteriorBuilder.ts: buildFloorMeshes, wallSegments, stairs,
  * fixture, buildFurniture) onto the MeshBuilder; Scale's canvas textures and its ten materials
- * became vertex colours. New: the trades' pieces (ovens, work tables, salon chairs, car lifts,
+ * became texture layers and tints. New: the trades' pieces (ovens, work tables, salon chairs, car lifts,
  * machines, bunks, a safe) and the outer walls of the cutaway.
  */
 import earcut from 'earcut';
 import { differencePos } from '../geom/clip';
-import { ensureCCW, pointInPoly, polyArea, type Poly } from '../geom/geom2';
+import { ensureCCW, minAreaRect, pointInPoly, polyArea, type Poly } from '../geom/geom2';
+import { INTERIOR_LAYER_COUNT } from './texgen';
+import { InteriorMat } from './texgen/interior';
 import type { AttrSpec, MeshBuilder } from './meshBuilder';
 import type { Interior } from '../interior/building';
 import type { FloorMat, FloorPlan, Furn, IWall, Room } from '../interior/types';
 
-/** The attributes of `VERTEX_COLOR_SOLID` (src/render/materials.ts). */
-export const INTERIOR_SPECS: AttrSpec[] = [{ name: 'color', size: 3, type: 'u8n' }];
+/** The attributes of the `INTERIOR` material kind (src/render/materials.ts): uv in metres, texture layer, tint. */
+export const INTERIOR_SPECS: AttrSpec[] = [{ name: 'uv', size: 2 }, { name: 'aLayer', size: 1 }, { name: 'aTint', size: 3, type: 'u8n' }];
+
+/** The `aLayer` of lamps (shades, ceiling panels): past the texture layers, drawn glowing. */
+export const LAMP = INTERIOR_LAYER_COUNT;
 
 type C3 = readonly [number, number, number];
 
@@ -31,15 +38,31 @@ const DOOR_H = 2.15;
 const SILL = 1.0, CUT = 1.3;
 const BASE: C3 = [0.93, 0.92, 0.89];
 const FRAME: C3 = [0.95, 0.94, 0.91];
+const FLOOR_LAYER: Record<FloorMat, number> = {
+  wood: InteriorMat.WoodFloor, tile: InteriorMat.FloorTile, carpet: InteriorMat.Carpet, concrete: InteriorMat.Concrete, stone: InteriorMat.StoneFloor, marble: InteriorMat.Marble,
+};
 const FLOOR: Record<FloorMat, C3> = {
   wood: [0.58, 0.42, 0.28], tile: [0.86, 0.86, 0.83], carpet: [0.42, 0.44, 0.5], concrete: [0.62, 0.62, 0.6], stone: [0.74, 0.7, 0.64], marble: [0.91, 0.9, 0.87],
 };
 const BOOKS: C3[] = [[0.55, 0.12, 0.1], [0.12, 0.25, 0.45], [0.15, 0.38, 0.22], [0.75, 0.6, 0.25], [0.85, 0.82, 0.75], [0.25, 0.22, 0.2], [0.45, 0.2, 0.42], [0.8, 0.4, 0.15]];
 
-/** The MeshBuilder with a colour per call (Scale's Geo). */
+/**
+ * The MeshBuilder with a colour per call (Scale's Geo) and the texture layer it goes on: `layer`
+ * for coloured parts (wood or fabric on a piece of furniture), paint for near-grey ones (steel,
+ * white, black), unless `fixed`.
+ */
 class Geo {
+  layer: number = InteriorMat.Paint;
+  fixed = false;
   constructor(readonly mb: MeshBuilder) {}
-  col(c: C3): this { this.mb.set('color', c[0], c[1], c[2]); return this; }
+  col(c: C3, layer?: number): this {
+    const plain = !this.fixed && Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2]) < 0.08;
+    this.mb.set('aTint', c[0], c[1], c[2]).set('aLayer', layer ?? (plain ? InteriorMat.Paint : this.layer));
+    return this;
+  }
+  /** Draw with `layer` for everything (until `free`). */
+  on(layer: number): this { this.layer = layer; this.fixed = true; return this; }
+  free(layer: number = InteriorMat.Paint): this { this.layer = layer; this.fixed = false; return this; }
   box(x: number, y: number, z: number, hx: number, hy: number, hz: number, yaw: number, c: C3): void {
     if (hx <= 0 || hy <= 0 || hz <= 0) return;
     this.col(c).mb.box(x, y, z, hx, hy, hz, yaw);
@@ -51,35 +74,38 @@ class Geo {
     const base = mb.vcount;
     for (let i = 0; i <= seg; i++) {
       const a = (i / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-      mb.v(x + ca * r0, y0, z + sa * r0, ca / nl, sl / nl, sa / nl);
-      mb.v(x + ca * r1, y1, z + sa * r1, ca / nl, sl / nl, sa / nl);
+      const u = (i / seg) * Math.PI * 2 * Math.max(r0, r1);
+      mb.v(x + ca * r0, y0, z + sa * r0, ca / nl, sl / nl, sa / nl, u, y0);
+      mb.v(x + ca * r1, y1, z + sa * r1, ca / nl, sl / nl, sa / nl, u, y1);
     }
     for (let i = 0; i < seg; i++) { const a = base + i * 2; mb.quad(a, a + 1, a + 3, a + 2); }
     if (cap && r1 > 0.001) {
-      const ct = mb.v(x, y1, z, 0, 1, 0), r0i = mb.vcount;
-      for (let i = 0; i <= seg; i++) { const a = (i / seg) * Math.PI * 2; mb.v(x + Math.cos(a) * r1, y1, z + Math.sin(a) * r1, 0, 1, 0); }
+      const ct = mb.v(x, y1, z, 0, 1, 0, x, z), r0i = mb.vcount;
+      for (let i = 0; i <= seg; i++) { const a = (i / seg) * Math.PI * 2, px = x + Math.cos(a) * r1, pz = z + Math.sin(a) * r1; mb.v(px, y1, pz, 0, 1, 0, px, pz); }
       for (let i = 0; i < seg; i++) mb.tri(ct, r0i + i + 1, r0i + i);
     }
   }
   /** A flat quad; corners counter-clockwise seen from the normal. */
   quad4(a: readonly number[], b: readonly number[], c: readonly number[], d: readonly number[], n: readonly number[], col: C3): void {
     const mb = this.col(col).mb;
-    const i = mb.v(a[0], a[1], a[2], n[0], n[1], n[2]);
-    mb.v(b[0], b[1], b[2], n[0], n[1], n[2]);
-    mb.v(c[0], c[1], c[2], n[0], n[1], n[2]);
-    mb.v(d[0], d[1], d[2], n[0], n[1], n[2]);
+    // uv in metres: x, z on a level face, along the face and up on an upright one.
+    const level = Math.abs(n[1]) > 0.7, uv = (p: readonly number[]) => (level ? [p[0], p[2]] : [p[0] * -n[2] + p[2] * n[0], p[1]]);
+    const i = mb.v(a[0], a[1], a[2], n[0], n[1], n[2], ...uv(a));
+    mb.v(b[0], b[1], b[2], n[0], n[1], n[2], ...uv(b));
+    mb.v(c[0], c[1], c[2], n[0], n[1], n[2], ...uv(c));
+    mb.v(d[0], d[1], d[2], n[0], n[1], n[2], ...uv(d));
     mb.quad(i, i + 1, i + 2, i + 3);
   }
 }
 
-/** Flat polygon (with holes) facing up or down at height y. */
-function flat(g: Geo, poly: Poly, holes: Poly[], y: number, up: boolean, c: C3): void {
+/** Flat polygon (with holes) facing up or down at height y; uv in metres along `axis` (radians: the boards' direction) and across. */
+function flat(g: Geo, poly: Poly, holes: Poly[], y: number, up: boolean, c: C3, layer: number = InteriorMat.Paint, axis = 0): void {
   const pts = poly.slice();
   const hi: number[] = [];
   for (const h of holes) { hi.push(pts.length / 2); pts.push(...h); }
   const tris = earcut(pts, hi.length ? hi : undefined, 2);
-  const mb = g.col(c).mb, base = mb.vcount;
-  for (let i = 0; i < pts.length; i += 2) mb.v(pts[i], y, pts[i + 1], 0, up ? 1 : -1, 0);
+  const mb = g.col(c, layer).mb, base = mb.vcount, ca = Math.cos(axis), sa = Math.sin(axis);
+  for (let i = 0; i < pts.length; i += 2) mb.v(pts[i], y, pts[i + 1], 0, up ? 1 : -1, 0, pts[i] * sa + pts[i + 1] * ca, pts[i] * ca - pts[i + 1] * sa);
   for (let i = 0; i < tris.length; i += 3) {
     const a = tris[i], b = tris[i + 1], d = tris[i + 2];
     const cr = (pts[b * 2] - pts[a * 2]) * (pts[d * 2 + 1] - pts[a * 2 + 1]) - (pts[b * 2 + 1] - pts[a * 2 + 1]) * (pts[d * 2] - pts[a * 2]);
@@ -118,9 +144,10 @@ export interface StoreyOpts {
 export function buildStorey(mb: MeshBuilder, plan: FloorPlan, o: StoreyOpts): void {
   const g = new Geo(mb);
   const y = o.base + plan.y, holes = o.floorHoles ?? [];
-  // Floor finishes per room, the structural slab under them.
-  for (const room of plan.rooms) for (const p of minus(room.poly, holes)) flat(g, p.outer, p.holes, y + 0.035, true, FLOOR[room.floorMat]);
-  for (const p of minus(o.facade ?? plan.poly, holes)) flat(g, p.outer, p.holes, y + 0.02, true, [0.6, 0.6, 0.58]);
+  // Floor finishes per room (boards along the building's long axis), the structural slab under them.
+  const box = minAreaRect(plan.poly), axis = Math.atan2(box.hu >= box.hv ? box.ux : -box.uz, box.hu >= box.hv ? box.uz : box.ux);
+  for (const room of plan.rooms) for (const p of minus(room.poly, holes)) flat(g, p.outer, p.holes, y + 0.035, true, FLOOR[room.floorMat], FLOOR_LAYER[room.floorMat], axis);
+  for (const p of minus(o.facade ?? plan.poly, holes)) flat(g, p.outer, p.holes, y + 0.02, true, [0.6, 0.6, 0.58], InteriorMat.Concrete);
   if (o.ceiling !== false) {
     for (const p of minus(plan.poly, plan.stairHole ? [plan.stairHole] : [])) flat(g, p.outer, p.holes, y + plan.height - 0.03, false, [0.95, 0.95, 0.93]);
     for (let i = 0, k = 0; i < plan.lights.length; i += 2, k++) fixture(g, plan.lights[i], plan.lights[i + 1], y + plan.height, plan.fixtures[k] ?? 0);
@@ -129,8 +156,16 @@ export function buildStorey(mb: MeshBuilder, plan: FloorPlan, o: StoreyOpts): vo
   outlineTrim(g, plan.poly, y);
   if (o.facade) outerWalls(g, o.facade, plan.poly, y, y + (o.outerH ?? plan.height));
   stairs(g, plan, o.base);
-  for (const f of plan.furniture) if (!(o.cut && HUNG.has(f.kind))) buildFurniture(g, f, y + 0.035, !!o.cut);
+  for (const f of plan.furniture) {
+    if (o.cut && HUNG.has(f.kind)) continue;
+    g.free(SOFT.has(f.kind) ? InteriorMat.Fabric : InteriorMat.Wood);
+    buildFurniture(g, f, y + 0.035, !!o.cut);
+  }
+  g.free();
 }
+
+/** Upholstered and soft pieces (their coloured parts are fabric; other pieces' are wood). */
+const SOFT = new Set(['bed', 'bedDouble', 'bunk', 'sofa', 'armchair', 'rug', 'officeChair', 'salonChair', 'clothesStack', 'clothesRail', 'mannequin']);
 
 /** Pieces on the wall above sill height (left out of a cutaway). */
 const HUNG = new Set(['painting', 'mirror', 'screen']);
@@ -197,8 +232,8 @@ function wallSegments(g: Geo, plan: FloorPlan, w: IWall, y: number, h: number): 
     const sm = (s0 + s1) / 2, cx = w.ax + dx * sm, cz = w.az + dz * sm, hy = (y1 - y0) / 2, hl = (s1 - s0) / 2;
     // The box's local z runs along the wall, its -x face looks into room A, +x into room B; ends and top plain.
     g.col(BASE).mb.box(cx, y0 + hy, cz, t, hy, hl, yaw, 0x3c);
-    g.col(cB).mb.box(cx, y0 + hy, cz, t, hy, hl, yaw, 0x1);
-    g.col(cA).mb.box(cx, y0 + hy, cz, t, hy, hl, yaw, 0x2);
+    g.col(cB, wallLayer(rB)).mb.box(cx, y0 + hy, cz, t, hy, hl, yaw, 0x1);
+    g.col(cA, wallLayer(rA)).mb.box(cx, y0 + hy, cz, t, hy, hl, yaw, 0x2);
   };
   let s = 0;
   const solid: [number, number][] = [];
@@ -227,10 +262,17 @@ function wallSegments(g: Geo, plan: FloorPlan, w: IWall, y: number, h: number): 
       for (const [s0, s1] of solid) {
         const sm = (s0 + s1) / 2;
         const th = Math.min(1.2, h - 0.15) / 2;
-        g.box(w.ax + dx * sm + nx * side * (t + 0.006), y + 0.12 + th, w.az + dz * sm + nz * side * (t + 0.006), 0.006, th, (s1 - s0) / 2, yaw, [0.92, 0.95, 0.97]);
+        g.col([0.92, 0.95, 0.97], InteriorMat.WallTile).mb.box(w.ax + dx * sm + nx * side * (t + 0.006), y + 0.12 + th, w.az + dz * sm + nz * side * (t + 0.006), 0.006, th, (s1 - s0) / 2, yaw);
       }
     }
   }
+}
+
+/** A room's wall finish: wallpaper in some living rooms and bedrooms, else paint. */
+function wallLayer(r: Room | null): number {
+  if (!r || (r.type !== 'living' && r.type !== 'bedroom')) return InteriorMat.Paint;
+  // (A stable choice per room, from its colour.)
+  return Math.round((r.wallColor[0] * 7 + r.wallColor[1] * 13 + r.wallColor[2] * 5) * 100) % 3 === 0 ? InteriorMat.Wallpaper : InteriorMat.Paint;
 }
 
 /** Baseboards round the storey's outline (the inside of the outer walls). */
@@ -255,7 +297,7 @@ function stairs(g: Geo, plan: FloorPlan, base: number): void {
     for (let k = 0; k < n; k++) {
       const s = tread * (k + 0.5), top = y0 + r * (k + 1), bottom = y0 + r * k - 0.25;
       const cx = fl.x + fl.dx * s, cz = fl.z + fl.dz * s;
-      g.box(cx, (top + bottom) / 2, cz, fl.width / 2, (top - bottom) / 2, tread / 2, yaw, stepC);
+      g.col(stepC, InteriorMat.StoneFloor).mb.box(cx, (top + bottom) / 2, cz, fl.width / 2, (top - bottom) / 2, tread / 2, yaw);
       g.box(cx + fl.dx * (tread / 2 - 0.02), top - 0.012, cz + fl.dz * (tread / 2 - 0.02), fl.width / 2 - 0.02, 0.014, 0.025, yaw, nose);
     }
     // Handrails on both sides, 90 cm over the pitch line.
@@ -270,7 +312,7 @@ function stairs(g: Geo, plan: FloorPlan, base: number): void {
     let cx = 0, cz = 0;
     for (let i = 0; i < 8; i += 2) { cx += P[i] / 4; cz += P[i + 1] / 4; }
     const ex = P[2] - P[0], ez = P[3] - P[1], hl = Math.hypot(ex, ez) / 2, hw = Math.hypot(P[6] - P[0], P[7] - P[1]) / 2;
-    g.box(cx, base + l.y - 0.11, cz, hw, 0.11, hl, Math.atan2(ex, ez) + Math.PI / 2, stepC);
+    g.col(stepC, InteriorMat.StoneFloor).mb.box(cx, base + l.y - 0.11, cz, hw, 0.11, hl, Math.atan2(ex, ez) + Math.PI / 2);
   }
 }
 
@@ -278,10 +320,11 @@ function stairs(g: Geo, plan: FloorPlan, base: number): void {
 function fixture(g: Geo, x: number, z: number, ceil: number, kind: number): void {
   if (kind === 1) {
     g.cyl(x, ceil - 0.75, z, ceil, 0.006, 0.006, 4, [0.1, 0.1, 0.1], false);
-    g.cyl(x, ceil - 0.95, z, ceil - 0.72, 0.24, 0.07, 14, [1, 0.9, 0.75], false);
+    g.on(LAMP).cyl(x, ceil - 0.95, z, ceil - 0.72, 0.24, 0.07, 14, [1, 0.9, 0.75], false);
     g.box(x, ceil - 0.9, z, 0.05, 0.04, 0.05, 0, [1, 1, 1]);
-  } else if (kind === 2) g.cyl(x, ceil - 0.08, z, ceil - 0.02, 0.2, 0.2, 16, [1, 1, 1]);
-  else g.box(x, ceil - 0.06, z, 0.3, 0.02, 0.3, 0, [1, 1, 1]);
+  } else if (kind === 2) g.on(LAMP).cyl(x, ceil - 0.08, z, ceil - 0.02, 0.2, 0.2, 16, [1, 1, 1]);
+  else g.on(LAMP).box(x, ceil - 0.06, z, 0.3, 0.02, 0.3, 0, [1, 1, 1]);
+  g.free();
 }
 
 /** `cut`: a cutaway (no wall cabinets over a kitchen row). */
@@ -545,7 +588,9 @@ function buildFurniture(g: Geo, f: Furn, y: number, cut = false): void {
     case 'floorLamp':
       Cy(0, 0, 0, 0.03, 0.15, 0.15, [0.15, 0.15, 0.15], 12);
       Cy(0, 0.03, 0, 1.45, 0.012, 0.012, [0.2, 0.2, 0.2], 6);
+      g.on(LAMP);
       Cy(0, 1.35, 0, 1.65, 0.22, 0.14, [1, 0.9, 0.75], 14);
+      g.free();
       break;
     case 'painting': {
       B(0, 1.5, 0, w, h / 2, d, [0.22, 0.16, 0.1]);

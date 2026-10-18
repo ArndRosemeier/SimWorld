@@ -9,8 +9,10 @@
 import { DoubleSide, MeshPhysicalNodeMaterial, MeshStandardNodeMaterial, type Material } from 'three/webgpu';
 import { groundLook, terrainLook, waterLook } from './tsl/ground';
 import { facadeLook } from './tsl/facade';
+import { interiorLook } from './tsl/interior';
 import type { MaterialArrays } from './textures';
 import { facadeSpecs } from '../build/massing';
+import { INTERIOR_SPECS } from '../build/interior';
 import type { AttrSpec } from '../build/meshBuilder';
 import { TERRAIN_SPECS } from '../build/terrainMesh';
 
@@ -31,7 +33,7 @@ export interface MaterialKind {
 const kinds = new Map<string, MaterialKind>();
 
 /** The generated texture arrays (src/render/textures.ts `loadTextures`); set before the warm-up makes the textured kinds. */
-const textures: { facade?: MaterialArrays } = {};
+const textures: { facade?: MaterialArrays; interior?: MaterialArrays } = {};
 export function useTextures(t: typeof textures): void {
   Object.assign(textures, t);
 }
@@ -94,5 +96,15 @@ export const WATER = defineKind('water', [{ name: 'uv', size: 2 }, { name: 'aLay
 export const FACADE = defineKind('facade', facadeSpecs(), () => {
   const m = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0, side: DoubleSide, shadowSide: DoubleSide });
   facadeLook(m, needTextures('facade'));
+  return m;
+});
+
+/**
+ * Inside buildings (src/build/interior.ts `INTERIOR_SPECS`: uv in metres, aLayer, aTint): floor,
+ * wall and furniture finishes from the interior texture family, tinted per surface, and lamps.
+ */
+export const INTERIOR = defineKind('interior', INTERIOR_SPECS, () => {
+  const m = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
+  interiorLook(m, needTextures('interior'));
   return m;
 });

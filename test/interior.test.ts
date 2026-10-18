@@ -7,7 +7,7 @@ import { defaultStaff } from '../src/sim/placeKinds';
 import { pointInPoly, polyArea } from '../src/geom/geom2';
 import { planInterior, peakStaff, storeyFacade, type Interior } from '../src/interior/building';
 import { MeshBuilder } from '../src/build/meshBuilder';
-import { INTERIOR_SPECS, buildCutaway } from '../src/build/interior';
+import { INTERIOR_SPECS, LAMP, buildCutaway } from '../src/build/interior';
 import { buildingTiers } from '../src/build/massing';
 
 // One small town shared by the file (planning it is the expensive part); a few buildings of it.
@@ -96,16 +96,19 @@ test('flats over a shop have their own street door and a hall to the stairs with
   }
 });
 
-test('the cutaway of a storey is a sound vertex-coloured mesh', () => {
+test('the cutaway of a storey is a sound textured mesh', () => {
   for (const [b, floor] of [[works[0], 0], [homes[2], 1]] as const) {
     const I = planInterior(b);
     const tiers = buildingTiers(b);
     const mb = new MeshBuilder(INTERIOR_SPECS);
     buildCutaway(mb, I, floor, 10, I.storeys.map((_, k) => storeyFacade(b, k, tiers)));
     const d = mb.build();
-    const P = d.attrs.position.array, N = d.attrs.normal.array, C = d.attrs.color.array, I3 = d.index, nv = P.length / 3;
+    const P = d.attrs.position.array, N = d.attrs.normal.array, C = d.attrs.aTint.array, L = d.attrs.aLayer.array, UV = d.attrs.uv.array, I3 = d.index, nv = P.length / 3;
     assert.ok(nv > 1000, `${nv} vertices`);
     assert.equal(C.length, nv * 3);
+    assert.equal(UV.length, nv * 2);
+    for (let i = 0; i < nv; i++) if (!(Number.isInteger(L[i]) && L[i] >= 0 && L[i] <= LAMP)) assert.fail(`layer of vertex ${i}: ${L[i]}`);
+    for (let i = 0; i < UV.length; i++) if (!Number.isFinite(UV[i])) assert.fail(`uv ${i}`);
     for (let i = 0; i < P.length; i++) if (!Number.isFinite(P[i])) assert.fail(`position ${i}`);
     for (let i = 0; i < N.length; i += 3) if (!(Math.abs(Math.hypot(N[i], N[i + 1], N[i + 2]) - 1) < 1e-3)) assert.fail(`normal of vertex ${i / 3}`);
     for (let t = 0; t < I3.length; t++) if (I3[t] >= nv) assert.fail(`index ${t}`);
