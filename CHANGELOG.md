@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.090 — One menu and a top bar
+
+- The date, time and weather now sit in a thin bar along the top of the screen.
+- One Menu button at the top right holds everything: who to be, the paper, the map, save, load, What's new, sound, and chat's past conversations, usage and models. The separate buttons in the corner are gone.
+- The Chat button sits next to Menu, and the bar and menu move aside while the chat panel is open.
+- Save now and Load last save are in the menu. Loading a save plays on as the person you were playing.
+- The play panel keeps the controls of your life: autopilot, What now?, skip time and someone else.
+- The right-hand side is kept free for the chat panel.
+
+## v0.089 — One last British word in the LLM test filler
+
+- The slow LLM model test says "church fair" instead of "church fete" (D27 region audit).
+
+## v0.088 — Faster checks, and each change shows what its tests cost
+
+- The automatic checks run all test files in one process, so they take about half as long.
+- The repo-wide code checks run once before the tests, with their own time limit.
+- Every change now reports how much it added to or saved from the test time.
+
+## v0.087 — Lit windows follow who is home
+
+- At night a home's windows are lit when people there are in and awake, and go dark when they sleep or go out.
+- Blocks of flats light up as people come home in the evening, and at 3 a.m. the town is nearly dark.
+
+## v0.086 — Trains on the railway
+
+- Trains now run on the railway past the town to the timetable: two to four railcars in an invented regional livery, coming along the line, standing at the station for a minute, and going on towards the town their line serves. They keep to the right-hand track, with their lamps lit.
+- At a level crossing, cars now stop while a train is coming or passing, and drive on once it is past.
+
 ## v0.085 — Neutral names for the country around the town
 
 - The region's city, towns, villages and river no longer use real place names, and the town is in "the … district" instead of a county.
