@@ -590,5 +590,9 @@
   {
     "key": "idiom: [.run Promise] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
     "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
+  },
+  {
+    "key": "idiom: [.from Array] in simworld/interior/building.ts + simworld/render/railView.ts + simworld/render/textures.ts",
+    "reason": "Array.from({ length }) is the language's way to fill a list of n; the three lists (storeys, rail lamps, bark strips) share nothing else."
   }
 ]
