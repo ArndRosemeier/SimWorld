@@ -3,7 +3,8 @@
  * `indoors` op: every storey furnished, plus its walls, furniture, floors, stairs, doors and spots as
  * plain data, src/interior/indoors.ts) and added through the Stage with the `INTERIOR` kind (warmed
  * at start, so going in compiles nothing). The game puts physics bodies on `current.indoors` and
- * sets the room light (`setRoomLight`) from who is home and awake.
+ * sets the room light (`setRoomLight`) from who is home and awake. While a building is shown, its painted street
+ * doors are cut out of its shell (`setDoorHoles`), so the real leaves are its only doors.
  *
  * New in SimWorld (Scale's interior designer streamed a storey's walls when the player walked in,
  * src/interior/Interiors.ts).
@@ -17,6 +18,11 @@ import { INTERIOR } from './materials';
 import { meshFromData } from './meshes';
 import type { Stage } from './stage';
 import { INTERIOR_LIGHT } from './tsl/interior';
+import { setDoorHoles } from './tsl/facade';
+import { STREET_DOOR_H } from '../interior/indoors';
+
+/** The view whose building's doorways are cut out of the shells now (one at a time). */
+let holesOf: InteriorView | null = null;
 
 export interface Inside {
   /** Its `Place.building` code. */
@@ -63,6 +69,9 @@ export class InteriorView {
     this.leaves = leaves;
     this.inside = { building, indoors: r.indoors, about: r.about };
     r.indoors.leaves.forEach((_, i) => this.swing(i, 0));
+    // Its street doors are real now: no painted door in the shell over them (src/render/tsl/facade.ts).
+    setDoorHoles(r.indoors.doors.map((d) => ({ ...d, h: STREET_DOOR_H })));
+    holesOf = this;
     return this.inside;
   }
 
@@ -87,6 +96,7 @@ export class InteriorView {
   }
 
   private clear(): void {
+    if (holesOf === this) { setDoorHoles([]); holesOf = null; }
     if (this.mesh) this.unload(this.mesh);
     if (this.leaves) this.unload(this.leaves);
     this.mesh = null;

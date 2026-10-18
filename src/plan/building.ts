@@ -252,16 +252,23 @@ export function streetDoor(b: BuildingDesc): FrontDoor {
   return frontBayDoor(b, (bays) => doorBayOf(b.seed, bays))!;
 }
 
+/**
+ * A street door's size: at most `maxW` wide and `bayShare` of its bay, `h` high. The interior's doorway and leaf
+ * (src/interior/indoors.ts), the facade shader's painted door (src/render/tsl/facade.ts) and the shell's cut-out
+ * while you are inside all take it from here, so the painted door and the real one are the same door.
+ */
+export const STREET_DOOR = { maxW: 1.3, bayShare: 0.62, h: 2.15 } as const;
+
 /** A door on the front edge: the edge, its span along it from the edge's first corner, its middle on the facade. */
 export type FrontDoor = { edge: number; s0: number; s1: number; x: number; z: number };
 
-/** The door in the front bay `bayOf(bays)` picks (null for a negative bay), at most 1.3 m wide. */
+/** The door in the front bay `bayOf(bays)` picks (null for a negative bay), `STREET_DOOR` wide. */
 function frontBayDoor(b: BuildingDesc, bayOf: (bays: number) => number): FrontDoor | null {
   const P = b.poly, n = P.length >> 1, i = b.front % n, j = (i + 1) % n;
   const L = Math.hypot(P[j * 2] - P[i * 2], P[j * 2 + 1] - P[i * 2 + 1]);
   const bays = baysOf(b, L), bayW = L / bays, bay = bayOf(bays);
   if (bay < 0) return null;
-  const dw = Math.min(1.3, bayW * 0.62), dc = (bay + 0.5) * bayW, t = dc / Math.max(1e-6, L);
+  const dw = Math.min(STREET_DOOR.maxW, bayW * STREET_DOOR.bayShare), dc = (bay + 0.5) * bayW, t = dc / Math.max(1e-6, L);
   return { edge: i, s0: dc - dw / 2, s1: dc + dw / 2, x: P[i * 2] + (P[j * 2] - P[i * 2]) * t, z: P[i * 2 + 1] + (P[j * 2 + 1] - P[i * 2 + 1]) * t };
 }
 
