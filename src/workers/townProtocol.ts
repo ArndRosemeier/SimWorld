@@ -2,6 +2,7 @@
  * Messages between the main thread and the town workers (src/workers/town.worker.ts). Every
  * worker plans the same town from the settings (deterministic), then builds mesh data on request.
  */
+import type { TownMap } from '../plan/townMap';
 import type { MeshData } from '../build/meshBuilder';
 import type { PropGroup } from '../build/streetProps';
 import type { TreeModelData } from '../build/vegetation';
@@ -35,6 +36,8 @@ export type ToTown =
   | { type: 'vegModel'; index: number }
   /** What the town sounds like where (src/audio/soundMap.ts). */
   | { type: 'sound' }
+  /** The town map (src/plan/townMap.ts). */
+  | { type: 'map' }
   /** The cutaway of one storey of a building (`building`: its id in the cell). */
   | { type: 'interior'; cell: number; building: number; floor: number };
 
@@ -71,6 +74,7 @@ export type FromTown =
   | { type: 'forest'; recs: Float32Array; ms: number }
   | { type: 'vegModel'; model: TreeModelData; ms: number }
   | { type: 'sound'; map: SoundMap; ms: number }
+  | { type: 'map'; map: TownMap; ms: number }
   /** `at`: the storey's centre (floor level), `radius` its reach; `about`: what the building is, for the HUD. */
   | { type: 'interior'; mesh: MeshData | null; at: [number, number, number]; radius: number; floors: number; about: string; ms: number }
   | { type: 'error'; message: string };
