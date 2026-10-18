@@ -11,6 +11,7 @@
 import type { Rng } from '@futuremagic/core';
 import { A, type ActorId } from './actors';
 import { encounter } from './encounters';
+import { clubEvenings } from './groups';
 import { factText, SOURCE_WITNESSED } from './knowledge';
 import { HABIT_COUNT, T_EXTRA } from './people';
 import { KINDS } from './placeKinds';
@@ -42,6 +43,7 @@ export function chronicle(world: World, days: number, opts: ChronicleOptions = {
     world.clock += d * MINUTES_PER_DAY;
     passDays(world, d);
     converse(world, d, talks, maxTalks);
+    if (talks > 0) clubEvenings(world, d);
     days -= d;
   }
   settleAtHome(world);

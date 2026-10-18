@@ -42,6 +42,9 @@ export type DayMinute = number;
 
 /** Bit per weekday, Monday = bit 0 ... Sunday = bit 6. */
 export type DayMask = number;
+/** Set bits of a mask: the days in a `DayMask`, the months in a month mask. */
+export const popcount = (m: number): number => { let n = 0; for (let x = m; x; x &= x - 1) n++; return n; };
+
 export const WEEKDAYS: DayMask = 0b0011111;
 export const EVERY_DAY: DayMask = 0b1111111;
 
