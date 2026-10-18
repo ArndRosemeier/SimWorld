@@ -23,6 +23,7 @@ import { bond, bondBit, FAMILY_MASK, liking, unbond } from './relations';
 import { SPECIES, speciesId } from './species';
 import { addHousehold, adoptPet, fitRoutine, newAnimal, newPerson, settle, type HouseholdType } from './synth';
 import { regionDestination, type RegionPlace } from './region';
+import { careHomeRoom, jobOpen, moveToCareHome } from './economy';
 import { DAYS_PER_YEAR, MINUTES_PER_DAY, weekdayOf } from './time';
 import { ageOf, commute, firstName, householdOf, isPerson, jobOf, nameOf, placesOf, tickRng, traitOf, valueOf, type World } from './world';
 
@@ -145,7 +146,7 @@ function setPartners(world: World, x: ActorId, y: ActorId, together: boolean): v
   if (y < cache.length) cache[y] = together ? x : -1;
 }
 
-function log(world: World, day: number, kind: LifeEventKind, who: ActorId, other: ActorId, place: PlaceId, fact = -1): void {
+export function log(world: World, day: number, kind: LifeEventKind, who: ActorId, other: ActorId, place: PlaceId, fact = -1): void {
   world.life.events.push({ day, kind, who, other, place, fact });
 }
 
@@ -156,14 +157,14 @@ function news(world: World, knowers: readonly ActorId[], f: { topic: string; tex
   return fact;
 }
 
-function feel(world: World, id: ActorId, e: Emotion, amount: number): void {
+export function feel(world: World, id: ActorId, e: Emotion, amount: number): void {
   const k = id * EMOTION_COUNT + EMOTIONS.indexOf(e);
   const em = world.actors.cols.emotions;
   em[k] = Math.max(em[k], clamp(amount, 0, 1));
 }
 
 /** People who would hear first: the household and the family. */
-function closeTo(world: World, ...ids: ActorId[]): ActorId[] {
+export function closeTo(world: World, ...ids: ActorId[]): ActorId[] {
   const out = new Set<ActorId>();
   for (const id of ids) {
     if (id < 0) continue;
@@ -178,6 +179,12 @@ function closeTo(world: World, ...ids: ActorId[]): ActorId[] {
 function shiftAffection(world: World, a: ActorId, b: ActorId, to: number): void {
   const c = world.relations.t.cols;
   for (const [x, y] of [[a, b], [b, a]]) c.affection[world.relations.ensure(x, y)] = to;
+}
+
+/** The heads of the households on the street of `place` (who notice a move, a closure, a new shop), except `not`. */
+export function neighboursOf(world: World, place: PlaceId, not?: Household): ActorId[] {
+  const street = world.streetOf[place];
+  return world.households.filter((o) => o !== not && o.members.length && world.streetOf[o.home] === street).map((o) => o.members[0]);
 }
 
 /** Free dwelling units: one entry per unit not occupied by a household with members. */
@@ -608,7 +615,7 @@ function work(world: World, day: number, rng: Rng): void {
       remember(world, id, { who: [], summary: `I lost my job at ${world.graph.places[job.place].name}`, importance: 0.9, emotion: 'sadness', fact });
       log(world, day, 'fired', id, -1, job.place, fact);
     } else if (rng.chance(happens(0.05 * (0.5 + traitOf(world, id, T_OPEN))))) {
-      const options = world.jobs.filter((j) => j.holder < 0 && j.place !== job.place && ageOf(world, id) >= j.minAge);
+      const options = world.jobs.filter((j) => j.holder < 0 && j.place !== job.place && ageOf(world, id) >= j.minAge && jobOpen(world, j));
       if (options.length === 0) continue;
       const next = options[rng.int(0, options.length - 1)];
       vacate(world, id);
@@ -617,7 +624,7 @@ function work(world: World, day: number, rng: Rng): void {
     }
   }
   // Vacancies fill in about three weeks, from the people in town without work.
-  const open = world.jobs.filter((j) => j.holder < 0 && rng.chance(happens(18)));
+  const open = world.jobs.filter((j) => j.holder < 0 && jobOpen(world, j) && rng.chance(happens(18)));
   if (open.length === 0) return;
   const seekers: ActorId[] = [];
   for (let id = 0; id < world.actors.count; id++) {
@@ -683,6 +690,13 @@ function homes(world: World, day: number, rng: Rng): void {
       moveInto(world, id, to, rng.fork('move', id));
       const fact = news(world, closeTo(world, id), { topic: 'family', text: '{subject} moved in with {object}', subject: id, object: kids[0], place: to.home, magnitude: 0.3 });
       log(world, day, 'moveIn', id, kids[0], to.home, fact);
+    } else if (careHomeRoom(world) >= 0) {
+      for (const an of hh.animals.slice()) leaveTown(world, an, rng.fork('leave', an));
+      moveToCareHome(world, id, rng.fork('care', id));
+      const home = world.actors.cols.home[id];
+      const fact = news(world, closeTo(world, id), { topic: 'family', text: '{subject} moved into {place}', subject: id, place: home, magnitude: 0.4 });
+      remember(world, id, { who: [], summary: `I moved into ${world.graph.places[home].name}`, importance: 0.9, emotion: 'sadness', fact });
+      log(world, day, 'moveIn', id, -1, home, fact);
     } else {
       const fact = news(world, closeTo(world, id), { topic: 'family', text: `{subject} moved into a care home${where(regionDestination(world, rng.fork('dest', id), 'hospital'))}`, subject: id, magnitude: 0.4 });
       log(world, day, 'departed', id, -1, -1, fact);
@@ -693,8 +707,7 @@ function homes(world: World, day: number, rng: Rng): void {
   for (const hh of world.households) {
     if (hh.members.length === 0 || world.graph.places[hh.home].kind === 'farmhouse' || !rng.chance(happens(0.02))) continue;
     const head = hh.members[0];
-    const street = world.streetOf[hh.home];
-    const neighbours = world.households.filter((o) => o !== hh && o.members.length && world.streetOf[o.home] === street).flatMap((o) => o.members.slice(0, 1));
+    const neighbours = neighboursOf(world, hh.home, hh);
     const fact = news(world, [...closeTo(world, head), ...neighbours], { topic: 'family', text: `{subject} and family are moving away${where(regionDestination(world, rng.fork('dest', head)), ' to ')}`, subject: head, place: hh.home, magnitude: 0.45 });
     for (const m of hh.members.slice()) { log(world, day, 'departed', m, head, hh.home, fact); leaveTown(world, m, rng.fork('leave', m)); }
     for (const an of hh.animals.slice()) leaveTown(world, an, rng.fork('leave', an));
@@ -709,8 +722,7 @@ function homes(world: World, day: number, rng: Rng): void {
       world.people.cols.money[personRow(world, m)] = rng.range(200, 3000);
     }
     if (rng.chance(0.3)) newPet(world, day, hh, rng.fork('pet', hh.id), false);
-    const street = world.streetOf[home];
-    const neighbours = world.households.filter((o) => o !== hh && o.members.length && world.streetOf[o.home] === street).flatMap((o) => o.members.slice(0, 1));
+    const neighbours = neighboursOf(world, home, hh);
     // Where they come from: the villages and towns around, or further away.
     const from = rng.chance(0.6) ? regionDestination(world, rng.fork('from', home, day)) : null;
     if (world.region) for (const m of hh.members) if (ageOf(world, m) >= 18) world.region.origin.set(m, from?.name ?? '');

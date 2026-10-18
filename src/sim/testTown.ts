@@ -19,7 +19,12 @@ const AMENITIES: [PlaceKind, number, boolean][] = [
   ['school', 1, true], ['kindergarten', 1, true], ['townhall', 1, true], ['police', 1, false], ['fire', 1, false],
   ['church', 1, true], ['library', 1, false], ['station', 1, false], ['vet', 1, false], ['factory', 1, false],
   ['park', 2, true], ['square', 1, true], ['sports', 1, false], ['cemetery', 1, false],
+  ['petrol', 1, false], ['hardware', 1, false], ['clothes', 1, false], ['florist', 1, false], ['newsagent', 1, false],
+  ['charity', 1, false], ['takeaway', 2, false], ['hotel', 1, false], ['estateagent', 1, false], ['beauty', 1, false],
+  ['physio', 1, false], ['gym', 1, false], ['funeral', 1, false], ['carehome', 1, false], ['vacant', 2, false],
 ];
+/** Residents' rooms in a care home per inhabitant of the town. */
+const CARE_ROOMS_PER_PERSON = 0.025;
 /** Kinds whose staff grows with the town (one big school rather than three small ones). */
 const SCALED: ReadonlySet<PlaceKind> = new Set(['school', 'kindergarten', 'supermarket', 'factory', 'townhall']);
 
@@ -102,7 +107,9 @@ export function testTown(seed: number, size: number): PlaceGraph {
     const count = (taken.get(kind) ?? 0) + 1;
     taken.set(kind, count);
     const label = kind[0].toUpperCase() + kind.slice(1);
-    const p = addPlace(kind, `${l.street.split(' ')[0]} ${label}${count > 1 ? ' ' + count : ''}`, l.street, l.x, l.z, l.node, 0, scale);
+    const name = kind === 'vacant' ? `${l.n} ${l.street}` : `${l.street.split(' ')[0]} ${label}${count > 1 ? ' ' + count : ''}`;
+    const rooms = kind === 'carehome' ? Math.max(8, Math.round(size * CARE_ROOMS_PER_PERSON)) : 0;
+    const p = addPlace(kind, name, l.street, l.x, l.z, l.node, rooms, scale);
     for (const s of p.staff) jobs += s.count;
   };
   for (const [kind, per2000, essential] of AMENITIES) {

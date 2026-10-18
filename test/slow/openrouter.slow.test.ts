@@ -1,8 +1,9 @@
 /**
- * Live OpenRouter checks (slow tier, by hand only; needs OPENROUTER_API_KEY, skips without it).
+ * Live OpenRouter checks (slow tier, by hand only; needs OPENROUTER_API_KEY or OPEN_ROUTER_KEY, skips without it).
  *
  *  - Runs every task once through `llm.run` with the default roster and prints model, latency and cost.
- *  - Compares appraisal candidates on the bakery fixture: valid JSON, what they extracted, speed, cost.
+ *  - Compares appraisal candidates on the bakery fixture: valid JSON, what they extracted, speed, cost
+ *    (the wider comparison across scenes and tasks is llm-models.slow.test.ts).
  *  - With LLM_RECORD=1, writes each exchange to test/fixtures/llm/recorded/ for the fast tests.
  *
  *   OPENROUTER_API_KEY=sk-or-... npm run test:slow -- test/slow/openrouter.slow.test.ts
@@ -17,7 +18,8 @@ import {
 } from '../../src/llm';
 import { bakeryScene } from '../fixtures/llm/town';
 
-const KEY = process.env.OPENROUTER_API_KEY ?? '';
+/** The cloud environments name it OPEN_ROUTER_KEY. */
+const KEY = process.env.OPENROUTER_API_KEY ?? process.env.OPEN_ROUTER_KEY ?? '';
 const RECORD_DIR = path.resolve(import.meta.dirname, '../fixtures/llm/recorded');
 
 function transport(label: string): Transport {
@@ -55,7 +57,7 @@ test('live: every task once with the default roster', { skip: !KEY && 'no OPENRO
 test('live: appraisal candidates side by side', { skip: !KEY && 'no OPENROUTER_API_KEY' }, async () => {
   const catalog = await fetchCatalog();
   const roster = rosterFromCatalog(catalog);
-  const candidates = (process.env.LLM_CANDIDATES ?? 'anthropic/claude-haiku-5.5,openai/gpt-6-luna,deepseek/deepseek-v4.1-flash-1017,z-ai/glm-5.3-flash,google/gemini-3.8-flash').split(',');
+  const candidates = (process.env.LLM_CANDIDATES ?? '~anthropic/claude-haiku-latest,~openai/gpt-luna-latest,mistralai/mistral-large-4-0').split(',');
   const reply = "Closing? Says who? *wipes hands* Look, love, I'll ask Anna tonight. Meet me at the fountain at five and I'll tell you what she says.";
   for (const id of candidates) {
     const ledger = new UsageLedger();

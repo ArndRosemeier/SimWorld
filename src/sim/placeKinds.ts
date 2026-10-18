@@ -6,7 +6,7 @@
 import type { Hours, PlaceKind, StaffSlot } from './places';
 import { EVERY_DAY, WEEKDAYS } from './places';
 
-export type Category = 'home' | 'food' | 'service' | 'institution' | 'work' | 'outdoor' | 'away';
+export type Category = 'home' | 'food' | 'service' | 'institution' | 'work' | 'outdoor' | 'vacant' | 'away';
 
 /** Activities a visitor (not staff) can do at a place. */
 export type Service = 'eat' | 'shop' | 'socialize' | 'leisure' | 'worship' | 'exercise' | 'errand' | 'doctor' | 'school' | 'roam' | 'graze';
@@ -41,6 +41,20 @@ export const KINDS: Record<PlaceKind, KindInfo> = {
   bank: k('service', ['errand'], 0.01, 15),
   post: k('service', ['errand'], 0.02, 15),
   shop: k('service', ['shop'], 0.02, 20),
+  petrol: k('service', ['shop'], 0.015, 10),
+  hardware: k('service', ['shop'], 0.02, 25),
+  clothes: k('service', ['shop'], 0.02, 15),
+  florist: k('service', ['shop'], 0.03, 8),
+  newsagent: k('service', ['shop'], 0.05, 8),
+  charity: k('service', ['shop'], 0.03, 10),
+  takeaway: k('food', ['eat'], 0.02, 15),
+  hotel: k('service', ['eat'], 0.02, 40),
+  estateagent: k('service', ['errand'], 0.02, 8),
+  beauty: k('service', ['errand'], 0.06, 6),
+  physio: k('service', ['doctor'], 0.02, 10),
+  gym: k('service', ['exercise'], 0.02, 40),
+  funeral: k('service', ['errand'], 0.01, 15),
+  vacant: k('vacant', [], 0, 0),
   school: k('institution', ['school'], 0.03, 400),
   kindergarten: k('institution', ['school'], 0.02, 80),
   townhall: k('institution', ['errand'], 0.02, 40),
@@ -50,6 +64,7 @@ export const KINDS: Record<PlaceKind, KindInfo> = {
   library: k('institution', ['leisure'], 0.01, 40),
   station: k('institution', ['errand'], 0.005, 100),
   vet: k('service', ['errand'], 0.02, 10),
+  carehome: k('institution', [], 0.03, 60),
   office: k('work', [], 0.015, 40),
   workshop: k('work', [], 0.02, 15),
   factory: k('work', [], 0.01, 200),
@@ -90,6 +105,19 @@ export function defaultHours(kind: PlaceKind): Hours[] {
     case 'bank': return [h(WEEKDAYS, 9, 16)];
     case 'post': return [h(WEEKDAYS, 9, 18), h(SAT, 9, 12)];
     case 'shop': return [h(MON_SAT, 9.5, 18.5)];
+    case 'petrol': return [h(EVERY_DAY, 6, 22)];
+    case 'hardware': return [h(WEEKDAYS, 8, 19), h(SAT, 8, 16)];
+    case 'clothes': return [h(WEEKDAYS, 9.5, 18.5), h(SAT, 9.5, 16)];
+    case 'florist': return [h(WEEKDAYS, 8.5, 18), h(SAT, 8, 13)];
+    case 'newsagent': return [h(MON_SAT, 6, 18), h(SUN, 7, 12)];
+    case 'charity': return [h(MON_SAT, 10, 16)];
+    case 'takeaway': return [h(0b1001111, 16.5, 23), h(0b0110000, 16.5, 24)];
+    case 'hotel': return [];
+    case 'estateagent': return [h(WEEKDAYS, 9, 18), h(SAT, 10, 13)];
+    case 'beauty': return [h(0b0111110, 9, 18)];
+    case 'physio': return [h(WEEKDAYS, 8, 18)];
+    case 'gym': return [h(WEEKDAYS, 6, 22), h(0b1100000, 8, 20)];
+    case 'funeral': return [h(WEEKDAYS, 9, 17)];
     case 'school': return [h(WEEKDAYS, 7.75, 15.5)];
     case 'kindergarten': return [h(WEEKDAYS, 7, 17)];
     case 'townhall': return [h(WEEKDAYS, 8, 16)];
@@ -127,6 +155,20 @@ export function defaultStaff(kind: PlaceKind, scale = 1): StaffSlot[] {
     case 'bank': return [s('bank clerk', n(2), WEEKDAYS, 8.5, 16.5, 20), s('branch manager', 1, WEEKDAYS, 8, 17, 30)];
     case 'post': return [s('postal clerk', n(1), WEEKDAYS, 8.5, 18, 18), s('postman', n(2), MON_SAT, 6, 13, 18)];
     case 'shop': return [s('shopkeeper', 1, MON_SAT, 9, 18.5, 22), s('sales assistant', n(1), MON_SAT, 9.5, 18.5, 16)];
+    case 'petrol': return [s('owner', 1, WEEKDAYS, 8, 17, 28), s('cashier', n(1), EVERY_DAY, 6, 14, 16), s('cashier', n(1), EVERY_DAY, 14, 22, 16)];
+    case 'hardware': return [s('owner', 1, MON_SAT, 8, 17, 28), s('sales assistant', n(2), MON_SAT, 8, 16, 17), s('sales assistant', n(1), WEEKDAYS, 12, 19, 17)];
+    case 'clothes': return [s('owner', 1, MON_SAT, 9.5, 18.5, 25), s('sales assistant', n(1), MON_SAT, 9.5, 18.5, 16)];
+    case 'florist': return [s('florist', 1, MON_SAT, 7.5, 18, 22), s('sales assistant', n(1), 0b0111000, 9, 15, 16)];
+    case 'newsagent': return [s('newsagent', 1, MON_SAT, 5.5, 14, 25), s('sales assistant', n(1), MON_SAT, 12, 18, 16), s('sales assistant', 1, SUN, 7, 12, 16), s('paper round', n(2), MON_SAT, 6, 7.5, 13)];
+    case 'charity': return [s('shop manager', 1, MON_SAT, 9.5, 16.5, 25), s('shop assistant', n(1), MON_SAT, 10, 16, 16)];
+    case 'takeaway': return [s('owner', 1, 0b1111110, 15.5, 24, 25), s('cook', n(1), EVERY_DAY, 16, 24, 18), s('counter assistant', n(1), 0b1111000, 16.5, 23, 16)];
+    case 'hotel': return [s('hotel manager', 1, WEEKDAYS, 8, 17, 30), s('receptionist', n(1), EVERY_DAY, 6.5, 14.5, 18), s('receptionist', n(1), EVERY_DAY, 14.5, 22.5, 18), s('housekeeper', n(2), EVERY_DAY, 8, 14, 17), s('cook', n(1), EVERY_DAY, 6, 14, 18)];
+    case 'estateagent': return [s('estate agent', n(1), WEEKDAYS, 9, 18, 25), s('office assistant', 1, WEEKDAYS, 9, 17, 18)];
+    case 'beauty': return [s('beautician', n(2), 0b0111110, 9, 18, 18)];
+    case 'physio': return [s('physiotherapist', n(2), WEEKDAYS, 8, 18, 24), s('receptionist', 1, WEEKDAYS, 8, 14, 18)];
+    case 'gym': return [s('gym manager', 1, WEEKDAYS, 9, 18, 25), s('fitness trainer', n(1), WEEKDAYS, 16, 22, 18), s('fitness trainer', 1, 0b1100000, 9, 15, 18)];
+    case 'funeral': return [s('funeral director', 1, WEEKDAYS, 8, 17, 30), s('funeral assistant', n(1), WEEKDAYS, 8, 17, 20)];
+    case 'carehome': return [s('care home manager', 1, WEEKDAYS, 8, 17, 30), s('nurse', n(1), EVERY_DAY, 6, 14, 21), s('nurse', n(1), EVERY_DAY, 14, 22, 21), s('nurse', 1, EVERY_DAY, 22, 30, 21), s('carer', n(3), EVERY_DAY, 6.5, 14.5, 18), s('carer', n(2), EVERY_DAY, 14, 22, 18), s('cook', 1, EVERY_DAY, 6, 14, 18), s('cleaner', n(1), WEEKDAYS, 7, 13, 18)];
     case 'school': return [s('head teacher', 1, WEEKDAYS, 7.5, 16, 35), s('teacher', n(12), WEEKDAYS, 7.5, 15.5, 24), s('caretaker', 1, WEEKDAYS, 7, 16, 20), s('school secretary', 1, WEEKDAYS, 7.5, 13, 20)];
     case 'kindergarten': return [s('kindergarten teacher', n(5), WEEKDAYS, 7, 15, 20), s('kindergarten teacher', n(2), WEEKDAYS, 10, 17, 20)];
     case 'townhall': return [s('mayor', 1, WEEKDAYS, 8, 17, 35), s('town clerk', n(4), WEEKDAYS, 8, 16, 20)];

@@ -148,7 +148,11 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | What happened to this person while time was skipped? | `digest(world, id, since)`: their memories and the news they heard, nothing they don't know | `src/sim/chronicle.ts` |
 | A random number inside the sim | `tickRng(world, ...purpose)`: derived from (seed, clock, purpose), so saves need no generator state | `src/sim/world.ts` |
 | Births, deaths, illness, romance, jobs, moving, pets, crime | `lifeDay(world, days)` (daily in `tick`; coarse steps in the chronicle); `world.life.events` is the record; `leaveTown` for anyone dying or moving away; `partnerOf`, `vacantHomes`, `moveInto` | `src/sim/life.ts` |
-| Money: wages, pensions, household budgets, rent, bills, prices, a business's customers and accounts | `src/sim/economy.ts` | `src/sim/economy.ts` *planned* (track F) |
+| Money: household budgets (wages, pensions, support, rent or mortgage, bills, spending), business ledgers, prices | `world.economy`; `payOf(job)`, `budgetOf(world, hh)`, `PRICES`, `TRADES` (how each kind earns); `economyDay(world, days)` (in `passDays`); a customer visit in live play: `spend(world, id, place, activity)` (in `arrive`); a free-time trip to a particular shop: `shoppingTrip` | `src/sim/economy.ts` |
+| Businesses closing and opening; is this job still there? the care home | `closeBusiness`, `openBusiness`, `ownerOf(world, place)`, `jobOpen(world, job)`, `world.economy.events`; `careHomeRoom`, `moveToCareHome` | `src/sim/economy.ts` |
+| Change what a place is (a shop closes into a vacant unit, a unit reopens) | `setPlaceKind(world, place, kind, patch)` (keeps the per-kind lookups right) | `src/sim/world.ts` |
+| What the economy looks like on the street: to-let and for-sale boards, new and struggling shops, upkeep and wealth per place | `townLooks(world)` → `TownLooks` (`LOOK_*` flags, `upkeep`, `wealth` per PlaceId); views get it only through `viewOf` (SimView), never by calling it themselves | `src/sim/economy.ts` |
+| Who lives on this street (who notices a move, a closure, a new shop)? | `neighboursOf(world, place, not?)` | `src/sim/life.ts` |
 | Clubs, congregations, the council: members, office holders, meetings; local politics and its issues | `src/sim/groups.ts`, `src/sim/politics.ts` (meetings go into the agenda) | `src/sim/groups.ts`, `src/sim/politics.ts` *planned* (track F) |
 | Move an actor or change what they do | `go(world, id, place, activity, until)` (travel, followers); decisions come from `decideAll` | `src/sim/schedule.ts` |
 | Who meets whom right now? | `encounters(world)` (last tick's conversations, with what was told); `presentAt(world, place)`; one conversation, live or in the chronicle: `encounter(world, place, a, b, hub, rng)` | `src/sim/encounters.ts` |
@@ -167,11 +171,12 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Call a language model for anything | `createLlm(cfg).run(task, input)`: routes the task to roster models best first, streams, parses, falls back on retryable errors, records usage. Tasks: `npc.speech`, `npc.appraisal`, `memory.summary`, `npc.reflection`, `skip.digest` | `src/llm/llm.ts`, `src/llm/tasks.ts` |
 | Talk to openrouter.ai | `openRouterTransport({ apiKey })` (guarded: `openrouter.ai` only in `src/llm`); the public model list via `fetchCatalog()` | `src/llm/openrouter.ts` |
 | Which models does the player have, what can they do? | the roster: `DEFAULT_ROSTER`, `rosterFromCatalog`, capability tags (`fast`, `cheap`, `structured`, `writing`, `reasoning`, `long_context`) | `src/llm/roster.ts` |
-| Which model runs a task? | `route(roster, task.routing, pins)` (the settings screen shows `llm.plan(task)`) | `src/llm/router.ts` |
+| Which model runs a task? | `route(roster, task.routing, pins)`; pins are the player's per-task picks, else `DEFAULT_TASK_MODELS` (the settings screen shows `llm.plan(task)`) | `src/llm/router.ts`, `src/llm/roster.ts` |
 | How much has the LLM cost so far? | the usage ledger: `UsageLedger` (`total()`, `by('task' \| 'model' \| 'npc' \| 'session')`, `onRecord`) | `src/llm/usage.ts` |
 | What does an NPC's prompt contain? | `NpcPromptInput` (card, state, scene, people, places, beliefs, recalled memories, turns: only what that NPC believes) → `speechMessages`; people and places as refs via `RefTable` | `src/llm/prompt.ts` |
 | Turn an NPC reply into state changes | the `npc.appraisal` task: `APPRAISAL_SCHEMA` → `parseAppraisal` → `Proposal` for `applyProposal` | `src/llm/appraisal.ts` |
 | Test anything that calls an LLM | `replayTransport(recordings)` (never the network); real recordings from `test/slow/openrouter.slow.test.ts` with `LLM_RECORD=1` | `src/llm/recorded.ts` |
+| Which models are good at a task? (live, by hand) | `test/slow/llm-models.slow.test.ts` on the scenes in `test/fixtures/llm/scenes.ts`: every candidate, same inputs, scored checks, latency, cost | `test/slow/llm-models.slow.test.ts` |
 | Background chatter, a fallback answer, any generated sentence | the procedural text engine | `src/talk/` |
 
 ### Sound
