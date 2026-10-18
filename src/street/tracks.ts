@@ -84,6 +84,9 @@ export function outside(world: World, id: ActorId): boolean {
 /** The actor's track from `clock` on, or null when they are indoors or driving. */
 export function trackOf(world: World, map: StreetMap, id: ActorId, clock: number): Track | null {
   if (!outside(world, id)) return null;
+  // The player walking their person themselves: the game draws them where the player has them.
+  const pl = world.player;
+  if (pl && pl.id === id && !pl.autopilot && pl.at) return null;
   const a = world.actors.cols, sig = signature(world, id);
   const lead = a.with[id];
   // Someone going along (a toddler, the dog) keeps beside who they are with.
