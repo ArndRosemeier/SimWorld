@@ -20,6 +20,7 @@ import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIE
 import { atMinute, dayOf, MINUTES_PER_DAY, minuteOfDay, weekdayOf } from './time';
 import { drawingOn } from './agenda';
 import { awayRide } from './offsite';
+import { isCold, isFoul, isNiceOut, isWetOut, weatherAt } from './weather';
 import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
 import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, type World } from './world';
 
@@ -363,12 +364,21 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
   const sun = sunAt(world, now);
   const daylight = m >= sun.rise + 30 && m < sun.set;
   const dogHours = m >= 390 && m < 1290;
+  // The weather (src/sim/weather.ts): rain and storms keep people in, a fine day draws them out.
+  const sky = weatherAt(world, now);
+  const out = isFoul(sky) ? 0.05 : isWetOut(sky) ? 0.25 : isNiceOut(sky) ? 1.5 : isCold(sky) ? 0.6 : 1;
+  const inside = out < 1 ? 1.25 : 1;
   const options: Option[] = [];
   const offer = (place: PlaceId, activity: number, minutes: [number, number], weight: number, occasion = false) => {
     if (place < 0 || weight <= 0 || avoids(world, id, -1, place)) return;
     if (place !== home && !occasion && !isOpen(world, place, now + 15)) return;
     // Do not start an outing that would barely fit.
     if (place !== here && world.travel.minutes(here, place) * 2 + minutes[0] > limit - now) return;
+    if (place !== home) {
+      // The dog goes out whatever the weather, only not for long.
+      if (activity === A.walkDog) { if (out < 1) minutes = [15, 25]; }
+      else weight *= KINDS[world.graph.places[place].kind].category === 'outdoor' ? out : inside;
+    }
     options.push({ place, activity, minutes, weight });
   };
   const evening = m >= 1200;

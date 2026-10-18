@@ -18,6 +18,8 @@ export interface Offsite {
   work: PlaceId[];
   /** The secondary school (pupils from 11), -1 when the town's own school takes everyone. */
   secondary: PlaceId;
+  /** Where families go on holiday (far off: the seaside, the mountains, abroad). */
+  holiday: PlaceId;
   /** Away place → the region town it is in (the name transit's region stops use). */
   town: Record<PlaceId, string>;
 }
@@ -46,7 +48,7 @@ export function gateway(graph: PlaceGraph): number {
 export function withOffsite(planned: PlaceGraph, region: Region | undefined): { graph: PlaceGraph; offsite: Offsite } {
   const graph: PlaceGraph = { ...planned, places: planned.places.slice() };
   const gate = gateway(graph);
-  if (gate < 0) return { graph, offsite: { work: [], secondary: -1, town: {} } };
+  if (gate < 0) return { graph, offsite: { work: [], secondary: -1, holiday: -1, town: {} } };
   const people = graph.places.reduce((s, p) => s + p.homes, 0) * 2.3;
   // As the region and transit have it: places[0] is the big city, places[1] the larger town nearby (secondary school).
   const city: RegionPlace | undefined = region?.places[0];
@@ -76,7 +78,9 @@ export function withOffsite(planned: PlaceGraph, region: Region | undefined): { 
   const secondary = graph.places.some((p) => p.kind === 'school')
     ? place(`${townName} Secondary School`, town?.km ?? 15, [slot('teacher', people * 0.004, WEEKDAYS, 7.75, 16, 23)], 2000, townName)
     : -1;
-  return { graph, offsite: { work, secondary, town: towns } };
+  const holiday = place('on holiday', 350, [], 100000);
+  delete towns[holiday];
+  return { graph, offsite: { work, secondary, holiday, town: towns } };
 }
 
 /**
