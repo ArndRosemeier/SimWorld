@@ -28,6 +28,8 @@ export interface Figure {
   readonly face?: number;
   /** Sitting or lying down (else standing or walking). */
   readonly rest?: Rest;
+  /** There but not drawn (the camera is inside their head: the player's own person in a tight room). */
+  readonly hidden?: boolean;
   /** Their body (changes only with their age) and today's clothes, made on demand. */
   look(): Look;
 }
@@ -153,6 +155,7 @@ export class PeopleView {
       }
       s.seen = this.frame;
       if (!s.ready) continue;
+      if (f.hidden) { s.human.object.visible = false; continue; }
       const look = f.look();
       if (look.bodyKey !== s.bodyKey) { this.drop(s); this.slots.delete(s.id); continue; }
       if (look.outfitKey !== s.outfitKey) { s.outfitKey = look.outfitKey; s.human.dress(look.outfit); }

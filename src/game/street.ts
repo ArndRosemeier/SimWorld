@@ -22,6 +22,7 @@ export interface SelfPose { x: number; y: number; z: number; vx: number; vz: num
 
 class WalkerFigure implements Figure {
   x = 0; y = 0; z = 0; vx = 0; vz = 0;
+  hidden = false;
   face: number | undefined = undefined;
   rest: Rest | undefined = undefined;
   private cached: { key: string; look: Look } | null = null;
@@ -74,6 +75,14 @@ export class Street {
     this.self = at && info ? { fig: this.self?.fig.id === id ? this.self.fig : new WalkerFigure({ id, info }, this), at } : null;
   }
 
+  /** Who is left undrawn (-1: nobody): the player's person while the camera is too close to them. */
+  private hidden = -1;
+
+  /** Leave `id` undrawn (they still count as there: doors open for them, people see them); -1 draws everyone. */
+  hide(id: number): void {
+    this.hidden = id;
+  }
+
   /** People out of doors around the camera this frame, placed on their tracks. */
   figuresNow(): Figure[] {
     const clock = this.sim.clock, out: Figure[] = [], self = this.self;
@@ -110,6 +119,7 @@ export class Street {
     }
     this.riders(clock, secPerMin, out);
     for (const id of this.figures.keys()) if (!this.sim.walkers.has(id) && !this.pins.has(id) && !this.indoors.has(id) && !this.riding.has(id)) this.figures.delete(id);
+    for (const f of out) if (f instanceof WalkerFigure) f.hidden = f.id === this.hidden;
     return out;
   }
 
