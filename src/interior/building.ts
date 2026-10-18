@@ -31,10 +31,10 @@ import type { FloorPlan, Furn, Spot } from './types';
  */
 export interface PlaceUse { staff?: readonly StaffSlot[]; capacity?: number; kind?: PlaceKind }
 
-/** The layouts of the public buildings' kinds (their walk-in bodies). */
+/** The layouts of the public buildings' kinds (their walk-in bodies), and of the farm's barns. */
 const SITE_WORK: Partial<Record<PlaceKind, Work>> = {
   church: 'church', school: 'school', kindergarten: 'kindergarten', doctor: 'clinic', fire: 'fire', supermarket: 'supermarket',
-  carehome: 'carehome', station: 'station', petrol: 'grocery',
+  carehome: 'carehome', station: 'station', petrol: 'grocery', townhall: 'townhall', farm: 'farm',
 };
 
 /** The place kind of a building's workplace: the caller's, else its amenity's. */
@@ -207,7 +207,7 @@ export function planInterior(b: BuildingDesc, place?: PlaceUse): Interior {
 }
 
 /** Rooms where staff without a desk or counter of their own stand and work. */
-const STAND = new Set<string>(['shop', 'office', 'dining', 'bakehouse', 'salon', 'reading', 'workshop', 'garage', 'factory', 'storage', 'lobby', 'meeting']);
+const STAND = new Set<string>(['shop', 'office', 'dining', 'bakehouse', 'salon', 'reading', 'workshop', 'garage', 'factory', 'storage', 'lobby', 'meeting', 'barn']);
 
 /**
  * A workplace whose furniture gives fewer workplaces than its staff on site at once (an odd lot

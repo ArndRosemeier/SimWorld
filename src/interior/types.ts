@@ -20,7 +20,9 @@ export type RoomType =
   // Halls.
   | 'workshop' | 'garage' | 'factory' | 'parking' | 'nave'
   // Public buildings.
-  | 'classroom' | 'consulting' | 'playroom' | 'dayroom';
+  | 'classroom' | 'consulting' | 'playroom' | 'dayroom' | 'chamber'
+  // Farm buildings.
+  | 'barn';
 
 export type FurnKind =
   | 'bed' | 'bedDouble' | 'wardrobe' | 'nightstand' | 'sofa' | 'armchair' | 'coffeeTable' | 'tvStand' | 'tv' | 'rug'
@@ -29,7 +31,9 @@ export type FurnKind =
   | 'counter' | 'shopShelf' | 'cafeTable' | 'barCounter' | 'palletRack' | 'crate' | 'pew' | 'altar' | 'reception' | 'column' | 'clothesStack'
   | 'screen' | 'cooler' | 'mirror' | 'coatRack' | 'clothesRail' | 'mannequin' | 'clothesShelf' | 'tallMirror'
   // SimWorld's trades and services.
-  | 'displayCounter' | 'oven' | 'workTable' | 'salonChair' | 'washBasin' | 'workbench' | 'machine' | 'carLift' | 'car' | 'bunk' | 'safe';
+  | 'displayCounter' | 'oven' | 'workTable' | 'salonChair' | 'washBasin' | 'workbench' | 'machine' | 'carLift' | 'car' | 'bunk' | 'safe'
+  // Farm buildings.
+  | 'stall' | 'hayBale' | 'tractor';
 
 /** Floor finishes. */
 export type FloorMat = 'wood' | 'tile' | 'carpet' | 'concrete' | 'stone' | 'marble';

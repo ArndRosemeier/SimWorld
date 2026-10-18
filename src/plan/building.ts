@@ -69,6 +69,10 @@ export interface BuildingDesc {
   eatery?: number;
   /** What the ground floor (or the whole building, for a workplace) is, set by the town planner. */
   amenity?: AmenityKind;
+  /** A street door set by the building's own design instead of the door bay (a public building's walk-in body, src/interior/landmark.ts): its middle along the front edge (0 to 1) and its width. */
+  door?: { at: number; w: number };
+  /** How many homes it holds when its design says so instead of its style and storeys (a farmhouse: one family's). */
+  homes?: number;
 }
 
 /** Wall material ids — must match render material atlas layers. */
@@ -233,12 +237,18 @@ export function facadeFront(b: BuildingDesc): { ax: number; az: number; dx: numb
 }
 
 /**
- * The street door: on the front edge, centred in the door bay (`doorBayOf`), at most 1.3 m wide.
+ * The street door: on the front edge, centred in the door bay (`doorBayOf`), at most 1.3 m wide
+ * (or where the building's design puts it, `door`).
  * `s0`, `s1` its span along the edge from the edge's first corner, `x`, `z` its middle on the
  * facade. Scale: build/buildingLayout doorOf; the one door the facade, the interior and the
  * place graph agree on.
  */
 export function streetDoor(b: BuildingDesc): FrontDoor {
+  if (b.door) {
+    const P = b.poly, n = P.length >> 1, i = b.front % n, j = (i + 1) % n, t = b.door.at;
+    const L = Math.hypot(P[j * 2] - P[i * 2], P[j * 2 + 1] - P[i * 2 + 1]);
+    return { edge: i, s0: t * L - b.door.w / 2, s1: t * L + b.door.w / 2, x: P[i * 2] + (P[j * 2] - P[i * 2]) * t, z: P[i * 2 + 1] + (P[j * 2 + 1] - P[i * 2 + 1]) * t };
+  }
   return frontBayDoor(b, (bays) => doorBayOf(b.seed, bays))!;
 }
 
@@ -283,6 +293,7 @@ export function flatsDoorBay(b: BuildingDesc, bays: number): number {
 export const MIN_FLAT_FLOOR = 55;
 export function dwellingsOf(b: BuildingDesc): number {
   if (b.use !== 'residential' && b.use !== 'mixed') return 0;
+  if (b.homes !== undefined) return b.homes;
   if (b.style === 'house') return b.floors >= 2 && (b.seed >>> 9) % 7 === 0 ? 2 : 1;
   if (b.style === 'rowhouse') return 1;
   const floors = Math.max(0, b.floors - (b.shopfront ? 1 : 0));

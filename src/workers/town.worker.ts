@@ -25,7 +25,7 @@ import { townMapOf, townMapTransferables } from '../plan/townMap';
 import type { FromTown, ToTown } from './townProtocol';
 import { serve } from './serve';
 import { signInstances } from '../build/signs';
-import { buildingRef, placeGraphOf } from '../plan/placeGraph';
+import { buildingOf, buildingRef, isBarn, placeGraphOf } from '../plan/placeGraph';
 import { landmarkBody } from '../interior/landmark';
 import { townRoads } from '../plan/roads';
 import { cityName } from '../plan/names';
@@ -133,11 +133,13 @@ function handle(m: ToTown): FromTown {
       const ref = buildingRef(m.building);
       places ??= placeGraphOf(town);
       const work = places.places.find((p) => p.building === m.building && !p.homes);
-      const use = work ? { staff: work.staff, capacity: work.capacity } : undefined;
-      // A town building, or a public building's walk-in body.
+      // (A shed or a second barn is nobody's workplace, but it is laid out as the farm's.)
+      const farmB = ref && 'farm' in ref ? buildingOf(town, m.building) : null;
+      const use = work ? { staff: work.staff, capacity: work.capacity, ...(farmB ? { kind: work.kind } : {}) } : farmB && isBarn(farmB) ? { kind: 'farm' as const } : undefined;
+      // A town or farm building, or a public building's walk-in body.
       const lm = ref && 'site' in ref ? macro.landmarks.find((l) => l.id === ref.site) : undefined;
       const body = lm ? landmarkBody(lm, terrain, use) : null;
-      const b = ref && 'cell' in ref ? cells[ref.cell]?.buildings[ref.index] : body?.b;
+      const b = body ? body.b : buildingOf(town, m.building);
       if (!b) throw new Error(`no building to go into (${m.building})`);
       const I = planInterior(b, body ? body.place : use);
       const base = lm ? lm.base : buildingBase(b, terrain).base;

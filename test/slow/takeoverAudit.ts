@@ -18,7 +18,7 @@ import { StreetMap, OUTDOOR } from '../../src/street/streetMap';
 import { sample, trackOf, type Track } from '../../src/street/tracks';
 import { takeoverOf } from '../../src/street/takeover';
 
-/** `atDoor`: taken over at the door of a building with no inside to walk in yet (the town hall, farm buildings). */
+/** `atDoor`: taken over at the door of a building with no inside to walk in (none left: the sports ground is out of doors). */
 export interface CaseCount { n: number; oldWrong: number; newWrong: number; atDoor: number; examples: string[] }
 export type Audit = Record<string, CaseCount>;
 
@@ -95,7 +95,7 @@ export function auditTakeovers(seeds: number[], times: number[], size = 0): Audi
       let f = found.get(k.building);
       if (f === undefined) {
         const lm = k.building >= SITE && k.building < FARM ? town.macro.landmarks.find((l) => l.id === k.building - SITE) : undefined;
-        f = k.building >= FARM || (lm && !landmarkBody(lm, town.terrain)) ? 'door' : map.solidsNear(k.x, k.z, 30).buildings.some((b) => b.code === k.building && b.doors.length > 0);
+        f = lm && !landmarkBody(lm, town.terrain) ? 'door' : map.solidsNear(k.x, k.z, 30).buildings.some((b) => b.code === k.building && b.doors.length > 0);
         found.set(k.building, f);
       }
       return f;

@@ -391,9 +391,11 @@ function lookOf(type: RoomType, ground: boolean, r: Rng): Pick<Room, 'floorMat' 
     case 'office': case 'reading': return { floorMat: 'carpet', wallColor: [0.9, 0.9, 0.88] };
     case 'meeting': return { floorMat: 'carpet', wallColor: [0.85, 0.88, 0.9] };
     case 'storage': case 'workshop': case 'garage': case 'factory': case 'parking': return { floorMat: 'concrete', wallColor: [0.8, 0.8, 0.78] };
+    case 'barn': return { floorMat: 'concrete', wallColor: [0.72, 0.62, 0.48] };
     case 'shop': case 'salon': return { floorMat: 'tile', wallColor: r.pick(WALLS) };
     case 'dining': return { floorMat: 'wood', wallColor: r.pick(WALLS) };
     case 'nave': return { floorMat: 'stone', wallColor: [0.93, 0.91, 0.86] };
+    case 'chamber': return { floorMat: 'wood', wallColor: [0.9, 0.86, 0.78] };
     case 'classroom': case 'playroom': return { floorMat: 'wood', wallColor: r.pick(WALLS) };
     case 'consulting': return { floorMat: 'tile', wallColor: [0.92, 0.94, 0.95] };
     case 'dayroom': return { floorMat: 'carpet', wallColor: r.pick(WALLS) };

@@ -21,6 +21,8 @@
  *    have a cell, the bank a safe, the post office a sorting room.
  *  - halls (workshop, garage, factory): one hall with workbenches, car lifts or machines, an
  *    office, a toilet and a store at the back.
+ *  - farm barns and sheds: the barn floor with stalls, hay, the tractor and workbenches; a feed
+ *    store, the farm office and a toilet at the back.
  *
  * Ported from Scale (src/interior/fill/work.ts: offices, grocery, clothes shop, café); the other
  * themes and the sizing by staff and seats are new in SimWorld.
@@ -37,7 +39,9 @@ export type Work =
   | 'office' | 'grocery' | 'clothes' | 'cafe' | 'pub' | 'restaurant' | 'icecream' | 'bakery' | 'butcher' | 'pharmacy'
   | 'post' | 'bank' | 'police' | 'library' | 'hairdresser' | 'workshop' | 'garage' | 'factory' | 'vacant'
   // The public buildings' walk-in bodies (src/interior/landmark.ts).
-  | 'church' | 'school' | 'kindergarten' | 'clinic' | 'fire' | 'supermarket' | 'carehome' | 'station';
+  | 'church' | 'school' | 'kindergarten' | 'clinic' | 'fire' | 'supermarket' | 'carehome' | 'station' | 'townhall'
+  // A farm's barns and sheds.
+  | 'farm';
 
 /** Who a storey of a workplace is for: staff on site at once, and seats for guests or clients. */
 export interface Need { staff: number; seats: number }
@@ -109,6 +113,23 @@ export function workProgram(w: Work, ground: boolean): Program {
       return { reserve: [front('garage', 0.78, 4, 3)], rooms: [{ type: 'kitchen', len: [3, 4.5], max: 1 }, { type: 'office', len: [2.8, 3.6], max: 1 }, wc, store(1)], corridor: 0, leaf: ['bath', 'storage', 'office'] };
     case 'supermarket':
       return { reserve: [front('shop', 0.84, 5)], rooms: [{ type: 'storage', len: [4, 7], max: 1 }, { type: 'office', len: [2.6, 3.4], max: 1 }, wc], corridor: 0, leaf: ['bath', 'office'] };
+    case 'townhall':
+      // The counters in the front hall, the council chamber, the mayor's and the clerks' offices, a room for
+      // weddings and meetings; offices and meeting rooms upstairs.
+      return ground
+        ? {
+          reserve: [{ type: 'lobby', at: 'front', share: 0.3, minLeft: 4 }],
+          rooms: [{ type: 'chamber', len: [8, 12], max: 1 }, { type: 'office', len: [3.2, 4.4] }, { type: 'meeting', len: [4.5, 6.5], max: 1 }, { ...wc, max: 2 }, { type: 'office', len: [3.2, 4.4] }, store(1)],
+          corridor: 2.2, corridorType: 'corridor', leaf: ['bath', 'storage', 'office', 'meeting', 'chamber'], doorW: 1.0,
+        }
+        : {
+          reserve: [],
+          rooms: [{ type: 'office', len: [3.2, 4.4] }, { type: 'meeting', len: [4.5, 6.5], max: 1 }, { type: 'office', len: [3.2, 4.4] }, { ...wc, max: 2 }, { type: 'office', len: [3.2, 4.4] }, store(1)],
+          corridor: 2.2, corridorType: 'corridor', leaf: ['bath', 'storage', 'office', 'meeting'], doorW: 1.0,
+        };
+    case 'farm':
+      // The barn floor (stalls, hay, the tractor, a workbench); the feed store, the farm office and a toilet at the back.
+      return { reserve: [front('barn', 0.75, 4, 2.6)], rooms: [{ type: 'storage', len: [5, 9] }, { type: 'office', len: [2.6, 3.4], max: 1 }, wc], corridor: 0, leaf: ['bath', 'storage', 'office'] };
     case 'station':
       return { reserve: [front('lobby', 0.72, 4)], rooms: [{ type: 'office', len: [2.6, 3.6], max: 1 }, wc, store(1)], corridor: 0, leaf: ['bath', 'storage', 'office'] };
     default:
@@ -119,13 +140,14 @@ export function workProgram(w: Work, ground: boolean): Program {
 /** The items for a room of a workplace. */
 export function workItems(w: Work, type: RoomType, A: Area, r: Rng, need: Need): Item[] {
   switch (type) {
-    case 'lobby': return w === 'post' || w === 'bank' ? counterHall(w, A, r, need) : w === 'station' ? ticketHall(A, r, need) : w === 'clinic' ? waitingRoom(A, r) : lobby(r, w === 'police');
+    case 'lobby': return w === 'post' || w === 'bank' || w === 'townhall' ? counterHall(w, A, r, need) : w === 'station' ? ticketHall(A, r, need) : w === 'clinic' ? waitingRoom(A, r) : lobby(r, w === 'police');
     case 'office': return roomArea(A) >= 28 ? openPlan(A, r, need.staff) : singleOffice(r);
     case 'meeting': return meeting(A, r);
     case 'kitchen': return w === 'butcher' ? cuttingRoom(need) : w === 'cafe' || w === 'icecream' || w === 'pub' || w === 'restaurant' ? cafeKitchen(w === 'restaurant', need) : teaKitchen(r);
     case 'bath': return toilet();
-    case 'storage': return w === 'office' || w === 'police' ? officeStore() : w === 'bank' ? strongRoom() : w === 'post' ? sorting(need) : stockRoom(r);
+    case 'storage': return w === 'office' || w === 'police' ? officeStore() : w === 'bank' ? strongRoom() : w === 'post' ? sorting(need) : w === 'farm' ? feedStore(A, r) : stockRoom(r);
     case 'nave': return nave(A, r, need);
+    case 'chamber': return chamber(A, r);
     case 'classroom': return classroom(A, r, false);
     case 'playroom': return classroom(A, r, true);
     case 'consulting': return consulting(r);
@@ -139,6 +161,7 @@ export function workItems(w: Work, type: RoomType, A: Area, r: Rng, need: Need):
     case 'cell': return cell();
     case 'workshop': case 'factory': return hall(type, A, r, need);
     case 'garage': return w === 'fire' ? engineHall(A, r) : hall(type, A, r, need);
+    case 'barn': return barn(A, r, need);
     default: return [];
   }
 }
@@ -155,7 +178,9 @@ const DARK: C3 = [0.15, 0.15, 0.17], SCREEN: C3 = [0.08, 0.08, 0.09], DESK: C3 =
 /** An office chair at a desk's front, turned to it. */
 const seat = (dv: number, dyaw: number, need = true): Kid => ({ kind: 'officeChair', du: 0, dv, dyaw, w: 0.6, d: 0.6, h: 1.1, color: DARK, use: 'work', need });
 /** Waiting chairs along a plain wall. */
-const waiting = (r: Rng, n: number): Item[] => many(n, { kind: 'chair', at: 'wall', w: 0.5, d: 0.5, h: 0.9, color: r.pick(FABRIC), use: 'sit', score: (c, f) => plainWall(c) + Math.min(f.doorDist(c.x, c.z), 3) * 0.2 });
+/** Where a seat along the wall would rather be: a plain wall, a few steps in from the door. */
+const byWall = (c: Cand, f: Filler): number => plainWall(c) + Math.min(f.doorDist(c.x, c.z), 3) * 0.2;
+const waiting = (r: Rng, n: number): Item[] => many(n, { kind: 'chair', at: 'wall', w: 0.5, d: 0.5, h: 0.9, color: r.pick(FABRIC), use: 'sit', score: byWall });
 
 /**
  * A counter staff stand behind (the back clear for them), facing the way in, a few steps from it,
@@ -263,15 +288,15 @@ function lobby(r: Rng, police: boolean): Item[] {
 }
 
 /** A post office's or bank's public hall: a row of counters, waiting chairs, a leaflet shelf. */
-function counterHall(w: 'post' | 'bank', A: Area, r: Rng, need: Need): Item[] {
-  const col: C3 = w === 'bank' ? [0.32, 0.26, 0.2] : [0.82, 0.62, 0.18];
+function counterHall(w: 'post' | 'bank' | 'townhall', A: Area, r: Rng, need: Need): Item[] {
+  const col: C3 = w === 'bank' ? [0.32, 0.26, 0.2] : w === 'townhall' ? WOOD[3] : [0.82, 0.62, 0.18];
   const counters = Math.max(1, Math.min(4, Math.round(roomArea(A) / 25), Math.ceil(need.staff / 2)));
   return [
     ...many(counters, serveCounter('counter', 1.6, col, true, 0.7)),
     ...waiting(r, Math.min(6, roomArea(A) / 6)),
     { kind: w === 'post' ? 'shopShelf' : 'shelf', at: 'wall', w: 1.4, d: 0.4, h: 1.6, color: w === 'post' ? [0.86, 0.86, 0.84] : METAL, front: 0.8, score: plainWall },
     pottedPlant(1.4, 0.55, LEAF),
-    ...(w === 'bank' ? [wallPicture(r.pick(FABRIC), 1.2, 0.7)] : []),
+    ...(w === 'bank' || w === 'townhall' ? [wallPicture(r.pick(FABRIC), 1.2, 0.7)] : []),
   ];
 }
 
@@ -301,6 +326,16 @@ function stockRoom(r: Rng): Item[] {
   return [
     ...many(6, { kind: 'palletRack', at: 'wall', w: 1.3, d: 0.5, h: 2.4, color: [0.35, 0.4, 0.5], front: 0.8, score: (c, f) => -f.cornerGap(c) * 0.2 }),
     ...many(3, { kind: 'crate', at: 'free', w: 0.8, d: 0.6, h: 0.55, color: [0.6, 0.48, 0.3], score: () => r.float() }),
+  ];
+}
+
+/** A farm's feed store: sacks of feed on pallets, bales of straw, a shelf of tools and tins. */
+function feedStore(A: Area, r: Rng): Item[] {
+  const n = Math.min(6, roomArea(A) / 6);
+  return [
+    ...many(n, { kind: 'crate', at: 'wall', w: 1.2, d: 1.0, h: 0.7, color: [0.82, 0.78, 0.66], score: (c, f) => -f.cornerGap(c) * 0.3 }),
+    ...many(n / 2, { kind: 'hayBale', at: 'wall', w: 1.2, d: 0.9, h: 0.8, color: [0.8, 0.7, 0.4], score: () => r.float() }),
+    { kind: 'shelf', at: 'wall', w: 1.4, d: 0.45, h: 1.9, color: WOOD[1], front: 0.8, score: plainWall },
   ];
 }
 
@@ -530,6 +565,27 @@ function hall(type: 'workshop' | 'garage' | 'factory', A: Area, r: Rng, need: Ne
     : [...many(Math.min(area / 12, Math.ceil(work / 2) + 1), bench), ...many(Math.min(area / 18, work / 2), machine), ...racks];
 }
 
+/**
+ * A barn's floor: stalls along the plain walls (each a place to work, feeding and mucking out), bales of hay stacked
+ * in a corner, the tractor by the way in, workbenches, a bench to sit on at the break.
+ */
+function barn(A: Area, r: Rng, need: Need): Item[] {
+  const area = roomArea(A), along = alongRoom(A);
+  const plank = r.pick(WOOD), straw: C3 = [0.8, 0.7, 0.4], paint: C3 = r.pick([[0.2, 0.45, 0.22], [0.7, 0.18, 0.12], [0.85, 0.55, 0.12], [0.25, 0.35, 0.6]]);
+  const stall: Item = { kind: 'stall', at: 'wall', w: 2.6, d: 3.0, h: 1.3, tall: false, color: plank, use: 'work', front: 1.0, score: (c, f) => plainWall(c) - f.cornerGap(c) * 0.05 };
+  const bale: Item = { kind: 'hayBale', at: 'wall', w: 1.2, d: 0.9, h: 0.8, color: straw, kids: [{ kind: 'hayBale', du: 0, dv: 0, w: 1.2, d: 0.9, h: 0.8, color: straw, onTop: true }], score: (c, f) => plainWall(c) - f.cornerGap(c) * 0.3 };
+  const tractor: Item = { kind: 'tractor', at: 'free', w: 2.0, d: 3.6, h: 2.1, color: paint, front: 1.2, score: (c, f) => (along(c) ? 1 : 0) - Math.abs(f.doorDist(c.x, c.z) - 5) * 0.3 };
+  const bench: Item = { kind: 'workbench', at: 'wall', w: 2.0, d: 0.75, h: 0.9, color: WOOD[1], use: 'work', front: 1.0, score: (c) => plainWall(c) * 0.5 };
+  const work = Math.max(2, need.staff);
+  return [
+    ...many(Math.min(10, area / 22, work + 3), stall),
+    ...(area > 60 ? [tractor] : []),
+    ...many(Math.min(2, Math.ceil(work / 2)), bench),
+    ...many(Math.min(6, area / 25), bale),
+    { kind: 'pew', at: 'wall', w: 1.6, d: 0.45, h: 0.9, color: WOOD[2], use: 'sit', score: byWall },
+  ];
+}
+
 /** An empty shop: a few boxes left behind. */
 function emptyShop(r: Rng): Item[] {
   return many(r.int(1, 3), { kind: 'crate', at: 'free', w: 0.8, d: 0.6, h: 0.55, color: [0.6, 0.48, 0.3], score: () => r.float() });
@@ -544,6 +600,12 @@ const towards = (c: Cand, f: Filler, tag: string): number => {
   const dx = t.x - c.x, dz = t.z - c.z, d = Math.hypot(dx, dz) || 1;
   return (Math.sin(c.yaw) * dx + Math.cos(c.yaw) * dz) / d;
 };
+
+/**
+ * A score for the piece the room looks at (an altar, the council's bench): at the far end from the way in, facing it,
+ * in the middle, `gap` metres of floor behind it (a piece `d` deep) for whoever stands or sits there.
+ */
+const atFarEnd = (d: number, gap: number) => (c: Cand, f: Filler): number => towardsStreet(c, f) * 2 + f.streetDist(c.x, c.z) + centred(c) * 0.5 - Math.abs(f.behind(c, d) - gap) * 3;
 
 /**
  * A score for a piece turned to the piece tagged `tag` (`cos` > 0: facing it at least that squarely; < 0: its back to
@@ -563,6 +625,32 @@ const towardsStreet = (c: Cand, f: Filler): number => {
 const altarFromDoor = (f: Filler): number => { const a = f.get('altar'); return a ? f.streetDist(a.x, a.z) : Infinity; };
 
 /**
+ * The council chamber: the mayor's bench at the far end from the door, facing the room, and the councillors' desks
+ * in rows facing it (each with its chair on the side away from the bench); chairs for the public along the walls.
+ */
+function chamber(A: Area, r: Rng): Item[] {
+  const area = roomArea(A), wood = r.pick(WOOD);
+  const chair = (dv: number, dyaw: number, use: 'work' | 'sit', need: boolean): Kid => ({ kind: 'chair', du: 0, dv, dyaw, w: 0.5, d: 0.5, h: 1.0, color: [0.5, 0.1, 0.12], use, need });
+  return [
+    {
+      kind: 'desk', at: 'free', widths: [3.6, 3.0, 2.4], w: 3.6, d: 0.8, h: 0.8, color: wood, tag: 'bench', front: 1.6,
+      // The mayor in the middle, a clerk either side (behind it, facing the room).
+      kids: [chair(-0.75, 0, 'work', true), { ...chair(-0.75, 0, 'sit', false), du: -1.0 }, { ...chair(-0.75, 0, 'sit', false), du: 1.0 }],
+      score: atFarEnd(0.8, 1.3),
+    },
+    ...many(Math.min(area / 5, 15), {
+      kind: 'desk', at: 'free', w: 1.2, d: 0.6, h: 0.76, color: wood,
+      kids: [chair(0.7, Math.PI, 'sit', true)],
+      // Its back to the bench: the councillor behind it looks at the bench.
+      score: aimed('bench', -0.9, 0.05), min: -5,
+    }),
+    ...waiting(r, Math.min(8, area / 10)),
+    wallPicture(r.pick(FABRIC), 1.4, 0.9),
+    pottedPlant(1.4, 0.55, LEAF), pottedPlant(1.4, 0.55, LEAF),
+  ];
+}
+
+/**
  * A church's nave: the altar at the far end from the door, the lectern beside it, pews in rows facing the altar (as
  * many as the congregation, as far as the floor allows), a few candle stands along the walls.
  */
@@ -571,7 +659,7 @@ function nave(A: Area, r: Rng, need: Need): Item[] {
   const pews = Math.min(area / 3.2, Math.max(8, (need.seats || 80) / 4));
   return [
     // Free of the end wall: the priest stands behind it.
-    { kind: 'altar', at: 'free', w: 2.2, d: 0.9, h: 1.0, color: cloth, use: 'serve', front: 2.2, back: 0.9, tag: 'altar', score: (c, f) => towardsStreet(c, f) * 2 + f.streetDist(c.x, c.z) + centred(c) * 0.5 - Math.abs(f.behind(c, 0.9) - 1.2) * 3 },
+    { kind: 'altar', at: 'free', w: 2.2, d: 0.9, h: 1.0, color: cloth, use: 'serve', front: 2.2, back: 0.9, tag: 'altar', score: atFarEnd(0.9, 1.2) },
     { kind: 'reception', at: 'free', w: 0.7, d: 0.5, h: 1.15, color: wood, front: 0.6, score: (c, f) => towards(c, f, 'altar') < -0.2 ? 0 : -10, min: -5 },
     ...many(pews, {
       kind: 'pew', at: 'free', widths: [3.6, 3.0, 2.4], w: 3.6, d: 0.55, h: 0.9, color: wood, use: 'sit', front: 0.45,

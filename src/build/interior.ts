@@ -541,6 +541,35 @@ function buildFurniture(g: Geo, f: Furn, y: number, cut = false): void {
       B(0, 0.01, 0, w, 0.01, d * 0.3, [0.85, 0.75, 0.15]);
       break;
     }
+    case 'stall': {
+      // A pen open to the front: plank sides and back on posts, straw on the floor, a trough along the back.
+      const plank: C3 = c, post = sc(0.7), straw: C3 = [0.78, 0.68, 0.38];
+      B(0, 0.01, 0, w - 0.05, 0.01, d - 0.05, straw);
+      for (const a of [-1, 1]) {
+        for (const b of [-1, 1]) B(a * (w - 0.05), 0.65, b * (d - 0.05), 0.05, 0.65, 0.05, post);
+        for (let k = 0; k < 3; k++) B(a * (w - 0.05), 0.3 + k * 0.4, 0, 0.025, 0.08, d - 0.05, plank);
+      }
+      for (let k = 0; k < 3; k++) B(0, 0.3 + k * 0.4, -d + 0.05, w - 0.05, 0.08, 0.025, plank);
+      B(0, 0.25, -d + 0.35, w - 0.2, 0.25, 0.25, [0.45, 0.46, 0.48]);
+      break;
+    }
+    case 'hayBale': {
+      B(0, h / 2, 0, w, h / 2, d, c);
+      for (const a of [-0.5, 0.5]) B(a * w, h / 2, 0, 0.012, h / 2 + 0.005, d + 0.005, sc(0.6));
+      break;
+    }
+    case 'tractor': {
+      // A small tractor: the bonnet in front (+z), the cab over the big back wheels, small front wheels.
+      B(0, 0.75, d * 0.35, w * 0.45, 0.35, d * 0.55, c);
+      B(0, 0.55, -d * 0.35, w * 0.55, 0.2, d * 0.4, c);
+      B(0, 1.45, -d * 0.4, w * 0.5, 0.55, d * 0.35, [0.25, 0.3, 0.35]);
+      B(0, 2.02, -d * 0.4, w * 0.55, 0.03, d * 0.4, c);
+      for (const a of [-1, 1]) {
+        B(a * (w - 0.2), 0.75, -d * 0.45, 0.2, 0.75, 0.75, black);
+        B(a * (w * 0.6), 0.4, d * 0.7, 0.12, 0.4, 0.4, black);
+      }
+      break;
+    }
     case 'car': {
       // A car on the lift or the garage floor: body, cabin with glass, wheels.
       const body = c, glass: C3 = [0.25, 0.3, 0.35];

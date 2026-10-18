@@ -80,10 +80,9 @@ export class GoingInside {
   /** The building shown now (its interior, walls and spots), null out of doors. */
   get inside(): Inside | null { return this.view.current; }
 
-  /** Go into building `building` (a `Place.building` code); null when it has no interior to walk in (a farm, the town hall, the sports ground). */
+  /** Go into building `building` (a `Place.building` code); null when it has no interior to walk in (the sports ground). */
   async enter(building: number): Promise<Inside | null> {
-    const ref = buildingRef(building);
-    if (!ref || 'farm' in ref) return null;
+    if (!buildingRef(building)) return null;
     if (this.building !== building) this.outside(this.building, true);
     this.building = building;
     this.asked = -Infinity;
