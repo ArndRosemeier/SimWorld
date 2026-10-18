@@ -31,8 +31,11 @@ export type VKind = VehicleKind;
 export const DIMS: Record<VKind, [number, number]> = {
   sedan: [4.7, 1.85], hatch: [4.1, 1.78], wagon: [4.8, 1.85], suv: [4.8, 1.95], van: [5.2, 2.0], pickup: [5.4, 2.0],
   taxi: [4.8, 1.85], police: [4.9, 1.9], sports: [4.4, 1.9], bus: [12, 2.55], truck: [8, 2.5], delivery: [6, 2.2], shuttle: [5.0, 2.06],
-  ambulance: [6, 2.2], firetruck: [8.2, 2.5], flatbed: [8.2, 2.5],
+  ambulance: [6, 2.2], firetruck: [8.2, 2.5], flatbed: [8.2, 2.5], train: [20.5, 2.9],
 };
+
+/** A car from the region (through traffic, visitors): one of `kinds`, any variant. */
+export const regionCar = (rng: Rng, key: number, kinds: readonly VKind[]): Car => ({ key, kind: rng.pick(kinds), variant: rng.int(0, 3) });
 
 /** A particular car: its model and a stable key (a household's car keeps its key, so its colour, parked or driving). */
 export interface Car {
@@ -135,6 +138,11 @@ export class Traffic {
    * their owner each frame (the street people). Discs: x, z, r.
    */
   readonly obstacles: { x: number; z: number; r: number }[] = [];
+  /**
+   * Closed level-crossing barriers across the road (discs: x, z, r), set by their owner (`TownTraffic.crossings`). Each
+   * stops only the cars heading (fx, fz) towards the railway, so a car already on the crossing drives off it.
+   */
+  barriers: { x: number; z: number; r: number; fx: number; fz: number }[] = [];
   /** A car parked (journey done). */
   onPark?: (v: Vehicle, spot: Spot | null) => void;
   /** A car drove off the map, or gave up. */
@@ -398,7 +406,8 @@ export class Traffic {
     }
     const pg = this.carAhead(v, lk);
     if (pg < gap) { gap = pg; leadV = 0; }
-    const og = this.obstacleAhead(v, 6 + v.speed * 2.5);
+    // (A barrier is seen from as far off as it takes to stop.)
+    const og = Math.min(this.obstacleAhead(v, 6 + v.speed * 2.5), this.obstacleAhead(v, 10 + v.speed * v.speed / 5, this.barriers));
     if (og < gap) { gap = og; leadV = 0; }
     const node = v.fwd ? e.b : e.a;
     const hasNext = !last;
@@ -476,7 +485,7 @@ export class Traffic {
   private stepTurn(v: Vehicle, dt: number): void {
     const T = v.turn!;
     let target = Math.min(this.net.limit(this.net.edges[v.edge]) * v.pace, 7);
-    const og = Math.min(this.obstacleAhead(v, 10), this.boxGap(v));
+    const og = Math.min(this.obstacleAhead(v, 10), this.obstacleAhead(v, 10, this.barriers), this.boxGap(v));
     if (og < Infinity) target = Math.min(target, Math.sqrt(12 * Math.max(0, og - 0.3)));
     if (og <= 0.3) { v.speed = 0; v.brake = 1; }
     else if (target < v.speed - 0.5) { v.speed = Math.max(target, v.speed - 9 * dt); v.brake = 1; }
@@ -644,13 +653,14 @@ export class Traffic {
     return gap;
   }
 
-  /** Gap (m, from the front bumper) to the nearest obstacle (a person on the road) in the lane corridor ahead. */
-  private obstacleAhead(v: Vehicle, look: number): number {
-    if (!this.obstacles.length) return Infinity;
+  /** Gap (m, from the front bumper) to the nearest obstacle (a person on the road, or of `list`) in the lane corridor ahead. */
+  private obstacleAhead(v: Vehicle, look: number, list: readonly { x: number; z: number; r: number; fx?: number; fz?: number }[] = this.obstacles): number {
+    if (!list.length) return Infinity;
     const fx = -Math.sin(v.yaw), fz = -Math.cos(v.yaw);
     const reach = look + v.length;
     let best = Infinity;
-    for (const o of this.obstacles) {
+    for (const o of list) {
+      if (o.fx !== undefined && o.fx * fx + o.fz! * fz <= 0) continue;
       const dx = o.x - v.x, dz = o.z - v.z;
       if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
       const along = dx * fx + dz * fz;

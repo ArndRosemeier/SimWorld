@@ -13,6 +13,7 @@ import type { Rng } from '@futuremagic/core';
 import { ACTOR_PERSON, FEMALE, type ActorId } from '../sim/actors';
 import type { PlaceId } from '../sim/places';
 import { BONDS, FAMILY_MASK, bondBit, type Bond } from '../sim/relations';
+import { regionPlaces } from '../sim/region';
 import { ageOf, firstName, householdOf, jobOf, nameOf, type World } from '../sim/world';
 import { expand } from './grammar';
 import type { Voice } from './voice';
@@ -193,7 +194,7 @@ export function namesOf(world: World): ReadonlySet<string> {
   set = new Set<string>();
   for (const l of [world.people.first, world.people.last, world.animals.name]) for (const n of l) if (n) set.add(n);
   for (const p of world.graph.places) for (const w of p.name.split(/\s+/)) if (/^[A-Z]/.test(w) && w !== 'The') set.add(w);
-  for (const p of world.region?.region.places ?? []) for (const w of p.name.split(/\s+/)) set.add(w);
+  for (const p of regionPlaces(world)) for (const w of p.name.split(/\s+/)) set.add(w);
   if (world.region) set.add(world.region.region.town);
   NAMES.set(world, set);
   NAME_COUNT.set(world, world.actors.count);

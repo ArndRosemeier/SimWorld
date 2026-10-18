@@ -14,6 +14,7 @@ import type { PlaceId } from './places';
 import { dayOf, MINUTES_PER_DAY, minuteOfDay } from './time';
 import { WALK_M_PER_MIN } from './travel';
 import type { World } from './world';
+import { regionPlaces } from './region';
 
 export type TransitMode = 'bus' | 'train';
 
@@ -85,9 +86,8 @@ function buildTransit(world: World): Transit {
   const places = graph.places;
   const station = places.find((p) => p.kind === 'station');
   const centre = places.find((p) => p.kind === 'square') ?? places.find((p) => p.kind === 'townhall');
-  const regionPlaces = world.region?.region.places ?? [];
   // places[0] is the big city, places[1] the larger town nearby (hospital, secondary school).
-  const city = regionPlaces[0], near = regionPlaces[1];
+  const places0 = regionPlaces(world), city = places0[0], near = places0[1];
   const nearName = near?.name ?? 'the nearby town', nearKm = near?.km ?? 15;
   const cityName = city?.name ?? 'the city', cityKm = city?.km ?? 60;
 
@@ -151,7 +151,7 @@ function buildTransit(world: World): Transit {
   const rail = world.region?.region.rail === undefined ? 'through' : world.region.region.rail;
   if (station && rail) {
     const st = stopAt(station.id, station.name);
-    const far = regionPlaces.slice(2).sort((a, b) => b.km - a.km)[0];
+    const far = places0.slice(2).sort((a, b) => b.km - a.km)[0];
     // As the region lore tells it: about km / 80 h plus ten minutes, twenty more with a change on a branch line.
     const lines2: [string, number, boolean][] = [[cityName, Math.round((cityKm / 80) * 60 + (rail === 'terminus' ? 30 : 10)), true]];
     if (rail === 'through' && far) lines2.push([far.name, Math.max(8, Math.round((far.km / 80) * 60 + 5)), false]);

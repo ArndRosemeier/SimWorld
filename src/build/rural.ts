@@ -274,6 +274,21 @@ export function countryRoadSurface(road: RuralRoad, terrain: Terrain): (s: numbe
   };
 }
 
+/**
+ * Height of the rail heads at arc length s along the railway (along `rail.pts`), bridge decks
+ * included: where the trains run (src/traffic/trains.ts). `RAIL_TRACK`: each track's centre
+ * from the line's.
+ */
+export function railSurface(rail: Railway, terrain: Terrain): (s: number) => number {
+  const C = courseOf(terrain, resample(rail.pts, 5), rail.bridges, CLEAR_RAIL);
+  return (s) => {
+    const [x, z] = pointAt(C, s);
+    const deck = deckAt(C, terrain, s, x, z);
+    return (deck === deck ? deck : standOn(terrain)(x, z)) + RAIL_TOP;
+  };
+}
+export const RAIL_TRACK = TRACK;
+
 /** A road leaving the town rises from the town's carriageway to its own height over its first RAMP m. */
 function riseOf(R: RuralRoad): ((s: number) => number) | undefined {
   return R.trim > 0 ? (s) => smoothstep(R.trim, R.trim + RAMP, s) : undefined;
