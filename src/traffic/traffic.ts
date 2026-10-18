@@ -48,7 +48,12 @@ export type Goal =
   /** Park as near (x, z) as there is room (a place the driver is going to). */
   | { park: true; x: number; z: number }
   /** Drive off the map at an exit node (to the region). */
-  | { exit: number };
+  | { exit: number }
+  /**
+   * Stop in the kerb lane by (x, z) with the hazards on for `dwell` seconds (a bus stop, the bin
+   * lorry at a row of houses, the post van), then drive on to `then`.
+   */
+  | { halt: true; x: number; z: number; dwell: number; then: Goal; /** Not before this (`Traffic.time`): a bus early for its timetable. */ leave?: number; /** Pull into a lay-by off the lane (a bus stop), so traffic goes past. */ bay?: boolean; tag?: number };
 
 export interface Vehicle {
   id: number;
@@ -85,6 +90,8 @@ export interface Vehicle {
   spot: Spot | null;
   /** Arc length on the last edge where the car stops. */
   stopAt: number;
+  /** Seconds standing at a halt (−1: not halted). */
+  halted: number;
   /** Siren and flashers: ignores red lights; cars ahead pull over to the kerb. */
   siren: boolean;
   /** Pulled towards the kerb (+, yielding to a siren) or the centre line (−, overtaking), 0..1. */
@@ -132,6 +139,8 @@ export class Traffic {
   onPark?: (v: Vehicle, spot: Spot | null) => void;
   /** A car drove off the map, or gave up. */
   onGone?: (v: Vehicle, reason: 'exit' | 'stuck') => void;
+  /** A vehicle has pulled up at a halt (a bus at its stop). */
+  onHalt?: (v: Vehicle, halt: Extract<Goal, { halt: true }>) => void;
   onHorn?: (v: Vehicle) => void;
 
   constructor(readonly net: RoadNet, readonly parking: Parking) {}
@@ -214,21 +223,37 @@ export class Traffic {
     }
     // The last edge and direction: past the reserved spot with the kerb on the right, or past
     // the goal on the nearest street.
-    const spot = this.parking.reserve(key, goal.x, goal.z);
+    const halt = 'halt' in goal;
+    const spot = halt ? null : this.parking.reserve(key, goal.x, goal.z);
     let le: number, lf: boolean, stopAt: number;
     if (spot) { le = spot.edge; lf = spot.side > 0; stopAt = spot.s; }
     else {
       const ne = this.net.nearestEdge(goal.x, goal.z, 400);
       if (!ne) return null;
       le = ne.e; lf = ne.side > 0; stopAt = ne.s;
+      // A stop has a kerb on both sides of the road: halt in whichever direction comes first.
+      if (halt) lf = this.quickerWay(from, edge, fwd, s, le, stopAt);
     }
     const L = this.net.edges[le];
-    stopAt = Math.max(3, Math.min(L.len - 3, stopAt));
+    // (A halt stands clear of the junctions, where cars can queue behind it.)
+    const clear = halt ? Math.min(L.len / 2, junctionBack(L) + 10) : 3;
+    stopAt = Math.max(clear, Math.min(L.len - clear, stopAt));
     // Already on it, and the stop lies ahead.
     if (le === edge && lf === fwd && (fwd ? stopAt > s + 3 : stopAt < s - 3)) return { route: { edges: [edge], fwd: [fwd] }, spot, stopAt };
     const r = this.net.carRoute(from, lf ? L.a : L.b);
     if (!r) { if (spot) this.parking.unreserve(spot, key); return null; }
     return { route: { edges: [edge, ...r.edges, le], fwd: [fwd, ...r.fwd, lf] }, spot, stopAt };
+  }
+
+  /** Is (edge `le`, at `stopAt`) reached sooner driving a → b than b → a, starting from node `from`? */
+  private quickerWay(from: number, edge: number, fwd: boolean, s: number, le: number, stopAt: number): boolean {
+    const L = this.net.edges[le];
+    if (le === edge) return fwd ? stopAt > s : stopAt >= s;
+    const cost = (to: number, along: number) => {
+      const r = this.net.carRoute(from, to);
+      return r ? r.edges.reduce((t, id) => t + this.net.edges[id].len / this.net.limit(this.net.edges[id]), 0) + along / this.net.limit(L) : Infinity;
+    };
+    return cost(L.a, stopAt) <= cost(L.b, L.len - stopAt);
   }
 
   private make(car: Car, edge: number, fwd: boolean, s: number, goal: Goal): Vehicle {
@@ -238,7 +263,7 @@ export class Traffic {
       id: this.nextId++, car, length: L, width: W, edge, fwd, lane: 0, s,
       route: { edges: [edge], fwd: [fwd] }, ri: 0, speed: 0, pace: r.range(0.9, 1.08),
       x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, turn: null, brake: 0, indicator: 0, headlights: 0, wait: 0, jam: 0,
-      goal, spot: null, stopAt: NaN, siren: car.kind === 'ambulance' || car.kind === 'firetruck', pull: 0, alive: true,
+      goal, spot: null, stopAt: NaN, halted: -1, siren: car.kind === 'ambulance' || car.kind === 'firetruck', pull: 0, alive: true,
     };
     this.pose(v);
     return v;
@@ -354,6 +379,8 @@ export class Traffic {
       const oa = v.fwd ? o.s : e.len - o.s;
       if (oa > along || (oa === along && o.id < v.id)) {
         if (v.siren && o.pull > 0.5) { if (oa - along < 30) passing = true; continue; }
+        // A bus in the lay-by at its stop is off the carriageway (another bus for the stop queues behind it).
+        if (o.halted >= 0 && o.pull > 0.9 && !(last && 'bay' in v.goal && v.goal.bay)) continue;
         const g = oa - along - (o.length + v.length) / 2;
         if (g < gap) { gap = g; leadV = o.speed; }
         break;
@@ -396,7 +423,11 @@ export class Traffic {
         // The stop as a standing obstacle just beyond it (IDM keeps s0 to a leader).
         const dStop = v.fwd ? v.stopAt - v.s : v.s - v.stopAt;
         if (dStop + S0 - 0.2 < gap) { gap = Math.max(0, dStop + S0 - 0.2); leadV = 0; }
-        if (dStop < 0.8 && v.speed < 1.5) { this.parkNow(v); return; }
+        if (dStop < 0.8 && v.speed < 1.5) {
+          if ('halt' in v.goal) { this.haltNow(v, dt); return; }
+          this.parkNow(v);
+          return;
+        }
         v.indicator = dStop < 40 ? 1 : 0;
       }
     }
@@ -476,6 +507,23 @@ export class Traffic {
     const cx = (n.x * 2 + a.x + b.x) / 4, cz = (n.z * 2 + a.z + b.z) / 4;
     const len = Math.max(1, Math.hypot(cx - a.x, cz - a.z) + Math.hypot(b.x - cx, b.z - cz));
     v.turn = { ax: a.x, az: a.z, cx, cz, bx: b.x, bz: b.z, len, t: 0, node, enter: this.t, from: laneKey(v.edge, v.fwd, v.lane) };
+  }
+
+  /** Standing at a halt: hazards on until the dwell is up, then on to the next goal. */
+  private haltNow(v: Vehicle, dt: number): void {
+    const g = v.goal as Extract<Goal, { halt: true }>;
+    if (v.halted < 0) { v.halted = 0; this.onHalt?.(v, g); }
+    v.speed = 0; v.brake = 0.6; v.indicator = 2; v.jam = 0;
+    v.halted += dt;
+    if (g.bay) v.pull += (1 - v.pull) * Math.min(1, dt * 1.6);
+    this.pose(v, dt);
+    if (v.halted < g.dwell || (g.leave !== undefined && this.t < g.leave)) return;
+    // Out of the lay-by only when nothing is coming along the lane.
+    if (g.bay) { v.indicator = -1; if (!this.bayFree(v)) return; v.pull = 0.85; }
+    const j = this.journey(v.car.key, v.edge, v.fwd, v.s, g.then);
+    // No way on from here (never in a connected town): stand until the gridlock breaker takes it.
+    if (!j) return;
+    v.goal = g.then; v.route = j.route; v.ri = 0; v.spot = j.spot; v.stopAt = j.stopAt; v.halted = -1; v.indicator = 0;
   }
 
   /** At its stop: into its spot (or off the street at the goal). */
@@ -645,9 +693,20 @@ export class Traffic {
   /** A car pulling out waits for the cars coming along its lane. */
   private placeFree(v: Vehicle): boolean {
     for (const o of this.vehicles) {
-      if (o.turn || o.edge !== v.edge || o.fwd !== v.fwd) continue;
+      if (o === v || o.turn || o.edge !== v.edge || o.fwd !== v.fwd) continue;
       const d = v.fwd ? v.s - o.s : o.s - v.s; // o behind v: positive
       if (d > -(v.length + o.length) / 2 - 2 && d < (v.length + o.length) / 2 + 4 + o.speed * 3) return false;
+    }
+    return true;
+  }
+
+  /** May a bus pull out of a lay-by: nobody alongside in the lane, nothing moving up close behind? */
+  private bayFree(v: Vehicle): boolean {
+    for (const o of this.vehicles) {
+      if (o === v || o.turn || o.edge !== v.edge || o.fwd !== v.fwd || (o.halted >= 0 && o.pull > 0.5)) continue;
+      const d = v.fwd ? v.s - o.s : o.s - v.s; // o behind v: positive
+      const L = (v.length + o.length) / 2;
+      if (Math.abs(d) < L + 1 || (d > 0 && o.speed > 0.5 && d < L + 4 + o.speed * 3)) return false;
     }
     return true;
   }
