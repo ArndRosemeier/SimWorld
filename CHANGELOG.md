@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.002 — Merge rule
+
+- Pull requests merge to main by themselves once CI is green, so nobody has to use Git by hand.
+
 ## v0.001 — Foundation
 
 - The project skeleton: three.js on WebGL 2, the shared packages from AssetGenerator, the plan in docs/design.
