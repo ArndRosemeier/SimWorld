@@ -8,7 +8,7 @@
  */
 import { hash3f } from '@futuremagic/core';
 import { offsetPolyline, pointInPoly, polyArea, polyBounds, type Poly } from '../geom/geom2';
-import type { Shape } from '../geom/clip';
+import { inShape, type Shape } from '../geom/clip';
 import { bridgeDecksAt } from '../build/bridges';
 import type { Town } from '../plan/town';
 import { footprintsOf, type Footprints } from '../plan/footprints';
@@ -19,6 +19,7 @@ import { buildingBase, buildingHeight } from '../build/massing';
 import { BODY } from './clearance';
 import type { PlaceGraph, PlaceId, PlaceKind } from '../sim/places';
 import { CURB_H } from '../world/ground';
+import { SeatBook, seatsOf, type Seat } from './seats';
 
 /** Place kinds people are seen at while they stay (everything else is indoors). */
 export const OUTDOOR: ReadonlySet<PlaceKind> = new Set<PlaceKind>(['park', 'square', 'sports', 'cemetery', 'street', 'woods', 'field', 'farm']);
@@ -60,6 +61,10 @@ export class StreetMap {
   /** Everything standing on the ground (props, parked cars, buildings), to keep clear of. */
   readonly fp: Footprints;
   private readonly entrances = new Map<PlaceId, { door: [number, number]; step: [number, number] }>();
+  /** Every bench and café chair seat place in town, and who sits where when. */
+  readonly seats: Seat[];
+  readonly seatBook = new SeatBook();
+  private readonly placeSeats = new Map<PlaceId, number[]>();
   /** Every town building's outline, bounds and height (made when the player first walks). */
   private solids: Solid[] | null = null;
   /** The doors (x, z pairs) of each building's places, by `Place.building` code. */
@@ -70,6 +75,7 @@ export class StreetMap {
     graph.edges.forEach((e, i) => { this.edgeOf.set(e.a * n + e.b, i); this.edgeOf.set(e.b * n + e.a, i); });
     this.deck = bridgeDecksAt(town.macro.bridges, town.terrain);
     this.fp = footprintsOf(town.cells);
+    this.seats = seatsOf(town.cells);
     // The signs' posts and legs (street names, estate boards, name and notice boards, town signs).
     const posts = signFootprints(signSpots(town, townRoads(town), graph.places));
     for (let o = 0; o < posts.length; o += 3) this.fp.circle(posts[o], posts[o + 1], posts[o + 2]);
@@ -199,6 +205,20 @@ export class StreetMap {
     return [pl.x, pl.z];
   }
 
+  /** The seats (indices into `seats`) at an outdoor place: inside its outline, else in its patch. */
+  seatsAt(place: PlaceId): number[] {
+    let l = this.placeSeats.get(place);
+    if (l) return l;
+    const pl = this.graph.places[place], shape = this.areas.get(place), r = PATCH[pl.kind] ?? 15;
+    l = [];
+    for (let i = 0; i < this.seats.length; i++) {
+      const s = this.seats[i];
+      if (shape ? inShape(shape, s.x, s.z) : Math.hypot(s.x - pl.x, s.z - pl.z) < r) l.push(i);
+    }
+    this.placeSeats.set(place, l);
+    return l;
+  }
+
   /** Can someone stand at (x, z): clear of every prop, parked car and building by `room` m? */
   standable(x: number, z: number, room = 0.4): boolean {
     return this.fp.overlap(x, z, room) === 0 && !this.fp.insideBuilding(x, z, room);
@@ -237,6 +257,3 @@ export class StreetMap {
   }
 }
 
-function inShape(s: Shape, x: number, z: number): boolean {
-  return pointInPoly(s.outer, x, z) && !s.holes.some((h: Poly) => pointInPoly(h, x, z));
-}

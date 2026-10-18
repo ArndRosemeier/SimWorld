@@ -3,10 +3,12 @@
  * with their own body and today's clothes (src/street/looks.ts), placed on their track every frame.
  */
 import type { EquipmentVisuals } from '@futuremagic/humanoid';
-import { appearanceOf, bodyKey, coldOf, outfitOf } from '../street/looks';
+import { appearanceOf, bodyKey, coldOf, costumeOf, dressUpDay, outfitOf } from '../street/looks';
 import { ACTOR_PERSON } from '../sim/actors';
 import { isWetOut } from '../sim/weather';
-import type { Figure, Look, PeopleView } from '../render/people/peopleView';
+import type { Figure, Look, PeopleView, Rest } from '../render/people/peopleView';
+import { restAt } from '../street/tracks';
+import { yawToward } from '../geom/geom2';
 import type { SimClient, Walker } from './SimClient';
 
 /** Game minutes ahead a walker's velocity is measured over. */
@@ -18,6 +20,7 @@ export interface SelfPose { x: number; y: number; z: number; vx: number; vz: num
 class WalkerFigure implements Figure {
   x = 0; y = 0; z = 0; vx = 0; vz = 0;
   face: number | undefined = undefined;
+  rest: Rest | undefined = undefined;
   private cached: { key: string; look: Look } | null = null;
   private outfit: { key: string; eq: EquipmentVisuals } | null = null;
   constructor(readonly w: Pick<Walker, 'id' | 'info'>, private readonly street: Street) {}
@@ -26,18 +29,22 @@ class WalkerFigure implements Figure {
     const s = this.street, clock = s.sim.clock, info = this.w.info;
     const key = bodyKey(info, clock);
     if (this.cached?.key !== key) this.cached = { key, look: { bodyKey: key, app: appearanceOf(s.seed, info, clock), outfitKey: '', outfit: {} } };
-    // Dressed in the morning for the day's weather: a new outfit each day.
-    const day = `${Math.floor(clock / 1440)}`;
+    // Dressed in the morning for the day's weather: a new outfit each day (children in costume on Halloween evening).
+    const date = s.sim.view.date, dressUp = dressUpDay(date.month, date.day, clock);
+    const day = `${Math.floor(clock / 1440)}${dressUp ? 'h' : ''}`;
     if (this.outfit?.key !== day) {
-      const w = s.sim.view.morning;
-      this.outfit = { key: day, eq: outfitOf(s.seed, info, clock, coldOf(w.tempC), isWetOut(w)) };
+      const w = s.sim.view.morning, eq = outfitOf(s.seed, info, clock, coldOf(w.tempC), isWetOut(w));
+      this.outfit = { key: day, eq: (dressUp && costumeOf(s.seed, info, clock, eq)) || eq };
     }
     return { ...this.cached.look, outfitKey: this.outfit.key, outfit: this.outfit.eq };
   }
 }
 
-/** Someone drawn where the game puts them, not on their street track: where they stand and which way they face. */
-export interface Held { x: number; y: number; z: number; face: number; w: Walker }
+/**
+ * Someone drawn where the game puts them, not on their street track: where they stand and which way they face,
+ * and whether they sit or lie there (the people view's `Rest` conventions: a sitter stands SEAT_REACH in front).
+ */
+export interface Held { x: number; y: number; z: number; face: number; w: Walker; rest?: Rest }
 
 export class Street {
   private readonly figures = new Map<number, WalkerFigure>();
@@ -75,7 +82,7 @@ export class Street {
       if (pin !== this.pins.get(id) && this.pins.has(id)) continue;
       let f = this.figures.get(id);
       if (!f || f.w !== pin.w) this.figures.set(id, (f = new WalkerFigure(pin.w, this)));
-      f.x = pin.x; f.y = pin.y; f.z = pin.z; f.vx = 0; f.vz = 0; f.face = pin.face;
+      f.x = pin.x; f.y = pin.y; f.z = pin.z; f.vx = 0; f.vz = 0; f.face = pin.face; f.rest = pin.rest;
       out.push(f);
     }
     for (const w of this.sim.walkers.values()) {
@@ -87,7 +94,10 @@ export class Street {
       f.x = this.p0[0]; f.y = this.p0[1]; f.z = this.p0[2];
       f.vx = (this.p1[0] - this.p0[0]) / (DT * secPerMin);
       f.vz = (this.p1[2] - this.p0[2]) / (DT * secPerMin);
-      f.face = undefined;
+      // Sitting on a bench: facing out, on its seat (they stand in front of it on their track).
+      const r = restAt(w.rests, clock);
+      f.face = r >= 0 ? w.rests[r + 2] : undefined;
+      f.rest = r >= 0 ? { kind: 'sit', seat: w.rests[r + 3] } : undefined;
       out.push(f);
     }
     for (const id of this.figures.keys()) if (!this.sim.walkers.has(id) && !this.pins.has(id) && !this.indoors.has(id)) this.figures.delete(id);
@@ -104,7 +114,7 @@ export class Street {
   pin(id: number, tx: number, tz: number): boolean {
     const f = this.where(id), w = this.sim.walkers.get(id) ?? this.indoors.get(id)?.w;
     if (!f || !w) return false;
-    this.pins.set(id, { x: f.x, y: f.y, z: f.z, face: Math.atan2(-(tx - f.x), -(tz - f.z)), w });
+    this.pins.set(id, { x: f.x, y: f.y, z: f.z, face: yawToward(f.x, f.z, tx, tz), w });
     return true;
   }
 

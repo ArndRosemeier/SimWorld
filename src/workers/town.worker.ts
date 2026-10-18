@@ -10,9 +10,10 @@ import { buildTerrainTile, buildWaterTile, terrainSkirt, terrainTiles, waterSour
 import { buildCountryRoads } from '../build/rural';
 import { buildBridges } from '../build/bridges';
 import { lampsOf, propFar, propInstances, propModel } from '../build/streetProps';
+import { decorInstances } from '../build/decorProps';
 import { ForestGen, townTrees } from '../build/forest';
 import { buildVegModel } from '../build/vegetation';
-import { facadeSpecs, buildBuildings, buildLandmark, buildingBase, buildingTiers } from '../build/massing';
+import { facadeSpecs, buildBuildings, buildLandmark, buildingBase, buildingTiers, windowOpenings } from '../build/massing';
 import { INTERIOR_SPECS, buildCutaway, buildIndoors } from '../build/interior';
 import { indoorsOf } from '../interior/indoors';
 import { planInterior, storeyFacade } from '../interior/building';
@@ -93,6 +94,12 @@ function handle(m: ToTown): FromTown {
       return { type: 'bridges', ground: out(b.deck), buildings: out(b.structure), ms: ms() };
     }
     case 'props': { const groups = propInstances(cells, terrain, { kerbCars: m.kerbCars }); return { type: 'props', groups, lamps: lampsOf(groups), ms: ms() }; }
+    case 'decor': {
+      // The town gathers on its first square, else in its first park (as the sim's occasions do, src/sim/agenda.ts).
+      places ??= placeGraphOf(town);
+      const sq = places.places.find((p) => p.kind === 'square') ?? places.places.find((p) => p.kind === 'park') ?? null;
+      return { type: 'decor', groups: decorInstances(cells, terrain, sq), ms: ms() };
+    }
     case 'propModel': return { type: 'propModel', mesh: propModel(m.model), far: propFar(m.model), ms: ms() };
     case 'trees': return { type: 'trees', recs: townTrees(cells, terrain), ms: ms() };
     case 'forest': return { type: 'forest', recs: (forest ??= new ForestGen(land, macro)).tile(m.x0, m.z0, m.size), ms: ms() };
@@ -128,7 +135,7 @@ function handle(m: ToTown): FromTown {
       const code = m.cell * 65536 + m.index, work = places.places.find((p) => p.building === code && !p.homes);
       const I = planInterior(b, work ? { staff: work.staff, capacity: work.capacity } : undefined);
       const { base } = buildingBase(b, terrain);
-      const ind = indoorsOf(I, base);
+      const ind = indoorsOf(I, base, windowOpenings(b));
       const [x0, z0, x1, z1] = polyBounds(b.poly), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
       const mb = new MeshBuilder(INTERIOR_SPECS);
       mb.setOrigin(cx, base, cz);

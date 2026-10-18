@@ -97,6 +97,8 @@ export interface TrackMsg {
   keys: Float64Array;
   hideAfter: number;
   activity: number;
+  /** When they sit, and on what (Track.rests: t0, t1, yaw, seat height per sitting). */
+  rests: Float64Array;
   /** What they are up to, in words ("walking to Elm Street Bakery to shop"). */
   doing: string;
 }

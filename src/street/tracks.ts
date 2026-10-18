@@ -11,12 +11,15 @@
  */
 import { alongLine, closestOnPolyline, joinPolylines, polylineCum, polylineLength, resample, slicePolyline, type MeasuredLine } from '../geom/geom2';
 import { hash2f, hashCombine } from '@futuremagic/core';
-import { ACTOR_PERSON, type ActorId } from '../sim/actors';
+import type { ActorId } from '../sim/actors';
 import type { PlaceId, PlaceKind } from '../sim/places';
-import { tripOf, type World } from '../sim/world';
+import { householdOf, isPerson, tripOf, type World } from '../sim/world';
 import { OUTDOOR, type StreetMap } from './streetMap';
 import { avoid, clearWay, crossing, detour, lineClear } from './clearance';
 import type { Footprints } from '../plan/footprints';
+import { SEAT_REACH, seatFront } from './seats';
+import { DOOR_LEG, doorRound, eveningOf, trickOrTreater } from './trickOrTreat';
+import { MINUTES_PER_DAY } from '../sim/time';
 
 export interface Track {
   id: ActorId;
@@ -30,6 +33,12 @@ export interface Track {
   activity: number;
   /** Fingerprint of the L0 state the track was made from (`signature`). */
   sig: number;
+  /**
+   * When they sit (t0, t1, yaw, seat height) * n: from t0 to t1 they are seated, facing `yaw`, on a seat of
+   * that height behind where the track has them (src/street/seats.ts `seatFront`). Before t0 they sit down,
+   * after t1 they get up, standing there.
+   */
+  rests: number[];
 }
 
 /** Walking speed on a stroll (m per game minute, ~3 km/h). Trips keep the sim's own travel time. */
@@ -40,6 +49,8 @@ const TURN = 0.15;
 const WALKING = 0.8;
 /** The slowest walk on a street stay (m/min, ~2.4 km/h: looking in the windows). */
 const AMBLE = 40;
+/** Pace (m per game minute) from door to door on Halloween. */
+const HURRY = 75;
 /** How far ahead a stay's track is laid out (game minutes). */
 const AHEAD = 30;
 /** Spacing (m) of a walk's points, so heights follow the ground. */
@@ -60,6 +71,12 @@ const STAY: Partial<Record<PlaceKind, { leg: number; speed: number }>> = {
   farm: { leg: 10, speed: 40 },
 };
 const DEFAULT_STAY = { leg: 8, speed: STROLL };
+/** Share of stroll legs that end sitting on a bench, where the place has benches (people only). */
+const SIT: Partial<Record<PlaceKind, number>> = { park: 0.45, square: 0.4, cemetery: 0.3, sports: 0.2 };
+/** Game minutes to turn round before sitting down, and to get up before walking on (each a few seconds). */
+const SETTLE = 0.03, RISE = 0.05;
+/** The last stretch (m) to a seat goes straight, from this far in front of where the sitter stands. */
+const APPROACH = 0.6;
 
 /** What the track depends on in L0: where, where to, since when, doing what, with whom. */
 export function signature(world: World, id: ActorId): number {
@@ -92,16 +109,23 @@ export function trackOf(world: World, map: StreetMap, id: ActorId, clock: number
   // Someone going along (a toddler, the dog) keeps beside who they are with.
   if (lead >= 0 && outside(world, lead) && a.dest[lead] === a.dest[id] && a.place[lead] === a.place[id]) {
     const t = trackOf(world, map, lead, clock);
-    if (t) return { ...t, id, keys: beside(map.fp, t.keys, 0.8), sig };
+    if (t) return { ...t, id, keys: beside(map.fp, t.keys, besideGap(world, id, lead)), sig, rests: [] };
   }
   if (a.dest[id] >= 0) {
     const keys = tripKeys(world, map, id);
     const indoor = !OUTDOOR.has(world.graph.places[a.dest[id]].kind);
-    return { id, keys, hideAfter: indoor ? a.arrive[id] : Infinity, validUntil: a.arrive[id], activity: a.planned[id], sig };
+    return { id, keys, hideAfter: indoor ? a.arrive[id] : Infinity, validUntil: a.arrive[id], activity: a.planned[id], sig, rests: [] };
   }
   const place = a.place[id], act = a.activity[id];
   const until = Math.min(a.until[id], clock + AHEAD);
-  return { id, keys: stayKeys(world, map, id, place, clock, until), hideAfter: Infinity, validUntil: until, activity: act, sig };
+  const rests: number[] = [];
+  return { id, keys: stayKeys(world, map, id, place, clock, until, rests), hideAfter: Infinity, validUntil: until, activity: act, sig, rests };
+}
+
+/** The sitting under way at `t` (index of its t0 in `rests`, see Track.rests), -1 if they are not sitting. */
+export function restAt(rests: ArrayLike<number>, t: number): number {
+  for (let i = 0; i < rests.length; i += 4) if (t >= rests[i] && t < rests[i + 1]) return i;
+  return -1;
 }
 
 /** Position on a track at `t` (x, y, z); before the first key at the first, after the last at the last. */
@@ -240,10 +264,13 @@ function whereAt(world: World, map: StreetMap, id: ActorId, place: PlaceId, t: n
  * The spot of leg k depends only on (who, place, k), so any stretch of the stay can be laid out on its own
  * and joins up with the stretch before it.
  */
-function stayKeys(world: World, map: StreetMap, id: ActorId, place: PlaceId, t0: number, t1: number): number[] {
+function stayKeys(world: World, map: StreetMap, id: ActorId, place: PlaceId, t0: number, t1: number, rests: number[] = []): number[] {
   const kind = world.graph.places[place].kind;
   const { leg, speed } = STAY[kind] ?? DEFAULT_STAY;
   const street = kind === 'street';
+  // Halloween evening: the children go round the doors.
+  const anchor = world.actors.cols.arrive[id];
+  if (street && trickOrTreater(world, id, place, anchor)) return roundKeys(world, map, id, anchor, t0, t1);
   const keys: number[] = [];
   const k0 = Math.floor(t0 / leg), k1 = Math.floor(t1 / leg) + 1;
   for (let k = k0; k <= k1; k++) {
@@ -262,9 +289,10 @@ function stayKeys(world: World, map: StreetMap, id: ActorId, place: PlaceId, t0:
     }
     // From the last leg's spot to this leg's, by way of other spots while there is time: they keep walking for
     // most of the leg and pause at the end (a big park is crossed in a hurry rather than never).
-    const [px, pz] = map.spot(place, id, k - 1), [qx, qz] = map.spot(place, id, k);
+    const [px, pz] = legEnd(world, map, id, place, k - 1), end = legEnd(world, map, id, place, k), [qx, qz] = end;
     // Animals (grazing, idling on the farm) go straight to the next spot and stay there a while.
-    const path = [px, pz], reach = world.actors.cols.kind[id] === ACTOR_PERSON ? leg * WALKING * speed : 0;
+    // (Going to sit on a bench: straight there, and sit most of the leg.)
+    const path = [px, pz], reach = isPerson(world, id) && end[2] < 0 ? leg * WALKING * speed : 0;
     let len = 0, cx = px, cz = pz;
     for (let j = 1; j <= 6; j++) {
       const [sx, sz] = map.spot(place, id, -(k * 8 + j));
@@ -273,12 +301,87 @@ function stayKeys(world: World, map: StreetMap, id: ActorId, place: PlaceId, t0:
       path.push(sx, sz);
       len += d; cx = sx; cz = sz;
     }
-    path.push(qx, qz);
-    const walk = Math.max(0.01, Math.min(leg * 0.9, polylineLength(path) / speed));
-    const ks = timed(map, clearWay(map.fp, avoid(map.fp, path)), start, start + walk);
-    for (let i = keys.length ? 4 : 0; i < ks.length; i += 4) keys.push(ks[i], ks[i + 1], ks[i + 2], ks[i + 3]);
+    // To a seat: up to a step in front of it round whatever stands about, then the last step to it.
+    const seat = end[2] >= 0 ? map.seats[end[2]] : null;
+    if (seat) path.push(...seatFront(seat, SEAT_REACH + APPROACH));
+    else path.push(qx, qz);
+    const way = clearWay(map.fp, avoid(map.fp, path));
+    if (seat) way.push(qx, qz);
+    const walk = Math.max(0.01, Math.min(leg * 0.9, polylineLength(way) / speed));
+    const ks = timed(map, way, start, start + walk);
+    // (The leg's first key holds them at the last leg's spot until the walk starts: a pause, not a creep.)
+    for (let i = keys.length && keys[keys.length - 4] >= ks[0] ? 4 : 0; i < ks.length; i += 4) keys.push(ks[i], ks[i + 1], ks[i + 2], ks[i + 3]);
+    // Turn round and sit down; get up a little before the next leg's walk.
+    if (seat && start + walk + SETTLE < start + leg - RISE) rests.push(start + walk + SETTLE, start + leg - RISE, seat.yaw + Math.PI, seat.top);
   }
   return keys;
+}
+
+/**
+ * A trick-or-treater's evening from t0 to t1 (src/street/trickOrTreat.ts): from home (they set out at `anchor`)
+ * to each door of their round in turn on the sidewalks, a DOOR_LEG each, a walk and a wait on the doorstep;
+ * then home again.
+ */
+function roundKeys(world: World, map: StreetMap, id: ActorId, anchor: number, t0: number, t1: number): number[] {
+  const round = doorRound(world, map, id, anchor);
+  const door = (r: number): PlaceId => round[r >= 0 && r + 1 < round.length ? r + 1 : 0];
+  const keys: number[] = [];
+  const r0 = Math.max(0, Math.floor((t0 - anchor) / DOOR_LEG)), r1 = Math.max(r0, Math.floor((t1 - anchor) / DOOR_LEG) + 1);
+  for (let r = r0; r <= r1; r++) {
+    const start = anchor + r * DOOR_LEG, from = door(r - 1), to = door(r);
+    // Doorstep to doorstep (a door to door walk without going in at either end).
+    const way = roundWay(world, map, id, anchor, r, from, to);
+    const walk = Math.max(0.01, Math.min(DOOR_LEG * 0.7, polylineLength(way) / HURRY));
+    const ks = timed(map, way, start, start + walk);
+    for (let i = keys.length && keys[keys.length - 4] >= ks[0] ? 4 : 0; i < ks.length; i += 4) keys.push(ks[i], ks[i + 1], ks[i + 2], ks[i + 3]);
+  }
+  return keys;
+}
+
+/** A round's walk from door `from` to door `to` (leg r), doorstep to doorstep on the sidewalks. */
+function roundWay(world: World, map: StreetMap, id: ActorId, anchor: number, r: number, from: PlaceId, to: PlaceId): number[] {
+  // Laid out once: the track is remade every few minutes.
+  const c = eveningOf(map, Math.floor(anchor / MINUTES_PER_DAY));
+  const key = id * 128 + Math.min(r, 127);
+  let way = c.ways.get(key);
+  if (way) return way;
+  const [sx, sz] = map.doorStep(from), [ex, ez] = map.doorStep(to);
+  way = from === to ? [sx, sz, ex + 0.01, ez] : between(walkPath(world, map, id, from, to, ...map.door(from), ...map.door(to)), sx, sz, ex, ez);
+  c.ways.set(key, way);
+  return way;
+}
+
+/** The stretch of `path` from its point at (sx, sz) to its point at (ex, ez), each added when the path misses it. */
+function between(path: number[], sx: number, sz: number, ex: number, ez: number): number[] {
+  const hits = (i: number, x: number, z: number) => Math.hypot(path[i] - x, path[i + 1] - z) < 0.05;
+  let i0 = 0, i1 = path.length - 2;
+  while (i0 < path.length && !hits(i0, sx, sz)) i0 += 2;
+  while (i1 >= 0 && !hits(i1, ex, ez)) i1 -= 2;
+  if (i0 >= path.length || i1 < i0) return [sx, sz, ...path.slice(2, -2), ex, ez];
+  return path.slice(i0, i1 + 2);
+}
+
+/**
+ * Where a person's stroll leg k at a place ends (x, z, and the seat they sit on there, -1 for none): now and
+ * then a free bench seat (sitting the rest of the leg), else the leg's spot. The same for the same leg.
+ */
+function legEnd(world: World, map: StreetMap, id: ActorId, place: PlaceId, k: number): [number, number, number] {
+  const kind = world.graph.places[place].kind, share = SIT[kind] ?? 0;
+  if (share > 0 && isPerson(world, id)) {
+    const h = hashCombine(hashCombine(world.seed, id), place * 7919 + k);
+    const seats = map.seatsAt(place);
+    if (seats.length && hash2f(h, 1, 0x5ea7) < share) {
+      const { leg } = STAY[kind] ?? DEFAULT_STAY;
+      for (let j = 0; j < 4; j++) {
+        const i = seats[Math.floor(hash2f(h, j + 2, 0x5ea7) * seats.length)];
+        if (!map.seatBook.book(i, id, k * leg, (k + 1) * leg)) continue;
+        const [x, z] = seatFront(map.seats[i]);
+        return [x, z, i];
+      }
+    }
+  }
+  const [x, z] = map.spot(place, id, k);
+  return [x, z, -1];
 }
 
 /** A street stay goes up and down the street: even legs end at the street's own node, odd ones at a neighbour. */
@@ -306,6 +409,14 @@ function neighbours(map: StreetMap, node: number): number[] {
     neighbourCache.set(map, adj);
   }
   return adj[node];
+}
+
+/** How far to the side someone going along walks: the first on the left, the next on the right a little further out (where one side is blocked, both on the other), and so on. */
+function besideGap(world: World, id: ActorId, lead: ActorId): number {
+  const a = world.actors.cols, hh = householdOf(world, lead);
+  const along = hh ? [...hh.members, ...hh.animals].filter((f) => a.with[f] === lead).sort((x, y) => x - y) : [];
+  const i = Math.max(0, along.indexOf(id));
+  return (i % 2 ? -1 : 1) * 0.8 * (1 + i * 0.6);
 }
 
 /**

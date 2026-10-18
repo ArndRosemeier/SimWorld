@@ -17,8 +17,8 @@
  * Ported from Scale (src/plan/terrace.ts) without the metro entrances.
  */
 import { Rng, deriveSeed } from '@futuremagic/core';
-import { pointInPoly, distPointPolyEdge, closestOnPolyline, polylineLength, polyBounds, polyCentroid, type Poly } from '../geom/geom2';
-import { doorBayOf, streetDoor } from './building';
+import { pointInPoly, yawToward, distPointPolyEdge, closestOnPolyline, polylineLength, polyBounds, polyCentroid, type Poly } from '../geom/geom2';
+import { baysOf, doorBayOf, streetDoor } from './building';
 import type { Terrain } from '../world/terrain';
 import { RoadClass, type CellInfo, type MacroPlan } from './types';
 import type { BuildingDesc } from './building';
@@ -253,7 +253,7 @@ export function placeEateries(plan: CellPlan, cell: CellInfo, macro: MacroPlan, 
     const r = new Rng(deriveSeed(seed, 'terrace', cell.id, bi));
     const palette = r.int(0, TERRACE_PALETTE.length - 1);
     const at = (u: number, v: number): [number, number] => [ax + ux * u + nx * v, az + uz * u + nz * v];
-    const bays = Math.max(1, Math.round(len / b.bay));
+    const bays = baysOf(b, len);
     const uDoor = (doorBayOf(b.seed, bays) + 0.5) * (len / bays);
     const ep: EateryPlan = { b: bi, kind, terrace: TerraceKind.None, ax, az, ux, uz, nx, nz, len, door: [doors[bi].x, doors[bi].z], tables: [], seats: [], awnings: [], palette };
     // The street the front faces: nearest centreline straight out of the facade.
@@ -273,13 +273,13 @@ export function placeEateries(plan: CellPlan, cell: CellInfo, macro: MacroPlan, 
     /** A table with chairs at the given offsets (facing it); all or nothing. */
     const table = (x: number, z: number, chairs: [number, number][], tableV: number, chairV: number, opt: Parameters<typeof ok>[3] = {}): boolean => {
       const list: Item[] = [{ t: PT.CafeTable, x, z, yaw: r.range(0, 0.2), s: 1, v: palette * 2 + tableV, r: R_TABLE }];
-      for (const [cx, cz] of chairs) list.push({ t: PT.CafeChair, x: cx, z: cz, yaw: Math.atan2(-(x - cx), -(z - cz)) + r.range(-0.15, 0.15), s: 1, v: palette * 2 + chairV, r: R_CHAIR });
+      for (const [cx, cz] of chairs) list.push({ t: PT.CafeChair, x: cx, z: cz, yaw: yawToward(cx, cz, x, z) + r.range(-0.15, 0.15), s: 1, v: palette * 2 + chairV, r: R_CHAIR });
       for (const it of list) if (!ok(it.x, it.z, it.r, opt)) return false;
       const ti = tables.length / 3;
       tables.push(x, z, chairs.length);
       for (const it of list) {
         placed.push(it); items.push(it);
-        if (it.t === PT.CafeChair) seats.push(it.x, it.z, Math.atan2(-(x - it.x), -(z - it.z)), ti);
+        if (it.t === PT.CafeChair) seats.push(it.x, it.z, yawToward(it.x, it.z, x, z), ti);
       }
       return true;
     };

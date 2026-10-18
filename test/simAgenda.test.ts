@@ -27,6 +27,7 @@ test('agenda: the calendar brings the festival, the Christmas market and the Chr
   assert.ok(on(2026, 12, 4).includes('christmasMarket'));
   assert.ok(on(2026, 12, 24).includes('service'));
   assert.ok(on(2026, 10, 31).includes('halloween'));
+  assert.ok(on(2027, 3, 28).includes('eggHunt'), 'the egg hunt on Easter Sunday');
   const july = Array.from({ length: 31 }, (_, i) => on(2027, 7, i + 1).includes('festival')).filter(Boolean).length;
   assert.equal(july, 2);
 });
@@ -48,6 +49,22 @@ test('agenda: on Sunday morning the faithful are at church, on market day people
   const shoppers = count(marketDay, square, A.shop), worshippers = count(6, church, A.worship);
   assert.ok(shoppers >= 5, `${shoppers} at the market`);
   assert.ok(worshippers >= 10, `${worshippers} in church`);
+});
+
+test('agenda: on Easter Sunday children hunt eggs in the park and their parents come along', () => {
+  const w = createWorld(testTown(24, 600), 24);
+  const hunt = agendaOn(w, gameDayOf(w, 2027, 3, 28)).find((o) => o.kind === 'eggHunt')!;
+  assert.ok(hunt && hunt.place >= 0, 'no egg hunt');
+  w.clock = hunt.start - 300;
+  for (let id = 0; id < w.actors.count; id++) w.actors.cols.until[id] = w.clock;
+  tick(w, 330);
+  let kids = 0, grownUps = 0;
+  for (let id = 0; id < w.actors.count; id++) {
+    if (!isPerson(w, id) || w.actors.cols.place[id] !== hunt.place || w.actors.cols.dest[id] >= 0) continue;
+    if (ageOf(w, id) < 13) kids++; else if (ageOf(w, id) >= 18) grownUps++;
+  }
+  assert.ok(kids >= 5, `${kids} children at the egg hunt`);
+  assert.ok(grownUps >= 3, `${grownUps} grown-ups at the egg hunt`);
 });
 
 test('ceremonies: the guests come to the wedding, and afterwards the couple are married', () => {

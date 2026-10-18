@@ -14,7 +14,7 @@ import { bondBit, FAMILY_MASK } from './relations';
 import { capitalize } from './profile';
 import { go, isOpen, placeNow } from './schedule';
 import { MINUTES_PER_DAY } from './time';
-import { hasCar, isPerson, jobOf, nameOf, placesWith, type World } from './world';
+import { activityOf, hasCar, isPerson, jobOf, nameOf, placesWith, type World } from './world';
 
 /** Make `id` the player (autopilot on: they carry on with their day until the player takes over). */
 export function becomePlayer(world: World, id: ActorId, autopilot = true): void {
@@ -173,7 +173,7 @@ export function playerGo(world: World, place: PlaceId, activity: number, hours =
 /** What someone is up to, in words ("walking to Elm Street Bakery (shop)", "work at the town hall"). */
 export function doingOf(world: World, id: ActorId): string {
   const a = world.actors.cols, places = world.graph.places;
-  const act = ACTIVITIES[a.dest[id] >= 0 ? a.planned[id] : a.activity[id]];
+  const act = ACTIVITIES[activityOf(world, id)];
   if (a.dest[id] >= 0) return `walking to ${places[a.dest[id]].name} (${act})`;
   return a.place[id] >= 0 ? `${act} at ${places[a.place[id]].name}` : act;
 }

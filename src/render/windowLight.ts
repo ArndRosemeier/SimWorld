@@ -1,7 +1,7 @@
 /**
- * Lit windows as the sim says (src/street/windows.ts): two small data textures the facade shader reads. The
- * map finds the building behind a fragment (its slot), the shares texture says what share of that building's
- * home and office windows are lit. The sky sets `WINDOW_LIGHT.gloom` (how much a room needs its lamp in daylight
+ * Lit windows as the sim says (src/street/windows.ts): small data textures the facade shader reads. The map
+ * finds the building behind a fragment (its slot), the shares texture says what share of that building's home
+ * and office windows are lit, the looks texture how kept-up and well-off it is (wear on the walls). The sky sets `WINDOW_LIGHT.gloom` (how much a room needs its lamp in daylight
  * under heavy cloud); at night every room someone is awake in is lit.
  *
  * Both textures have a fixed size from the start, so the shaders compiled at the warm-up keep them; the town's
@@ -31,6 +31,8 @@ function dataTex(data: Uint8Array, w: number, h: number, format: typeof RGFormat
 
 const mapTex = dataTex(new Uint8Array(WINDOW_MAP * WINDOW_MAP * 2), WINDOW_MAP, WINDOW_MAP, RGFormat);
 const shareTex = dataTex(new Uint8Array(WINDOW_SLOTS), SHARE_W, SHARE_H, RedFormat);
+/** Per slot: upkeep and wealth (0 … 255), src/street/windows.ts `buildingLooksOf`. */
+const looksTex = dataTex(new Uint8Array(WINDOW_SLOTS * 2), SHARE_W, SHARE_H, RGFormat);
 /** Holiday decorations per slot (src/street/windows.ts `decorShares`): DECOR_* bits, share of homes decorating. */
 const decorTex = dataTex(new Uint8Array(WINDOW_SLOTS * 2), SHARE_W, SHARE_H, RGFormat);
 const uOrigin = uniform(new Vector2(0, 0));
@@ -65,6 +67,12 @@ export function setLitShares(shares: Uint8Array): void {
   shareTex.needsUpdate = true;
 }
 
+/** How the town's buildings look today (upkeep, wealth per slot), once a game day from the sim's town face. */
+export function setBuildingLooks(looks: Uint8Array): void {
+  (looksTex.image.data as Uint8Array).set(looks.subarray(0, WINDOW_SLOTS * 2));
+  looksTex.needsUpdate = true;
+}
+
 /** The holiday decorations per slot (src/street/windows.ts `decorShares`), once a game day. */
 export function setDecor(bytes: Uint8Array): void {
   (decorTex.image.data as Uint8Array).set(bytes.subarray(0, WINDOW_SLOTS * 2));
@@ -81,6 +89,13 @@ export function slotAt(xz: ReturnType<typeof vec2>) {
 
 /** TSL: the holiday decorations of the building at `at` (`slotAt`): x the DECOR_* bits / 255, y the share decorating. */
 export const decorAt = (at: ReturnType<typeof vec3>) => texture(decorTex, at.xy).rg.mul(at.z);
+
+/**
+ * TSL: how the building at `at` (`slotAt`) looks: x its upkeep, y its wealth (0 … 1). Both read 0 outside the
+ * town's buildings and before the sim's first town face, which `buildingLooksOf` never writes (its least is
+ * 1/255): callers treat an upkeep of 0 as unknown.
+ */
+export const looksAt = (at: ReturnType<typeof vec3>) => texture(looksTex, at.xy).rg.mul(at.z);
 
 /**
  * TSL: the share of a building's people in and awake (0 … 1) at a world point inside it, or -1 outside the town's

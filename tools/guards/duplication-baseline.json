@@ -48,6 +48,10 @@
     "reason": "Each is the request builder of its own task kind (DecisionSpec.build makes typed decision questions, TaskSpec.build makes chat messages); the same contract shape on purpose."
   },
   {
+    "key": "same name: simworld/llm/decide.ts#parse + simworld/llm/tasks.ts#parse",
+    "reason": "Each is the answer reader of its own task kind (DecisionSpec.parse reads typed decision answers, TaskSpec.parse reads chat text); the same contract shape on purpose."
+  },
+  {
     "key": "same name: simworld/llm/llm.ts#decide + simworld/llm/openrouter.ts#decide",
     "reason": "Llm.decide (the task API: model fallback, usage ledger) and Transport.decide (one HTTP call), like run and stream."
   },
@@ -144,7 +148,7 @@
     "reason": "Ported from Scale's vehicle Geo: a quad flipped on request and a quad whose two halves are each oriented to a normal (each half tested, as a half can be degenerate where a loft closes)."
   },
   {
-    "key": "idiom: [.mul .toVar] in simworld/render/tsl/ground.ts + simworld/render/tsl/interior.ts + simworld/render/tsl/vegetation.ts",
+    "key": "idiom: [.mul .toVar] in simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vegetation.ts",
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
   {
@@ -214,10 +218,6 @@
   {
     "key": "idiom: [.cornerGap] in simworld/interior/fill/home.ts + simworld/interior/fill/place.ts + simworld/interior/fill/work.ts",
     "reason": "Furnishing rules score a wall spot by its gap to the corner (the one seam is the filler's cornerGap); each rule weighs it differently. Entered the finder's top idioms when the street layer grew."
-  },
-  {
-    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
-    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
   },
   {
     "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/home.ts + simworld/interior/fill/work.ts",
@@ -440,12 +440,8 @@
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
   {
-    "key": "idiom: [.add .prepare] in simworld/render/propsView.ts + simworld/render/signsView.ts + simworld/render/townView.ts",
+    "key": "idiom: [.add .prepare] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts + simworld/render/townView.ts",
     "reason": "The Stage's contract for adding to your own group (stage.prepare, then group.add; docs/SHADERS.md): each view says it once where it places its meshes."
-  },
-  {
-    "key": "idiom: [.front .length .poly] in simworld/plan/building.ts + simworld/plan/cell.ts + simworld/plan/signs.ts",
-    "reason": "A building's front edge read from its footprint (plan/building.ts streetDoor, cell.ts, signs.ts): each reads the edge for its own purpose (the door, the lot, the sign mounts); the door itself has one seam (streetDoor)."
   },
   {
     "key": "same name: simworld/render/propsView.ts#update + simworld/render/signsView.ts#update",
@@ -516,6 +512,10 @@
     "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
   },
   {
+    "key": "idiom: [.beginPath .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the map, the signs' painters (a clock's dial) and the atlas pictures each paint their own shapes; a wrapper would only rename the canvas API."
+  },
+  {
     "key": "idiom: [.lineWidth .strokeStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D's own grammar (set the line colour and width, stroke): the map, the signs' painters and the atlas pictures each draw their own outlines; a wrapper would only rename the canvas API."
   },
@@ -574,5 +574,25 @@
   {
     "key": "idiom: [.households .length .members] in simworld/sim/decor.ts + simworld/sim/lostPets.ts + simworld/sim/media.ts",
     "reason": "Skipping empty households in a loop over world.households (one guard line); each system goes on to read different columns of the household."
+  },
+  {
+    "key": "idiom: [.Path .cls .streets] in simworld/build/decorProps.ts + simworld/build/streetProps.ts + simworld/plan/terrace.ts",
+    "reason": "Walking a cell's streets and skipping footpaths (RoadClass.Path): each caller dresses the carriageways for its own purpose (bunting spans, street props, terrace fronts); the street list itself is the one seam."
+  },
+  {
+    "key": "idiom: [.groups .map .name] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
+    "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
+  },
+  {
+    "key": "idiom: [.inst .length] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
+    "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
+  },
+  {
+    "key": "idiom: [.run Promise] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
+    "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
+  },
+  {
+    "key": "idiom: [.from Array] in simworld/interior/building.ts + simworld/render/railView.ts + simworld/render/textures.ts",
+    "reason": "Array.from({ length }) is the language's way to fill a list of n; the three lists (storeys, rail lamps, bark strips) share nothing else."
   }
 ]

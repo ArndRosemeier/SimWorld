@@ -186,6 +186,34 @@ export function townSign(town: string, back: boolean): Painter {
   };
 }
 
+/**
+ * A public clock's dial at `minute` of the day: a cream plate, a black ring, a mark for each hour
+ * (heavier at the quarters) and the hour and minute hands. No numerals, so no country's style.
+ */
+export function clockFace(minute: number): Painter {
+  return (g, w, h) => {
+    const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2;
+    g.fillStyle = '#efe9d8'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#1c1c1c'; g.lineWidth = r * 0.06;
+    g.beginPath(); g.arc(cx, cy, r * 0.9, 0, Math.PI * 2); g.stroke();
+    g.lineCap = 'butt';
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2, s = Math.sin(a), c = -Math.cos(a), q = i % 3 === 0;
+      g.lineWidth = r * (q ? 0.07 : 0.035);
+      g.beginPath(); g.moveTo(cx + s * r * (q ? 0.62 : 0.7), cy + c * r * (q ? 0.62 : 0.7)); g.lineTo(cx + s * r * 0.8, cy + c * r * 0.8); g.stroke();
+    }
+    const hand = (turn: number, len: number, width: number) => {
+      const a = turn * Math.PI * 2;
+      g.lineWidth = width; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(cx - Math.sin(a) * r * 0.1, cy + Math.cos(a) * r * 0.1); g.lineTo(cx + Math.sin(a) * len, cy - Math.cos(a) * len); g.stroke();
+    };
+    const m = ((minute % 1440) + 1440) % 1440;
+    hand((m % 720) / 720, r * 0.45, r * 0.09);
+    hand((m % 60) / 60, r * 0.7, r * 0.055);
+    g.fillStyle = '#1c1c1c'; g.beginPath(); g.arc(cx, cy, r * 0.07, 0, Math.PI * 2); g.fill();
+  };
+}
+
 /** A plain board: the slot of a sign that has no words drawn yet (atlas full, or nothing known). */
 export const blank: Painter = (g, w, h) => { g.fillStyle = '#5b5f63'; g.fillRect(0, 0, w, h); };
 
