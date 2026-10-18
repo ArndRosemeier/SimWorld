@@ -27,6 +27,7 @@ import { placeGraphOf } from '../plan/placeGraph';
 import { townRoads } from '../plan/roads';
 import { cityName } from '../plan/names';
 import { PLACE_KINDS } from '../sim/places';
+import { BOARD_KINDS } from '../sim/placeKinds';
 import type { SignFacts } from '../render/signFacts';
 
 let town: Town | null = null;
@@ -101,7 +102,7 @@ function handle(m: ToTown): FromTown {
         kind: Uint8Array.from(graph.places, (p) => PLACE_KINDS.indexOf(p.kind)), name: graph.places.map((p) => p.name),
         flags: new Uint8Array(graph.places.length), hours: graph.places.map((p) => p.hours),
       };
-      return { type: 'signs', signs: signInstances(town, roads, graph.places, cityName(town.settings.seed)), facts, ms: ms() };
+      return { type: 'signs', signs: signInstances(town, roads, graph.places.map((p) => ({ ...p, board: BOARD_KINDS.includes(p.kind) })), cityName(town.settings.seed)), facts, ms: ms() };
     }
     case 'map': return { type: 'map', map: townMapOf(town), ms: ms() };
     case 'interior': {
