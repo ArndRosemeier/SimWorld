@@ -14,9 +14,8 @@ import { button, checkbox, el } from './dom';
 
 const CSS = `
 :root { --chat-w: clamp(320px, 34vw, 560px); }
-.chat-launch { position: fixed; right: 12px; top: 10px; z-index: 25; padding: 5px 10px; border: 1px solid #4f4232aa; border-radius: 3px; background: #050607cc; color: #b9ad96; font: 12px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.06em; cursor: pointer; }
+.chat-launch { padding: 4px 14px; border: 1px solid #4f4232aa; border-radius: 3px; background: #050607cc; color: #cfd6dc; font: 13px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.08em; cursor: pointer; }
 .chat-launch:hover, .chat-launch:focus-visible { color: #ece3d0; border-color: #e9b85c; outline: none; }
-body.chat-open .chat-launch, body.chat-open .wn-button, body.chat-open .snd-button, body.chat-open .snd-panel { right: calc(var(--chat-w) + 12px); }
 .chat { position: fixed; top: 0; right: 0; bottom: 0; z-index: 24; width: var(--chat-w); display: none; flex-direction: column; background: #0d0f11ee; border-left: 1px solid #4f4232; box-shadow: -8px 0 32px #0008; color: #cfd6dc; font: 14px/1.45 'Alegreya Sans', system-ui, sans-serif; }
 .chat.open { display: flex; }
 @media (max-width: 700px) { :root { --chat-w: 100vw; } .chat { border-left: none; } }
@@ -78,7 +77,8 @@ export interface PastChat {
   lines: { you: boolean; text: string }[];
 }
 
-type Tab = 'talk' | 'past' | 'usage';
+export type ChatTab = 'talk' | 'past' | 'usage';
+type Tab = ChatTab;
 
 export interface ChatPanelHooks {
   send(text: string): void;
@@ -139,7 +139,8 @@ export class ChatPanel {
     foot.append(this.status, changes, this.usageLine, settings);
     this.root.append(tabs, this.head, this.body, this.other, this.inputRow, foot);
     this.launcher.title = 'Past conversations and LLM usage';
-    document.body.append(this.root, this.launcher);
+    // The launcher goes in the screen's top bar, beside Menu (src/app/shell.ts `addTool`).
+    document.body.append(this.root);
     ledger.onRecord(() => this.refreshUsage());
     this.refreshUsage();
   }
