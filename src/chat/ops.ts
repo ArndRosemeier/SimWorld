@@ -21,6 +21,8 @@ import { clamp } from '@futuremagic/core';
 
 /** Game minutes the NPC is held per turn (renewed each turn; the chat panel's close releases them). */
 export const HOLD_MINUTES = 10;
+/** Below this age nobody holds a conversation (a toddler babbles; the language model would role-play a fluent one). */
+export const TALK_MIN_AGE = 4;
 
 /** The chat panel's header: who you are talking to, as your inhabitant knows them. */
 export interface ChatHeader {
@@ -89,7 +91,7 @@ export function chatOp(world: World, req: ChatRequest): ChatResponse {
     case 'start': {
       const player = isPerson(world, req.player) ? req.player : isPerson(world, world.player?.id ?? -1) ? world.player!.id : standIn(world, req.npc);
       req = { ...req, player };
-      if (!isPerson(world, req.npc) || player < 0 || req.npc === player) return { op: 'start', header: null };
+      if (!isPerson(world, req.npc) || player < 0 || req.npc === player || ageOf(world, req.npc) < TALK_MIN_AGE) return { op: 'start', header: null };
       stopToTalk(world, req.npc, HOLD_MINUTES);
       const she = world.actors.cols.sex[req.npc] === FEMALE;
       const m = moodOf(world, req.npc);
