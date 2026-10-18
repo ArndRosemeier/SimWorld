@@ -22,6 +22,7 @@ import { splitStorey, type Program, type Space, type Split } from './fill/split'
 import { flatsProgram, homeProgram, homeItems, lacksOf, type HomePart, type HomeRoom } from './fill/home';
 import { coreRect, coreFits, liftRect, doorWay, stairHall, stairsOf, Frame, LANDING, type Door, type LiftShaft, type StairCore } from './cores';
 import type { FloorPlan, Furn, IWall, Room, RoomType } from './types';
+import { connectRooms, roomsAt, walkWays, type Arrival } from './ways';
 
 /** What a storey is for. */
 export type StoreyUse =
@@ -37,13 +38,17 @@ export type StoreyUse =
  * over a shop, the ground floor's hall from their own street door to the stairs (`entry`, the
  * home `entryUnit` or -1 for all of them): walled off from the workplace, no door into it.
  */
-export interface StoreyCores { lift: LiftShaft | null; stair: StairCore | null; entry?: Poly | null; entryUnit?: number }
+export interface StoreyCores { lift: LiftShaft | null; stair: StairCore | null; entry?: Poly | null; entryUnit?: number; entryDoor?: Door | null }
+
+/** Where one arrives from the storey below: the top of its stairs (x, z), and the stairwell they come up through. */
+export interface StoreyBelow { at: [number, number][]; hole: number[] | null }
+const NO_BELOW: StoreyBelow = { at: [], hole: null };
 
 /**
  * `up`: stairs from this storey to the next (the core fits both); `below`: stairs arrive from the
  * storey below; `door`: the street door (ground floor only).
  */
-export function planStorey(b: BuildingDesc, poly: Poly, floor: number, y: number, height: number, use: StoreyUse, cores: StoreyCores, up: boolean, below: boolean, door: Door | null, r: Rng): FloorPlan {
+export function planStorey(b: BuildingDesc, poly: Poly, floor: number, y: number, height: number, use: StoreyUse, cores: StoreyCores, up: boolean, below: boolean, door: Door | null, r: Rng, from: StoreyBelow = NO_BELOW): FloorPlan {
   const F = new Frame(poly);
   const plan: FloorPlan = { floor, y, height, poly, rooms: [], walls: [], furniture: [], flights: [], landings: [], stairHole: null, lights: [], fixtures: [] };
   const clipRoom = (rect: Poly): Poly | null => {
@@ -81,6 +86,8 @@ export function planStorey(b: BuildingDesc, poly: Poly, floor: number, y: number
     closed = !!entry && !!hq;
     stairsOf(plan, st, y, height, up, below);
   }
+  // The rooms one arrives in: the stair hall and the lift lobby (on the ground floor the street door's room instead).
+  const hubs = plan.rooms.length;
   // The way in behind the street door.
   const way = door && doorWay(poly, door, 2.2, 0.75);
   const keepOut = [...(way ? [way] : []), ...(st ? [coreRect(st, 0, 0.1)] : []), ...(lift ? [liftRect(lift, 0.1), landingOf(lift)] : [])];
@@ -122,12 +129,26 @@ export function planStorey(b: BuildingDesc, poly: Poly, floor: number, y: number
     for (const w of plan.walls) if (!w.solid) openWall(w, way);
     plan.walls = plan.walls.filter((w) => !(w.doors.length === 1 && w.doors[0][0] <= 0 && w.doors[0][1] >= 1));
   }
+  // Every room reached: from the street door on the ground floor (the homes' own hall from theirs), from the stairs above.
+  const closedHall = closed ? plan.rooms.findIndex((q) => q.type === 'stairs') : -1;
+  // Just inside a street door: the way in's first metre.
+  const inside = (q: Poly | null): [number, number][] => (q ? [[(q[4] + q[6]) / 2 * 0.4 + (q[0] + q[2]) / 2 * 0.6, (q[5] + q[7]) / 2 * 0.4 + (q[1] + q[3]) / 2 * 0.6]] : []);
+  const homesWay = ground && closedHall >= 0 && cores.entryDoor ? doorWay(poly, cores.entryDoor, 2.2, 0.75) : null;
+  const inner = [...inside(way), ...inside(homesWay)];
+  const arrival: Arrival = ground
+    ? { rooms: inner.length ? [] : closedHall >= 0 ? [closedHall] : [], at: inner }
+    : { rooms: from.at.length ? [] : Array.from({ length: hubs }, (_, k) => k), at: from.at };
+  const arriveRooms = [...arrival.rooms, ...arrival.at.flatMap(([x, z]) => roomsAt(plan.rooms, x, z)), ...(closedHall >= 0 ? [closedHall] : [])];
+  connectRooms(plan, [...new Set(arriveRooms)], closedHall);
   // Rooms furnished by their theme once the walls and doors are final.
   for (const { room, items } of furnish) {
     const A = roomArea(room.poly, plan.walls, poly, facade, keepOut);
     if (door && distPointPolyEdge(room.poly, door.x, door.z) < 0.5) A.entry = [door.x, door.z];
     for (const f of new Filler(A, r, undefined, fits).fill(items(room.type, A))) plan.furniture.push({ ...f, unit: room.unit });
   }
+  // And where a body fits among the furniture: the doorways clear, the stairs up reached.
+  const fl = plan.flights[0];
+  walkWays(plan, poly, arrival, from.hole, fl ? [fl.x - fl.dx * 0.5, fl.z - fl.dz * 0.5] : null, closedHall);
   lightsOf(plan);
   return plan;
 }

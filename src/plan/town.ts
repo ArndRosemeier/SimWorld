@@ -14,7 +14,7 @@ import { Terrain } from '../world/terrain';
 import { LandUse } from '../world/landuse';
 import { RuralPlan } from '../world/rural';
 import { buildMacroPlan } from './macro';
-import { planCell, type CellPlan } from './cell';
+import { frontsOutdoors, planCell, type CellPlan } from './cell';
 import { placeEateries } from './terrace';
 import { asLockUp, dwellingsOf, isSliver, type BuildingDesc } from './building';
 import { EATERY_OF, PREFER, amenityCounts, type AmenityKind } from './amenities';
@@ -150,11 +150,14 @@ function trimFronts(macro: MacroPlan, cells: CellPlan[], pop: number, warmth: nu
   const surplus = fronts.length - frontsWanted(pop, warmth);
   if (surplus <= 0) return;
   fronts.sort((a, b) => b.score - a.score || a.b.seed - b.b.seed);
+  const lockUps = new Set<BuildingDesc>();
   for (const { b } of fronts.slice(0, surplus)) {
-    if (isSliver(b.poly)) asLockUp(b);
+    if (isSliver(b.poly)) { asLockUp(b); lockUps.add(b); }
     else if ((b.use === 'mixed' || b.use === 'residential') && b.units > 0) { b.shopfront = false; b.use = 'residential'; }
     else { b.shopfront = false; b.use = 'office'; }
   }
+  // (A lock-up's bays are narrower: its door moves, and must still open outdoors and into it.)
+  if (lockUps.size) for (const plan of cells) frontsOutdoors(plan.buildings, lockUps);
 }
 
 /** Kinds that belong in the middle of town (scored by closeness to the core). */

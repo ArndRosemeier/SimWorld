@@ -23,6 +23,7 @@ import type { Physics } from '../physics/physics';
 import { rampBox, wallBoxes, type SolidBox, type SolidPost } from '../physics/solids';
 import { pointInPoly } from '../geom/geom2';
 import type { Indoors } from '../interior/indoors';
+import { reachOf } from '../interior/reach';
 import type { GoingInside } from './inside';
 import { Avatar } from './avatar';
 import type { CameraControl, PlayTarget } from './camera';
@@ -160,7 +161,8 @@ export class Playing {
 
   /**
    * Where `id` stands up in the building shown: beside the spot they were given (out of the bed, up from the
-   * chair), at the nearest place with room for a person and a floor under it; else just inside a street door.
+   * chair), at the nearest place with room for a person and a floor under it and a way out to the street
+   * (src/interior/reach.ts; else any such place); else just inside a street door.
    */
   private standUp(phys: Physics, id: number): { x: number; y: number; z: number; yaw: number } | null {
     const ins = this.goingIn.inside;
@@ -170,11 +172,11 @@ export class Playing {
     if (spot) {
       // Facing away from what they were at (its front is along the spot's yaw); somewhere roomy first, else
       // anywhere a body fits.
-      const yaw = spot.yaw + Math.PI;
-      for (const roomy of [ROOMY, BODY_R]) for (const r of [0.6, 0.9, 1.3, 1.8]) for (let k = 0; k < 12; k++) {
+      const yaw = spot.yaw + Math.PI, R = reachOf(I);
+      for (const out of [true, false]) for (const roomy of [ROOMY, BODY_R]) for (const r of [0.6, 0.9, 1.3, 1.8]) for (let k = 0; k < 12; k++) {
         const a = spot.yaw + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 6);
         const x = spot.x + Math.sin(a) * r, z = spot.z + Math.cos(a) * r;
-        if (fits(x, spot.y, z, roomy)) return { x, y: spot.y, z, yaw: openWay(phys, x, spot.y, z, yaw) };
+        if ((!out || R.out(spot.floor, x, z)) && fits(x, spot.y, z, roomy)) return { x, y: spot.y, z, yaw: openWay(phys, x, spot.y, z, yaw) };
       }
     }
     const d = I.doors[0];

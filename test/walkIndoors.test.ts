@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { planTown } from '../src/plan/town';
 import { planInterior } from '../src/interior/building';
 import { indoorsOf } from '../src/interior/indoors';
+import { cutOff } from '../src/interior/reach';
+import { windowOpenings } from '../src/build/massing';
 import { Physics } from '../src/physics/physics';
 import { rampBox } from '../src/physics/solids';
 import { Avatar } from '../src/game/avatar';
@@ -36,4 +38,22 @@ test('indoors: the body walks in at the street door and up every flight of stair
   assert.equal(w, way.length, `walked every flight (stuck near ${b.x.toFixed(1)}, ${b.y.toFixed(2)}, ${b.z.toFixed(1)})`);
   assert.ok(Math.abs(b.y - top.y1) < 0.1, `on the top floor (${b.y.toFixed(2)} of ${top.y1.toFixed(2)})`);
   b.dispose();
+});
+
+test('indoors: every building can be left (a sample of the town): its street doors and every storey join the street, and nearly every room and bed or seat does', () => {
+  // Every eighth building of the town, all kinds; the whole town is checked the same way by hand (it takes a while).
+  const sample = town.cells.flatMap((c) => c.buildings).filter((_, i) => i % 8 === 0);
+  const cut: string[] = [];
+  for (const b of sample) {
+    const I = planInterior(b), r = cutOff(indoorsOf(I, 0, windowOpenings(b)), I);
+    const what = `${b.style} ${b.use} (${b.id})`;
+    assert.deepEqual(r.doors, [], `${what}: a street door one cannot get to from inside`);
+    I.storeys.forEach((s, f) => {
+      const open = s.rooms.filter((q) => !q.sealed).length, lost = r.rooms.filter(([g]) => g === f).length;
+      assert.ok(open === 0 || lost < open, `${what}: no way to floor ${f}`);
+    });
+    if (r.rooms.length || r.spots.length) cut.push(`${what}: rooms ${r.rooms.map(([f, j]) => `${f}:${I.storeys[f].rooms[j].type}`).join(',')} spots ${r.spots.length}`);
+  }
+  // A ratchet: what is still cut off somewhere in the sample (lower it as the floor plans get better).
+  assert.ok(cut.length <= 1, `cut off:\n${cut.join('\n')}`);
 });

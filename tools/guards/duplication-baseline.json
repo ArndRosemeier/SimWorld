@@ -224,10 +224,6 @@
     "reason": "Each model sets the lamp part and adds its own lamp box (MeshBuilder.set + box): the builder's API used, not copied."
   },
   {
-    "key": "idiom: [.from Array] in simworld/interior/building.ts + simworld/render/railView.ts + simworld/render/textures.ts",
-    "reason": "Array.from building index lists for three different things; the language's own call, tipped over the threshold by new files."
-  },
-  {
     "key": "idiom: [.members .some] in simworld/sim/groups.ts + simworld/sim/politics.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
     "reason": "Different questions about a list of members (a household's grown-up at home, a club member who holds an office, a councillor who agrees with an issue): each is one Array.some with its own predicate; the shared part is Array.some itself."
   },
@@ -240,7 +236,7 @@
     "reason": "Callers of LandUse.sample (the one land-use query) asking it different questions: where forest grows, where places go, where farms are."
   },
   {
-    "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/doors.ts + simworld/interior/fill/area.ts + simworld/interior/indoors.ts + simworld/interior/storey.ts",
+    "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/doors.ts + simworld/interior/fill/area.ts + simworld/interior/indoors.ts + simworld/interior/storey.ts + simworld/interior/ways.ts",
     "reason": "The length of a wall segment ({ax, az, bx, bz}, the interior's IWall and the filler's Edge) before walking along it."
   },
   {
@@ -248,11 +244,11 @@
     "reason": "Furnishing rules score a wall spot by its gap to the corner (the one seam is the filler's cornerGap); each rule weighs it differently. Entered the finder's top idioms when the street layer grew."
   },
   {
-    "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/home.ts + simworld/interior/fill/work.ts",
+    "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/fill/home.ts + simworld/interior/fill/work.ts + simworld/interior/spots.ts",
     "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
   },
   {
-    "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/place.ts + simworld/interior/storey.ts",
+    "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/place.ts + simworld/interior/reach.ts + simworld/interior/storey.ts",
     "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
   },
   {
@@ -520,7 +516,7 @@
     "reason": "Looking up a place by id in the place graph inside a describer (card, belief, paper, profile); the one way to read a place, not a copy."
   },
   {
-    "key": "idiom: [.ax .az .bx .bz] in simworld/build/interior.ts + simworld/interior/doors.ts + simworld/interior/indoors.ts + simworld/interior/storey.ts",
+    "key": "idiom: [.ax .az .bx .bz] in simworld/build/interior.ts + simworld/interior/doors.ts + simworld/interior/indoors.ts + simworld/interior/storey.ts + simworld/interior/ways.ts",
     "reason": "A wall is a segment a→b with its own fields (Wall); reading its ends is the data shape, not a copied computation."
   },
   {
@@ -634,5 +630,33 @@
   {
     "key": "same name: simworld/game/inside.ts#update + simworld/traffic/traffic.ts#update",
     "reason": "Unrelated per-frame updates: the building you are in (people, light, doors), and the traffic."
+  },
+  {
+    "key": "same name: simworld/build/vegetationTex.ts#cell + simworld/interior/reach.ts#cell",
+    "reason": "Different things: a texture cell and FloorGrid.cell (the grid cell at a point of a floor)."
+  },
+  {
+    "key": "same name: simworld/interior/fill/place.ts#block + simworld/interior/reach.ts#block",
+    "reason": "FloorGrid.block (cells a body cannot stand in beside a box) is not the filler's block; different concepts."
+  },
+  {
+    "key": "same name: simworld/interior/reach.ts#cz + simworld/street/clearance.ts#cz",
+    "reason": "Grid cell centre accessors of two different grids (a floor of a building, the street clearance grid)."
+  },
+  {
+    "key": "same name: simworld/interior/reach.ts#fits + simworld/plan/drives.ts#fits",
+    "reason": "FloorGrid.fits (a body fits at a point indoors) and a driveway fit test; different concepts."
+  },
+  {
+    "key": "same name: simworld/interior/reach.ts#near + simworld/world/rural.ts#near",
+    "reason": "FloorGrid.near (nearest free cell) and a rural distance helper; different concepts."
+  },
+  {
+    "key": "idiom: [.ax .az .bx .bz] in simworld/build/interior.ts + simworld/interior/storey.ts + simworld/interior/ways.ts",
+    "reason": "Reading a wall's end points (IWall ax, az, bx, bz) where each piece of code walks along a wall: the wall record is the one seam, what is done along it differs."
+  },
+  {
+    "key": "idiom: [.ax .az] in simworld/interior/fill/area.ts + simworld/interior/indoors.ts + simworld/interior/ways.ts",
+    "reason": "Reading a wall's end points (IWall ax, az, bx, bz) where each piece of code walks along a wall: the wall record is the one seam, what is done along it differs."
   }
 ]

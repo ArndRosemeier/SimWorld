@@ -42,6 +42,8 @@ export interface Room {
   wallColor: [number, number, number];
   /** The home it belongs to (index in `Interior.units`), -1 for common floor (stair halls, workplaces). */
   unit: number;
+  /** A scrap of floor walled in by the stairs, the lift and the outer walls, with no wall a door could go in: no way in (src/interior/ways.ts). */
+  sealed?: boolean;
 }
 
 export interface IWall {

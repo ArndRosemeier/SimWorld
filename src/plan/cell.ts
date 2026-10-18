@@ -713,16 +713,23 @@ function longestEdge(q: Poly): number[] {
 
 /**
  * A building whose street door would open into a neighbour (its front picked on a party wall:
- * slivers, wedges at bent block corners) gets the longest edge whose door opens outdoors.
+ * slivers, wedges at bent block corners), or into a spur of its outline too thin to walk out of
+ * (joined to the rest by a neck: the rooms inside, src/interior, leave it out), gets the longest
+ * edge whose door opens outdoors and into the building. (`only`: just these; a building made a
+ * lock-up later, src/plan/town.ts, has narrower bays, so its door moves.)
  */
-function frontsOutdoors(B: BuildingDesc[]): void {
+export function frontsOutdoors(B: BuildingDesc[], only?: ReadonlySet<BuildingDesc>): void {
+  let body: Poly | null = null;
   const indoors = (b: BuildingDesc) => {
     const d = streetDoor(b), P = b.poly, n = P.length >> 1, i = b.front % n, j = (i + 1) % n;
-    const L = Math.hypot(P[j * 2] - P[i * 2], P[j * 2 + 1] - P[i * 2 + 1]) || 1;
-    const x = d.x + ((P[j * 2 + 1] - P[i * 2 + 1]) / L) * 0.8, z = d.z - ((P[j * 2] - P[i * 2]) / L) * 0.8;
-    return B.some((o) => pointInPoly(o.poly, x, z));
+    const L = Math.hypot(P[j * 2] - P[i * 2], P[j * 2 + 1] - P[i * 2 + 1]) || 1, nx = (P[j * 2 + 1] - P[i * 2 + 1]) / L, nz = -(P[j * 2] - P[i * 2]) / L;
+    if (body && !pointInPoly(body, d.x - nx * 1.0, d.z - nz * 1.0)) return true;
+    return B.some((o) => pointInPoly(o.poly, d.x + nx * 0.8, d.z + nz * 0.8));
   };
   for (const b of B) {
+    if (only && !only.has(b)) continue;
+    // Where one can walk inside: the outline less a body's width round its walls.
+    body = largest(offset([b.poly], -0.45, 'miter'));
     if (!indoors(b)) continue;
     const n = b.poly.length >> 1, was = b.front;
     const order = [...Array(n).keys()].sort((p, q) => edgeLen(b.poly, q) - edgeLen(b.poly, p));

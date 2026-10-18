@@ -18,10 +18,12 @@ import { buildingTiers } from '../build/massing';
 import { KINDS, defaultStaff } from '../sim/placeKinds';
 import type { PlaceKind, StaffSlot } from '../sim/places';
 import { coreFits, planCores } from './cores';
-import { planStorey, type StoreyCores, type StoreyUse } from './storey';
+import { spotsOfPiece } from './spots';
+import { stillCut } from './ways';
+import { planStorey, type StoreyBelow, type StoreyCores, type StoreyUse } from './storey';
 import { homeItems, homeProgram, type HomeRoom } from './fill/home';
 import { workItems, workProgram, type Need, type Work } from './fill/work';
-import type { FloorPlan, Furn, FurnUse, Spot } from './types';
+import type { FloorPlan, Furn, Spot } from './types';
 
 /**
  * What the people of a workplace are, when the caller knows (the sim's place): its staff and capacity; `kind` the
@@ -179,14 +181,18 @@ export function planInterior(b: BuildingDesc, place?: PlaceUse): Interior {
   const fd = uses[0].kind === 'rooms' && uses[0].unit < 0 ? flatsDoor(b) : null;
   const cores: StoreyCores = planCores(b, polys[0], maxH, door, fd);
   cores.entryUnit = dwellingsOf(b) === 1 ? 0 : -1;
+  cores.entryDoor = fd;
   const stairOn = (f: number) => !!cores.stair && f >= 0 && f < n && coreFits(cores.stair, polys[f]);
   const storeys: FloorPlan[] = [];
   for (let f = 0; f < n; f++) {
+    // Where one comes up from the storey below: past the top of its last flight.
+    const prev = storeys[f - 1], top = prev?.flights[prev.flights.length - 1];
+    const below: StoreyBelow = { at: top ? [[top.x + top.dx * (top.run + 0.5), top.z + top.dz * (top.run + 0.5)]] : [], hole: prev?.stairHole ?? null };
     // A home storey cut so that a home lacks something it must have is cut again (a few tries, the best kept).
     let best: FloorPlan | null = null, bestD = Infinity;
     for (let k = 0; k < RETRIES && bestD > 0; k++) {
       const r = new Rng(deriveSeed(b.seed, 'interior', f, k));
-      const plan = planStorey(b, polys[f], f, storeyLevel(b, f), storeyHeight(b, f), uses[f], cores, stairOn(f) && stairOn(f + 1), f > 0 && stairOn(f) && stairOn(f - 1), f === 0 ? door : null, r);
+      const plan = planStorey(b, polys[f], f, storeyLevel(b, f), storeyHeight(b, f), uses[f], cores, stairOn(f) && stairOn(f + 1), f > 0 && stairOn(f) && stairOn(f - 1), f === 0 ? door : null, r, below);
       const d = defects(plan, uses[f]);
       if (d < bestD) { best = plan; bestD = d; }
     }
@@ -239,7 +245,9 @@ const RETRIES = 4;
  * floor, a bed and a toilet on its night floor (a flat is both).
  */
 export function defects(plan: FloorPlan, use: StoreyUse): number {
-  if (use.kind === 'parking' || (use.kind === 'rooms' && !use.part)) return 0;
+  // Rooms one cannot get to (src/interior/ways.ts) are worse than anything a home lacks.
+  const cut = (stillCut.get(plan) ?? 0) * 10;
+  if (use.kind === 'parking' || (use.kind === 'rooms' && !use.part)) return cut;
   const day = use.kind === 'flats' || use.part !== 'night', night = use.kind === 'flats' || use.part !== 'day';
   const has = new Map<number, Set<string>>();
   const at = (u: number) => has.get(u) ?? (has.set(u, new Set()), has.get(u)!);
@@ -252,7 +260,7 @@ export function defects(plan: FloorPlan, use: StoreyUse): number {
     if (night && !h.has('bed') && !h.has('bedDouble')) n++;
     if (night && !h.has('toilet')) n++;
   }
-  return n;
+  return n + cut;
 }
 
 function unitsOf(storeys: FloorPlan[]): Unit[] {
@@ -271,35 +279,7 @@ function unitsOf(storeys: FloorPlan[]): Unit[] {
   return units;
 }
 
-/**
- * Where a piece puts its person: on a seat or a bed; in front of a bench, a machine, an oven or a
- * car lift; behind a counter (its staff side). A salon chair has its client in it and the
- * hairdresser behind; a bar has stools along its front.
- */
-function spotsOfPiece(f: Furn, floor: number, out: Spot[]): void {
-  if (!f.use) return;
-  const fx = Math.sin(f.yaw), fz = Math.cos(f.yaw), rx = Math.cos(f.yaw), rz = -Math.sin(f.yaw);
-  const unit = f.unit ?? -1;
-  const seat = (use: FurnUse) => (use === 'sleep' ? f.h : use !== 'sit' ? 0 : f.kind === 'barCounter' ? 0.75 : Math.min(0.48, f.h * 0.5));
-  const at = (use: FurnUse, along: number, ahead: number, yaw: number) => out.push({ use, floor, x: f.x + rx * along + fx * ahead, z: f.z + rz * along + fz * ahead, yaw, seat: seat(use), unit });
-  const SEATS = new Set(['chair', 'officeChair', 'sofa', 'armchair', 'bunk']);
-  if (f.use === 'sleep') { const k = f.kind === 'bedDouble' ? 2 : 1; for (let i = 0; i < k; i++) at('sleep', k === 2 ? (i - 0.5) * f.w / 2 : 0, 0, f.yaw); return; }
-  if (f.kind === 'salonChair') { at('sit', 0, 0, f.yaw); at('work', 0, -(f.d / 2 + 0.35), f.yaw); return; }
-  if (f.use === 'serve') {
-    const k = Math.max(1, Math.floor(f.w / 1.2));
-    for (let i = 0; i < k; i++) at('serve', (i - (k - 1) / 2) * (f.w / k), -(f.d / 2 + 0.45), f.yaw);
-    if (f.kind === 'barCounter') for (let x = -f.w / 2 + 0.4; x < f.w / 2 - 0.2; x += 0.65) at('sit', x, f.d / 2 + 0.45, f.yaw + Math.PI);
-    return;
-  }
-  if (f.use === 'sit' || SEATS.has(f.kind)) {
-    const k = f.kind === 'sofa' ? Math.max(2, Math.round(f.w / 0.75)) : f.kind === 'pew' ? Math.max(2, Math.floor(f.w / 0.6)) : 1;
-    for (let i = 0; i < k; i++) at(f.use, (i - (k - 1) / 2) * (f.w / k), 0, f.yaw);
-    return;
-  }
-  // Work at the front of it, facing it.
-  at('work', 0, f.d / 2 + 0.4, f.yaw + Math.PI);
-}
-
+/** Every storey's spots (src/interior/spots.ts). */
 function spotsOf(storeys: FloorPlan[]): Spot[] {
   const out: Spot[] = [];
   for (const s of storeys) for (const f of s.furniture) spotsOfPiece(f, s.floor, out);
