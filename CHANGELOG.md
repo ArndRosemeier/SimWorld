@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.044 — Clubs, a congregation and the council
+
+- The town has its clubs: football, choir, volunteer fire brigade, rifle club, allotment society, church coffee circle, youth club, book club, running club, card club and local history society, each with members, a chair or organiser and its own meeting nights.
+- Members go to their club evenings: the footballers train on Tuesdays and Thursdays and play at home on Saturdays, the choir rehearses on Tuesdays, the council meets on the first Monday of the month.
+- Each church has its congregation, with a churchwarden and a treasurer.
+- People join and drift off over time, friends bring friends along, and teenagers leave the youth club at 18.
+- Office holders are elected at each club's annual meeting, and a new chair is news.
+- Every club has a big day the town hears about a month ahead: the Christmas concert, the fire brigade's open day, the produce show, the fun run, the church fete. The winners and the football club's league finish are talked about afterwards.
+- A club that runs out of members folds, and now and then someone starts a club the town is missing.
+
+## v0.043 — The town sounds its agenda
+
+- The church bells now follow the agenda: a peal before each service, a peal as a wedding couple come out, and a slow knell before a funeral. There are no bells for a town-hall wedding.
+- Market days, the Christmas market, the summer festival and New Year bring a crowd to the square. A football match has its whistles, kicks and cheers, and a wedding party clatters at its restaurant.
+- In play, the sound now follows the sim's own clock and weather, so it matches the sky and the people.
+
+## v0.042 — The town can be saved and loaded
+
+- The whole town (every person, what they know, their plans, the shops' books) can now be saved and loaded again, and it carries on exactly as it would have. The save and load buttons come with the in-game simulation.
+- A business that opens in an empty shop now keeps its own hours too.
+
+## v0.041 — Phone calls between family and friends
+
+- People now phone and message family who live elsewhere and good friends, mostly in the evening. Teenagers and young adults do it more.
+- News travels down the line, but more slowly than face to face, and only between people who are close. Nobody phones a stranger.
+
+## v0.040 — Every shop keeps its own hours
+
+- Shops no longer all open and close on the same minute. Some close at one on Wednesdays, some stay open until eight on Thursdays, and some small shops and cafés take Mondays off.
+- About half the pubs open at lunchtime on weekends.
+
+## v0.039 — People on the street
+
+- The town now lives while you watch: the whole population runs in the background from the moment the game loads, on today's real date and at the real time of day.
+- Press Enter to go down to the street, walk with W A S D (Shift to hurry) and drag to look around. Esc goes back up.
+- The people you see are the real inhabitants on their real errands. They walk door to door along the sidewalks to the bakery, to work, to school, and stroll in the parks and squares. Children and pets keep beside the grown-up they are with.
+- Everyone has their own face and build, which ages with them, and family looks run in a household. Each day they pick a new outfit of their own colours, dressed for the morning's weather: coats and hats when it is cold, raincoats in the rain, smart clothes for office jobs.
+- Press F to follow the nearest person (F again for the next). The top line says who they are and where they are going.
+- The top line also shows today's date, the temperature and the sky.
+- Fixed: a rounding bug sent most trips across town in a straight line, through houses and over the river. People now go round by the streets.
+
+## v0.038 — Steadier checks
+
+- The automatic checks run the test files one at a time, so a slow-looking test is really slow and checks no longer fail at random.
+
 ## v0.037 — Trees in the streets and forests in the country
 
 - Street trees, park trees, yews, bushes and hedges now grow where the town plan puts them: plane, linden, maple, oak, birch, chestnut, ginkgo, pine, cypress and palm, picked by street, park and climate like in Scale.

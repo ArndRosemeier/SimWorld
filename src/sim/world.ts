@@ -32,7 +32,10 @@ import { runEncounters, type Encounter } from './encounters';
 import { forget } from './knowledge';
 import { fadeRelations } from './relations';
 import { lifeDay } from './life';
+import { phoneCalls } from './phone';
 import { economyDay } from './economy';
+import type { Groups } from './groups';
+import { groupsDay } from './groups';
 
 export interface World {
   readonly seed: number;
@@ -74,6 +77,8 @@ export interface World {
   region: RegionKnowledge | null;
   /** Household budgets, business ledgers, openings and closures (src/sim/economy.ts). */
   readonly economy: Economy;
+  /** Clubs, congregations and the council: members, office holders, big days (src/sim/groups.ts). */
+  readonly groups: Groups;
 }
 
 /** The fixed parts of a world for a place graph (the population comes from `synthesize`, src/sim/synth.ts). */
@@ -101,7 +106,7 @@ export function tick(world: World, minutes = 1): void {
     world.clock++;
     if (world.clock % MINUTES_PER_DAY === 0) passDays(world, 1);
     updateNeeds(world, 1);
-    if (world.clock % 60 === 0) updateMoods(world);
+    if (world.clock % 60 === 0) { updateMoods(world); phoneCalls(world); }
     arrive(world);
     decideAll(world);
     runEncounters(world);
@@ -115,6 +120,7 @@ export function tick(world: World, minutes = 1): void {
 export function passDays(world: World, days: number): void {
   lifeDay(world, days);
   economyDay(world, days);
+  groupsDay(world);
   pruneAgenda(world, world.clock);
   forget(world, days);
   fadeRelations(world.relations, world.clock, days);
@@ -157,6 +163,13 @@ export function householdOf(world: World, id: ActorId): Household | null {
   return hh >= 0 ? world.households[hh] : null;
 }
 
+/** The journey an actor is on now (`world.trips`; the latest one), or undefined when they are not travelling. */
+export function tripOf(world: World, id: ActorId): Trip | undefined {
+  const t = world.trips;
+  for (let i = t.length - 1; i >= 0; i--) if (t[i].who === id) return t[i];
+  return undefined;
+}
+
 /** A person's job, or null. */
 export function jobOf(world: World, id: ActorId): Job | null {
   const j = world.people.cols.job[world.actors.cols.row[id]];
@@ -195,9 +208,8 @@ export const placesOf = (world: World, kinds: readonly PlaceKind[]): PlaceId[] =
  * way to change a place's kind, so the per-kind lookups stay right.
  */
 export function setPlaceKind(world: World, place: PlaceId, kind: PlaceKind, patch: Partial<Pick<Place, 'name' | 'hours' | 'staff' | 'capacity'>>): void {
-  const p = world.graph.places[place];
-  p.kind = kind;
-  Object.assign(p, patch);
+  // A new place object: the old one may be shared with the planner's graph, which keeps the town as planned.
+  world.graph.places[place] = { ...world.graph.places[place], ...patch, kind };
   world.kindOf[place] = PLACE_KINDS.indexOf(kind);
   placeCache.delete(world);
 }

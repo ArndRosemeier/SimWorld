@@ -12,7 +12,7 @@ SimWorld is a living procedural town in the browser (TypeScript, three.js on Web
 8. **Every ~10 PRs, a sweep:** run both finders (`npm run dup`, `npm run repeated`), read for concept duplicates, fold what is worth folding.
 9. **Each PR adds a change note** `changes/<slug>.md` (`# Title`, then `- ` bullets; see [changes/README.md](changes/README.md)). Never edit `CHANGELOG.md`; a workflow folds the notes after the merge.
 10. **Porting from Scale or Dunfinity:** take the code with its tests, adapt names to SimWorld, and note the source file in the header comment. Leave superhero, combat and dungeon content behind.
-11. **Merge your own PRs.** Arnd does not do Git (2026-10-18): the thread that opens a PR squash-merges it to main as soon as CI is green and review findings are handled. When main has moved, bring it in first and let CI run again.
+11. **Merge your own PRs.** Arnd does not do Git (2026-10-18): the thread that opens a PR squash-merges it to main as soon as CI is green and review findings are handled. When main has moved, bring it in first and let CI run again. With many tracks merging in parallel, after every merge to main each thread checks its open PRs for conflicts and resolves them right away, without being asked (GitHub's conflict notices do not always arrive). Two PRs can also clash without a textual conflict: if main turns red after your merge, fix it before anything else.
 
 Shared packages come from the AssetGenerator submodule (`vendor/assetgenerator/packages`: `@futuremagic/core`, `@futuremagic/humanoid`). Clone with `--recurse-submodules`, or run `git submodule update --init`.
 

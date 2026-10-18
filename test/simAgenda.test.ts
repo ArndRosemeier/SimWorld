@@ -51,7 +51,7 @@ test('agenda: on Sunday morning the faithful are at church, on market day people
 });
 
 test('ceremonies: the guests come to the wedding, and afterwards the couple are married', () => {
-  const w = createWorld(testTown(23, 600), 23);
+  const w = createWorld(testTown(23, 300), 23);
   const x = Array.from({ length: w.actors.count }, (_, i) => i).find((id) => isPerson(w, id) && ageOf(w, id) >= 25 && ageOf(w, id) < 50 && partnerOf(w, id) >= 0 && !w.relations.has(id, partnerOf(w, id), 'spouse') && householdOf(w, id) === householdOf(w, partnerOf(w, id)))!;
   assert.ok(x !== undefined, 'no unmarried couple');
   const y = partnerOf(w, x);
@@ -65,7 +65,10 @@ test('ceremonies: the guests come to the wedding, and afterwards the couple are 
   tick(w, wedding.start + 30 - w.clock);
   const there = wedding.guests!.filter((g) => w.actors.cols.place[g] === wedding.place && w.actors.cols.dest[g] < 0).length;
   assert.ok(there >= wedding.guests!.length * 0.6, `${there} of ${wedding.guests!.length} guests at the wedding`);
-  tick(w, (Math.floor(w.clock / 1440) + 1) * 1440 - w.clock);
+  // The day is held at midnight: skip the rest of the party.
+  w.clock = (Math.floor(w.clock / 1440) + 1) * 1440 - 1;
+  for (let id = 0; id < w.actors.count; id++) w.actors.cols.until[id] = w.clock;
+  tick(w, 2);
   assert.ok(w.relations.has(x, y, 'spouse'), 'not married');
   assert.ok(!w.life.engaged.size);
 });

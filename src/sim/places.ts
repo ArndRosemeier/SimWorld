@@ -44,6 +44,9 @@ export type DayMinute = number;
 
 /** Bit per weekday, Monday = bit 0 ... Sunday = bit 6. */
 export type DayMask = number;
+/** Set bits of a mask: the days in a `DayMask`, the months in a month mask. */
+export const popcount = (m: number): number => { let n = 0; for (let x = m; x; x &= x - 1) n++; return n; };
+
 export const WEEKDAYS: DayMask = 0b0011111;
 export const EVERY_DAY: DayMask = 0b1111111;
 
@@ -108,6 +111,13 @@ export interface RoadEdge {
   length: number;
   /** Walking speed factor: 1 normal, < 1 slower (steep, no sidewalk). */
   walk: number;
+  /**
+   * The centreline from a to b (x, z, … including both ends), when it is not a straight line. The street layer
+   * (src/street) walks it; the sim only needs `length`.
+   */
+  pts?: number[];
+  /** Where people walk: metres from the centreline to each side's walking line (mid-sidewalk; the verge on a country road, 0 on a footpath). */
+  side?: number;
 }
 
 export interface PlaceGraph {

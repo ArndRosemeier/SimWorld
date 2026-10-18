@@ -11,6 +11,7 @@
  * Pure; a function of the planned town.
  */
 import { clamp } from '@futuremagic/core';
+import { polylineCum } from '../geom/geom2';
 import type { RoadNode } from '../sim/places';
 import { RoadKind } from '../world/rural';
 import { streetName } from './names';
@@ -96,9 +97,7 @@ export function townRoads(town: Town): TownRoads {
   const lines: RoadLine[] = [];
   const addLine = (pts: number[], walk: number, street: number, source: LineSource, cls: RoadClass, width: number, sidewalk: number, lanes: number, ref: number) => {
     if (pts.length < 4) return;
-    const n = pts.length >> 1, cum = new Float64Array(n);
-    for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + Math.hypot(pts[i * 2] - pts[i * 2 - 2], pts[i * 2 + 1] - pts[i * 2 - 1]);
-    lines.push({ pts, cum, walk, street, cuts: [], source, cls, width, sidewalk, lanes, ref });
+    lines.push({ pts, cum: polylineCum(pts), walk, street, cuts: [], source, cls, width, sidewalk, lanes, ref });
     if (street >= 0) streets[street].lines.push(lines.length - 1);
   };
   const chain = arterialChains(macro);
@@ -171,28 +170,6 @@ export function townRoads(town: Town): TownRoads {
   });
   for (const L of lines) L.cuts.sort((a, b) => a.s - b.s);
   return { nodes, lines, streets, nearest, addNode: (x, z) => nodeAt(x, z, 0) };
-}
-
-/** The point at arc length s along a line. */
-export function alongLine(L: Pick<RoadLine, 'pts' | 'cum'>, s: number): [number, number] {
-  const i = Math.min(L.cum.length - 1, Math.max(1, upperBound(L.cum, s)));
-  const t = clamp((s - L.cum[i - 1]) / Math.max(1e-6, L.cum[i] - L.cum[i - 1]), 0, 1);
-  return [L.pts[i * 2 - 2] + (L.pts[i * 2] - L.pts[i * 2 - 2]) * t, L.pts[i * 2 - 1] + (L.pts[i * 2 + 1] - L.pts[i * 2 - 1]) * t];
-}
-
-/** The part of a line between arc lengths s0 < s1, as a polyline (x, z, …). */
-export function slicePolyline(L: Pick<RoadLine, 'pts' | 'cum'>, s0: number, s1: number): number[] {
-  const out = [...alongLine(L, s0)];
-  for (let i = 0; i < L.cum.length; i++) if (L.cum[i] > s0 + 0.05 && L.cum[i] < s1 - 0.05) out.push(L.pts[i * 2], L.pts[i * 2 + 1]);
-  out.push(...alongLine(L, s1));
-  return out;
-}
-
-/** First index whose value exceeds s (binary search over a sorted array). */
-export function upperBound(a: Float64Array, s: number): number {
-  let lo = 0, hi = a.length;
-  while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= s) lo = m + 1; else hi = m; }
-  return lo;
 }
 
 /**

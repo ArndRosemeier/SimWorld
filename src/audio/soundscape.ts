@@ -8,7 +8,8 @@
  */
 import { Rng, clamp, deriveSeed, dist2, smoothstep } from '@futuremagic/core';
 import { dayOf, minuteOfDay, weekdayOf } from '../sim/time';
-import { newSample, soundAt, type SoundMap, type SoundSample, type SoundSource } from './soundMap';
+import type { ViewOccasion } from '../sim/view';
+import { groundAt, newSample, soundAt, type SoundMap, type SoundSample, type SoundSource } from './soundMap';
 
 /** What time it is and what the weather does. */
 export interface SoundEnv {
@@ -27,6 +28,12 @@ export interface SoundEnv {
   feast?: boolean;
   /** Lightning 0 … 1 (a storm): thunder rolls in now and then. */
   lightning?: number;
+  /**
+   * Today's agenda (from the sim's view): services, weddings, funerals, markets, matches, the festival.
+   * When given, the church bells ring for the services and ceremonies on it; without it (the start
+   * screen), they ring the fixed Sunday peal.
+   */
+  occasions?: readonly ViewOccasion[];
 }
 
 /** Where the listener is: position and the ground height under it; `indoor` 0 … 1. */
@@ -49,12 +56,39 @@ export const SUNDAY_PEAL: readonly [number, number] = [9 * 60 + 40, 9 * 60 + 55]
 export const SCHOOL_BELLS: readonly number[] = [7 * 60 + 55, 8 * 60, 9 * 60 + 45, 10 * 60 + 5, 12 * 60 + 15, 13 * 60, 15 * 60 + 15];
 /** When the schoolyard is full: before school, the breaks, after school (minutes of the day). */
 export const SCHOOLYARD: readonly [number, number][] = [[7 * 60 + 40, 7 * 60 + 58], [9 * 60 + 45, 10 * 60 + 5], [12 * 60 + 15, 13 * 60], [15 * 60 + 15, 15 * 60 + 30]];
+/** The peal before a service (minutes before its start). */
+export const SERVICE_PEAL: readonly [number, number] = [20, 5];
+/** The peal after a wedding, as the couple come out (minutes after its end). */
+export const WEDDING_PEAL = 8;
+/** The funeral knell: one slow stroke every this many seconds, for `KNELL_MINUTES` before the funeral. */
+export const KNELL_GAP = 20;
+export const KNELL_MINUTES = 10;
+/** How far an occasion's crowd is heard at all (m). */
+const HEAR_CROWD = 450;
 /** Seconds between two strikes of the hour bell. */
 const STRIKE_GAP = 2.6;
 /** How far the listener hears each kind of source at all (m). */
 const HEAR = { church: 2500, school: 400, garden: 230, farm: 1600, station: 800, sports: 600 } as const;
 
+/** How far from an occasion's entrance its church tower may stand (m). */
+const TOWER_NEAR = 90;
+/** The crowd of an occasion: its loop, level and spread. */
+const CROWDS: Partial<Record<ViewOccasion['kind'], { id: string; gain: number; refDist: number }>> = {
+  market: { id: 'amb_crowd', gain: 0.7, refDist: 18 },
+  christmasMarket: { id: 'amb_crowd', gain: 0.8, refDist: 20 },
+  festival: { id: 'amb_crowd', gain: 1, refDist: 30 },
+  match: { id: 'amb_crowd', gain: 0.45, refDist: 25 },
+  reception: { id: 'terrace_clatter', gain: 0.6, refDist: 8 },
+  newYear: { id: 'amb_crowd', gain: 0.9, refDist: 25 },
+};
+
 const SATURDAY = 5, SUNDAY = 6;
+
+/** 1 inside [a, b), fading in over `fin` and out over `fout` (same units as `t`). */
+const within = (t: number, a: number, b: number, fin: number, fout: number): number => smoothstep(a, a + fin, t) * (1 - smoothstep(b - fout, b, t));
+
+/** The peal loop of a church tower. */
+const peal = (tower: SoundSource, gain: number): LoopCue => ({ key: `peal:${tower.x | 0}:${tower.z | 0}`, id: 'bell_peal', x: tower.x, y: tower.y, z: tower.z, gain, rate: 1, refDist: 70 });
 
 export class Soundscape {
   private last = -1;
@@ -94,9 +128,8 @@ export class Soundscape {
     const clock = env.clock, mod = minuteOfDay(clock), wd = weekdayOf(clock), day = dayOf(clock);
     const dry = env.rain < 0.05;
     for (const src of this.sources(l)) {
-      if (src.kind === 'church' && (wd === SUNDAY || env.feast) && mod >= SUNDAY_PEAL[0] && mod < SUNDAY_PEAL[1]) {
-        const fade = smoothstep(SUNDAY_PEAL[0], SUNDAY_PEAL[0] + 0.3, mod) * (1 - smoothstep(SUNDAY_PEAL[1] - 0.4, SUNDAY_PEAL[1], mod));
-        out.push({ key: `peal:${src.x | 0}:${src.z | 0}`, id: 'bell_peal', x: src.x, y: src.y, z: src.z, gain: fade, rate: 1, refDist: 70 });
+      if (src.kind === 'church' && !env.occasions && (wd === SUNDAY || env.feast) && mod >= SUNDAY_PEAL[0] && mod < SUNDAY_PEAL[1]) {
+        out.push(peal(src, within(mod, SUNDAY_PEAL[0], SUNDAY_PEAL[1], 0.3, 0.4)));
       }
       if (src.kind === 'school' && Soundscape.schoolDay(env) && env.rain < 0.3) {
         for (const [a, b] of SCHOOLYARD) {
@@ -116,9 +149,65 @@ export class Soundscape {
         }
       }
     }
+    for (const o of env.occasions ?? []) this.occasionLoops(o, l, clock, env, out);
     // At most three mowers at once: the nearest.
     const mowers = out.filter((c) => c.id === 'lawnmower').sort((a, b) => dist2(a.x, a.z, l.x, l.z) - dist2(b.x, b.z, l.x, l.z));
     return out.filter((c) => c.id !== 'lawnmower' || mowers.indexOf(c) < 3);
+  }
+
+  /** The loops of one occasion on the agenda: the peal before a service and after a wedding, the crowd at a market. */
+  private occasionLoops(o: ViewOccasion, l: Listener, clock: number, env: SoundEnv, out: LoopCue[]): void {
+    const key = `${o.kind}:${o.start}:${o.x | 0}:${o.z | 0}`;
+    if (o.kind === 'service' || o.kind === 'wedding') {
+      const tower = this.towerOf(o, l);
+      if (!tower) return;
+      const [a, b] = o.kind === 'service' ? [o.start - SERVICE_PEAL[0], o.start - SERVICE_PEAL[1]] : [o.end, o.end + WEDDING_PEAL];
+      if (clock >= a && clock < b) out.push(peal(tower, within(clock, a, b, 0.3, 0.4)));
+      return;
+    }
+    const crowd = CROWDS[o.kind];
+    if (!crowd || clock < o.start || clock >= o.end || dist2(o.x, o.z, l.x, l.z) > HEAR_CROWD) return;
+    // Fewer people out in the rain.
+    const gain = crowd.gain * within(clock, o.start, o.end, 8, 8) * (1 - 0.6 * clamp(env.rain, 0, 1));
+    out.push({ key, id: crowd.id, x: o.x, y: groundAt(this.map, o.x, o.z) + 1.5, z: o.z, gain, rate: 1, refDist: crowd.refDist });
+  }
+
+  /** The church tower of an occasion's place (a church's bells), null when it is held elsewhere (the town hall, the cemetery). */
+  private towerOf(o: ViewOccasion, l: Listener): SoundSource | null {
+    if (dist2(o.x, o.z, l.x, l.z) > HEAR.church) return null;
+    let best: SoundSource | null = null, bd = TOWER_NEAR;
+    for (const s of this.map.sources) {
+      if (s.kind !== 'church') continue;
+      const d = dist2(s.x, s.z, o.x, o.z);
+      if (d < bd) { bd = d; best = s; }
+    }
+    return best;
+  }
+
+  /** The one-shots of the occasions in game minute `m`: the knell, the cheers, the referee. */
+  private occasionShots(m: number, l: Listener, env: SoundEnv, out: Shot[]): void {
+    for (const o of env.occasions ?? []) {
+      const r = new Rng(deriveSeed(this.seed, 'occasion', m, Math.round(o.x), Math.round(o.z)));
+      if (o.kind === 'funeral' && m >= o.start - KNELL_MINUTES && m < o.start) {
+        const tower = this.towerOf(o, l);
+        if (tower) for (let t = 0; t < 60; t += KNELL_GAP) out.push(shot('bell_toll', tower, 0.9, 0.82, 80, t));
+        continue;
+      }
+      if (dist2(o.x, o.z, l.x, l.z) > HEAR_CROWD) continue;
+      const at = { x: o.x, y: groundAt(this.map, o.x, o.z) + 1.5, z: o.z };
+      if (o.kind === 'wedding' && m === o.end) out.push(shot('crowd_cheer', at, 0.8, 1.05, 14, r.float() * 20));
+      if (o.kind === 'match' && m >= o.start && m <= o.end) {
+        // Kick-off, half time, the second half and the final whistle; cheers and kicks in between.
+        const half = Math.floor((o.end - o.start - 15) / 2);
+        if ([o.start, o.start + half, o.start + half + 15, o.end].includes(m)) out.push(shot('ref_whistle', at, 1, 1, 20, r.float() * 5));
+        const playing = m < o.start + half || (m >= o.start + half + 15 && m < o.end);
+        if (playing) {
+          for (let k = r.int(1, 4); k > 0; k--) out.push(shot('ball_kick', at, 0.7, 0.9 + r.float() * 0.2, 10, r.float() * 60));
+          if (r.chance(0.12)) out.push(shot('crowd_cheer', at, 0.9, 0.95 + r.float() * 0.1, 25, r.float() * 60));
+        }
+      }
+      if (o.kind === 'festival' && m >= o.start && m < o.end && r.chance(0.04)) out.push(shot('crowd_cheer', at, 0.6, 1, 20, r.float() * 60));
+    }
   }
 
   /** 0 … 1: is this garden being mown now (a fade in and out at the ends)? */
@@ -152,6 +241,7 @@ export class Soundscape {
     for (const t of strikesIn(this.seed, m, env.lightning ?? 0)) {
       out.push({ id: t.distance < 1200 ? 'thunder_near' : 'thunder_far', x: l.x + Math.cos(t.angle) * t.distance, y: l.y + 300, z: l.z + Math.sin(t.angle) * t.distance, gain: 1, pitch: 1, refDist: t.distance < 1200 ? 300 : 900, delay: t.at });
     }
+    this.occasionShots(m, l, env, out);
     for (const src of this.sources(l)) {
       const r = new Rng(deriveSeed(this.seed, 'minute', m, Math.round(src.x), Math.round(src.z)));
       switch (src.kind) {

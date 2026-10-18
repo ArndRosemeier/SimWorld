@@ -11,6 +11,7 @@ import { clamp, smoothstep } from '@futuremagic/core';
 import { DEFAULT_LATITUDE, dateOf, daysOf, epochFor, feast, schoolDay, sunPosition, type Dated } from '../sim/calendar';
 import { weatherAt } from '../sim/weather';
 import { MINUTES_PER_DAY } from '../sim/time';
+import type { SimView } from '../sim/view';
 import type { SoundEnv } from './soundscape';
 
 /** What `soundEnvOf` needs of a world: the calendar's and the weather's inputs. */
@@ -65,6 +66,18 @@ export class LiveClock implements SoundWorld {
     this.startMinute = (daysOf(date.year, date.month, date.day) - this.epoch) * MINUTES_PER_DAY + minute;
     for (const k of ['rain', 'wind'] as const) if (q.has(k) && Number.isFinite(Number(q.get(k)))) this.overrides[k] = clamp(Number(q.get(k)), 0, 1);
     this.clock = this.startMinute;
+  }
+
+  /**
+   * The sound environment of the running sim at its `clock`: the sim's weather (what the sky shows) and
+   * today's agenda (the bells for services, weddings and funerals; markets, matches). Same epoch and
+   * seed as the sim's world, so the calendar agrees.
+   */
+  fromSim(view: SimView, clock: number): SoundEnv {
+    this.clock = clock;
+    const w = view.weather, o = this.overrides;
+    const e = soundEnvOf(this, clock, { rain: o.rain ?? w.rain, wind: o.wind ?? w.wind });
+    return { ...e, lightning: o.rain !== undefined ? 0 : w.lightning, occasions: view.occasions };
   }
 
   /** Advance to now (one game minute per real minute) and return the sound environment. */
