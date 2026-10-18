@@ -131,7 +131,7 @@ export function addFact(world: World, f: NewFact): number {
   return id;
 }
 
-/** "Jonas Keller lost their job at Elm Street Garage". */
+/** "James Knight lost their job at Elm Street Garage". */
 export function factText(world: World, fact: Fact): string {
   return fact.text
     .replace(/\{subject\}/g, fact.subject >= 0 ? nameOf(world, fact.subject) : 'someone')
@@ -280,7 +280,7 @@ function maybeDistort(world: World, teller: ActorId, fact: Fact, roll: Roll): Fa
     if (other === fact.subject || other === fact.object || !isPerson(world, other)) return fact;
     v.subject = other;
   } else if (fact.place >= 0 && fact.text.includes('{place}') && world.graph.places[fact.place].kind !== 'away') {
-    // (Not a place out of town: "the city" never becomes "on holiday".)
+    // (Not a place out of town: "the city" never becomes "away on a trip".)
     const same = world.graph.places.filter((p) => p.kind === world.graph.places[fact.place].kind && p.id !== fact.place);
     if (same.length === 0) return fact;
     v.place = same[Math.floor(roll.float() * same.length)].id;
@@ -399,7 +399,7 @@ export function forget(world: World, days = 1): void {
 
 export interface BeliefView {
   fact: Fact;
-  /** The fact rendered for this world ("Jonas Keller lost their job at Elm Street Garage"). */
+  /** The fact rendered for this world ("James Knight lost their job at Elm Street Garage"). */
   text: string;
   confidence: number;
   /** Actor who told them, or SOURCE_WITNESSED / SOURCE_BROADCAST. */

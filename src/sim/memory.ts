@@ -14,7 +14,7 @@ export interface Memory {
   place: PlaceId;
   /** People involved. */
   who: ActorId[];
-  /** One-line summary in the person's perspective ("Mara told me Jonas lost his job"). */
+  /** One-line summary in the person's perspective ("Ruby told me James lost his job"). */
   summary: string;
   /** 0..1 */
   importance: number;

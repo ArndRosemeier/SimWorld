@@ -331,7 +331,7 @@ export const ACTS = {
   "react.yours.answer": { any: ["We're managing, thanks.", "Getting there, thanks.", "Day by day.", "Oh, you know. We'll be all right.", "As well as can be."] },
   "react.self.close": { any: ["Thanks.", "Thank you!", "Thanks, I'm [so|really] pleased.", "Thanks. We're [pleased|thrilled|very happy]."] },
   "react.self.close.bad": { any: ["Thanks.", "Thank you.", "Thanks, that's kind.", "Thanks. It's [been hard|not easy], [I won't lie|to be honest]."] },
-  // A household away on holiday: the teller's own, or someone else's.
+  // A household away on a trip: the teller's own, or someone else's.
   "react.away.self": {
     any: ["Oh, lovely. How long for?", "Lucky them! [How long for?|When are they back?]", "Oh, how nice for them." ],
     kid: ["Cool."],
