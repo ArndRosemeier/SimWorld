@@ -61,7 +61,7 @@ export interface Life {
   together: Map<number, number>;
   /** Engaged couples (`coupleKey`) → their wedding (occasion ids in the agenda). */
   engaged: Map<number, Engagement>;
-  /** Households away on holiday → the day they come back and where they went ("in the mountains"). */
+  /** Households away on a trip → the day they come back and where they went ("in the mountains"). */
   away: Map<number, { back: number; where: string }>;
   /** Missing pets (src/sim/lostPets.ts; made on first use, so older saves load). */
   lost?: Map<ActorId, LostPet>;
@@ -964,7 +964,7 @@ function hold(world: World, day: number, o: Occasion): void {
 // more in summer. While away the house is empty and dark, nobody goes to work or school (the pets are fed by a
 // neighbour, unseen), and the neighbours know (and so may a burglar). Coming back, they remember where they went.
 
-const DESTINATIONS = ['at the seaside', 'in the mountains', 'by a lake', 'abroad', 'at a campsite', 'visiting family', 'on a city break'];
+const DESTINATIONS = ['at the seaside', 'in the mountains', 'by a lake', 'abroad', 'at a campsite', 'visiting family', 'on a city trip'];
 
 function holidays(world: World, day: number, rng: Rng): void {
   const place = world.offsite.holiday;
@@ -976,7 +976,7 @@ function holidays(world: World, day: number, rng: Rng): void {
   const saturdays = step === 1 ? (weekdayOf(clock) === 5 ? 1 : 0) : step / 7;
   if (saturdays === 0) return;
   const term = termOn(world, clock);
-  const summer = term.holiday === 'the summer holidays';
+  const summer = term.holiday === 'the summer break';
   const month = dateOf(world, clock).month;
   for (const hh of world.households) {
     if (hh.members.length === 0 || world.life.away.has(hh.id)) continue;
@@ -993,7 +993,7 @@ function holidays(world: World, day: number, rng: Rng): void {
     for (const m of hh.members) {
       pc.leaveUntil[a.row[m]] = Math.max(pc.leaveUntil[a.row[m]], back * MINUTES_PER_DAY);
       // In live play they set off this morning (the coarse chronicle only keeps the record).
-      if (step === 1) intend(world, m, { kind: 'holiday', place, at: leaveAt, until: back * MINUTES_PER_DAY + 600, priority: 75, origin: 'event', reason: `going on holiday ${where}` });
+      if (step === 1) intend(world, m, { kind: 'holiday', place, at: leaveAt, until: back * MINUTES_PER_DAY + 600, priority: 75, origin: 'event', reason: `going away ${where}` });
     }
     const fact = news(world, closeTo(world, ...hh.members), { topic: 'other', text: `{subject}'s family are away ${where}`, subject: hh.members[0], magnitude: 0.05 });
     log(world, day, 'holiday', hh.members[0], -1, place, fact);
@@ -1003,6 +1003,6 @@ function holidays(world: World, day: number, rng: Rng): void {
 function comeBack(world: World, hh: Household, where: string): void {
   for (const m of hh.members) {
     if (!world.actors.cols.alive[m]) continue;
-    remember(world, m, { who: hh.members.filter((o) => o !== m), summary: `we were on holiday ${where}`, importance: 0.5, emotion: 'joy' });
+    remember(world, m, { who: hh.members.filter((o) => o !== m), summary: `we were away ${where}`, importance: 0.5, emotion: 'joy' });
   }
 }
