@@ -67,10 +67,10 @@ test('town rules: an approved skate park is a building site, then opens', () => 
   assert.ok(heard.some((t) => t.includes('skate park by the sports ground is open')), heard.join(' | '));
 });
 
-test('town rules: higher rates and parking charges cost households money', () => {
+test('town rules: a higher property tax and parking charges cost households money', () => {
   const run = (rules: boolean) => {
     const w = createWorld(testTown(45, 200), 45);
-    if (rules) { rulesOf(w).ratesUp = true; rulesOf(w).parkingCharges = true; }
+    if (rules) { rulesOf(w).taxUp = true; rulesOf(w).parkingCharges = true; }
     weeks(w, 5);
     return w;
   };
