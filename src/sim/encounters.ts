@@ -17,9 +17,9 @@ import { remember } from './memory';
 import { T_AGREE } from './people';
 import { KINDS } from './placeKinds';
 import { PLACE_KINDS, type PlaceId } from './places';
-import { meet, notice } from './relations';
+import { liking, meet, notice } from './relations';
 import { NEED_COUNT, N_SOCIAL } from './species';
-import { tickRng, type World } from './world';
+import { tickRng, traitOf, type World } from './world';
 
 export interface Encounter {
   place: PlaceId;
@@ -111,8 +111,11 @@ export function runEncounters(world: World): void {
   }
 }
 
-/** Two actors at one place interact. Returns the encounter record. */
-function encounter(world: World, place: PlaceId, x: ActorId, y: ActorId, hub: number, rng: Rng, forced = false): Encounter {
+/**
+ * Two actors at one place interact: they get to know each other, may share news, family news becomes a memory, bad
+ * blood can flare up. Returns the encounter record. Live encounters and the chronicle both come through here.
+ */
+export function encounter(world: World, place: PlaceId, x: ActorId, y: ActorId, hub: number, rng: Rng, forced = false): Encounter {
   const a = world.actors.cols;
   const e: Encounter = { place, a: x, b: y, kind: 'talk', told: -1, toldBack: -1 };
   world.encounters.push(e);
@@ -130,15 +133,12 @@ function encounter(world: World, place: PlaceId, x: ActorId, y: ActorId, hub: nu
     return e;
   }
   const rel = world.relations;
-  const agree = (id: ActorId) => world.people.cols.traits[a.row[id] * 5 + T_AGREE];
-  const like = (p: ActorId, q: ActorId) => { const r = rel.row(p, q); return r >= 0 ? rel.t.cols.affection[r] : 0; };
-  const warmth = clamp((agree(x) + agree(y)) / 2 - 0.5 + (a.mood[x] + a.mood[y]) / 4 + (like(x, y) + like(y, x)) * 0.25, -1, 1);
+  const warmth = clamp((traitOf(world, x, T_AGREE) + traitOf(world, y, T_AGREE)) / 2 - 0.5 + (a.mood[x] + a.mood[y]) / 4 + (liking(rel, x, y) + liking(rel, y, x)) * 0.25, -1, 1);
   meet(rel, x, y, world.clock, rng.int(3, 15), warmth);
   a.needs[x * NEED_COUNT + N_SOCIAL] = Math.min(1, a.needs[x * NEED_COUNT + N_SOCIAL] + 0.06);
   a.needs[y * NEED_COUNT + N_SOCIAL] = Math.min(1, a.needs[y * NEED_COUNT + N_SOCIAL] + 0.06);
-  const roll = () => rng.float();
-  e.told = exchange(world, x, y, hub, roll);
-  e.toldBack = exchange(world, y, x, hub, roll);
+  e.told = exchange(world, x, y, hub, rng);
+  e.toldBack = exchange(world, y, x, hub, rng);
   for (const [teller, listener, f] of [[x, y, e.told], [y, x, e.toldBack]] as const) {
     if (f < 0) continue;
     const fact = world.knowledge.facts[f];
@@ -148,7 +148,7 @@ function encounter(world: World, place: PlaceId, x: ActorId, y: ActorId, hub: nu
     }
   }
   // Bad blood at a busy place can flare up into something the town talks about.
-  if (warmth < -0.35 && like(x, y) < -0.4 && rng.chance(0.03)) {
+  if (warmth < -0.35 && liking(rel, x, y) < -0.4 && rng.chance(0.03)) {
     const f = addFact(world, { topic: 'event', subject: x, object: y, place, magnitude: 0.6, text: 'there was a shouting match between {subject} and {object} at {place}' });
     witness(world, f, nearby(world, place, 20));
     a.emotions[x * 6 + 2] = Math.min(1, a.emotions[x * 6 + 2] + 0.5);
