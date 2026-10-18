@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.087 — Lit windows follow who is home
+
+- At night a home's windows are lit when people there are in and awake, and go dark when they sleep or go out.
+- Blocks of flats light up as people come home in the evening, and at 3 a.m. the town is nearly dark.
+
 ## v0.086 — Trains on the railway
 
 - Trains now run on the railway past the town to the timetable: two to four railcars in an invented regional livery, coming along the line, standing at the station for a minute, and going on towards the town their line serves. They keep to the right-hand track, with their lamps lit.
