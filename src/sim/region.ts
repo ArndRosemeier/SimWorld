@@ -79,9 +79,8 @@ export function settleRegion(world: World, region: Region, rng: Rng): RegionKnow
   region.lore.forEach((l, i) => { if (l.about) (aboutPlace.get(l.about) ?? aboutPlace.set(l.about, []).get(l.about)!).push(lore[i]); });
 
   const out: RegionKnowledge = { region, lore, origin: new Map() };
+  world.region = out; // set first, so regionDestination sees it
   const [city, near, ...villages] = region.places;
-  const pick = (r: Rng): RegionPlace =>
-    r.weighted(region.places, (p) => Math.sqrt(p.population) / Math.max(3, p.km));
   const knowers = (id: ActorId): ActorId[] => {
     const hh = householdOf(world, id);
     const set = new Set<ActorId>([id, ...(hh ? hh.members : [])]);
@@ -117,7 +116,7 @@ export function settleRegion(world: World, region: Region, rng: Rng): RegionKnow
     }
     // Family out there.
     if (r.chance(0.4)) {
-      const where = pick(r);
+      const where = regionDestination(world, r)!;
       const kin = r.weighted(KIN, (k) => (k.minAge <= age && age <= k.maxAge ? 1 : 0));
       if (kin.minAge <= age && age <= kin.maxAge) {
         const female = r.chance(kin.female);
@@ -142,3 +141,12 @@ const KIN: { words: [string, string]; minAge: number; maxAge: number; female: nu
   { words: ['cousin', 'cousin'], minAge: 18, maxAge: 99, female: 0.5 },
   { words: ['uncle', 'aunt'], minAge: 18, maxAge: 55, female: 0.55 },
 ];
+
+/**
+ * A real place out there for someone moving away (life events): weighted by size and nearness, or one offering
+ * `service` (a care home's hospital town, a student's university city). Null when the world has no region.
+ */
+export function regionDestination(world: World, rng: Rng, service?: RegionService): RegionPlace | null {
+  const places = world.region?.region.places.filter((p) => !service || p.services.includes(service)) ?? [];
+  return places.length ? rng.weighted(places, (p) => Math.sqrt(p.population) / Math.max(3, p.km)) : null;
+}

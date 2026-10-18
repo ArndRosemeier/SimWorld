@@ -5,7 +5,8 @@ import { testTown } from '../src/sim/testTown';
 import { createWorld } from '../src/sim/synth';
 import { forget, knowsStanding, SOURCE_COMMON, standingOf } from '../src/sim/knowledge';
 import { ageOf, householdOf, isPerson } from '../src/sim/world';
-import { COMPASS } from '../src/sim/region';
+import { COMPASS, regionDestination } from '../src/sim/region';
+import { Rng } from '@futuremagic/core';
 
 const hints: RegionHints = {
   seed: 7, town: 'Testford', coastal: true, seaBearing: 270, hilliness: 0.6, warmth: 0.7, american: false, oldWorld: 0.8,
@@ -65,4 +66,11 @@ test('people have ties out there: where they grew up, known at home, with the lo
   assert.ok(standingOf(world, mate).some((b) => b.fact.subject === id && b.text.endsWith(`grew up in ${place}`)));
   for (const [i, l] of region.lore.entries()) if (l.about === place) assert.ok(knowsStanding(world, id, world.region!.lore[i]), l.text);
   assert.ok(people.some((p) => standingOf(world, p).some((b) => / lives in /.test(b.text))));
+});
+
+test('regionDestination: a real place out there, one with the asked service', () => {
+  const r = new Rng(1);
+  for (let i = 0; i < 20; i++) assert.ok(region.places.includes(regionDestination(world, r)!));
+  assert.equal(regionDestination(world, r, 'university'), region.places[0]);
+  assert.equal(regionDestination(createWorld(testTown(7, 60), 7), r), null);
 });
