@@ -13,13 +13,13 @@
  * Ported from Scale's src/props/PropRenderer.ts (tree tiers) and src/stream/Countryside.ts
  * (forest tiles), at town size: everything is placed once, nothing streams.
  */
-import { Group, Matrix4, Quaternion, Vector3, type Camera, type InstancedMesh } from 'three/webgpu';
+import { Group, Vector3, type Camera, type InstancedBufferAttribute, type InstancedBufferGeometry, type Mesh } from 'three/webgpu';
 import { FOREST_DETAIL, FOREST_STRIDE } from '../build/forest';
 import { VEG_MODELS, type TreeModelData } from '../build/vegetation';
 import type { WorkerPool } from '../workers/pool';
 import type { FromTown, ToTown, TownSummary } from '../workers/townProtocol';
 import { BARK, LEAVES, TREE_FAR } from './materials';
-import { instancedFromData } from './meshes';
+import { instancedFromData, showInstances, splitByDistance } from './meshes';
 import type { Stage } from './stage';
 
 /** Trees nearer the camera than this (3D, m) are drawn whole; shrubs nearer than SHRUB_NEAR. */
@@ -43,27 +43,25 @@ export interface VegetationShown {
   update(camera: Camera): void;
 }
 
-/** One model's instances: matrices of all, the near ones copied into the full tree, the rest into the far hull. */
+/** One model's instances: the poses of all, the near ones copied into the full tree, the rest into the far hull. */
 interface ModelBatch {
   model: number;
-  /** 16 floats per instance (column-major, three's layout). */
-  mats: Float32Array;
-  x: Float32Array;
-  y: Float32Array;
-  z: Float32Array;
+  /** iPose (x, y, z, yaw) and iSize (across, up) per instance, src/build/vegetation.ts INSTANCE_SPECS. */
+  pose: Float32Array;
+  size: Float32Array;
   /** Never drawn whole (a clump standing for a patch of forest). */
   farOnly: Uint8Array;
   n: number;
-  wood: InstancedMesh | null;
-  leaves: InstancedMesh | null;
-  far: InstancedMesh;
+  /** Wood and leaves share their instance attributes. */
+  whole: Mesh[];
+  far: Mesh;
+  /** Model radius (m, at scale 1) for the bounding spheres. */
+  radius: number;
   /** Indices drawn whole now (signature of the last split). */
   nearSet: number[];
 }
 
-const _m = new Matrix4(), _q = new Quaternion(), _p = new Vector3(), _s = new Vector3(), _up = new Vector3(0, 1, 0);
-
-/** Group the records (FOREST_STRIDE) by model, with their matrices. */
+/** Group the records (FOREST_STRIDE) by model. */
 function group(recs: Float32Array[]): Map<number, { idx: number[]; recs: Float32Array }[]> {
   const out = new Map<number, { idx: number[]; recs: Float32Array }[]>();
   for (const R of recs) {
@@ -83,6 +81,8 @@ function group(recs: Float32Array[]): Map<number, { idx: number[]; recs: Float32
   return out;
 }
 
+const attr = (m: Mesh, name: string) => (m.geometry as InstancedBufferGeometry).getAttribute(name) as InstancedBufferAttribute;
+
 class Batches {
   readonly root = new Group();
   readonly batches: ModelBatch[] = [];
@@ -93,74 +93,58 @@ class Batches {
     this.root.name = 'vegetation';
     for (const [model, parts] of group(recs)) {
       const n = parts.reduce((a, p) => a + p.idx.length, 0);
-      const mats = new Float32Array(n * 16), x = new Float32Array(n), y = new Float32Array(n), z = new Float32Array(n), farOnly = new Uint8Array(n);
+      const pose = new Float32Array(n * 4), size = new Float32Array(n * 2), farOnly = new Uint8Array(n);
       let k = 0;
       for (const { idx, recs: R } of parts) for (const o of idx) {
         const sc = R[o + 3], spread = R[o + 6];
-        _q.setFromAxisAngle(_up, R[o + 4]);
+        pose.set([R[o], R[o + 1], R[o + 2], R[o + 4]], k * 4);
         // A clump stands for a patch: wider, a little taller.
-        _s.set(sc * spread, sc * (1 + (spread - 1) * 0.25), sc * spread);
-        _m.compose(_p.set(R[o], R[o + 1], R[o + 2]), _q, _s).toArray(mats, k * 16);
-        x[k] = R[o]; y[k] = R[o + 1]; z[k] = R[o + 2]; farOnly[k] = spread > 1 ? 1 : 0;
+        size[k * 2] = sc * spread; size[k * 2 + 1] = sc * (1 + (spread - 1) * 0.25);
+        farOnly[k] = spread > 1 ? 1 : 0;
         k++;
       }
       const data = models(model);
-      const anyNear = farOnly.some((f) => !f);
-      const wood = anyNear && data.wood.index.length ? instancedFromData(data.wood, BARK, 0, n) : null;
-      const leaves = anyNear && data.leaves.index.length ? instancedFromData(data.leaves, LEAVES, 0, n) : null;
-      // The whole tree's two meshes share one matrix buffer.
-      if (wood && leaves) leaves.instanceMatrix = wood.instanceMatrix;
+      const whole: Mesh[] = [];
+      if (farOnly.some((f) => !f)) {
+        if (data.wood.index.length) whole.push(instancedFromData(data.wood, BARK, 0, n));
+        if (data.leaves.index.length) whole.push(instancedFromData(data.leaves, LEAVES, 0, n));
+        // The whole tree's meshes share one set of instance attributes.
+        for (const m of whole.slice(1)) for (const a of ['iPose', 'iSize']) m.geometry.setAttribute(a, attr(whole[0], a));
+      }
       const far = instancedFromData(data.far, TREE_FAR, 0, n);
-      for (const m of [wood, leaves, far]) if (m) { m.frustumCulled = false; this.root.add(m); }
-      this.batches.push({ model, mats, x, y, z, farOnly, n, wood, leaves, far, nearSet: [-1] });
+      for (const m of [...whole, far]) this.root.add(m);
+      const radius = Math.max(data.crownRadius, data.height);
+      this.batches.push({ model, pose, size, farOnly, n, whole, far, radius, nearSet: [-1] });
       this.count += n;
     }
   }
 
-  /** Re-split when the camera has moved; returns the instances drawn whole. */
+  /** Re-split when the camera has moved; returns the instances drawn whole (-1: not redone). */
   split(cam: Vector3, force = false): number {
     if (!force && cam.distanceToSquared(this.last) < RESPLIT * RESPLIT) return -1;
     this.last.copy(cam);
     let near = 0;
     for (const b of this.batches) {
-      const r = b.model >= FIRST_SHRUB ? SHRUB_NEAR : TREE_NEAR, r2 = r * r;
-      const set: number[] = [];
-      if (b.wood || b.leaves) {
-        for (let i = 0; i < b.n; i++) {
-          if (b.farOnly[i]) continue;
-          const dx = b.x[i] - cam.x, dy = b.y[i] - cam.y, dz = b.z[i] - cam.z;
-          if (dx * dx + dy * dy + dz * dz < r2) set.push(i);
-        }
-      }
+      const r = b.model >= FIRST_SHRUB ? SHRUB_NEAR : TREE_NEAR;
+      const [set, far] = splitByDistance(b.pose, b.n, cam, b.whole.length ? r : 0, Infinity, (i) => !b.farOnly[i]);
       near += set.length;
       if (set.length === b.nearSet.length && set.every((v, i) => v === b.nearSet[i])) continue;
       b.nearSet = set;
-      const whole = (b.wood ?? b.leaves)?.instanceMatrix.array as Float32Array | undefined;
-      const farA = b.far.instanceMatrix.array as Float32Array;
-      let nn = 0, nf = 0, s = 0;
-      for (let i = 0; i < b.n; i++) {
-        if (s < set.length && set[s] === i) { whole!.set(b.mats.subarray(i * 16, i * 16 + 16), nn++ * 16); s++; }
-        else farA.set(b.mats.subarray(i * 16, i * 16 + 16), nf++ * 16);
-      }
-      for (const m of [b.wood, b.leaves]) if (m) m.count = nn;
-      if (b.wood ?? b.leaves) (b.wood ?? b.leaves)!.instanceMatrix.needsUpdate = true;
-      b.far.count = nf;
-      b.far.instanceMatrix.needsUpdate = true;
+      const src = { iPose: b.pose, iSize: b.size };
+      if (b.whole.length) showInstances(b.whole, src, set, b.radius);
+      showInstances([b.far], src, far, b.radius);
     }
     return near;
   }
 
-  meshes(): InstancedMesh[] {
-    return this.batches.flatMap((b) => [b.wood, b.leaves, b.far].filter((m): m is InstancedMesh => !!m));
+  meshes(): Mesh[] {
+    return this.batches.flatMap((b) => [...b.whole, b.far]);
   }
 }
 
-/** Compile `b`'s meshes (each with at least one instance meanwhile), then put them under `parent`. */
-async function place(stage: Stage, parent: Group, b: Batches): Promise<void> {
-  const meshes = b.meshes(), counts = meshes.map((m) => m.count);
-  for (const m of meshes) m.count = Math.max(1, m.count);
+/** Compile `b`'s meshes (the Stage draws an empty one with one instance meanwhile), then put them under `parent`. */
+async function placeBatches(stage: Stage, parent: Group, b: Batches): Promise<void> {
   await stage.prepare(b.root);
-  meshes.forEach((m, i) => { m.count = counts[i]; });
   parent.add(b.root);
 }
 
@@ -187,7 +171,7 @@ export async function showVegetation(stage: Stage, pool: WorkerPool<ToTown, From
   const townRecs = (await pool.run<Extract<FromTown, { type: 'trees' }>>({ type: 'trees' }, priority)).recs;
   const inTown = await load([townRecs]);
   let near = inTown.split(cam, true);
-  await place(stage, parent, inTown);
+  await placeBatches(stage, parent, inTown);
 
   // The countryside: detail tiles round the town, clump tiles farther out (each keeps its own ring).
   const rIn = town.radius + DETAIL_R;
@@ -216,7 +200,7 @@ export async function showVegetation(stage: Stage, pool: WorkerPool<ToTown, From
   }
   const country = await load(await Promise.all(jobs));
   near += country.split(cam, true);
-  await place(stage, parent, country);
+  await placeBatches(stage, parent, country);
 
   const shown: VegetationShown = {
     town: inTown.count,

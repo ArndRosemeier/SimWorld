@@ -21,7 +21,7 @@
  * Conventions: metres, origin at the centre of the footprint on the road,
  * forward = -Z, right = +X, up = +Y. Deterministic (variants via Rng).
  */
-import { Rng, clamp, hsl2rgb, lerp, v3sub as sub, v3cross as cross, v3dot as dot, v3norm as norm, v3madd as addS } from '@futuremagic/core';
+import { Rng, clamp, hsl2rgb, lerp, v3, v3sub as sub, v3cross as cross, v3dot as dot, v3norm as norm, v3madd as addS } from '@futuremagic/core';
 import { MeshBuilder, type AttrSpec, type MeshData } from './meshBuilder';
 
 // ---------------------------------------------------------------- public API
@@ -135,6 +135,7 @@ class Geo {
     this.tri(a, b, c, ta, tb, tc, part, flip);
     this.tri(a, c, d, ta, tc, td, part, flip);
   }
+  /** Quad whose halves each agree with `n` (each tested: a half may be degenerate where a loft closes). */
   quadN(a: V3, b: V3, c: V3, d: V3, ta: V2, tb: V2, tc: V2, td: V2, part: number, n: V3) {
     this.triN(a, b, c, ta, tb, tc, part, n);
     this.triN(a, c, d, ta, tc, td, part, n);
@@ -929,7 +930,6 @@ function addHandles(g: Geo, ctx: BodyCtx, zs: number[], dy = 0.085) {
   }
 }
 
-function v3(a: number, b: number, c: number): [number, number, number] { return [a, b, c]; }
 
 function finishCar(kind: VehicleKind, g: Geo, ctx: BodyCtx, axles: Axle[], style: WheelStyle, mass: number, seat: V3): Built {
   for (const p of ctx.B.front.patches) endPatch(g, ctx.front, p);
@@ -1816,19 +1816,22 @@ export function standingVehicle(kind: VehicleKind, variant = 0): MeshData {
 }
 
 /**
- * The far stand-in of every vehicle: a painted body, a glass cabin and four tyres in a unit box
- * (x and z −0.5..0.5, y 0..1, front to −Z), stretched per instance to the model's size. 72
- * triangles in place of tens of thousands, for cars too far off to show their detail.
+ * A vehicle's far stand-in: a painted body, a glass cabin and four tyres filling the box `min`..`max`
+ * (a model's bounds, front to −Z). 72 triangles in place of tens of thousands, for cars too far
+ * off to show their detail.
  */
-export function farVehicle(): MeshData {
+export function farVehicle(min: [number, number, number], max: [number, number, number]): MeshData {
   const mb = new MeshBuilder(VEHICLE_SPECS);
   const NO_BOTTOM = 0x3f & ~8;
+  const w = max[0] - min[0], h = max[1] - min[1], l = max[2] - min[2], cx = (min[0] + max[0]) / 2, cz = (min[2] + max[2]) / 2;
+  // In a unit box (x and z −0.5..0.5, y 0..1), stretched to the bounds.
+  const box = (x: number, y: number, z: number, hx: number, hy: number, hz: number) => mb.box(cx + x * w, min[1] + y * h, cz + z * l, hx * w, hy * h, hz * l, 0, NO_BOTTOM);
   mb.set('aPart', 3);
-  for (const x of [-0.4, 0.4]) for (const z of [-0.32, 0.32]) mb.box(x, 0.12, z, 0.08, 0.12, 0.11, 0, NO_BOTTOM);
+  for (const x of [-0.4, 0.4]) for (const z of [-0.32, 0.32]) box(x, 0.12, z, 0.08, 0.12, 0.11);
   mb.set('aPart', 0);
-  mb.box(0, 0.33, 0, 0.5, 0.21, 0.5, 0, NO_BOTTOM);
+  box(0, 0.33, 0, 0.5, 0.21, 0.5);
   mb.set('aPart', 1);
-  mb.box(0, 0.77, 0.05, 0.43, 0.23, 0.3, 0, NO_BOTTOM);
+  box(0, 0.77, 0.05, 0.43, 0.23, 0.3);
   return mb.build();
 }
 

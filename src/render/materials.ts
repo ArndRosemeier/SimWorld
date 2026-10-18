@@ -11,7 +11,7 @@ import { groundLook, terrainLook, waterLook } from './tsl/ground';
 import { facadeLook } from './tsl/facade';
 import { furnitureLook } from './tsl/furniture';
 import { vehicleLook } from './tsl/vehicles';
-import { signAtlas } from './signAtlas';
+import { textAtlas } from './textAtlas';
 import { FURNITURE_SPECS } from '../build/furniture';
 import { VEHICLE_SPECS } from '../build/vehicles';
 import type { MaterialArrays } from './textures';
@@ -19,7 +19,7 @@ import { facadeSpecs } from '../build/massing';
 import type { AttrSpec } from '../build/meshBuilder';
 import { TERRAIN_SPECS } from '../build/terrainMesh';
 import { barkLook, farLook, leafLook, type VegetationTextures } from './tsl/vegetation';
-import { BARK_SPECS, FAR_SPECS, LEAF_SPECS } from '../build/vegetation';
+import { BARK_SPECS, FAR_SPECS, INSTANCE_SPECS, LEAF_SPECS } from '../build/vegetation';
 
 export interface MaterialKind {
   readonly name: string;
@@ -30,15 +30,11 @@ export interface MaterialKind {
    */
   readonly attributes: readonly AttrSpec[];
   /**
-   * Per-instance attributes when the kind is drawn instanced (InstancedMesh; `instancedFromData`
-   * in meshes.ts): instancing is part of the shader, so warm-up builds an instanced stand-in.
+   * Per-instance attributes when the kind is drawn instanced (geometry instancing: a plain mesh
+   * with an InstancedBufferGeometry, `instancedFromData` in meshes.ts, one shader for every mesh
+   * of the kind): instancing is part of the shader, so warm-up builds an instanced stand-in.
    */
   readonly instanced?: readonly AttrSpec[];
-  /**
-   * Drawn as one BatchedMesh of many models (`batchedFromData` in meshes.ts), with a colour per
-   * instance (`batchColor`): batching is part of the shader, so warm-up builds a batched stand-in.
-   */
-  readonly batched?: boolean;
   /** Whether meshes of this kind cast and receive the sun's shadow (receiving is part of the shader's cache key). */
   readonly shadow: { readonly cast: boolean; readonly receive: boolean };
   /** The kind's material (one instance, made on first use). */
@@ -58,7 +54,7 @@ function needTextures<K extends keyof typeof textures>(k: K): NonNullable<(typeo
   return t as NonNullable<(typeof textures)[K]>;
 }
 
-function defineKind(name: string, attributes: MaterialKind['attributes'], build: () => Material, shadow = { cast: true, receive: true }, instanced?: MaterialKind['instanced'], batched = false): MaterialKind {
+function defineKind(name: string, attributes: MaterialKind['attributes'], build: () => Material, shadow = { cast: true, receive: true }, instanced?: MaterialKind['instanced']): MaterialKind {
   if (kinds.has(name)) throw new Error(`material kind "${name}" defined twice`);
   let proto: Material | null = null;
   const kind: MaterialKind = {
@@ -66,7 +62,6 @@ function defineKind(name: string, attributes: MaterialKind['attributes'], build:
     attributes,
     shadow,
     instanced,
-    batched,
     make() {
       proto ??= Object.assign(build(), { name });
       return proto;
@@ -118,24 +113,24 @@ export const FACADE = defineKind('facade', facadeSpecs(), () => {
 
 /**
  * Street furniture (src/build/furniture.ts: uv into the sign atlas, aFurn material id / emissive
- * / sub-material, aColor), batched: the instance colour is the paint override (rgb, sRGB, 0 = the
- * model's) and a noise offset (a) (src/render/propsView.ts).
+ * / sub-material, aColor), instanced (INSTANCE_SPECS, and iTint: the paint override, rgb sRGB, 0 =
+ * the model's, and a noise offset; src/render/propsView.ts).
  */
 export const FURNITURE = defineKind('furniture', FURNITURE_SPECS, () => {
   const m = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
-  furnitureLook(m, signAtlas());
+  furnitureLook(m, textAtlas());
   return m;
-}, { cast: true, receive: true }, undefined, true);
+}, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iTint', size: 4 }]);
 
 /**
- * Vehicles (src/build/vehicles.ts: uv, aPart), batched: the instance colour is the paint (rgb,
+ * Vehicles (src/build/vehicles.ts: uv, aPart), instanced (INSTANCE_SPECS, and iPaint: the paint,
  * sRGB). Double-sided: the loft leaves open edges.
  */
 export const VEHICLE = defineKind('vehicle', VEHICLE_SPECS, () => {
   const m = new MeshPhysicalNodeMaterial({ roughness: 0.5, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, side: DoubleSide });
   vehicleLook(m);
   return m;
-}, { cast: true, receive: true }, undefined, true);
+}, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iPaint', size: 3 }]);
 
 /**
  * Tree and shrub wood (src/build/vegetation.ts `BARK_SPECS`: uv into the bark atlas, aWind,
@@ -145,7 +140,7 @@ export const BARK = defineKind('bark', BARK_SPECS, () => {
   const m = new MeshStandardNodeMaterial({ roughness: 0.92, metalness: 0 });
   barkLook(m, needTextures('vegetation'));
   return m;
-}, { cast: true, receive: true }, []);
+}, { cast: true, receive: true }, INSTANCE_SPECS);
 
 /**
  * Leaf cards of every tree and shrub (`LEAF_SPECS`: uv into the leaf atlas, aWind, aLeafTint,
@@ -155,11 +150,11 @@ export const LEAVES = defineKind('leaves', LEAF_SPECS, () => {
   const m = new MeshStandardNodeMaterial({ alphaTest: 0.45, side: DoubleSide, shadowSide: DoubleSide, roughness: 0.78, metalness: 0 });
   leafLook(m, needTextures('vegetation'));
   return m;
-}, { cast: true, receive: true }, []);
+}, { cast: true, receive: true }, INSTANCE_SPECS);
 
 /** Far tree hulls (`FAR_SPECS`: kind and deciduous in uv, colour, autumn colour, aWind), instanced. */
 export const TREE_FAR = defineKind('treeFar', FAR_SPECS, () => {
   const m = new MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
   farLook(m);
   return m;
-}, { cast: true, receive: true }, []);
+}, { cast: true, receive: true }, INSTANCE_SPECS);

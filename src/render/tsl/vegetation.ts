@@ -5,30 +5,28 @@
  * (noise-dissolved edges), all swaying in the wind. The materials are the `BARK`, `LEAVES` and
  * `TREE_FAR` kinds in src/render/materials.ts; the meshes are instanced (src/render/vegetationView.ts).
  *
- * Wind: the node material applies instancing before `positionNode`, so `positionLocal` already
- * holds the instance's vertex (the vegetation meshes sit at the scene origin: local is world)
- * and the sway is added in world space, phased by world position. `positionNode` is also what
- * the shadow pass uses, so shadows sway too.
+ * Instances: geometry instancing (src/render/meshes.ts `instancedFromData`), each copy placed by
+ * its iPose / iSize in `positionNode` (which the shadow pass uses too), then swayed by the wind in
+ * world space, phased by the instance's position; the main pass turns the normals to match.
  *
  * Ported from Scale (src/render/webgpu/vegetation.ts), with one leaf material for every species
- * (translucency and autumn colour by atlas cell) instead of one per species, and the wind
- * reading the instanced position instead of the instance matrix's columns.
+ * (translucency and autumn colour by atlas cell) instead of one per species, and geometry
+ * instancing with a yaw and a scale per instance instead of InstancedMesh matrices.
  */
 import { PhysicalLightingModel, Vector4, type NodeMaterial, type Texture } from 'three/webgpu';
 import {
-  Fn, float, int, vec2, vec3, vec4, mix, normalize, max, abs, fract, floor, smoothstep, sub, add, mul, dot, sin, clamp, pow,
-  log2, cross, select, If, Discard, attribute, texture, uniform, uniformArray, uv, time, modelWorldMatrix, positionLocal, positionGeometry,
-  normalLocal, positionView, positionViewDirection, positionWorld, normalView, normalViewGeometry, diffuseColor, varying, dFdx, dFdy,
+  Fn, float, int, vec2, vec3, vec4, mix, normalize, max, abs, fract, floor, smoothstep, sub, add, mul, dot, sin, cos, clamp, pow,
+  log2, cross, select, If, Discard, attribute, texture, uniform, uniformArray, uv, time, modelWorldMatrix, positionGeometry,
+  normalGeometry, normalLocal, positionView, positionViewDirection, normalView, normalViewGeometry, diffuseColor, varying, dFdx, dFdy,
 } from 'three/tsl';
 import { srgbToLinear } from '@futuremagic/core';
-import { perturbNormalUV } from './common';
+import { SEASON, perturbNormalUV, posed, poseByInstance } from './common';
 import { CONIFER_CELLS, LEAF_AUTUMN, LEAF_ATLAS_SIZE } from '../../build/vegetationTex';
 import { BARK_STRIPS } from '../../build/vegetation';
 
-/** The vegetation's shared state: wind strength (0 calm, 1 breeze, 2 storm) and season (0 summer … 1 full autumn). */
+/** The vegetation's wind strength (0 calm, 1 breeze, 2 storm); the season is common.ts `SEASON`. */
 export const VEG = {
   wind: uniform(0.5),
-  season: uniform(0),
 };
 
 /** The textures the looks sample (src/render/textures.ts `loadVegetationTextures`). */
@@ -40,13 +38,20 @@ export interface VegetationTextures { bark: Texture; barkNormal: Texture; leaves
 
 const DIR_W = (() => { const l = Math.hypot(1, 0.42); return [1 / l, 0, 0.42 / l]; })();
 
-/** positionNode: the instanced vertex moved by the wind; `flutter` shakes leaf cards along their normal. */
+/** The instance's placement (src/build/vegetation.ts `INSTANCE_SPECS`): scaled, turned by its yaw, moved. */
+const place = posed;
+
+/**
+ * positionNode: the instance's vertex moved by the wind (`flutter` shakes leaf cards along their
+ * normal). The shadow pass draws with it too.
+ */
 function windPosition(flutter: number) {
   return Fn(() => {
-    const p = positionLocal;
+    const p = place(positionGeometry);
     const w = attribute('aWind', 'float');
-    const wo = modelWorldMatrix.mul(vec4(p, 1.0)).xyz;
-    const ph = dot(wo.xz, vec2(0.037, 0.053)).toVar();
+    const sc = attribute('iSize', 'vec2').y;
+    const wo = modelWorldMatrix.mul(vec4(attribute('iPose', 'vec4').xyz, 1.0)).xyz;
+    const ph = dot(wo.xz, vec2(0.137, 0.213)).toVar();
     const dir = vec3(DIR_W[0], DIR_W[1], DIR_W[2]);
     const t = time;
     const gust = add(0.55, mul(0.45, sin(t.mul(0.37).add(ph.mul(0.5)))).mul(sin(t.mul(0.23).add(ph.mul(0.9)).add(1.3))));
@@ -56,10 +61,15 @@ function windPosition(flutter: number) {
     const off = dir.mul(s.mul(w2).mul(0.42).mul(sway)).toVar();
     const bp = ph.mul(3.0).add(dot(positionGeometry, vec3(0.45, 0.31, 0.38))).toVar();
     const osc = vec3(sin(t.mul(2.1).add(bp)), mul(0.35, sin(t.mul(2.7).add(bp.mul(1.3)))), sin(t.mul(1.8).add(bp.mul(0.8)).add(1.7)));
-    off.addAssign(osc.mul(s.mul(w2).mul(w).mul(0.13)));
-    if (flutter !== 0) off.addAssign(normalLocal.mul(sin(t.mul(9.0).add(attribute('aLeafTint', 'float').mul(40.0)).add(bp.mul(2.0))).mul(flutter).mul(s).mul(w).mul(0.05)));
+    off.addAssign(osc.mul(s.mul(w2).mul(w).mul(0.13).mul(sc)));
+    if (flutter !== 0) off.addAssign(place(normalGeometry, false).mul(sin(t.mul(9.0).add(attribute('aLeafTint', 'float').mul(40.0)).add(bp.mul(2.0))).mul(flutter).mul(s).mul(w).mul(0.05).mul(sc)));
     return p.add(vec3(off.x, off.y.sub(dot(off.xz, off.xz).mul(0.12)), off.z));
   })();
+}
+
+/** Place a kind's meshes by instance: the wind position (both passes) and, main pass, the turned normals. */
+function instanced(mat: NodeMaterial, flutter: number): void {
+  poseByInstance(mat, windPosition(flutter));
 }
 
 /** Like setDiffuse (tsl/ground.ts) but with a free body run after the default diffuse colour. */
@@ -106,7 +116,7 @@ class VegLightingModel extends PhysicalLightingModel {
 
 /** The `BARK` kind's look: uv.x = strip * 16 + u picks the strip of the atlas, aOcc darkens the inner crown. */
 export function barkLook(mat: NodeMaterial, tex: VegetationTextures): void {
-  mat.positionNode = windPosition(0);
+  instanced(mat, 0);
   const vMapUv = uv();
   const vOcc = attribute('aOcc', 'float');
   const S = float(BARK_STRIPS);
@@ -139,7 +149,7 @@ export function barkLook(mat: NodeMaterial, tex: VegetationTextures): void {
 export function leafLook(mat: NodeMaterial, tex: VegetationTextures): void {
   const vTint = attribute('aLeafTint', 'float');
   const vOcc = attribute('aOcc', 'float');
-  mat.positionNode = windPosition(1);
+  instanced(mat, 1);
   const autumn = LEAF_AUTUMN.map((a) => new Vector4(srgbToLinear(a[0]), srgbToLinear(a[1]), srgbToLinear(a[2]), a[3]));
   const uAutumn = uniformArray(autumn, 'vec4').setName('uAutumn');
   const vMapUv = uv();
@@ -168,7 +178,7 @@ export function leafLook(mat: NodeMaterial, tex: VegetationTextures): void {
     c.mulAssign(add(1.0, tv.mul(0.4)));
     c.assign(mix(c, c.mul(vec3(1.12, 1.06, 0.7)), max(tv, 0.0).mul(0.5)));
     const lum = dot(c, vec3(0.3, 0.59, 0.11));
-    const turn = clamp(VEG.season.mul(1.6).sub(vTint.mul(0.6)), 0.0, 1.0).mul(aut.a);
+    const turn = clamp(SEASON.leaf.mul(1.6).sub(vTint.mul(0.6)), 0.0, 1.0).mul(aut.a);
     c.assign(mix(c, aut.rgb.mul(lum.mul(3.2).add(0.015)), turn));
     c.mulAssign(sub(1.0, vOcc.mul(0.62)));
     diffuseColor.assign(vec4(c, diffuseColor.a));
@@ -200,11 +210,10 @@ const vnoise3 = Fn(([x]) => {
 
 /** The `TREE_FAR` kind's look: vertex colours, noise-dissolved crown edges, autumn by uv.y (deciduous). */
 export function farLook(mat: NodeMaterial): void {
-  mat.positionNode = windPosition(0);
+  instanced(mat, 0);
   const vAutumn = attribute('aAutumn', 'vec3');
   const vKind = uv();
-  // Scale's position + 0.37 × instance origin: the world position stands in for the origin.
-  const vObjPos = varying(positionGeometry.mul(0.63).add(positionWorld.mul(0.37)), 'vObjPos');
+  const vObjPos = varying(positionGeometry.add(attribute('iPose', 'vec4').xyz.mul(0.37)), 'vObjPos');
 
   afterDiffuse(mat, () => {
     const nV = normalViewGeometry.toVar();
@@ -215,7 +224,7 @@ export function farLook(mat: NodeMaterial): void {
     });
     If(vKind.x.greaterThan(0.25), () => {
       const c = diffuseColor.rgb.mul(add(0.78, nz.mul(0.45))).toVar();
-      c.assign(mix(c, vAutumn.mul(add(0.78, nz.mul(0.45))), clamp(VEG.season.mul(1.4).sub(nz.mul(0.4)), 0.0, 1.0).mul(vKind.y)));
+      c.assign(mix(c, vAutumn.mul(add(0.78, nz.mul(0.45))), clamp(SEASON.leaf.mul(1.4).sub(nz.mul(0.4)), 0.0, 1.0).mul(vKind.y)));
       diffuseColor.assign(vec4(c, diffuseColor.a));
     });
   });

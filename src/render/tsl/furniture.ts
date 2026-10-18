@@ -4,19 +4,19 @@
  * vertex material id and sub-material (aFurn.x, aFurn.z) resolved in the shader: steel, paint,
  * timber, concrete, stone, screen-door glass, plastic / foliage, lenses (lamps, traffic and
  * pedestrian signals, charger LEDs), water (falling streaks, ripples), bronze, rubber, signage
- * from the sign atlas. Per instance, the batch colour (the kind is batched): rgb sRGB paint, 0 =
- * the model's own; a = a noise offset so alike props differ. Lamps glow with LIGHT.night; signals cycle on their own.
+ * from the text atlas. Per instance (geometry-instanced): placed by iPose / iSize (`poseByInstance`);
+ * iTint: rgb sRGB paint, 0 = the model's own; w = a noise offset so alike props differ. Lamps glow with LIGHT.night; signals cycle on their own.
  * Ported from Scale (src/render/webgpu/furniture.ts), kept close to it; Scale's robot and drone
  * lights and the per-instance signal state stay behind.
  */
 import type { MeshStandardNodeMaterial, Texture } from 'three/webgpu';
 import {
   Fn, float, int, vec2, vec3, vec4, mix, normalize, max, abs, floor, smoothstep, sub, add, mul, dot, step, sin, cos, pow, clamp, select,
-  mod, atan, If, Discard, struct, attribute, varying, batchColor, texture, positionGeometry, normalGeometry, normalView, cameraViewMatrix,
+  mod, atan, If, Discard, struct, attribute, varying, texture, positionGeometry, normalGeometry, normalView, cameraViewMatrix,
   screenCoordinate, time,
 } from 'three/tsl';
 import { h_noise3 as fn } from '@futuremagic/humanoid/three/nodes/peopleNoise';
-import { LIGHT } from './common';
+import { LIGHT, poseByInstance } from './common';
 import { setDiffuse } from './ground';
 
 const FurnSurf = struct({ base: 'vec3', rough: 'float', metal: 'float', emis: 'vec3' }, 'FurnitureSurf');
@@ -29,8 +29,8 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
   const vMat = aFurn.x, vEmit = aFurn.y, vSub = aFurn.z;
   const vUvF = attribute('uv', 'vec2');
   const vONrm = varying(normalGeometry, 'vONrm');
-  // (The batch colour is a varying the batching assigns in the vertex stage: read in the fragment.)
-  const iTint = batchColor;
+  poseByInstance(m);
+  const iTint = varying(attribute('iTint', 'vec4'), 'vTint');
   const vPaint = Fn(() => {
     const tint = dot(iTint.xyz, iTint.xyz).greaterThan(0.0).and(vSub.lessThan(8.5))
       .and(vMat.greaterThan(0.5).and(vMat.lessThan(1.5)).or(vMat.greaterThan(5.5).and(vMat.lessThan(6.5))));
@@ -64,10 +64,10 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
       base.assign(vPaint.mul(add(0.68, mul(0.28, grain)).add(mul(0.12, rings))).mul(add(0.85, mul(0.2, n0))));
       rough.assign(add(0.62, mul(0.15, grain)));
     }).ElseIf(mid.equal(3), () => { // concrete
-      base.assign(vPaint.mul(add(0.82, mul(0.22, n1)).add(mul(0.1, n2))).mul(sub(1.0, mul(0.25, step(0.86, fn(vOPos.mul(60.0)))))));
+      base.assign(vPaint.mul(add(0.82, mul(0.22, n1)).add(mul(0.1, n2))).mul(sub(1.0, mul(0.25, step(0.86, n2))))); // (pits from the shared noises: each noise call costs build time)
       rough.assign(0.9);
     }).ElseIf(mid.equal(4), () => { // stone (granite / limestone)
-      const speck = step(0.82, fn(vOPos.mul(90.0)));
+      const speck = step(0.82, n2.mul(0.7).add(n1.mul(0.3)));
       base.assign(vPaint.mul(vec3(1.168, 1.098, 1.005)).mul(add(0.82, mul(0.25, n0)).add(mul(0.12, n1)).add(mul(0.06, n2))).mul(sub(1.0, speck.mul(0.3))));
       rough.assign(add(0.72, mul(0.1, n2)));
     }).ElseIf(mid.equal(5), () => { // glass (screen-door transparency)
@@ -78,7 +78,7 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
       base.assign(vPaint);
       rough.assign(add(0.45, mul(0.1, n1)));
       If(sub_.equal(8), () => {
-        const leaf = fn(vOPos.mul(38.0)).mul(0.6).add(fn(vOPos.mul(90.0)).mul(0.4));
+        const leaf = n2.mul(0.6).add(n1.mul(0.4));
         base.assign(vPaint.mul(add(0.55, mul(0.75, leaf))).mul(add(0.8, mul(0.3, n1))));
         rough.assign(0.85);
       });
@@ -112,8 +112,6 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
       If(sub_.equal(1), () => {
         const ang = atan(vOPos.z, vOPos.x).toVar();
         const streak = fn(vec3(ang.mul(12.0), vOPos.y.mul(6.0).add(uTime.mul(5.0)), 0.0)).toVar();
-        const streak2 = fn(vec3(ang.mul(31.0), vOPos.y.mul(9.0).add(uTime.mul(7.0)), 3.0));
-        streak.assign(streak.mul(0.6).add(streak2.mul(0.4)));
         If(streak.lessThan(0.42), () => { Discard(); });
         If(streak.lessThan(0.6).and(fc.x.equal(fc.y)), () => { Discard(); });
         base.assign(mix(vec3(0.05, 0.09, 0.1), vec3(0.55, 0.62, 0.64), smoothstep(0.5, 0.85, streak)));
@@ -123,7 +121,7 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
         rough.assign(0.03); metal.assign(0.15);
       });
     }).ElseIf(mid.equal(9), () => { // bronze with verdigris
-      const pat = smoothstep(0.35, 0.8, n0.mul(0.5).add(fn(vOPos.mul(4.0)).mul(0.3)).add(n2.mul(0.1)).add(max(0.0, vONrm.y).mul(0.3))).toVar();
+      const pat = smoothstep(0.35, 0.8, n0.mul(0.5).add(n1.mul(0.3)).add(n2.mul(0.1)).add(max(0.0, vONrm.y).mul(0.3))).toVar();
       base.assign(mix(vec3(0.16, 0.09, 0.045), vec3(0.13, 0.24, 0.19), pat));
       metal.assign(mix(0.85, 0.15, pat)); rough.assign(mix(0.38, 0.75, pat));
     }).ElseIf(mid.equal(10), () => { // rubber

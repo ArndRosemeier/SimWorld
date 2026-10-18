@@ -7,7 +7,7 @@
  * Scale cached the generated layers in IndexedDB between sessions; that cache is left out here:
  * persistence belongs to src/persist (planned), and the cache comes back through it.
  */
-import { ClampToEdgeWrapping, DataArrayTexture, DataTexture, LinearFilter, LinearMipmapLinearFilter, NoColorSpace, RGBAFormat, RepeatWrapping, SRGBColorSpace, UnsignedByteType } from 'three/webgpu';
+import { ClampToEdgeWrapping, DataArrayTexture, DataTexture, LinearFilter, LinearMipmapLinearFilter, NoColorSpace, RGBAFormat, RepeatWrapping, SRGBColorSpace, UnsignedByteType, type Wrapping } from 'three/webgpu';
 import { FACADE_LAYER_COUNT, FACADE_TILE_METERS, GROUND_LAYER_COUNT, GROUND_TILE_METERS, TEX_SIZE } from '../build/texgen';
 import type { WorkerPool } from '../workers/pool';
 import type { FromTex, TexFamily, ToTex } from '../workers/texProtocol';
@@ -29,15 +29,23 @@ function makeArray(data: Uint8Array, size: number, layers: number, srgb: boolean
   const t = new DataArrayTexture(data, size, size, layers);
   t.format = RGBAFormat;
   t.type = UnsignedByteType;
+  return uploadOnce(t, srgb, RepeatWrapping, RepeatWrapping, 8);
+}
+
+/**
+ * Sampling set up for a generated texture (mipmapped, linear) and the CPU copy dropped after the
+ * upload (Scale's releaseTextureAfterUpload; facade ≈ 24 MB at 512 px): only the shaders sample
+ * it. Never set needsUpdate on it again.
+ */
+function uploadOnce<T extends DataArrayTexture | DataTexture>(t: T, srgb: boolean, wrapS: Wrapping, wrapT: Wrapping, anisotropy: number): T {
   t.colorSpace = srgb ? SRGBColorSpace : NoColorSpace;
-  t.wrapS = t.wrapT = RepeatWrapping;
+  t.wrapS = wrapS;
+  t.wrapT = wrapT;
   t.minFilter = LinearMipmapLinearFilter;
   t.magFilter = LinearFilter;
   t.generateMipmaps = true;
-  t.anisotropy = 8;
+  t.anisotropy = anisotropy;
   t.needsUpdate = true;
-  // Only the shaders sample it (facade ≈ 24 MB at 512 px): drop the CPU copy after the upload
-  // (Scale's releaseTextureAfterUpload). Never set needsUpdate on it again.
   t.onUpdate = () => {
     (t.image as { data: unknown }).data = null;
     t.onUpdate = null;
@@ -80,20 +88,7 @@ export async function loadTextures(
 
 /** An RGBA8 texture of a vegetation atlas (row 0 at v = 0), mip-mapped; the CPU copy dropped after the upload. */
 function vegTexture(data: Uint8Array, w: number, h: number, srgb: boolean, wrapV: boolean): DataTexture {
-  const t = new DataTexture(data, w, h, RGBAFormat, UnsignedByteType);
-  t.colorSpace = srgb ? SRGBColorSpace : NoColorSpace;
-  t.wrapS = ClampToEdgeWrapping;
-  t.wrapT = wrapV ? RepeatWrapping : ClampToEdgeWrapping;
-  t.minFilter = LinearMipmapLinearFilter;
-  t.magFilter = LinearFilter;
-  t.generateMipmaps = true;
-  t.anisotropy = wrapV ? 8 : 4;
-  t.needsUpdate = true;
-  t.onUpdate = () => {
-    (t.image as { data: unknown }).data = null;
-    t.onUpdate = null;
-  };
-  return t;
+  return uploadOnce(new DataTexture(data, w, h, RGBAFormat, UnsignedByteType), srgb, ClampToEdgeWrapping, wrapV ? RepeatWrapping : ClampToEdgeWrapping, wrapV ? 8 : 4);
 }
 
 /**

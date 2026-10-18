@@ -26,8 +26,8 @@ const imod = (a: number, b: number) => ((a % b) + b) % b;
 function pnoise(seed: number, x: number, y: number, px: number, py: number): number {
   const xi = Math.floor(x), yi = Math.floor(y);
   const fx = fade(x - xi), fy = fade(y - yi);
-  const h = (i: number, j: number) => hashToFloat(hash2i(seed, imod(i, px), imod(j, py)));
-  const a = h(xi, yi), b = h(xi + 1, yi), c = h(xi, yi + 1), d = h(xi + 1, yi + 1);
+  const lattice = (i: number, j: number) => hashToFloat(hash2i(seed, imod(i, px), imod(j, py)));
+  const a = lattice(xi, yi), b = lattice(xi + 1, yi), c = lattice(xi, yi + 1), d = lattice(xi + 1, yi + 1);
   return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
 }
 
@@ -148,10 +148,10 @@ export function barkStrip(s: number, sw = 128, sh = 512): VegAtlas {
   }
   // Scale's slopes are per texel at 128 × 512: the same relief at other sizes.
   const strength = [3.5, 5, 1.2, 1.2, 4, 3, 3.5, 2.5][s] * (sw / 128);
-  const at = (xx: number, yy: number) => hgt[imod(yy, sh) * sw + imod(xx, sw)];
+  const hgtAt = (xx: number, yy: number) => hgt[imod(yy, sh) * sw + imod(xx, sw)];
   for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
-    const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
-    const dy = (at(x, y + 1) - at(x, y - 1)) * strength;
+    const dx = (hgtAt(x + 1, y) - hgtAt(x - 1, y)) * strength;
+    const dy = (hgtAt(x, y + 1) - hgtAt(x, y - 1)) * strength;
     const len = Math.hypot(dx, dy, 1);
     const i = (y * sw + x) * 4;
     nor[i] = ((-dx / len) * 0.5 + 0.5) * 255;
@@ -336,7 +336,7 @@ function drawTwigCell(
     g.lineWidth = o.twigW * (1 - (i / N) * 0.6);
     line(g, twig[i][0], twig[i][1], twig[i + 1][0], twig[i + 1][1]);
   }
-  const at = (t: number): [Pt, number] => {
+  const veinPoint = (t: number): [Pt, number] => {
     const f = t * N;
     const i = Math.min(N - 1, Math.floor(f));
     const k = f - i;
@@ -347,7 +347,7 @@ function drawTwigCell(
   const st = o.startT ?? 0.15;
   for (let k = 0; k < o.nodes; k++) {
     const t = st + (1 - st) * (k / Math.max(1, o.nodes - (o.tip ? 0 : 1))) * (o.tip ? 0.92 : 1);
-    const [p, ta] = at(Math.min(1, t));
+    const [p, ta] = veinPoint(Math.min(1, t));
     const sides = o.opposite ? [-1, 1] : [k % 2 === 0 ? -1 : 1];
     for (const sd of sides) {
       const a = ta + sd * rng.range(o.spread[0], o.spread[1]) * deg;
@@ -356,7 +356,7 @@ function drawTwigCell(
     }
   }
   if (o.tip) {
-    const [p, ta] = at(1);
+    const [p, ta] = veinPoint(1);
     leavesToDraw.push({ p, a: ta + rng.range(-8, 8) * deg, s: o.size[1] });
   }
   for (const lf of leavesToDraw) {

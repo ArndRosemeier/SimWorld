@@ -14,7 +14,7 @@ import { PropType, type CellPlan, type StreetSeg } from '../plan/cell';
 import { RoadClass, type District } from '../plan/types';
 import { TERRACE_PALETTE } from '../plan/terrace';
 import type { Terrain } from '../world/terrain';
-import { furnitureModel, type FurnitureKind } from './furniture';
+import { FURNITURE_KINDS, furnitureModel, type FurnitureKind } from './furniture';
 import { farVehicle, paintColor, standingVehicle, type VehicleKind } from './vehicles';
 import type { MeshData } from './meshBuilder';
 
@@ -24,14 +24,19 @@ export const PROP_STRIDE = 9;
 /** One model's instances. `model`: 'f:<FurnitureKind>:<variant>' or 'v:<VehicleKind>:<variant>'. */
 export interface PropGroup { model: string; inst: Float32Array }
 
-/** The model key of every vehicle's far stand-in (`farVehicle`), stretched to each car's size. */
-export const FAR_VEHICLE = 'v:far:0';
-
-/** Mesh data of a model named by a `PropGroup.model` key (a furniture mesh, or a standing vehicle with its wheels), or FAR_VEHICLE. */
+/** Mesh data of a model named by a `PropGroup.model` key (a furniture mesh, or a standing vehicle with its wheels). */
 export function propModel(key: string): MeshData {
-  if (key === FAR_VEHICLE) return farVehicle();
   const [t, kind, v] = key.split(':');
   return t === 'f' ? furnitureModel(kind as FurnitureKind, Number(v)).mesh : standingVehicle(kind as VehicleKind, Number(v));
+}
+
+/** A vehicle model's far stand-in (`farVehicle` filling the model's bounds); null for furniture. */
+export function propFar(key: string): MeshData | null {
+  if (!isVehicleModel(key)) return null;
+  const P = propModel(key).attrs.position.array;
+  const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < P.length; i++) { const k = i % 3; min[k] = Math.min(min[k], P[i]); max[k] = Math.max(max[k], P[i]); }
+  return farVehicle(min, max);
 }
 
 /** Is a model key a vehicle's (the `VEHICLE` kind) rather than furniture's? */
@@ -125,6 +130,31 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain): Pro
     }
   }
   return [...lists].map(([model, l]) => ({ model, inst: Float32Array.from(l) }));
+}
+
+/** Floats per lamp head in `lampsOf`: x, y, z (world, the light's place in the head), kind. */
+export const LAMP_STRIDE = 4;
+
+/**
+ * Every street lamp head of these instance lists (`propInstances`), for a pool of real lights at
+ * night: per head x, y, z in world space (the model's light position, `FurnitureModel.lights`,
+ * turned and scaled with its instance) and the lamp's kind as its index in FURNITURE_KINDS
+ * (lampModern, lampClassic, lampDouble; a double lamp has two heads, a classic one up to three).
+ */
+export function lampsOf(groups: readonly PropGroup[]): Float32Array {
+  const out: number[] = [];
+  for (const g of groups) {
+    const [t, kind, v] = g.model.split(':');
+    if (t !== 'f' || !kind.startsWith('lamp')) continue;
+    const lights = furnitureModel(kind as FurnitureKind, Number(v)).lights, k = FURNITURE_KINDS.indexOf(kind as FurnitureKind);
+    const I = g.inst;
+    for (let o = 0; o < I.length; o += PROP_STRIDE) {
+      const c = Math.cos(I[o + 3]), s = Math.sin(I[o + 3]), sc = I[o + 4];
+      // (Turned like the instance: three's rotation about +Y by the yaw.)
+      for (const { pos: [lx, ly, lz] } of lights) out.push(I[o] + (lx * c + lz * s) * sc, I[o + 1] + ly * sc, I[o + 2] + (lz * c - lx * s) * sc, k);
+    }
+  }
+  return Float32Array.from(out);
 }
 
 const TERRACE: Record<number, [FurnitureKind, number]> = {

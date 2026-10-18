@@ -5,7 +5,8 @@
  * Ported from Scale (src/render/webgpu/common.ts and src/render/materials/globals.ts); the noise
  * itself comes from `@futuremagic/humanoid/three/nodes/peopleNoise`.
  */
-import { Fn, vec3, fract, sin, dot, max, sub, dFdx, dFdy, cross, inverseSqrt, select, sqrt, normalize, uniform } from 'three/tsl';
+import { Fn, vec3, fract, sin, cos, dot, max, sub, dFdx, dFdy, cross, inverseSqrt, select, sqrt, normalize, uniform, attribute, positionGeometry, normalLocal } from 'three/tsl';
+import type { NodeMaterial } from 'three/webgpu';
 import { h_hash12 } from '@futuremagic/humanoid/three/nodes/peopleNoise';
 
 /** float → [0, 1) hash. */
@@ -45,3 +46,44 @@ export const LIGHT = {
   /** Wet walls and ground after rain, 0 … 1. */
   wet: uniform(0),
 };
+
+/**
+ * The season as the vegetation shows it (src/render/tsl/vegetation.ts), set by the season clock.
+ * `leaf` is Scale's autumn turn of the leaves and far canopies; `bare` and `blossom` are not read
+ * yet (Scale has neither).
+ */
+export const SEASON = {
+  /** 0 green … 1 full autumn. */
+  leaf: uniform(0),
+  /** 0 full … 1 bare. */
+  bare: uniform(0),
+  /** 0 none … 1 in full blossom. */
+  blossom: uniform(0),
+};
+
+/**
+ * A geometry-instanced copy's placement (`instancedFromData`, src/render/meshes.ts; the
+ * attributes src/build/vegetation.ts `INSTANCE_SPECS`: iPose x, y, z, yaw and iSize across, up):
+ * `p` scaled, turned by the yaw about +Y (as three's rotation) and moved; `scaled = false` turns
+ * a direction only.
+ */
+export function posed(p, scaled = true) {
+  const pose = attribute('iPose', 'vec4'), size = attribute('iSize', 'vec2');
+  const c = cos(pose.w), s = sin(pose.w);
+  const q = scaled ? p.mul(vec3(size.x, size.y, size.x)) : p;
+  const r = vec3(q.x.mul(c).add(q.z.mul(s)), q.y, q.z.mul(c).sub(q.x.mul(s)));
+  return scaled ? r.add(pose.xyz) : r;
+}
+
+/**
+ * Place a kind's geometry-instanced meshes by `posed`: the position (both passes, the shadow's
+ * too; `position` if the look moves the posed vertex further, like the wind) and the turned normals.
+ */
+export function poseByInstance(mat: NodeMaterial, position = posed(positionGeometry)): void {
+  mat.positionNode = position;
+  const base = mat.setupPosition;
+  mat.setupPosition = function (builder) {
+    normalLocal.assign(posed(normalLocal, false));
+    return base.call(this, builder);
+  };
+}

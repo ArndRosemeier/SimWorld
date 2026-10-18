@@ -6,7 +6,7 @@
  * town workers as `MeshData`; the solids come from src/build/prims.ts.
  *
  * Vertex attributes (FURNITURE_SPECS) besides position and normal:
- *  - uv     signage atlas coordinates (src/render/signAtlas.ts) where a panel shows one
+ *  - uv     text atlas coordinates (src/build/textAtlasLayout.ts pictures) where a panel shows one
  *  - aFurn  vec3: x FMat id, y 0..1 emissive mask (lamp lenses, signal lenses, back-lit signs),
  *           z sub-material code: 0 plain, 1 red / 2 amber / 3 green signal lens, 4 pedestrian
  *           "don't walk" / 5 "walk" lens, 7 back-lit sign, 8 foliage, 9 fixed paint (ignores the
@@ -20,6 +20,7 @@
  */
 import { Noise, srgbToLinear as lin } from '@futuremagic/core';
 import { MeshBuilder, type AttrSpec, type MeshData } from './meshBuilder';
+import { pictureRect } from './textAtlasLayout';
 import {
   CatmullRom, M, box as boxPrim, compose, computeNormals, cylinder, flipped, icosphere, identity, lathe as lathePrim, move, plane, quatFromUnit,
   rotX, rotY, rotZ, sphere as spherePrim, torus, tube as tubePrim, xform, type Mat4, type Prim,
@@ -53,12 +54,6 @@ export const enum FMat { Metal = 0, PaintedMetal = 1, Wood = 2, Concrete = 3, St
 export type V = [number, number, number];
 export interface PO { m: FMat; c?: V; e?: number; s?: number }
 
-/** uv rect of a signage atlas cell (4x4 grid, cell 0 = top-left; src/render/signAtlas.ts). */
-export function cellRect(cell: number): [number, number, number, number] {
-  const cx = cell % 4, cy = Math.floor(cell / 4);
-  const m = 0.004;
-  return [cx / 4 + m, 1 - (cy + 1) / 4 + m, (cx + 1) / 4 - m, 1 - cy / 4 - m];
-}
 
 export class FB {
   readonly mb = new MeshBuilder(FURNITURE_SPECS);
@@ -104,22 +99,19 @@ export class FB {
     this.add(spherePrim(r, ws, hs, 0, Math.PI * 2, 0, thetaLen), M(x, y, z, 0, 0, 0, sx, sy, sz), po);
   }
   capsule(po: PO, a: V, b: V, r: number, rb = r, radial = 10) {
-    const d: V = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-    const len = Math.hypot(...d) || 1;
-    const g = xform(cylinder(rb, r, len, radial, true), move(0, len / 2, 0));
-    this.add(g, compose(a, quatFromUnit([0, 1, 0], [d[0] / len, d[1] / len, d[2] / len])), po);
+    this.rod(po, a, b, rb, radial, r); // (rod's radii run b to a: Scale's)
     this.sphere(po, r, ...a, 1, 1, 1, radial, 6);
     this.sphere(po, rb, ...b, 1, 1, 1, radial, 6);
   }
   /** Flat sign panel (front faces -Z after rotation ry) with uv into a signage cell. */
   panel(po: PO, w: number, h: number, x: number, y: number, z: number, ry: number, cell: number, rx = 0) {
     const g = xform(plane(w, h), rotY(Math.PI));
-    const [u0, v0, u1, v1] = cellRect(cell);
+    const [u0, v0, u1, v1] = pictureRect(cell);
     this.add(g, M(x, y, z, rx, ry, 0), po, (u, v) => [u0 + (u1 - u0) * u, v0 + (v1 - v0) * v]);
   }
   /** Regular polygon plate in the XY plane facing -Z (front signage, back metal). */
   polyPlate(front: PO, back: PO, n: number, r: number, thick: number, x: number, y: number, z: number, ry: number, cell: number, rot = Math.PI / n) {
-    const [u0, v0, u1, v1] = cellRect(cell);
+    const [u0, v0, u1, v1] = pictureRect(cell);
     const shapePts: [number, number][] = [];
     for (let i = 0; i < n; i++) {
       const a = rot + (i / n) * Math.PI * 2;
@@ -472,12 +464,13 @@ function bollard(fb: FB, v: number): number {
   return 0.97;
 }
 
-function foliageBall(fb: FB, r: number, x: number, y: number, z: number, col: V, seed: number) {
-  const g = icosphere(r, 2);
+/** A lumpy ball of foliage (planters, parklets): an icosphere bumped by noise, `fine` for a second, finer bumping. */
+function foliageBall(fb: FB, r: number, x: number, y: number, z: number, col: V, seed: number, detail = 2, bump = 0.18, fine = 0.08) {
+  const g = icosphere(r, detail);
   const p = g.pos;
   for (let i = 0; i < p.length; i += 3) {
     const vx = p[i], vy = p[i + 1], vz = p[i + 2];
-    const k = 1 + 0.18 * fNoise.n3(vx * 4 + seed, vy * 4, vz * 4) + 0.08 * fNoise.n3(vx * 11, vy * 11 + seed, vz * 11);
+    const k = 1 + bump * fNoise.n3(vx * 4 + seed, vy * 4, vz * 4) + (fine ? fine * fNoise.n3(vx * 11, vy * 11 + seed, vz * 11) : 0);
     p[i] = vx * k; p[i + 1] = vy * k * 0.85; p[i + 2] = vz * k;
   }
   fb.add(computeNormals(g), M(x, y, z), { m: FMat.Plastic, c: col, s: 8 });
@@ -778,7 +771,7 @@ function manhole(fb: FB, v: number): number {
   const r = 0.33;
   // cover: textured disc
   const seg = 24;
-  const [u0, v0, u1, v1] = cellRect(9);
+  const [u0, v0, u1, v1] = pictureRect(9);
   const pos: number[] = [0, 0.02, 0], nrm: number[] = [0, 1, 0], uv: number[] = [(u0 + u1) / 2, (v0 + v1) / 2], idx: number[] = [];
   for (let i = 0; i <= seg; i++) {
     const a = (i / seg) * Math.PI * 2;
@@ -919,16 +912,7 @@ function evCharger(fb: FB, v: number): number {
 // ---------------------------------------------------------------------------------------------
 
 /** Low-detail foliage clump (planters on parklets). */
-function smallFoliage(fb: FB, r: number, x: number, y: number, z: number, col: V, seed: number) {
-  const g = icosphere(r, 1);
-  const p = g.pos;
-  for (let i = 0; i < p.length; i += 3) {
-    const vx = p[i], vy = p[i + 1], vz = p[i + 2];
-    const k = 1 + 0.16 * fNoise.n3(vx * 4 + seed, vy * 4, vz * 4);
-    p[i] = vx * k; p[i + 1] = vy * k * 0.85; p[i + 2] = vz * k;
-  }
-  fb.add(computeNormals(g), M(x, y, z), { m: FMat.Plastic, c: col, s: 8 });
-}
+const smallFoliage = (fb: FB, r: number, x: number, y: number, z: number, col: V, seed: number) => foliageBall(fb, r, x, y, z, col, seed, 1, 0.16, 0);
 
 /** Round bistro table (cast-iron foot, marble top) or square timber table. Top at 0.74 m. */
 function cafeTable(fb: FB, v: number): number {

@@ -58,8 +58,10 @@ export type FromTown =
   | { type: 'landmark'; mesh: MeshData | null; ms: number }
   | { type: 'country'; ground: MeshData | null; buildings: MeshData | null; ms: number }
   | { type: 'bridges'; ground: MeshData | null; buildings: MeshData | null; ms: number }
-  | { type: 'props'; groups: PropGroup[]; ms: number }
-  | { type: 'propModel'; mesh: MeshData; ms: number }
+  /** `lamps`: the street lamp heads (`lampsOf`, LAMP_STRIDE floats each). */
+  | { type: 'props'; groups: PropGroup[]; lamps: Float32Array; ms: number }
+  /** `far`: a vehicle's far stand-in (`propFar`), null for furniture. */
+  | { type: 'propModel'; mesh: MeshData; far: MeshData | null; ms: number }
   | { type: 'trees'; recs: Float32Array; ms: number }
   | { type: 'forest'; recs: Float32Array; ms: number }
   | { type: 'vegModel'; model: TreeModelData; ms: number }

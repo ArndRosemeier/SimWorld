@@ -25,6 +25,7 @@ import {
   Noise, Rng, clamp, smoothstep as smooth, srgbToLinear, dist3, v3add, v3cross, v3dot, v3len, v3lerp, v3madd, v3norm, v3scale, v3sub, type Vec3,
 } from '@futuremagic/core';
 import { MeshBuilder, type AttrSpec, type MeshData } from './meshBuilder';
+import { icosphere } from './prims';
 
 export type TreeSpecies = 'plane' | 'linden' | 'maple' | 'oak' | 'birch' | 'pine' | 'palm' | 'cypress' | 'chestnut' | 'ginkgo';
 export const TREE_SPECIES: readonly TreeSpecies[] = ['plane', 'linden', 'maple', 'oak', 'birch', 'pine', 'palm', 'cypress', 'chestnut', 'ginkgo'];
@@ -33,6 +34,11 @@ export const TREE_SPECIES: readonly TreeSpecies[] = ['plane', 'linden', 'maple',
 export const BARK_SPECS: AttrSpec[] = [{ name: 'uv', size: 2 }, { name: 'aWind', size: 1, type: 'u8n' }, { name: 'aOcc', size: 1, type: 'u8n' }];
 export const LEAF_SPECS: AttrSpec[] = [{ name: 'uv', size: 2 }, { name: 'aWind', size: 1, type: 'u8n' }, { name: 'aLeafTint', size: 1, type: 'u8n' }, { name: 'aOcc', size: 1, type: 'u8n' }];
 export const FAR_SPECS: AttrSpec[] = [{ name: 'uv', size: 2 }, { name: 'color', size: 3 }, { name: 'aAutumn', size: 3 }, { name: 'aWind', size: 1, type: 'u8n' }];
+/**
+ * Per instance (geometry instancing, src/render/vegetationView.ts): iPose = position (x, y, z) and
+ * yaw, iSize = horizontal and vertical scale (a clump standing for a patch is wider).
+ */
+export const INSTANCE_SPECS: AttrSpec[] = [{ name: 'iPose', size: 4 }, { name: 'iSize', size: 2 }];
 
 /** Columns of the bark atlas (src/build/vegetationTex.ts). */
 export const BARK_STRIPS = 8;
@@ -210,7 +216,7 @@ interface SpeciesCfg {
   cards?: number;
 }
 
-const L = (o: Partial<LevelCfg> & Pick<LevelCfg, 'n'>): LevelCfg => ({
+const level = (o: Partial<LevelCfg> & Pick<LevelCfg, 'n'>): LevelCfg => ({
   start: 0.2, end: 1, angle: 45, angleVar: 12, len: 0.5, lenRef: 'parent', rr: 0.55,
   segs: 4, radial: 5, up: 0.05, curve: 0.25, phyllo: 137.5, ...o,
 });
@@ -223,9 +229,9 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
         width: 7.2, crownBase: 0.24, prof: (t) => Math.pow(Math.sin(Math.PI * Math.pow(t, 0.8)), 0.55),
         trunkTop: 0.3, trunkUp: 0, trunkCurve: 0.08, lean: 0.04, flare: 0.35, lobes: 0.06,
         levels: [
-          L({ n: [3, 4], start: 1, end: 1, whorl: 4, angle: 32, angleVar: 10, len: 1.25, lenRef: 'width', rr: 0.72, segs: 8, radial: 8, up: 0.06, curve: 0.22 }),
-          L({ n: [8, 10], start: 0.18, end: 0.98, angle: 52, angleVar: 15, len: 0.55, rr: 0.5, segs: 4, radial: 5, up: 0.04, curve: 0.3 }),
-          L({ n: [3, 4], start: 0.3, end: 1, angle: 48, angleVar: 15, len: 0.45, rr: 0.55, segs: 2, radial: 3, up: 0.0, curve: 0.3 }),
+          level({ n: [3, 4], start: 1, end: 1, whorl: 4, angle: 32, angleVar: 10, len: 1.25, lenRef: 'width', rr: 0.72, segs: 8, radial: 8, up: 0.06, curve: 0.22 }),
+          level({ n: [8, 10], start: 0.18, end: 0.98, angle: 52, angleVar: 15, len: 0.55, rr: 0.5, segs: 4, radial: 5, up: 0.04, curve: 0.3 }),
+          level({ n: [3, 4], start: 0.3, end: 1, angle: 48, angleVar: 15, len: 0.45, rr: 0.55, segs: 2, radial: 3, up: 0.0, curve: 0.3 }),
         ],
         farColor: [0.36, 0.45, 0.22], autumn: [0.72, 0.55, 0.25],
       };
@@ -235,8 +241,8 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
         width: 4.6, crownBase: 0.2, prof: (t) => Math.pow(Math.sin(Math.PI * Math.pow(t, 0.85)), 0.7),
         trunkTop: 0.93, trunkUp: 0.02, trunkCurve: 0.05, lean: 0.02, flare: 0.3, lobes: 0.03,
         levels: [
-          L({ n: [15, 19], start: 0.2, end: 0.92, angle: 58, angleVar: 12, len: 1.5, lenRef: 'width', rr: 0.42, segs: 5, radial: 6, up: 0.1, curve: 0.2 }),
-          L({ n: [5, 7], start: 0.2, end: 0.95, angle: 48, angleVar: 14, len: 0.5, rr: 0.55, segs: 3, radial: 4, up: -0.04, curve: 0.3 }),
+          level({ n: [15, 19], start: 0.2, end: 0.92, angle: 58, angleVar: 12, len: 1.5, lenRef: 'width', rr: 0.42, segs: 5, radial: 6, up: 0.1, curve: 0.2 }),
+          level({ n: [5, 7], start: 0.2, end: 0.95, angle: 48, angleVar: 14, len: 0.5, rr: 0.55, segs: 3, radial: 4, up: -0.04, curve: 0.3 }),
         ],
         leafLevels: [1, 2],
         farColor: [0.3, 0.42, 0.18], autumn: [0.82, 0.68, 0.22],
@@ -247,9 +253,9 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
         width: 5.2, crownBase: 0.26, prof: (t) => Math.pow(Math.sin(Math.PI * Math.pow(t, 0.9)), 0.5),
         trunkTop: 0.3, trunkUp: 0, trunkCurve: 0.06, lean: 0.03, flare: 0.3, lobes: 0.04,
         levels: [
-          L({ n: [4, 5], start: 1, end: 1, whorl: 5, angle: 30, angleVar: 10, len: 1.3, lenRef: 'width', rr: 0.65, segs: 7, radial: 7, up: 0.08, curve: 0.2 }),
-          L({ n: [7, 9], start: 0.2, end: 0.98, angle: 50, angleVar: 14, len: 0.55, rr: 0.5, segs: 3, radial: 4, up: 0.05, curve: 0.3 }),
-          L({ n: [3, 3], start: 0.35, end: 1, angle: 45, angleVar: 12, len: 0.45, rr: 0.55, segs: 2, radial: 3, up: 0.02, curve: 0.3 }),
+          level({ n: [4, 5], start: 1, end: 1, whorl: 5, angle: 30, angleVar: 10, len: 1.3, lenRef: 'width', rr: 0.65, segs: 7, radial: 7, up: 0.08, curve: 0.2 }),
+          level({ n: [7, 9], start: 0.2, end: 0.98, angle: 50, angleVar: 14, len: 0.55, rr: 0.5, segs: 3, radial: 4, up: 0.05, curve: 0.3 }),
+          level({ n: [3, 3], start: 0.35, end: 1, angle: 45, angleVar: 12, len: 0.45, rr: 0.55, segs: 2, radial: 3, up: 0.02, curve: 0.3 }),
         ],
         farColor: [0.27, 0.4, 0.16], autumn: [0.85, 0.3, 0.08],
       };
@@ -259,9 +265,9 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
         width: 8, crownBase: 0.2, prof: (t) => Math.pow(Math.sin(Math.PI * Math.pow(t, 0.72)), 0.45),
         trunkTop: 0.26, trunkUp: 0, trunkCurve: 0.14, lean: 0.06, flare: 0.45, lobes: 0.1,
         levels: [
-          L({ n: [4, 5], start: 0.7, end: 1, whorl: 1, phyllo: 140, angle: 66, angleVar: 12, len: 1.3, lenRef: 'width', rr: 0.62, segs: 9, radial: 8, up: 0.0, curve: 0.95 }),
-          L({ n: [7, 9], start: 0.15, end: 0.98, angle: 60, angleVar: 18, len: 0.55, rr: 0.5, segs: 4, radial: 4, up: 0.02, curve: 0.85 }),
-          L({ n: [3, 4], start: 0.3, end: 1, angle: 50, angleVar: 18, len: 0.45, rr: 0.55, segs: 2, radial: 3, up: 0.02, curve: 0.5 }),
+          level({ n: [4, 5], start: 0.7, end: 1, whorl: 1, phyllo: 140, angle: 66, angleVar: 12, len: 1.3, lenRef: 'width', rr: 0.62, segs: 9, radial: 8, up: 0.0, curve: 0.95 }),
+          level({ n: [7, 9], start: 0.15, end: 0.98, angle: 60, angleVar: 18, len: 0.55, rr: 0.5, segs: 4, radial: 4, up: 0.02, curve: 0.85 }),
+          level({ n: [3, 4], start: 0.3, end: 1, angle: 50, angleVar: 18, len: 0.45, rr: 0.55, segs: 2, radial: 3, up: 0.02, curve: 0.5 }),
         ],
         farColor: [0.26, 0.36, 0.15], autumn: [0.55, 0.36, 0.12],
       };
@@ -271,8 +277,8 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
         width: 3.0, crownBase: 0.3, prof: (t) => Math.pow(Math.sin(Math.PI * Math.pow(t, 0.75)), 0.9) * (1 - 0.25 * t),
         trunkTop: 0.96, trunkUp: 0.02, trunkCurve: 0.07, lean: 0.05, flare: 0.15, lobes: 0,
         levels: [
-          L({ n: [20, 26], start: 0.28, end: 0.95, angle: 48, angleVar: 12, len: 1.6, lenRef: 'width', rr: 0.36, segs: 5, radial: 4, up: 0.02, curve: 0.25 }),
-          L({ n: [4, 5], start: 0.25, end: 0.95, angle: 40, angleVar: 14, len: 0.6, rr: 0.55, segs: 3, radial: 3, up: -0.22, curve: 0.2 }),
+          level({ n: [20, 26], start: 0.28, end: 0.95, angle: 48, angleVar: 12, len: 1.6, lenRef: 'width', rr: 0.36, segs: 5, radial: 4, up: 0.02, curve: 0.25 }),
+          level({ n: [4, 5], start: 0.25, end: 0.95, angle: 40, angleVar: 14, len: 0.6, rr: 0.55, segs: 3, radial: 3, up: -0.22, curve: 0.2 }),
         ],
         leafLevels: [1, 2],
         farColor: [0.38, 0.5, 0.22], autumn: [0.9, 0.75, 0.25],
@@ -286,9 +292,9 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
           prof: (t) => (t < 0.45 ? Math.pow(t / 0.45, 0.6) : Math.sqrt(Math.max(0, 1 - Math.pow((t - 0.45) / 0.55, 2.4)))),
           trunkTop: 0.6, trunkUp: 0.03, trunkCurve: 0.12, lean: 0.1, flare: 0.25, lobes: 0.03,
           levels: [
-            L({ n: [4, 5], start: 1, end: 1, whorl: 5, angle: 42, angleVar: 10, len: 1.3, lenRef: 'width', rr: 0.65, segs: 6, radial: 6, up: 0.1, curve: 0.3 }),
-            L({ n: [5, 7], start: 0.35, end: 0.98, angle: 45, angleVar: 14, len: 0.5, rr: 0.5, segs: 3, radial: 4, up: 0.08, curve: 0.3 }),
-            L({ n: [3, 4], start: 0.4, end: 1, angle: 40, angleVar: 14, len: 0.4, rr: 0.55, segs: 2, radial: 3, up: 0.1, curve: 0.3 }),
+            level({ n: [4, 5], start: 1, end: 1, whorl: 5, angle: 42, angleVar: 10, len: 1.3, lenRef: 'width', rr: 0.65, segs: 6, radial: 6, up: 0.1, curve: 0.3 }),
+            level({ n: [5, 7], start: 0.35, end: 0.98, angle: 45, angleVar: 14, len: 0.5, rr: 0.5, segs: 3, radial: 4, up: 0.08, curve: 0.3 }),
+            level({ n: [3, 4], start: 0.4, end: 1, angle: 40, angleVar: 14, len: 0.4, rr: 0.55, segs: 2, radial: 3, up: 0.1, curve: 0.3 }),
           ],
           farColor: [0.17, 0.3, 0.14], autumn: [0.17, 0.3, 0.14], evergreen: true, cross: 2,
         };
@@ -299,7 +305,7 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
         width: 3.4, crownBase: 0.1, prof: (t) => Math.pow(1 - t, 0.95) * Math.min(1, 0.55 + t * 4),
         trunkTop: 1.0, trunkUp: 0.03, trunkCurve: 0.03, lean: 0.015, flare: 0.25, lobes: 0.02,
         levels: [
-          L({ n: [22, 26], whorl: 4, phyllo: 41, start: 0.1, end: 0.97, angle: 82, angleVar: 8, len: 1.4, lenRef: 'width', rr: 0.32, segs: 4, radial: 4, up: -0.02, curve: 0.12 }),
+          level({ n: [22, 26], whorl: 4, phyllo: 41, start: 0.1, end: 0.97, angle: 82, angleVar: 8, len: 1.4, lenRef: 'width', rr: 0.32, segs: 4, radial: 4, up: -0.02, curve: 0.12 }),
         ],
         leafLevels: [1],
         trunkLeaves: 3,
@@ -311,7 +317,7 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
         width: 1.0, crownBase: 0.03, prof: (t) => Math.pow(Math.min(1, t * 5 + 0.25), 0.5) * Math.pow(1 - t, 0.62),
         trunkTop: 0.98, trunkUp: 0.05, trunkCurve: 0.02, lean: 0.01, flare: 0.2, lobes: 0.04,
         levels: [
-          L({ n: [44, 56], start: 0.04, end: 0.96, angle: 22, angleVar: 8, len: 2.2, lenRef: 'width', rr: 0.32, segs: 3, radial: 3, up: 0.25, curve: 0.15 }),
+          level({ n: [44, 56], start: 0.04, end: 0.96, angle: 22, angleVar: 8, len: 2.2, lenRef: 'width', rr: 0.32, segs: 3, radial: 3, up: 0.25, curve: 0.15 }),
         ],
         leafLevels: [1],
         trunkLeaves: 9,
@@ -323,9 +329,9 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
         width: 6.2, crownBase: 0.24, prof: (t) => Math.pow(Math.sin(Math.PI * Math.pow(t, 0.8)), 0.55),
         trunkTop: 0.32, trunkUp: 0, trunkCurve: 0.08, lean: 0.03, flare: 0.35, lobes: 0.06,
         levels: [
-          L({ n: [3, 4], start: 1, end: 1, whorl: 4, angle: 30, angleVar: 9, len: 1.3, lenRef: 'width', rr: 0.7, segs: 8, radial: 8, up: 0.07, curve: 0.2 }),
-          L({ n: [8, 10], start: 0.15, end: 0.98, angle: 55, angleVar: 14, len: 0.55, rr: 0.5, segs: 4, radial: 4, up: -0.03, curve: 0.25 }),
-          L({ n: [3, 4], start: 0.3, end: 1, angle: 45, angleVar: 12, len: 0.45, rr: 0.55, segs: 2, radial: 3, up: 0.06, curve: 0.25 }),
+          level({ n: [3, 4], start: 1, end: 1, whorl: 4, angle: 30, angleVar: 9, len: 1.3, lenRef: 'width', rr: 0.7, segs: 8, radial: 8, up: 0.07, curve: 0.2 }),
+          level({ n: [8, 10], start: 0.15, end: 0.98, angle: 55, angleVar: 14, len: 0.55, rr: 0.5, segs: 4, radial: 4, up: -0.03, curve: 0.25 }),
+          level({ n: [3, 4], start: 0.3, end: 1, angle: 45, angleVar: 12, len: 0.45, rr: 0.55, segs: 2, radial: 3, up: 0.06, curve: 0.25 }),
         ],
         farColor: [0.24, 0.36, 0.14], autumn: [0.62, 0.42, 0.16],
       };
@@ -335,8 +341,8 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
         width: 3.6, crownBase: 0.2, prof: (t) => Math.pow(Math.sin(Math.PI * Math.pow(t, 0.62)), 0.75) * (1 - 0.3 * t),
         trunkTop: 0.94, trunkUp: 0.02, trunkCurve: 0.05, lean: 0.03, flare: 0.2, lobes: 0.03,
         levels: [
-          L({ n: [10, 13], start: 0.2, end: 0.9, angle: 48, angleVar: 20, len: 1.5, lenRef: 'width', rr: 0.42, segs: 5, radial: 5, up: 0.16, curve: 0.3 }),
-          L({ n: [4, 5], start: 0.2, end: 0.95, angle: 48, angleVar: 16, len: 0.45, rr: 0.55, segs: 3, radial: 3, up: 0.1, curve: 0.3 }),
+          level({ n: [10, 13], start: 0.2, end: 0.9, angle: 48, angleVar: 20, len: 1.5, lenRef: 'width', rr: 0.42, segs: 5, radial: 5, up: 0.16, curve: 0.3 }),
+          level({ n: [4, 5], start: 0.2, end: 0.95, angle: 48, angleVar: 16, len: 0.45, rr: 0.55, segs: 3, radial: 3, up: 0.1, curve: 0.3 }),
         ],
         leafLevels: [1, 2],
         farColor: [0.36, 0.48, 0.2], autumn: [0.98, 0.78, 0.12],
@@ -348,8 +354,8 @@ function speciesCfg(sp: TreeSpecies | 'shrub', variant: number): SpeciesCfg {
         width: 0.85, crownBase: 0.04, prof: (t) => Math.pow(Math.sin(Math.PI * Math.pow(t, 0.75)), 0.55),
         trunkTop: 0.02, trunkUp: 0, trunkCurve: 0, lean: 0, flare: 0, lobes: 0,
         levels: [
-          L({ n: [6, 7], start: 1, end: 1, whorl: 7, angle: 38, angleVar: 16, len: 1.6, lenRef: 'width', rr: 1.0, segs: 4, radial: 4, up: 0.2, curve: 0.3 }),
-          L({ n: [3, 4], start: 0.25, end: 0.95, angle: 45, angleVar: 14, len: 0.5, rr: 0.6, segs: 2, radial: 3, up: 0.1, curve: 0.3 }),
+          level({ n: [6, 7], start: 1, end: 1, whorl: 7, angle: 38, angleVar: 16, len: 1.6, lenRef: 'width', rr: 1.0, segs: 4, radial: 4, up: 0.2, curve: 0.3 }),
+          level({ n: [3, 4], start: 0.25, end: 0.95, angle: 45, angleVar: 14, len: 0.5, rr: 0.6, segs: 2, radial: 3, up: 0.1, curve: 0.3 }),
         ],
         leafLevels: [1, 2],
         farColor: box ? [0.16, 0.28, 0.12] : [0.27, 0.4, 0.17], autumn: box ? [0.16, 0.28, 0.12] : [0.7, 0.35, 0.12], evergreen: box,
@@ -517,7 +523,7 @@ function vert(mb: MeshBuilder, p: Vec3, n: Vec3, u: number, v: number, w: number
   return mb.v(p[0], p[1], p[2], n[0], n[1], n[2], u, v);
 }
 
-function tube(mb: MeshBuilder, b: Branch, radial: number, strip: number, maxPath: number, env: Envelope | null, trunk: SpeciesCfg | null, seed: number): void {
+function branchTube(mb: MeshBuilder, b: Branch, radial: number, strip: number, maxPath: number, env: Envelope | null, trunk: SpeciesCfg | null, seed: number): void {
   const n = b.pts.length;
   if (n < 2) return;
   // parallel transport frames
@@ -580,7 +586,7 @@ function buildWood(cfg: SpeciesCfg, sk: TreeSkeleton, seed: number): MeshData {
   const mb = new MeshBuilder(BARK_SPECS);
   sk.branches.forEach((b, i) => {
     const radial = b.level === 0 ? (cfg.trunkR > 0.1 ? 10 : 6) : cfg.levels[b.level - 1].radial;
-    tube(mb, b, radial, cfg.bark, sk.maxPath, b.level === 0 ? null : sk.env, b.level === 0 ? cfg : null, seed + i * 7);
+    branchTube(mb, b, radial, cfg.bark, sk.maxPath, b.level === 0 ? null : sk.env, b.level === 0 ? cfg : null, seed + i * 7);
   });
   return mb.build();
 }
@@ -745,29 +751,13 @@ function farTrunk(mb: MeshBuilder, base: Vec3, top: Vec3, r: number, barkIdx: nu
   }
 }
 
-/** The unit icosahedron subdivided once (42 vertices, 80 faces, outward winding). */
-function icosphere(): { verts: Vec3[]; faces: [number, number, number][] } {
-  const t = (1 + Math.sqrt(5)) / 2;
-  const verts: Vec3[] = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]].map((p) => v3norm(p as Vec3));
-  const base: [number, number, number][] = [
-    [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
-    [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
-  ];
-  const mid = new Map<number, number>();
-  const half = (a: number, b: number) => {
-    const k = Math.min(a, b) * 64 + Math.max(a, b);
-    let i = mid.get(k);
-    if (i === undefined) { i = verts.push(v3norm(v3add(verts[a], verts[b]))) - 1; mid.set(k, i); }
-    return i;
-  };
-  const faces: [number, number, number][] = [];
-  for (const [a, b, c] of base) {
-    const ab = half(a, b), bc = half(b, c), ca = half(c, a);
-    faces.push([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]);
-  }
+/** The far hull's directions: the unit icosphere subdivided once (prims.ts, 42 welded vertices, 80 outward faces). */
+const ICO = (() => {
+  const g = icosphere(1, 1), verts: Vec3[] = [], faces: [number, number, number][] = [];
+  for (let k = 0; k < g.pos.length; k += 3) verts.push([g.pos[k], g.pos[k + 1], g.pos[k + 2]]);
+  for (let k = 0; k < g.idx.length; k += 3) faces.push([g.idx[k], g.idx[k + 1], g.idx[k + 2]]);
   return { verts, faces };
-}
-const ICO = icosphere();
+})();
 
 function buildFar(cfg: SpeciesCfg, sk: TreeSkeleton): MeshData {
   const mb = new MeshBuilder(FAR_SPECS);
@@ -816,14 +806,14 @@ function buildPalm(variant: number): TreeModelData {
   const trunk = makeBranch(pts, 0.22, 0.2, 0, 0);
   for (let i = 0; i < trunk.rad.length; i++) trunk.rad[i] = 0.2 + 0.12 * Math.exp(-Math.max(0, pts[i][1]) / 0.6) + (i >= segs - 1 ? 0.03 : 0);
   const maxPath = branchLen(trunk) + 4.5;
-  tube(wood, trunk, 9, 5, maxPath, null, null, variant * 31);
+  branchTube(wood, trunk, 9, 5, maxPath, null, null, variant * 31);
   const top = pts[pts.length - 1];
   const tTan = v3norm(v3sub(top, pts[pts.length - 2]));
   const crownC = v3add(top, [0, 0.4, 0]);
 
   // leaf-base "boots" knob under the crown
   const boot = makeBranch([v3madd(top, tTan, -0.7), v3madd(top, tTan, 0.25)], 0.27, 0.16, 1, branchLen(trunk) - 0.7);
-  tube(wood, boot, 9, 5, maxPath, null, null, 5);
+  branchTube(wood, boot, 9, 5, maxPath, null, null, 5);
 
   const nFronds = rng.int(18, 23);
   const frond = (az: number, elev: number, len: number, dead: boolean) => {
@@ -832,7 +822,7 @@ function buildPalm(variant: number): TreeModelData {
     // petiole (wood)
     const petLen = dead ? 0.4 : 0.55;
     const pet = makeBranch([start, v3madd(start, dir0, petLen)], 0.045, 0.03, 2, branchLen(trunk));
-    tube(wood, pet, 4, 5, maxPath, null, null, 3);
+    branchTube(wood, pet, 4, 5, maxPath, null, null, 3);
     // leaflet strip with a V fold
     const fs = 11;
     let fd = dir0;

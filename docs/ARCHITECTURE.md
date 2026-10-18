@@ -39,15 +39,23 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | I need a material | Add or reuse a *kind* (`VERTEX_COLOR_SOLID`, `TERRAIN`, `GROUND`, `WATER`, `FACADE`; `kind.make()`). Textured kinds need `useTextures({ facade })` before the warm-up. Never `new ...Material` elsewhere (guarded). | `src/render/materials.ts` |
 | A kind's look as a TSL node graph (terrain land use, ground layers, water) | `terrainLook`, `groundLook`, `waterLook` (applied by the kind in materials.ts); the seed's field patchwork `setParcels(parcelParams(seed))`; noise from `h_noise2`/`h_fbm2` (`@futuremagic/humanoid/three/nodes/peopleNoise`) | `src/render/tsl/ground.ts` |
 | A building's look: textured walls and roofs, procedural windows, doors, shop fronts, rooms behind the glass | `facadeLook(mat, arrays)` (the `FACADE` kind) reading `facadeSpecs()` | `src/render/tsl/facade.ts` |
-| Shared TSL pieces: hashes, normal maps without tangents, the scene's light state | `h11`, `h21`, `perturbNormalUV`, `LIGHT` (night, dayLight, litFrac, shopLit, eatLit, wet; the day cycle sets them) | `src/render/tsl/common.ts` |
+| A tree's look: bark, leaf cards, far canopy hulls, the wind, geometry-instanced placement | `barkLook`, `leafLook`, `farLook` (the `BARK`, `LEAVES`, `TREE_FAR` kinds); wind strength `VEG.wind`; autumn from `SEASON.leaf` | `src/render/tsl/vegetation.ts` |
+| Street furniture and vehicles' look (material ids per vertex, paint per instance, lamps and signals glowing with `LIGHT.night`) | `furnitureLook(mat, atlas)`, `vehicleLook(mat)` (the instanced `FURNITURE`, `VEHICLE` kinds, placed by `poseByInstance`) | `src/render/tsl/furniture.ts`, `src/render/tsl/vehicles.ts` |
+| The text atlas texture (all lettering and signage pictures) | `textAtlas(runs = TEXT_RUNS)`: drawn once at load in the layout of `src/build/textAtlasLayout.ts` | `src/render/textAtlas.ts` |
+| Shared TSL pieces: hashes, normal maps without tangents, the scene's light state | `h11`, `h21`, `perturbNormalUV`, `LIGHT` (night, dayLight, litFrac, shopLit, eatLit, wet; the day cycle sets them), `SEASON` (leaf, bare, blossom; the season clock sets them); a geometry-instanced copy's place `posed(p)`, `poseByInstance(mat)` | `src/render/tsl/common.ts` |
 | The facade (and ground) texture arrays for the shaders | `loadTextures(pool, family, onProgress?, size?)` → `MaterialArrays` | `src/render/textures.ts` |
+| The vegetation's bark and leaf atlases for the shaders | `loadVegetationTextures(pool, priority)` → `VegetationTextures` (for `useTextures({ vegetation })`) | `src/render/textures.ts` |
 | I need a light | The fixed set from `makeLights` (a pool for lamps, planned). Never `new ...Light` elsewhere (guarded). | `src/render/lights.ts` |
 | Put something into the visible scene | `stage.add(obj)`: compiles first, then adds | `src/render/stage.ts` |
 | Compile something added to your own group later | `stage.prepare(obj)` | `src/render/stage.ts` |
 | Compile while something already plays on screen | `stage.warmLater(objs)` | `src/render/stage.ts` |
 | Turn mesh data into a mesh of a kind | `meshFromData(data: MeshData, kind)` (checks the attributes are the kind's), `wear(mesh, kind)` | `src/render/meshes.ts` |
+| Many copies of one model, one shader per kind | `instancedFromData(data, kind, count, capacity)`: a plain Mesh with an InstancedBufferGeometry carrying the kind's `instanced` attributes (not an InstancedMesh: three builds one shader per InstancedMesh) | `src/render/meshes.ts` |
+| Change which instances a geometry-instanced mesh shows (distance split, LOD) | `showInstances(meshes, src, picked, radius)`: copies the picked instances' attributes, sets the count, uploads, fits the bounding sphere | `src/render/meshes.ts` |
 | Point the sun's shadow at what the camera sees | `fitSunShadow(lights, x, y, z, r)` | `src/render/lights.ts` |
 | Show the whole town (from above) | `showTown(stage, pool, summary)`: every piece from the town workers onto the stage, centre first | `src/render/townView.ts` |
+| Show the trees and shrubs (town and countryside), near / far split by the camera | `showVegetation(stage, pool, parent, summary, priority)` → `VegetationShown` (`update(camera)` once a frame) | `src/render/vegetationView.ts` |
+| Show the street props (furniture, parked cars), by distance from the camera; where the street lamps' heads are | `showProps(stage, pool, parent, priority)` → `PropsShown` (`update(camera)` once a frame; `lamps`: `lampsOf` floats) | `src/render/propsView.ts` |
 | Did something compile on the render path? Is a shader over budget? | `shaders.report()` in the console; `stage.hudLine()` | `src/render/shaders/monitor.ts` |
 | A human: body, skeleton, materials, clothes, animation | `Humanoid` | `@futuremagic/humanoid/three` |
 | A human's look from a seed | `randomAppearance(race, seed, opts)` | `@futuremagic/humanoid` |
@@ -77,6 +85,15 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Terrain tiles and water of the world | `terrainTiles(terrain)`, `buildTerrainTile(…, land)`; `waterSources(terrain)`, `buildWaterTile` | `src/build/terrainMesh.ts` |
 | The town's ground (streets, sidewalks, plazas, lawns, markings) | `buildGround(plan, terrain, origin)`; drape any shape: `drapeShape`, `ringWall`; the one ground format `groundSpecs()`, `GroundLayer` | `src/build/ground.ts` |
 | Country roads, farmyards, the railway, level crossings, their bridges | `buildCountryRoads(rural, rail, terrain, tile?)` | `src/build/rural.ts` |
+| A tree or shrub model (wood, leaf cards, far hull) | `buildVegModel(i)` over `VEG_MODELS` (`vegModelIndex(species, variant)`); attribute specs `BARK_SPECS`, `LEAF_SPECS`, `FAR_SPECS`, per instance `INSTANCE_SPECS` | `src/build/vegetation.ts` |
+| Where trees stand: the town's props, countryside forests, hedgerows, orchards | `townTrees(cells, terrain)`, `new ForestGen(land, macro).tile(x0, z0, size)`; records of `FOREST_STRIDE` floats | `src/build/forest.ts` |
+| The bark and leaf atlases (RGBA8, pure) | `barkStrip(s)` + `packBark`, `leafAtlas()` | `src/build/vegetationTex.ts` |
+| Draw 2D shapes into RGBA without a canvas (paths, fills, strokes, clips, gradients) | `Paint2D` | `src/build/paint2d.ts` |
+| Solids laid out like three's geometries (box, cylinder, lathe, sphere, torus, icosphere, plane, tube on a Catmull-Rom curve) and the 4×4 transforms that place them, pure | `box`, `cylinder`, `lathe`, …, `M(…)`, `xform` | `src/build/prims.ts` |
+| A street furniture model (lamps, signals, benches, kiosks, café terraces, graves, …) | `furnitureModel(kind, variant)` over `FURNITURE_KINDS` (`FURNITURE_SPECS`; lamp heads in `.lights`) | `src/build/furniture.ts` |
+| A vehicle model; a car's paint | `vehicleModel(kind, variant)` (body, wheel, size; `VEHICLE_SPECS`), parked: `standingVehicle`, far off: `farVehicle(min, max)`; `paintColor(kind, seed)` | `src/build/vehicles.ts` |
+| The town's street props as instance lists (furniture, parked cars from the plan's `ParkedCar` slots, signals at junctions); the street lamps' heads | `propInstances(cells, terrain)` → `PropGroup[]` (`PROP_STRIDE`), `propModel(key)`, a car's far stand-in `propFar(key)`; `lampsOf(groups)` (`LAMP_STRIDE`: x, y, z, kind) | `src/build/streetProps.ts` |
+| Where a picture or a run of lettering sits in the text atlas | `pictureRect(cell)`; lettering: append a run to `TEXT_RUNS`, bake `textRects(TEXT_RUNS)[i]` | `src/build/textAtlasLayout.ts` |
 | Buildings and public buildings as shells for the facade shader (walls, roofs; layer, tint, bay, storeys, flags `FF`) | `buildBuildings(mb, buildings, terrain)`, `buildLandmark(mb, lm, terrain)`, `facadeSpecs()`, `paint(mb, layer, tint, flags?, bay?, fh?, gh?)`; a building's floor level and plinth bottom `buildingBase(b, terrain)`, its tiers `buildingTiers(b)` | `src/build/massing.ts` |
 | 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |
 | Polygon union, difference, intersection, offset | `src/geom/clip.ts` (clipper) | `src/geom/clip.ts` |

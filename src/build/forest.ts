@@ -45,7 +45,7 @@ class TownMask {
   private bucket = new Map<number, { poly: number[]; road: number }[]>();
   private static B = 256;
   constructor(macro: MacroPlan, land: LandUse) {
-    const add = (poly: number[], road: number) => {
+    const addEdge = (poly: number[], road: number) => {
       const b = polyBounds(poly);
       const m = road + 4;
       for (let i = Math.floor((b[0] - m) / TownMask.B); i <= Math.floor((b[2] + m) / TownMask.B); i++) {
@@ -58,8 +58,8 @@ class TownMask {
       }
     };
     const nearEdge = (pts: number[]) => { for (let i = 0; i < pts.length; i += 2) if (land.edge(pts[i], pts[i + 1]) > -250) return true; return false; };
-    for (const c of macro.cells) if (nearEdge(c.poly)) add(c.poly, 0);
-    for (const e of macro.edges) if (nearEdge(e.pts)) add(e.pts, e.width / 2 + e.sidewalk + 3);
+    for (const c of macro.cells) if (nearEdge(c.poly)) addEdge(c.poly, 0);
+    for (const e of macro.edges) if (nearEdge(e.pts)) addEdge(e.pts, e.width / 2 + e.sidewalk + 3);
   }
   /** Is (x, z) on the town's ground (within `margin` of a cell, or on a road)? */
   has(x: number, z: number, margin: number): boolean {
@@ -181,7 +181,7 @@ export class ForestGen {
     const m = P.warp + 10;
     u0 -= m; u1 += m; v0 -= m; v1 += m;
     const STEP = 7;
-    const place = (u: number, v: number, salt: number) => {
+    const plant = (u: number, v: number, salt: number) => {
       // Parcel space → world: undo the rotation, then the warp (fixed point).
       const [px, pz] = parcelToWorld(P, u, v);
       let x = px, z = pz;
@@ -204,13 +204,13 @@ export class ForestGen {
       // Row border (between rows j-1 and j), split by the cells of row j.
       const off = hashToFloat(hash2i(P.seed, 7, j)) * P.su;
       for (let u = Math.floor(u0 / STEP) * STEP; u <= u1; u += STEP) {
-        if (hedgeOnRow(P, Math.floor((u + off) / P.su), j)) place(u, v, 0);
+        if (hedgeOnRow(P, Math.floor((u + off) / P.su), j)) plant(u, v, 0);
       }
       // Cell borders across row j.
       for (let i = Math.floor((u0 + off) / P.su); i <= Math.ceil((u1 + off) / P.su); i++) {
         if (!hedgeOnCol(P, i, j)) continue;
         const u = i * P.su - off;
-        for (let vv = v + STEP * 0.5; vv < v + P.sv; vv += STEP) if (vv >= v0 && vv <= v1) place(u, vv, 1);
+        for (let vv = v + STEP * 0.5; vv < v + P.sv; vv += STEP) if (vv >= v0 && vv <= v1) plant(u, vv, 1);
       }
     }
   }

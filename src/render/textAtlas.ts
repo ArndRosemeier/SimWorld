@@ -1,27 +1,33 @@
 /**
- * The signage atlas of the street furniture (src/build/furniture.ts `cellRect`): a 4×4 grid of
- * 256 px pictures drawn on a canvas (stop sign, bus stop, posters, newspapers, pedestrian signal
- * masks, manhole cover, kiosk band, mail labels, timetable, name plate, street name blade).
- * Ported from Scale (src/props/furniture.ts getSignAtlas). Main thread (a DOM canvas).
+ * The one text atlas: all lettering and signage pictures in the world, drawn on a canvas at load
+ * in the layout of src/build/textAtlasLayout.ts (which the build layer bakes uvs from). The
+ * pictures: the street furniture's signage (stop sign, metro disc, bus stop, posters, newspapers,
+ * pedestrian signal masks, manhole cover, kiosk band, mail labels, timetable, name plate, street
+ * name blade), ported from Scale (src/props/furniture.ts getSignAtlas). The text slots: every run
+ * of TEXT_RUNS, fitted into its strip. Main thread (a DOM canvas).
  */
 import { CanvasTexture, LinearMipmapLinearFilter, SRGBColorSpace } from 'three/webgpu';
 import { Rng } from '@futuremagic/core';
+import { ATLAS_H, ATLAS_W, PICTURE_PX, TEXT_H, TEXT_RUNS, TEXT_W, picturePx, textPx, textRects, type TextRun } from '../build/textAtlasLayout';
 
-let signTex: CanvasTexture | null = null;
+let atlas: CanvasTexture | null = null;
 
-/** The atlas texture (made once, on first use). */
-export function signAtlas(): CanvasTexture {
-  if (signTex) return signTex;
-  const S = 1024, C = 256;
+const FONTS = { sans: 'Arial, Helvetica, sans-serif', serif: 'Georgia, serif' };
+
+/** The atlas texture with these runs in its text slots (made once, on first use: later calls get the same texture). */
+export function textAtlas(runs: readonly TextRun[] = TEXT_RUNS): CanvasTexture {
+  if (atlas) return atlas;
+  const C = PICTURE_PX;
   const cv = document.createElement('canvas');
-  cv.width = cv.height = S;
+  cv.width = ATLAS_W;
+  cv.height = ATLAS_H;
   const g = cv.getContext('2d')!;
   g.fillStyle = '#808080';
-  g.fillRect(0, 0, S, S);
+  g.fillRect(0, 0, ATLAS_W, ATLAS_H);
   const rng = Rng.from('signage');
   const cell = (i: number, draw: (g: CanvasRenderingContext2D) => void) => {
     g.save();
-    g.translate((i % 4) * C, Math.floor(i / 4) * C);
+    g.translate(...picturePx(i));
     g.beginPath(); g.rect(0, 0, C, C); g.clip();
     draw(g);
     g.restore();
@@ -184,11 +190,29 @@ export function signAtlas(): CanvasTexture {
     gg.strokeStyle = '#ffffff'; gg.lineWidth = 6; gg.strokeRect(6, 90, 244, 76);
     text(gg, 'MAIN ST', 128, 128, 54, '#ffffff', 'Arial, Helvetica, sans-serif', 'bold', 0.85);
   });
+  textRects(runs); // (checks they fit)
+  runs.forEach((r, i) => {
+    const [x, y] = textPx(i);
+    g.save();
+    g.fillStyle = r.background;
+    g.fillRect(x, y, TEXT_W, TEXT_H);
+    const size = TEXT_H * 0.72;
+    g.font = `bold ${size}px ${FONTS[r.font ?? 'sans']}`;
+    // Squeezed to fit the strip (never stretched).
+    const sx = Math.min(1, (TEXT_W - 16) / Math.max(1, g.measureText(r.text).width));
+    g.translate(x + TEXT_W / 2, y + TEXT_H / 2);
+    g.scale(sx, 1);
+    g.fillStyle = r.color;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(r.text, 0, 0);
+    g.restore();
+  });
   const t = new CanvasTexture(cv);
   t.colorSpace = SRGBColorSpace;
   t.anisotropy = 8;
   t.generateMipmaps = true;
   t.minFilter = LinearMipmapLinearFilter;
-  signTex = t;
+  atlas = t;
   return t;
 }

@@ -7,6 +7,7 @@
  * PlaneGeometry, TubeGeometry with a centripetal CatmullRomCurve3), so models ported from Scale
  * (src/props/furniture.ts) come out the same. New in SimWorld.
  */
+import { v3cross } from '@futuremagic/core';
 
 export type V3 = [number, number, number];
 
@@ -425,22 +426,21 @@ export function tube(curve: CatmullRom, segs: number, r: number, radial: number,
   if (ax <= min) { min = ax; nv = [1, 0, 0]; }
   if (ay <= min) { min = ay; nv = [0, 1, 0]; }
   if (az <= min) nv = [0, 0, 1];
-  const crs = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
   const nrm = (a: V3): V3 => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
-  const vec = nrm(crs(t0, nv));
-  N.push(crs(t0, vec)); B.push(crs(t0, N[0]));
+  const vec = nrm(v3cross(t0, nv));
+  N.push(v3cross(t0, vec)); B.push(v3cross(t0, N[0]));
   for (let i = 1; i <= segs; i++) {
     let n = N[i - 1];
-    const v = crs(T[i - 1], T[i]);
+    const v = v3cross(T[i - 1], T[i]);
     if (Math.hypot(...v) > Number.EPSILON) {
       const axis = nrm(v);
       const th = Math.acos(Math.max(-1, Math.min(1, T[i - 1][0] * T[i][0] + T[i - 1][1] * T[i][1] + T[i - 1][2] * T[i][2])));
       // rotate n about axis by th (Rodrigues)
-      const c = Math.cos(th), s = Math.sin(th), d = axis[0] * n[0] + axis[1] * n[1] + axis[2] * n[2], k = crs(axis, n);
+      const c = Math.cos(th), s = Math.sin(th), d = axis[0] * n[0] + axis[1] * n[1] + axis[2] * n[2], k = v3cross(axis, n);
       n = [n[0] * c + k[0] * s + axis[0] * d * (1 - c), n[1] * c + k[1] * s + axis[1] * d * (1 - c), n[2] * c + k[2] * s + axis[2] * d * (1 - c)];
     }
     N.push(n);
-    B.push(crs(T[i], n));
+    B.push(v3cross(T[i], n));
   }
   for (let i = 0; i <= segs; i++) {
     const P = curve.at(i / segs), rr = r + (rEnd - r) * (i / segs);

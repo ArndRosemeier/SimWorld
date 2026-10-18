@@ -2,8 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { planTown } from '../src/plan/town';
 import type { MeshData } from '../src/build/meshBuilder';
+import { VEHICLE_SPECS } from '../src/build/vehicles';
 import { FURNITURE_KINDS, FURNITURE_SPECS, buildFurniture, furnitureModel } from '../src/build/furniture';
-import { PROP_STRIDE, propInstances, propModel } from '../src/build/streetProps';
+import { LAMP_STRIDE, PROP_STRIDE, lampsOf, propFar, propInstances, propModel } from '../src/build/streetProps';
+import { PICTURES, TEXT_SLOTS, pictureRect, textRects, type AtlasRect } from '../src/build/textAtlasLayout';
 import { box, cylinder, lathe, sphere, torus, icosphere, tube, CatmullRom, xform, M, type Prim } from '../src/build/prims';
 
 /** Indices in range, finite positions, unit normals, the kind's attributes in full. */
@@ -96,4 +98,30 @@ test('the town\'s props become instance lists of buildable models, on the ground
   }
   assert.ok(cars > 50, `${cars} parked cars`);
   assertSound(propModel('f:bench:0'), FURNITURE_SPECS, 'propModel');
+  assertSound(propFar(keys.find((k) => k.startsWith('v:'))!)!, VEHICLE_SPECS, 'far vehicle');
+  assert.equal(propFar('f:bench:0'), null);
+  // Every lamp head: above its lamp's foot, by the light's height in the model.
+  const lamps = lampsOf(groups), feet = groups.filter((g) => g.model.startsWith('f:lamp'));
+  assert.ok(lamps.length > 0 && lamps.length % LAMP_STRIDE === 0);
+  assert.ok(lamps.length / LAMP_STRIDE >= feet.reduce((n, g) => n + g.inst.length / PROP_STRIDE, 0), 'a head per lamp at least');
+  for (let o = 0; o < lamps.length; o += LAMP_STRIDE) {
+    const h = town.terrain.height(lamps[o], lamps[o + 2]);
+    if (!(lamps[o + 1] > h + 3 && lamps[o + 1] < h + 12 && [0, 1, 2].includes(lamps[o + 3]))) assert.fail(`lamp head ${o / LAMP_STRIDE}: y ${lamps[o + 1]} over ${h}, kind ${lamps[o + 3]}`);
+  }
+});
+
+test('the text atlas: pictures in the top half, text slots below, none overlapping', () => {
+  const runs = Array.from({ length: TEXT_SLOTS }, (_, i) => ({ text: `RUN ${i}`, color: '#fff', background: '#000' }));
+  const rects: [AtlasRect, string][] = [
+    ...Array.from({ length: PICTURES }, (_, i) => [pictureRect(i), `picture ${i}`] as [AtlasRect, string]),
+    ...textRects(runs).map((r, i) => [r, `text ${i}`] as [AtlasRect, string]),
+  ];
+  for (const [[u0, v0, u1, v1], w] of rects) assert.ok(u0 >= 0 && u1 <= 1 && v0 >= 0 && v1 <= 1 && u0 < u1 && v0 < v1, w);
+  for (const [[, v0], w] of rects.slice(0, PICTURES)) assert.ok(v0 >= 0.5, w);
+  for (const [[, , , v1], w] of rects.slice(PICTURES)) assert.ok(v1 <= 0.5, w);
+  for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+    const [a, b] = [rects[i][0], rects[j][0]];
+    assert.ok(a[2] <= b[0] || b[2] <= a[0] || a[3] <= b[1] || b[3] <= a[1], `${rects[i][1]} overlaps ${rects[j][1]}`);
+  }
+  assert.throws(() => textRects([...runs, runs[0]]));
 });

@@ -9,7 +9,7 @@ import { buildGround } from '../build/ground';
 import { buildTerrainTile, buildWaterTile, terrainSkirt, terrainTiles, waterSources, type WaterSources } from '../build/terrainMesh';
 import { buildCountryRoads } from '../build/rural';
 import { buildBridges } from '../build/bridges';
-import { propInstances, propModel } from '../build/streetProps';
+import { lampsOf, propFar, propInstances, propModel } from '../build/streetProps';
 import { ForestGen, townTrees } from '../build/forest';
 import { buildVegModel } from '../build/vegetation';
 import { facadeSpecs, buildBuildings, buildLandmark } from '../build/massing';
@@ -75,8 +75,8 @@ function handle(m: ToTown): FromTown {
       const b = buildBridges(macro.bridges, terrain, macro.edges);
       return { type: 'bridges', ground: out(b.deck), buildings: out(b.structure), ms: ms() };
     }
-    case 'props': return { type: 'props', groups: propInstances(cells, terrain), ms: ms() };
-    case 'propModel': return { type: 'propModel', mesh: propModel(m.model), ms: ms() };
+    case 'props': { const groups = propInstances(cells, terrain); return { type: 'props', groups, lamps: lampsOf(groups), ms: ms() }; }
+    case 'propModel': return { type: 'propModel', mesh: propModel(m.model), far: propFar(m.model), ms: ms() };
     case 'trees': return { type: 'trees', recs: townTrees(cells, terrain), ms: ms() };
     case 'forest': return { type: 'forest', recs: (forest ??= new ForestGen(land, macro)).tile(m.x0, m.z0, m.size), ms: ms() };
     case 'vegModel': return { type: 'vegModel', model: buildVegModel(m.index), ms: ms() };

@@ -28,7 +28,7 @@ export class LinearGradient {
     this.stops.push([t, c]);
     this.stops.sort((a, b) => a[0] - b[0]);
   }
-  at(t: number): RGBA {
+  colorAt(t: number): RGBA {
     const s = this.stops;
     if (!s.length) return [0, 0, 0, 0];
     if (t <= s[0][0]) return s[0][1];
@@ -151,7 +151,7 @@ export class Paint2D {
   /** Stroke the path: one nonzero fill of a quad per segment and a disc per vertex (round joins and caps). */
   stroke(): void {
     const hw = this.lineWidth / 2, polys: number[][] = [];
-    const disc = (x: number, y: number) => {
+    const penDisc = (x: number, y: number) => {
       const n = clamp(Math.ceil(hw * 3), 6, 24), p: number[] = [];
       for (let k = 0; k < n; k++) { const a = (k / n) * Math.PI * 2; p.push(x + Math.cos(a) * hw, y + Math.sin(a) * hw); }
       polys.push(p);
@@ -166,7 +166,7 @@ export class Paint2D {
         const nx = (-dy / l) * hw, ny = (dx / l) * hw;
         polys.push([ax + nx, ay + ny, bx + nx, by + ny, bx - nx, by - ny, ax - nx, ay - ny]);
       }
-      for (let i = 0; i < n; i++) disc(P[i * 2], P[i * 2 + 1]);
+      for (let i = 0; i < n; i++) penDisc(P[i * 2], P[i * 2 + 1]);
     }
     // Every piece wound the same way, so the nonzero rule paints their union once.
     this.paint(this.cover(polys.map(ensureCCW)), this.strokeStyle);
@@ -266,7 +266,7 @@ export class Paint2D {
       const px = c.x0 + i, py = c.y0 + j;
       if (clip) a *= maskAt(clip, px, py);
       if (a <= 0) continue;
-      const col = grad ? grad.g.at(((px + 0.5 - grad.ox) * grad.dx + (py + 0.5 - grad.oy) * grad.dy) / grad.l2) : solid;
+      const col = grad ? grad.g.colorAt(((px + 0.5 - grad.ox) * grad.dx + (py + 0.5 - grad.oy) * grad.dy) / grad.l2) : solid;
       const sa = Math.min(1, a) * col[3];
       if (sa <= 0) continue;
       const o = (py * W + px) * 4, k = 1 - sa;

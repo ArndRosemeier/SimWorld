@@ -1,20 +1,20 @@
 // @ts-nocheck -- three's TSL typings infer swizzles and vector widths poorly; checked by rendering.
 /**
  * The vehicle look (the `VEHICLE` kind; meshes from src/build/vehicles.ts): the per vertex part
- * id (aPart) picks paint / glass / chrome / tyres / lights; per instance the paint (the batch
- * colour, sRGB; the kind is batched). The state (x headlights, y brake, z indicator −1 left / +1
+ * id (aPart) picks paint / glass / chrome / tyres / lights; per instance (geometry-instanced) the
+ * place (iPose / iSize, `poseByInstance`) and the paint (iPaint, sRGB). The state (x headlights, y brake, z indicator −1 left / +1
  * right / ±2 hazards / ±3 emergency, w engine running: daytime running lights) is all zero for
- * parked cars: moving traffic will feed it per instance (a data texture by the batch's instance id).
+ * parked cars: moving traffic will feed it per instance (an instance attribute more).
  * Ported from Scale (src/render/webgpu/vehicles.ts), kept close to it; Scale's damage (scratches,
  * cracked glass, dents), military paint and the mirrored-instance correction stay behind.
  */
 import type { MeshPhysicalNodeMaterial } from 'three/webgpu';
 import {
   Fn, float, int, vec2, vec3, mix, min, max, abs, fract, floor, smoothstep, sub, add, mul, dot, step, pow, clamp, select,
-  If, struct, attribute, varying, positionGeometry, time, vec4, batchColor,
+  If, struct, attribute, varying, positionGeometry, time, vec4,
 } from 'three/tsl';
 import { h_hash13 as vhHash, h_noise3 as vhNoise } from '@futuremagic/humanoid/three/nodes/peopleNoise';
-import { LIGHT } from './common';
+import { LIGHT, poseByInstance } from './common';
 import { setDiffuse } from './ground';
 
 const VhSurf = struct({ col: 'vec3', rough: 'float', metal: 'float', cc: 'float', ccr: 'float', emis: 'vec3' }, 'VehicleSurf');
@@ -26,7 +26,8 @@ export function vehicleLook(mat: MeshPhysicalNodeMaterial): void {
   const vPart = attribute('aPart', 'float');
   const vObjPos = varying(positionGeometry, 'vObjPos');
   const vVUv = attribute('uv', 'vec2');
-  const vPaint = vhToLinear(clamp(batchColor.xyz, 0.0, 1.0));
+  poseByInstance(mat);
+  const vPaint = varying(vhToLinear(clamp(attribute('iPaint', 'vec3'), 0.0, 1.0)), 'vPaint');
   const vState = vec4(0.0);
   const LUM = vec3(0.2126, 0.7152, 0.0722);
 

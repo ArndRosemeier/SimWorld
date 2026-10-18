@@ -3,7 +3,7 @@
  * material kind. The one way: the attributes must be the kind's (docs/SHADERS.md), so it is
  * checked here, once.
  */
-import { BatchedMesh, BufferAttribute, BufferGeometry, InstancedBufferAttribute, InstancedMesh, Mesh } from 'three/webgpu';
+import { BufferAttribute, BufferGeometry, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, Sphere } from 'three/webgpu';
 import type { MeshData } from '../build/meshBuilder';
 import type { MaterialKind } from './materials';
 
@@ -17,42 +17,71 @@ export function meshFromData(d: MeshData, kind: MaterialKind): Mesh {
 }
 
 /**
- * Room for at least this many instances in every instanced mesh: three keeps fewer instance
- * matrices in a uniform buffer whose length is part of the shader (a shader per batch size, and
- * the warm-up's one-instance stand-in would match none); this many always go in a vertex
- * attribute (64 KB is the usual uniform block limit), one shader for every batch.
+ * `count` copies of the mesh data (a model at its own origin) drawn by geometry instancing: a
+ * plain mesh whose InstancedBufferGeometry carries the kind's per-instance attributes
+ * (`kind.instanced`, zeroed; the kind's look places each copy from them). Not an InstancedMesh:
+ * three keys an InstancedMesh's shader by the object (one build per mesh), a plain mesh's by its
+ * attributes, so every mesh of the kind shares the kind's one shader. Room for `capacity`; the
+ * caller fills the attributes, sets `geometry.instanceCount` (up to the capacity) and the
+ * bounding sphere for culling.
  */
-export const MIN_INSTANCES = 2048;
-
-/**
- * `count` copies of the mesh data (a model at its own origin), with the kind's per-instance
- * attributes (`kind.instanced`, zeroed): the caller sets the matrices and attributes, then
- * `computeBoundingSphere()` for culling. Room for `capacity` (at least MIN_INSTANCES): raise
- * `count` up to it later without a new mesh.
- */
-export function instancedFromData(d: MeshData, kind: MaterialKind, count: number, capacity = count): InstancedMesh {
+export function instancedFromData(d: MeshData, kind: MaterialKind, count: number, capacity = count): Mesh {
   if (!kind.instanced) throw new Error(`kind "${kind.name}" is not drawn instanced`);
-  const cap = Math.max(count, capacity, MIN_INSTANCES);
-  const g = geometryOf(d, kind);
+  const cap = Math.max(1, count, capacity);
+  const src = geometryOf(d, kind), g = new InstancedBufferGeometry();
+  for (const [name, a] of Object.entries(src.attributes)) g.setAttribute(name, a);
+  g.setIndex(src.index);
   for (const a of kind.instanced) g.setAttribute(a.name, new InstancedBufferAttribute(new Float32Array(cap * a.size), a.size));
-  const m = wear(new InstancedMesh(g, kind.make(), cap), kind);
-  m.count = count;
-  return m;
+  g.instanceCount = count;
+  g.boundingSphere = src.boundingSphere;
+  return wear(new Mesh(g, kind.make()), kind);
 }
 
 /**
- * Many models of a `batched` kind in one BatchedMesh (one shader for all of them: three keys an
- * instanced or batched mesh's shader by the object, so a mesh per model would build one each):
- * `geometries[i]` is model i's id for `addInstance`. Room for `maxInstances`; the caller adds the
- * instances, their matrices and `setColorAt` (the kind's per-instance values, `batchColor` in TSL).
+ * Show these instances (`picked`, indices into the source arrays) in geometry-instanced meshes
+ * of one kind that share their instance attributes (`instancedFromData`; `meshes[0]` owns them):
+ * each attribute named in `src` (per instance, the kind's sizes) copied in order, the count set,
+ * uploaded, and a bounding sphere round the instances (their iPose places, `radius` m times the
+ * largest iSize) for culling. The one way to repack an instanced mesh when what it shows changes.
  */
-export function batchedFromData(models: readonly MeshData[], kind: MaterialKind, maxInstances: number): { mesh: BatchedMesh; geometries: number[] } {
-  if (!kind.batched) throw new Error(`kind "${kind.name}" is not drawn batched`);
-  const gs = models.map((d) => geometryOf(d, kind));
-  const verts = gs.reduce((n, g) => n + g.getAttribute('position').count, 0), idx = gs.reduce((n, g) => n + g.getIndex()!.count, 0);
-  const mesh = wear(new BatchedMesh(Math.max(1, maxInstances), Math.max(3, verts), Math.max(3, idx), kind.make()), kind);
-  const geometries = gs.map((g) => { const id = mesh.addGeometry(g); g.dispose(); return id; });
-  return { mesh, geometries };
+export function showInstances(meshes: readonly Mesh[], src: Readonly<Record<string, Float32Array>>, picked: ArrayLike<number>, radius: number): void {
+  const g0 = meshes[0].geometry as InstancedBufferGeometry, n = picked.length;
+  for (const [name, from] of Object.entries(src)) {
+    const a = g0.getAttribute(name) as InstancedBufferAttribute, to = a.array as Float32Array, k = a.itemSize;
+    for (let j = 0; j < n; j++) for (let c = 0, f = picked[j] * k; c < k; c++) to[j * k + c] = from[f + c];
+    a.needsUpdate = true;
+  }
+  const pose = src.iPose, size = src.iSize;
+  let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity, s = 0;
+  for (let j = 0; j < n; j++) {
+    const i = picked[j];
+    x0 = Math.min(x0, pose[i * 4]); x1 = Math.max(x1, pose[i * 4]);
+    y0 = Math.min(y0, pose[i * 4 + 1]); y1 = Math.max(y1, pose[i * 4 + 1]);
+    z0 = Math.min(z0, pose[i * 4 + 2]); z1 = Math.max(z1, pose[i * 4 + 2]);
+    s = Math.max(s, size[i * 2], size[i * 2 + 1]);
+  }
+  for (const m of meshes) {
+    const g = m.geometry as InstancedBufferGeometry, sp = (g.boundingSphere ??= new Sphere());
+    g.instanceCount = n;
+    if (!n) { sp.center.set(0, -1e6, 0); sp.radius = 0; continue; }
+    sp.center.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    sp.radius = Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 2 + radius * s;
+  }
+}
+
+/**
+ * Which instances (iPose places, 4 floats each) are within `near` of `cam` (3D, and `nearOk`), and
+ * which of the rest within `far`: the split of a near / far pair of instanced meshes, for
+ * `showInstances`.
+ */
+export function splitByDistance(pose: Float32Array, n: number, cam: { x: number; y: number; z: number }, near: number, far = Infinity, nearOk: (i: number) => boolean = () => true): [number[], number[]] {
+  const a: number[] = [], b: number[] = [], n2 = near * near, f2 = far * far;
+  for (let i = 0; i < n; i++) {
+    const dx = pose[i * 4] - cam.x, dy = pose[i * 4 + 1] - cam.y, dz = pose[i * 4 + 2] - cam.z, d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 < n2 && nearOk(i)) a.push(i);
+    else if (d2 < f2) b.push(i);
+  }
+  return [a, b];
 }
 
 /** The geometry of mesh data whose attributes must be the kind's (checked). */
