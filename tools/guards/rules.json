@@ -8,6 +8,7 @@
     { "id": "renderer.compile", "pattern": "\\.compile(Async)?\\s*\\(", "only": ["src/render/stage.ts"], "why": "compiling is the Stage's job: warmUp(), warmLater() and add() (docs/SHADERS.md)" },
     { "id": "new Light", "pattern": "\\bnew\\s+(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)\\s*\\(", "only": ["src/render/lights.ts"], "why": "lights are a fixed pool made before the warm-up: the light count is part of every shader's cache key (docs/SHADERS.md)" },
     { "id": "localStorage", "pattern": "\\blocalStorage\\b", "only": ["src/persist/"], "why": "persistence goes through src/persist" },
+    { "id": "indexedDB", "pattern": "\\bindexedDB\\b", "only": ["src/persist/"], "why": "persistence goes through src/persist (saves of the world: src/persist/saves.ts)" },
     { "id": "fetch openrouter", "pattern": "openrouter\\.ai", "flags": "gi", "only": ["src/llm/"], "why": "every LLM call goes through src/llm (model roster, task routing, usage tracking)" },
     { "id": "wall clock", "pattern": "\\bDate\\.now\\s*\\(|\\bnew\\s+Date\\s*\\(", "only": ["src/app/", "src/game/", "src/render/", "src/audio/", "src/persist/", "src/workers/", "src/llm/llm.ts"], "why": "the pure layers are deterministic: the real date enters through createWorld (src/sim/calendar.ts), timings are injected" },
     { "id": "AudioContext", "pattern": "\\bnew\\s+(webkit)?AudioContext\\s*\\(", "only": ["src/audio/"], "why": "one audio engine (src/audio)" }

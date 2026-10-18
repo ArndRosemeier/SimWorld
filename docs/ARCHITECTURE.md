@@ -19,7 +19,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | `src/talk` | The procedural text engine (background chatter, fallback answers). Pure. | core, `src/sim` types |
 | `src/llm` | OpenRouter, the model roster, task routing, usage ledger, prompt building, response contracts. No state of its own about NPCs. | core, `src/sim` types |
 | `src/audio` | Sound: the sound map (made in a town worker), the soundscape (pure: what plays when and where), the music choice, and the Web Audio engine that plays them (no three.js). | core, `src/sim` (time, calendar, weather), `src/plan`, `src/world`, `src/geom`, `src/persist` |
-| `src/persist` | Preferences now, saves later: the one place that touches `localStorage` (guarded). | nothing of ours |
+| `src/persist` | Preferences and saves of the world: the one place that touches `localStorage` and IndexedDB (guarded). | nothing of ours |
 | `src/render` | three.js: renderer, Stage, materials, lights, meshes, views. | everything pure |
 | `src/app` | DOM UI: loading/selector, chat panel, HUD, settings. | everything |
 | `src/game` | Glue: the main loop, input, wiring the sim worker to the views. | everything |
@@ -88,7 +88,8 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Where does a road or the railway bridge a river? | `riverSpans(terrain, pts, margin)` | `src/world/terrain.ts` |
 | Forest, fields, meadow at a point | `LandUse.sample`; the town's outline `LandUse.edge` | `src/world/landuse.ts` |
 | Arterials, cells, districts, sites, the railway | `buildMacroPlan(terrain)` → `MacroPlan` | `src/plan/macro.ts` |
-| Streets, lots, buildings, props of one cell | `planCell(macro, cell, terrain)` (eatery terraces: `placeEateries`, after the uses are decided) | `src/plan/cell.ts`, `src/plan/terrace.ts` |
+| Streets, lots, buildings, props of one cell | `planCell(macro, cell, terrain)` (eatery terraces: `placeEateries`, after the uses are decided); kerbside parking bays `plan.parking` (`ParkingBay`: clear of cross streets by `SETBACK`, of crossings, all on the carriageway; `car` where a parked car stands) | `src/plan/cell.ts`, `src/plan/terrace.ts` |
+| What stands in the way on foot (or of a car): footprints of a cell's solid props (trees' trunks, furniture, terraces, parked cars, graves) | `obstaclesOf(plan)` → `OBSTACLE_STRIDE` floats (x, z, yaw, hx, hz: an oriented box); `inObstacle(obs, k, x, z, pad)` | `src/plan/obstacles.ts` |
 | Where are the town hall, church, school, …, station, the supermarket (car park in front), the care home, the petrol station? | `macro.landmarks` (`Landmark`: kind, site frame, `cell` -1 outside the town with its `road`); `siteToWorld`, `inSite`; the care home's rooms `careHomeRooms(lm)` (its place's `homes`, at most `CARE_ROOMS_PER_PERSON` of the town, `src/sim/placeKinds.ts`) | `src/plan/landmarks.ts` |
 | The parts (massing) of a public building | `landmarkParts(lm, terrain)` on the `Kit` | `src/plan/landmarkParts.ts`, `src/plan/civicParts.ts`, `src/plan/kit.ts` |
 | The railway and the station spot | `planRail(plan, terrain)` → `macro.rail` (`Railway`) | `src/plan/rail.ts` |
@@ -101,9 +102,9 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | The town as the sim sees it (places, addresses, road network) | `placeGraphOf(town)` → `PlaceGraph`; `buildingRef(place.building)` back to the cell building, site or farm. Each `RoadEdge` carries its centreline (`pts`, when bent) and where people walk beside it (`side`: mid-sidewalk, a country road's verge) | `src/plan/placeGraph.ts` |
 | Build mesh data (any kind) | `MeshBuilder(specs)` → `build(): MeshData`; the specs are the material kind's `attributes` | `src/build/meshBuilder.ts` |
 | A procedural material texture layer (facade, roof, ground, interior floors and walls; tileable RGBA8 albedo+roughness, normal+height+AO) | `generateFacadeLayer(i, size)`, `generateGroundLayer(i, size)`, `generateInteriorLayer(i, size)` (`InteriorMat`), `FACADE_TILE_METERS`, `GROUND_TILE_METERS`, `INTERIOR_TILE_METERS`, `TEX_SIZE`; building blocks `TNoise`, `worley`, `Tex`, `Layout`, `brickWall`, `stoneBlocks` | `src/build/texgen/` |
-| Terrain tiles and water of the world | `terrainTiles(terrain)`, `buildTerrainTile(…, land)`; `waterSources(terrain)`, `buildWaterTile` | `src/build/terrainMesh.ts` |
+| Terrain tiles and water of the world; how high the drawn terrain is (coarse far out) | `terrainTiles(terrain)`, `buildTerrainTile(…, land)`, `terrainMeshHeight(terrain, x, z)`; `waterSources(terrain)`, `buildWaterTile` | `src/build/terrainMesh.ts` |
 | Where are the zebra crossings? | `crossingsOf(plan)` → `Crossing[]` (x, z on the centreline, `heading` along the street away from the junction, carriageway `width`, `street`, `end`), `crossingSetback(width)`; which streets a cell marks and which of their ends meet a junction: `markedEnds(plan, st)`. The ground paints them, people on the street cross there | `src/plan/crossings.ts` |
-| The town's ground (streets, sidewalks, plazas, lawns, markings) | `buildGround(plan, terrain, origin)` (zebra crossings from `crossingsOf`); drape any shape: `drapeShape`, `ringWall`; the one ground format `groundSpecs()`, `GroundLayer` | `src/build/ground.ts` |
+| The town's ground (streets, sidewalks, plazas, lawns, markings) | `buildGround(plan, terrain, origin)` (zebra crossings from `crossingsOf`; the draped surfaces, which never overlap: `groundSurfaces(plan)`); drape any shape: `drapeShape`, `ringWall`; the one ground format `groundSpecs()`, `GroundLayer` | `src/build/ground.ts` |
 | Country roads, farmyards, the railway, level crossings, their bridges | `buildCountryRoads(rural, rail, terrain, tile?)` | `src/build/rural.ts` |
 | A tree or shrub model (wood, leaf cards, far hull) | `buildVegModel(i)` over `VEG_MODELS` (`vegModelIndex(species, variant)`); attribute specs `BARK_SPECS`, `LEAF_SPECS`, `FAR_SPECS`, per instance `INSTANCE_SPECS` | `src/build/vegetation.ts` |
 | Where trees stand: the town's props, countryside forests, hedgerows, orchards | `townTrees(cells, terrain)`, `new ForestGen(land, macro).tile(x0, z0, size)`; records of `FOREST_STRIDE` floats | `src/build/forest.ts` |
@@ -144,6 +145,9 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Question | The one way | Where |
 |---|---|---|
 | Which version is this build, what changed? | `VERSION` and `whatsNewButton()` / `openWhatsNew()` (read CHANGELOG.md at build time via `parseChangelog`); versions are given only by the changelog fold after each merge (`changes/README.md`) | `src/app/whatsNew.ts`, `src/app/changelog.ts`, `tools/changelog.mjs` |
+| Open a modal panel over the game (What's new, the paper): backdrop, Escape and click-outside to close | `openDialog(prefix, label, closeButton)` → the panel to fill; small elements with `el(tag, cls, text)` | `src/app/dom.ts` |
+| Read the town's weekly paper in play | `paperButton(() => sim.view)`: the newest edition and the board notices from `SimView.media` (`mediaView`, src/sim/media.ts) | `src/app/paperPanel.ts` |
+| Show the town map (roads by class with street names, buildings, parks, water and woods, railway, landmarks, where you are) | `townMapOf(town)` → `TownMap` in a town worker (`{ type: 'map' }`), drawn by `mapButton(fetch, me)` | `src/plan/townMap.ts`, `src/app/mapPanel.ts` |
 
 ### The street (`src/street`)
 
@@ -174,11 +178,11 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Plan the town and build its mesh data off the main thread | the town workers (`ToTown` / `FromTown`, `TownSummary`) | `src/workers/town.worker.ts`, `src/workers/townProtocol.ts` |
 | Generate the material texture layers off the main thread | the texture workers (`ToTex` / `FromTex`) | `src/workers/tex.worker.ts`, `src/workers/texProtocol.ts` |
 | Answer the worker pool's messages inside a worker | `serve(handle, transfer)` | `src/workers/serve.ts` |
-| Run the society simulation; the game clock | the sim worker, talked to through `SimClient`: `SimClient.boot(settings, start, startDay, clock, rate)` with `playStart(time, date?)` (today's date and time, or `?date=`/`?time=`: the one place the wall clock enters play), `sim.clock`, `sim.poll(x, z)` each frame, `sim.view`, `sim.walkers` | `src/workers/sim.worker.ts`, `src/game/SimClient.ts` |
+| Run the society simulation; the game clock | the sim worker, talked to through `SimClient`: `SimClient.boot(settings, start, startDay, clock, rate, { resume })` with `playStart(time, date?)` (today's date and time, or `?date=`/`?time=`: the one place the wall clock enters play), `sim.clock`, `sim.poll(x, z)` each frame, `sim.view`, `sim.walkers`; the time skip `sim.skip(days)` (the worker runs `chronicle`, then the morning up to the same time of day); saves `sim.saveNow()` and `sim.keepSaved()` (on tab hide and every 5 minutes), one per town, played on with `resume` | `src/workers/sim.worker.ts`, `src/game/SimClient.ts` |
 | The world the sky and the sound read (the calendar's and the weather's inputs) | `screenWorld(seed, play)` → `ScreenWorld` (seed, epoch, latitude, clock, region), put on the running sim each frame with `followSim(world, sim)`; the sky takes the weather from `sim.view.weather` | `src/game/SimClient.ts` |
 | Who is out of doors near the camera, and where exactly are they? | `sim.walkers` (tracks from the worker, changes only), placed each frame with `sim.where(walker, clock)`; the people view gets them as figures from `Street` | `src/game/SimClient.ts`, `src/game/street.ts` |
 | What does a view need from the sim? Where people and pets are and what they do, lit dwellings, cars at home, trips, each dwelling's look (wealth, upkeep, kids, pets, car) | `SimView`: `viewOf(world)` as transferable typed arrays, sent by the sim worker. Every view (people, traffic, windows, gardens) reads it; no view keeps a second channel to the sim, and the planner and build get the per-dwelling look as data, never by deriving it from the plan. So far: date, weather (now and at 07:00), per actor place, destination and activity, the trips as columns with the household (`tripRow`), today's agenda at its places (`occasions`: kind, start, end, x, z) | `src/sim/view.ts` |
-| Save or load anything | `src/persist` (guarded: `localStorage` only there); the player's small preferences: `readPref`, `writePref`, `readNumPref`, `readJsonPref` (saves of the world, planned) | `src/persist/prefs.ts` |
+| Save or load anything | `src/persist` (guarded: `localStorage` and `indexedDB` only there); the player's small preferences: `readPref`, `writePref`, `readNumPref`, `readJsonPref`; saves of the world in IndexedDB, gzipped: `storeSave(key, bytes, clock)`, `readSave(key)`, `dropSave(key)` (the game saves through `SimClient`) | `src/persist/prefs.ts`, `src/persist/saves.ts` |
 
 ### The society (`src/sim`)
 

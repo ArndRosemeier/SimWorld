@@ -216,6 +216,10 @@
     "reason": "The length of a wall segment ({ax, az, bx, bz}, the interior's IWall and the filler's Edge) before walking along it."
   },
   {
+    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
+    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
+  },
+  {
     "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/home.ts + simworld/interior/fill/work.ts",
     "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
   },
@@ -412,6 +416,14 @@
     "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
   },
   {
+    "key": "idiom: [.beginPath .lineTo .lineWidth .moveTo] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
+  },
+  {
+    "key": "idiom: [.save .translate] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
+  },
+  {
     "key": "idiom: [.add .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/smoke.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
@@ -422,5 +434,13 @@
   {
     "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/smoke.ts + simworld/render/tsl/vehicles.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.vertexNode] in simworld/render/tsl/precip.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/smoke.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.cornerGap] in simworld/interior/fill/home.ts + simworld/interior/fill/place.ts + simworld/interior/fill/work.ts",
+    "reason": "Furnishing rules scoring a candidate spot by the filler's own cornerGap (one seam, Filler.cornerGap); each room's rule weighs it differently, nothing to fold."
   }
 ]

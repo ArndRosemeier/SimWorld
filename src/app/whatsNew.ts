@@ -5,7 +5,7 @@
  */
 import changelogMd from '../../CHANGELOG.md?raw';
 import { parseChangelog, type Release } from './changelog';
-import { el, onEscape } from './dom';
+import { el, openDialog } from './dom';
 
 const RELEASES: Release[] = parseChangelog(changelogMd);
 
@@ -22,14 +22,10 @@ export function whatsNewButton(): HTMLButtonElement {
 
 /** Shows every version, newest first. Closes on its button, Escape, or a click outside. */
 export function openWhatsNew(): void {
-  if (document.querySelector('.wn-backdrop')) return;
-  const backdrop = el('div', 'wn-backdrop');
-  const panel = el('div', 'wn-panel');
-  panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-modal', 'true');
-  panel.setAttribute('aria-label', "What's new");
   const close = el('button', 'wn-close', 'Close');
   close.type = 'button';
+  const panel = openDialog('wn', "What's new", close);
+  if (!panel) return;
   const header = el('div', 'wn-head');
   header.append(el('h2', '', "What's new"), close);
   const list = el('div', 'wn-list');
@@ -44,12 +40,5 @@ export function openWhatsNew(): void {
   }
   if (!RELEASES.length) list.append(el('p', '', 'No versions yet.'));
   panel.append(header, list);
-  backdrop.append(panel);
-  const shut = (): void => { backdrop.remove(); stopKeys(); };
-  const stopKeys = onEscape(shut);
-  close.addEventListener('click', shut);
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) shut(); });
-  document.body.append(backdrop);
-  close.focus();
 }
 

@@ -140,7 +140,8 @@ export class RoadNet {
       }
       if (L.source === LineSource.Country || L.source === LineSource.Track) {
         const r = town.rural.roads[L.ref];
-        return r.bridges.length ? countryRoadSurface(r, terrain) : null;
+        // The drawn surface: a little above the ground (more on the bigger roads), decks on bridges.
+        return countryRoadSurface(r, terrain);
       }
       return null;
     }

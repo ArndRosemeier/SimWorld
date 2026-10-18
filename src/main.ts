@@ -46,6 +46,8 @@ import { formatDate } from './sim/calendar';
 import { TownAudio } from './audio/townAudio';
 import { soundEnvFromSim, soundEnvOf, soundOverrides } from './audio/env';
 import { soundButton } from './app/soundPanel';
+import { paperButton } from './app/paperPanel';
+import { mapButton } from './app/mapPanel';
 
 const HAZE = 0xa9c8e4;
 
@@ -83,7 +85,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const q0 = new URLSearchParams(location.search);
   const rate = Math.max(0, Number(q0.get('speed') ?? 1)) || 1;
   // The society: planned and populated in its own worker while the rest loads.
-  const simulated = SimClient.boot(settings, play.start, play.startDay, play.clock, rate);
+  // `?resume`: play on from this town's last save (made when the tab is hidden, and every few minutes).
+  const simulated = SimClient.boot(settings, play.start, play.startDay, play.clock, rate, { resume: q0.has('resume') });
   // The town workers start planning at once; the texture workers generate the facade textures
   // meanwhile (the shaders need them before the warm-up), then the renderer warms up.
   const pool = new WorkerPool<ToTown, FromTown>(townWorkerUrl, Math.min(4, cores));
@@ -144,6 +147,9 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
 
   step('Waking the town', 0.15);
   const sim = await simulated;
+  if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);
+  sim.keepSaved();
+  document.body.append(paperButton(() => sim.view));
   const street = new Street(sim, people, settings.seed);
 
   // The drone drift: a slow circle around the town, high enough to see it whole (or fixed by ?at=…).
@@ -157,6 +163,10 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
   const fwd = { x: 0, y: 0, z: 0 };
+  document.body.append(mapButton(
+    async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
+    () => (cam.mode === 'drone' ? null : { x: camera.position.x, z: camera.position.z, fx: fwd.x, fz: fwd.z }),
+  ));
   renderer.setAnimationLoop((t: number) => {
     const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
     lastT = t;
