@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.011 — The game on the web
+
+- Every merge is now published on GitHub Pages, so the newest build can be opened in a browser without installing anything.
+
 ## v0.010 — Version number and What's new
 
 - The game shows its version (v0.001 at the start, one step of 0.001 per update) in the corner of the start screen, and it stays there in town.
