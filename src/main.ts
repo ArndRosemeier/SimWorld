@@ -55,8 +55,8 @@ import { VehiclesView } from './render/vehiclesView';
 import { RailView } from './render/railView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
 import { A, FEMALE, MALE } from './sim/actors';
-import { litShares } from './street/windows';
-import { setLitShares, setWindowMap } from './render/windowLight';
+import { buildingLooksOf, decorShares, litShares } from './street/windows';
+import { setBuildingLooks, setDecor, setLitShares, setWindowMap, WINDOW_SLOTS } from './render/windowLight';
 import { hhmm, minuteOfDay, MINUTES_PER_DAY } from './sim/time';
 import type { MediaView } from './sim/media';
 import type { TownFace } from './sim/view';
@@ -169,9 +169,13 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const sim = await simulated;
   // Lit windows follow who is in and awake (src/street/windows.ts), refreshed with every game minute.
   setWindowMap(sim.windows);
-  const lit = new Uint8Array(sim.windows.count);
-  sim.onView = (v) => { litShares(v, sim.windows, A.sleep, lit); setLitShares(lit); };
+  const lit = new Uint8Array(sim.windows.count), looks = new Uint8Array(sim.windows.count * 2);
+  // Holiday decorations in the windows follow the households' choices, once a game day (src/sim/decor.ts).
+  const decor = new Uint8Array(WINDOW_SLOTS * 2);
+  const decorate = (face = sim.town) => { decorShares(face.decor, sim.windows, decor); setDecor(decor); };
+  sim.onView = (v) => { litShares(v, sim.windows, A.sleep, lit); setLitShares(lit); if (v.town) decorate(v.town); };
   sim.onView(sim.view);
+  decorate();
   if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);
   sim.keepSaved();
   shell.add({ label: 'Paper', group: 'Town', open: () => openPaper(sim.view) });
@@ -214,7 +218,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   let shown = false, lastT = 0, shadowMode = '';
   /** The media the signs last got (the sim's view brings a new one each game minute). */
   let shownMedia: MediaView | undefined;
-  let shownFace: TownFace | undefined;
+  let shownFace: TownFace | undefined, lookedFace: TownFace | undefined;
   const fwd = { x: 0, y: 0, z: 0 };
   shell.add({ label: 'Map', group: 'Town', open: mapOpener(
     async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
@@ -253,6 +257,12 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       view.signs.setFacts({ kind: shownFace.kind, name: shownFace.name, flags: shownFace.looks.flags, hours: shownFace.hours });
     }
     view.signs?.update(camera);
+    if (sim.town && sim.town !== lookedFace) {
+      // The walls' wear and fresh paint from the same face (upkeep and wealth per building).
+      lookedFace = sim.town;
+      buildingLooksOf(lookedFace.looks, sim.windows, looks);
+      setBuildingLooks(looks);
+    }
     sky.lampsOffAtMidnight = sim.town.rules.lightsOffAtMidnight;
     sky.update(dt, time, time.clock, w, camera, rate);
     if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.lamps);
@@ -273,7 +283,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     if (hud) {
       const n = people.counts;
       const talk = cam.mode === 'drone' ? '' : chat.hint();
-      const who = cam.mode === 'play' ? '\nDrag to look around' : cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '' : '\nW A S D walk, drag to look, F follow someone, Esc up';
+      const who = cam.mode === 'play' ? '\nW A S D to walk, Shift to hurry, drag to look around' : cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '' : '\nW A S D walk, drag to look, F follow someone, Esc up';
       const whoTalk = who + (talk ? `\n${talk}` : '');
       hud.textContent = `${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${vehicles.counts.moving} vehicles on the road, ${vehicles.counts.parked} parked · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${whoTalk}`;
     }

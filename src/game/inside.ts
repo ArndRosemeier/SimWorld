@@ -8,6 +8,7 @@
 import { buildingRef } from '../plan/placeGraph';
 import { A } from '../sim/actors';
 import { spotsFor } from '../street/inside';
+import { seatFront } from '../street/seats';
 import type { Inside, InteriorView } from '../render/interiorView';
 import { LIGHT } from '../render/tsl/common';
 import { WINDOW_LIGHT } from '../render/windowLight';
@@ -67,12 +68,17 @@ export class GoingInside {
       const held: Held[] = [];
       ps.forEach((p, i) => {
         const s = spots[given[i]];
-        // In bed they lie down once the people can (src/render/people): until then the sleepers are not drawn.
-        if (!s || s.use === 'sleep') return;
-        const w: Walker = { id: p.id, info: p.info, keys: new Float64Array(0), hideAfter: Infinity, activity: p.activity, doing: p.doing };
-        // A seat's person stands just in front of it until they can sit.
-        const ahead = s.use === 'sit' ? 0.45 : 0;
-        held.push({ x: s.x + Math.sin(s.yaw) * ahead, y: s.y, z: s.z + Math.cos(s.yaw) * ahead, face: s.yaw + Math.PI, w });
+        if (!s) return;
+        const w: Walker = { id: p.id, info: p.info, keys: new Float64Array(0), rests: new Float64Array(0), hideAfter: Infinity, activity: p.activity, doing: p.doing };
+        // The spot faces (sin yaw, cos yaw); a figure's face 0 looks to -z. In bed: on the mattress, head to foot.
+        // On a seat: standing in front of it (seatFront), from where they sit down.
+        const face = s.yaw + Math.PI;
+        if (s.use === 'sleep') held.push({ x: s.x, y: s.y, z: s.z, face, w, rest: { kind: 'lie', seat: s.seat } });
+        else if (s.seat > 0) {
+          const [x, z] = seatFront(s);
+          held.push({ x, y: s.y, z, face, w, rest: { kind: 'sit', seat: s.seat } });
+        }
+        else held.push({ x: s.x, y: s.y, z: s.z, face, w });
       });
       this.awake = ps.filter((p) => p.activity !== A.sleep).length;
       this.street.setIndoors(held);

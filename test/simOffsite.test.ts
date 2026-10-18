@@ -43,8 +43,8 @@ test('offsite: commuters work in the city, older children go to the secondary sc
   assert.ok(w.encounters.every((e) => !away(e.place)));
 });
 
-test('holidays: in the summer holidays families leave on Saturday, come back, and remember it', () => {
-  // Friday 24 July 2026: the summer holidays have begun.
+test('holidays: in the summer break families leave on Saturday, come back, and remember it', () => {
+  // Friday 24 July 2026: the summer break has begun.
   const w = createWorld(testTown(32, 250), 32, { start: { year: 2026, month: 7, day: 24 }, startDay: 4 });
   // Skip to Friday night and live Saturday morning (families set off between 8 and 11).
   const a = w.actors.cols;
@@ -63,5 +63,5 @@ test('holidays: in the summer holidays families leave on Saturday, come back, an
   assert.ok(!w.life.away.has(h0));
   const m0 = w.households[h0].members[0];
   assert.ok(a.place[m0] >= 0 && w.graph.places[a.place[m0]].kind !== 'away' && a.dest[m0] !== w.offsite.holiday, 'not back in town');
-  assert.ok(w.memory.byPerson[m0]!.some((m) => m.summary.startsWith('we were on holiday')));
+  assert.ok(w.memory.byPerson[m0]!.some((m) => m.summary.startsWith('we were away')));
 });

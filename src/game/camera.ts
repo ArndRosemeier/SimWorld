@@ -25,6 +25,8 @@ export interface PlayTarget extends Followed { outside: boolean }
 
 /** How fast the play camera closes in (1/s); slower while shaders still compile, so the flight hides them. */
 const EASE = 1.4, EASE_COMPILING = 0.45;
+/** While steering: how far behind the head the camera stays when nothing is in the way (m). */
+const STEER_BACK = 3.4;
 
 export class CameraControl {
   mode: CameraMode = 'drone';
@@ -42,8 +44,12 @@ export class CameraControl {
   /** The play camera's smoothed eye and look-at point. */
   private readonly eye = { x: 0, y: 0, z: 0 };
   private readonly at = { x: 0, y: 0, z: 0 };
-  /** Turn around the player's person, from dragging. */
+  /** Turn around the player's person, from dragging (while steering: the absolute direction the camera looks). */
   private orbit = 0;
+  /** While steering: how far the camera looks down (negative) or up. */
+  private lookPitch = -0.22;
+  /** Steering last frame (to carry the view over when it starts). */
+  private steering = false;
   /** Asks the game for someone to follow near (x, z), someone else each time (-1: none found). */
   pickNear: (x: number, z: number) => number = () => -1;
 
@@ -66,7 +72,12 @@ export class CameraControl {
     window.addEventListener('pointerup', () => { this.drag = null; });
     window.addEventListener('pointermove', (e) => {
       if (!this.drag || this.mode === 'drone') return;
-      if (this.mode === 'play') { this.orbit -= (e.clientX - this.drag.x) * 0.005; this.drag = { x: e.clientX, y: e.clientY }; return; }
+      if (this.mode === 'play') {
+        this.orbit -= (e.clientX - this.drag.x) * 0.005;
+        this.lookPitch = clamp(this.lookPitch - (e.clientY - this.drag.y) * 0.004, -1.1, 0.6);
+        this.drag = { x: e.clientX, y: e.clientY };
+        return;
+      }
       this.yaw -= (e.clientX - this.drag.x) * 0.004;
       this.pitch = clamp(this.pitch - (e.clientY - this.drag.y) * 0.004, -1.2, 1.0);
       this.drag = { x: e.clientX, y: e.clientY };
@@ -122,6 +133,7 @@ export class CameraControl {
    * shaders still compile (`compiling`) the flight is slower, so it hides them.
    */
   updatePlay(dt: number, t: number, target: PlayTarget, compiling: boolean): void {
+    if (this.steering) { this.steering = false; this.fyaw = this.orbit; this.orbit = 0; }
     let ex: number, ey: number, ez: number, ay: number;
     if (target.outside) {
       const speed = Math.hypot(target.vx, target.vz);
@@ -145,6 +157,49 @@ export class CameraControl {
     this.camera.position.set(e.x, Math.max(e.y, this.ground(e.x, e.z) + 0.6), e.z);
     this.camera.lookAt(l.x, l.y, l.z);
     this.x = target.x; this.z = target.z;
+  }
+
+  /**
+   * What the keys ask of the player's body while steering: a direction on the ground relative to where the camera
+   * looks (length 0…1) and whether Shift is held. Zero when no key is down.
+   */
+  wish(): { x: number; z: number; hurry: boolean } {
+    const k = this.keys;
+    const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    const s = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
+    const fx = -Math.sin(this.orbit), fz = -Math.cos(this.orbit);
+    let x = fx * f - fz * s, z = fz * f + fx * s;
+    const l = Math.hypot(x, z);
+    if (l > 1) { x /= l; z /= l; }
+    return { x, z, hurry: k.has('ShiftLeft') || k.has('ShiftRight') };
+  }
+
+  /**
+   * Place the camera for this frame while the player steers their person (`head`: their eye point): behind them
+   * where the player looks (drag to turn and tilt), pulled in where a wall or a ceiling would come between
+   * (`clear(dx, dy, dz, max)`: how far from the head the view is free along that direction). From afar (the flight
+   * down from the drone) it eases in as `updatePlay` does.
+   */
+  updateSteer(dt: number, head: { x: number; y: number; z: number }, compiling: boolean, clear: (dx: number, dy: number, dz: number, max: number) => number): void {
+    if (!this.steering) {
+      // Carry on looking the way the camera looks now.
+      const e = this.camera.matrixWorld.elements;
+      this.orbit = Math.atan2(e[8], e[10]);
+      this.steering = true;
+    }
+    const cp = Math.cos(this.lookPitch), dx = Math.sin(this.orbit) * cp, dy = -Math.sin(this.lookPitch), dz = Math.cos(this.orbit) * cp;
+    const back = Math.max(0.5, Math.min(STEER_BACK, clear(dx, dy, dz, STEER_BACK + 0.3) - 0.3));
+    const ex = head.x + dx * back, ey = head.y + dy * back, ez = head.z + dz * back;
+    const e = this.eye, l = this.at;
+    const far = Math.hypot(ex - e.x, ey - e.y, ez - e.z) > 8;
+    const k = far ? 1 - Math.exp(-dt * (compiling ? EASE_COMPILING : EASE)) : 1 - Math.exp(-dt * 16);
+    e.x += (ex - e.x) * k; e.y += (ey - e.y) * k; e.z += (ez - e.z) * k;
+    const kl = far ? Math.min(1, k * 2.5) : 1;
+    const ax = head.x - dx, ay = head.y - dy, az = head.z - dz;
+    l.x += (ax - l.x) * kl; l.y += (ay - l.y) * kl; l.z += (az - l.z) * kl;
+    this.camera.position.set(e.x, e.y, e.z);
+    this.camera.lookAt(l.x, l.y, l.z);
+    this.x = head.x; this.z = head.z;
   }
 
   /** Place the camera for this frame. `target`: where the followed person is (null: lost them). `t`: ms. */
