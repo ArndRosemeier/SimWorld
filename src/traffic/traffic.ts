@@ -22,6 +22,7 @@
 import { Rng, hash32 } from '@futuremagic/core';
 import { Rule, gridKey as cellKey, type REdge, type RoadNet } from './roadNet';
 import type { Parking, Spot } from './parking';
+import { settle } from '../build/drawnGround';
 import type { VehicleKind } from '../build/vehicles';
 
 /** A vehicle's kind: the vehicle models' (src/build/vehicles.ts). */
@@ -113,7 +114,7 @@ export interface Vehicle {
    * Turning into a house's driveway or backing out of it: a quadratic Bezier from the kerb lane (a, at `s`) past the
    * mouth (c) to the car spot (b), nose towards b all the way; `t` 0..1 from the lane, `out` while backing out.
    */
-  drive: { ax: number; az: number; ay: number; cx: number; cz: number; bx: number; bz: number; by: number; len: number; t: number; out: boolean } | null;
+  drive: { ax: number; az: number; cx: number; cz: number; bx: number; bz: number; len: number; t: number; out: boolean } | null;
   alive: boolean;
 }
 
@@ -144,6 +145,7 @@ export class Traffic {
   private readonly cellIndex = new Map<number, Vehicle[]>();
   private readonly sirens: Vehicle[] = [];
   private readonly tmp = { x: 0, z: 0, dx: 0, dz: 0 };
+  private readonly groundUnder = (x: number, z: number): number => this.net.groundAt(x, z);
   /** Speed factor for the weather (slower in rain, fog and snow); set by the weather. */
   weatherK = 1;
   /** Daylight 0 (night) … 1 (day): headlights. Set by the day cycle. */
@@ -357,28 +359,20 @@ export class Traffic {
     return ph >= 0.5 && ph < 0.95;
   }
 
-  /** World pose from the lane position (or the junction connector). */
-  private pose(v: Vehicle, dt = 0): void {
-    let y: number;
+  /** World pose from the lane position (or the junction connector), the wheels on the drawn ground (`settle`). */
+  private pose(v: Vehicle): void {
     if (v.drive) {
       const D = v.drive, t = Math.max(0, Math.min(1, D.t)), u = 1 - t;
       v.x = u * u * D.ax + 2 * u * t * D.cx + t * t * D.bx;
       v.z = u * u * D.az + 2 * u * t * D.cz + t * t * D.bz;
       const dx = 2 * u * (D.cx - D.ax) + 2 * t * (D.bx - D.cx), dz = 2 * u * (D.cz - D.az) + 2 * t * (D.bz - D.cz);
       v.yaw = Math.atan2(-dx, -dz);
-      y = D.ay + (D.by - D.ay) * t;
-      v.pitch += (0 - v.pitch) * Math.min(1, dt * 4);
     } else if (v.turn) {
       const T = v.turn, t = T.t, u = 1 - t;
       v.x = u * u * T.ax + 2 * u * t * T.cx + t * t * T.bx;
       v.z = u * u * T.az + 2 * u * t * T.cz + t * t * T.bz;
       const dx = 2 * u * (T.cx - T.ax) + 2 * t * (T.bx - T.cx), dz = 2 * u * (T.cz - T.az) + 2 * t * (T.bz - T.cz);
       v.yaw = Math.atan2(-dx, -dz);
-      // Height: between the two edges' ends.
-      const e0 = this.net.edges[v.edge], e1 = this.net.edges[v.route.edges[v.ri + 1]];
-      const y0 = this.net.heightAt(e0, v.fwd ? e0.len : 0), y1 = e1 ? this.net.heightAt(e1, v.route.fwd[v.ri + 1] ? 0 : e1.len) : y0;
-      y = y0 + (y1 - y0) * t;
-      v.pitch += (0 - v.pitch) * Math.min(1, dt * 4);
     } else {
       const e = this.net.edges[v.edge];
       const off = this.net.laneOffset(e, v.fwd, v.lane);
@@ -386,14 +380,8 @@ export class Traffic {
       v.x = this.tmp.x; v.z = this.tmp.z;
       const dx = v.fwd ? this.tmp.dx : -this.tmp.dx, dz = v.fwd ? this.tmp.dz : -this.tmp.dz;
       v.yaw = Math.atan2(-dx, -dz);
-      y = this.net.heightAt(e, v.s);
-      const hb = v.length * 0.31;
-      const yF = this.net.heightAt(e, v.s + (v.fwd ? hb : -hb)), yB = this.net.heightAt(e, v.s - (v.fwd ? hb : -hb));
-      const pitch = Math.atan2(yF - yB, hb * 2);
-      v.pitch = dt > 0 ? v.pitch + (pitch - v.pitch) * Math.min(1, dt * 10) : pitch;
     }
-    v.y = y;
-    v.roll = 0;
+    settle(this.groundUnder, v.x, v.z, v.yaw, v.length, isBike(v) ? 0 : v.width, v);
   }
 
   private step(v: Vehicle, dt: number): void {
@@ -511,7 +499,7 @@ export class Traffic {
       // x east, z south: a positive cross product turns to the right.
       v.indicator = Math.abs(cross) > 0.4 ? (cross > 0 ? 1 : -1) : 0;
     }
-    this.pose(v, dt);
+    this.pose(v);
   }
 
   private stepTurn(v: Vehicle, dt: number): void {
@@ -534,7 +522,7 @@ export class Traffic {
       v.s = v.fwd ? junctionBack(e) : e.len - junctionBack(e);
       v.indicator = 0;
     }
-    this.pose(v, dt);
+    this.pose(v);
   }
 
   private beginTurn(v: Vehicle): void {
@@ -561,7 +549,7 @@ export class Traffic {
     v.speed = 0; v.brake = 0.6; v.indicator = 2; v.jam = 0;
     v.halted += dt;
     if (g.bay) v.pull += (1 - v.pull) * Math.min(1, dt * 1.6);
-    this.pose(v, dt);
+    this.pose(v);
     if (v.halted < g.dwell || (g.leave !== undefined && this.t < g.leave)) return;
     // Out of the lay-by only when nothing is coming along the lane.
     if (g.bay) { v.indicator = -1; if (!this.bayFree(v)) return; v.pull = 0.85; }
@@ -579,7 +567,7 @@ export class Traffic {
     this.net.lanePoint(e, spot.drive!.mouth, off, this.tmp);
     const cx = this.tmp.x, cz = this.tmp.z;
     const len = Math.max(1, Math.hypot(cx - ax, cz - az) + Math.hypot(spot.x - cx, spot.z - cz));
-    return { ax, az, ay: this.net.heightAt(e, v.s), cx, cz, bx: spot.x, bz: spot.z, by: spot.y, len, t: out ? 1 : 0, out };
+    return { ax, az, cx, cz, bx: spot.x, bz: spot.z, len, t: out ? 1 : 0, out };
   }
 
   /** Into the driveway (then parked) or backing out of it (then on along the lane), at a walking pace. */
@@ -590,7 +578,7 @@ export class Traffic {
     D.t += ((D.out ? -1 : 1) * v.speed * dt) / D.len;
     if (!D.out && D.t >= 1) { v.drive = null; this.parkNow(v); return; }
     if (D.out && D.t <= 0) { v.drive = null; v.speed = 0; }
-    this.pose(v, dt);
+    this.pose(v);
   }
 
   /** At its stop: into its spot (or off the street at the goal). */

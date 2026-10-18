@@ -2,7 +2,7 @@
 /**
  * The vehicle look (the `VEHICLE` kind; meshes from src/build/vehicles.ts): the per vertex part
  * id (aPart) picks paint / glass / chrome / tyres / lights; per instance (geometry-instanced) the
- * place (iPose / iSize, `poseByInstance`) and the paint (iPaint, sRGB). The state (x headlights, y brake, z indicator −1 left / +1
+ * place (iPose / iSize, tipped by iTilt: pitch and roll on a slope; `poseByInstance`) and the paint (iPaint, sRGB). The state (x headlights, y brake, z indicator −1 left / +1
  * right / ±2 hazards / ±3 emergency, w engine running: daytime running lights) per instance too
  * (iState; all zero for a parked car, the moving traffic's from src/traffic/feed.ts).
  * Ported from Scale (src/render/webgpu/vehicles.ts), kept close to it; Scale's damage (scratches,
@@ -26,7 +26,7 @@ export function vehicleLook(mat: MeshPhysicalNodeMaterial): void {
   const vPart = attribute('aPart', 'float');
   const vObjPos = varying(positionGeometry, 'vObjPos');
   const vVUv = attribute('uv', 'vec2');
-  poseByInstance(mat);
+  poseByInstance(mat, undefined, true);
   const vPaint = varying(vhToLinear(clamp(attribute('iPaint', 'vec3'), 0.0, 1.0)), 'vPaint');
   const vState = varying(attribute('iState', 'vec4'), 'vState');
   const LUM = vec3(0.2126, 0.7152, 0.0722);

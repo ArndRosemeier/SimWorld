@@ -14,7 +14,7 @@ import { Group, Vector3, type Camera, type Mesh } from 'three/webgpu';
 import type { TownAudio } from '../audio/townAudio';
 import type { LoopHandle } from '../audio/engine';
 import { ARM_LENGTH, ARM_PIVOT, LENS_AT, crossingArm, crossingLens, crossingPost } from '../build/crossing';
-import { CAR_STRIDE, POST_STRIDE, vehiclePose, type TrafficMsg } from '../traffic/feed';
+import { CAR_STRIDE, POSE_STRIDE, POST_STRIDE, vehiclePose, type TrafficMsg } from '../traffic/feed';
 import { isTrainKey } from '../traffic/trains';
 import { VEHICLE } from './materials';
 import { instancedFromData, radiusOf, showInstances } from './meshes';
@@ -49,7 +49,7 @@ export class RailView {
   private lensSrc = { iPose: new Float32Array(0), iSize: new Float32Array(0), iPaint: new Float32Array(0), iState: new Float32Array(0) };
   private time = 0;
   private readonly cam = new Vector3();
-  private readonly p = new Float32Array(4);
+  private readonly p = new Float32Array(POSE_STRIDE);
   /** Trains (key >> 3) that have sounded their horn for a crossing, and that have passed the listener. */
   private readonly horned = new Set<string>();
   private readonly passed = new Set<number>();

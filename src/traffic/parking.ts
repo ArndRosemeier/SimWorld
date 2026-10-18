@@ -11,6 +11,8 @@
  */
 import { LineSource } from '../plan/roads';
 import { gridKey as gkey, type RoadNet } from './roadNet';
+import { settle } from '../build/drawnGround';
+import { DIMS } from './traffic';
 
 export interface Spot {
   id: number;
@@ -23,6 +25,9 @@ export interface Spot {
   y: number;
   z: number;
   yaw: number;
+  /** Its tilt on the ground there (`settle`): pitch nose up +, roll right side up +. */
+  pitch: number;
+  roll: number;
   /** Car key standing here, or reserved for, or -1. */
   car: number;
   /**
@@ -43,8 +48,6 @@ const KERB_FIT = 1.5;
 const SEARCH = 260;
 /** A car parks in its own driveway when its goal is this near (m); it stops this far before the mouth to turn in. */
 const HOME_REACH = 40, TURN_IN = 5;
-/** A driveway's height above the street (the kerb and a little: src/build/ground.ts lays it at CURB_H + 0.01). */
-const DRIVE_UP = 0.16;
 const G = 48;
 
 export class Parking {
@@ -86,7 +89,7 @@ export class Parking {
         const side = Math.sign(off);
         // Parked with the traffic on its side: facing a → b on the right, b → a on the left.
         const dx = side > 0 ? tmp.dx : -tmp.dx, dz = side > 0 ? tmp.dz : -tmp.dz;
-        this.addSpot(ei, s, side, tmp.x, net.heightAt(e, s), tmp.z, Math.atan2(-dx, -dz));
+        this.addSpot(net, ei, s, side, tmp.x, tmp.z, Math.atan2(-dx, -dz));
       }
     });
     // The planner's bays, on the streets the traffic parks on (a bay on a road without parking lanes, or off the
@@ -98,7 +101,7 @@ export class Parking {
       net.lanePoint(e, ne.s, ne.side * (e.width / 2 - e.park / 2), tmp);
       if (Math.hypot(tmp.x - b.x, tmp.z - b.z) > KERB_FIT) continue;
       const dx = ne.side > 0 ? tmp.dx : -tmp.dx, dz = ne.side > 0 ? tmp.dz : -tmp.dz;
-      this.addSpot(ne.e, ne.s, ne.side, b.x, net.heightAt(e, ne.s), b.z, Math.atan2(-dx, -dz));
+      this.addSpot(net, ne.e, ne.s, ne.side, b.x, b.z, Math.atan2(-dx, -dz));
     }
     // The driveways: the car comes along the kerb on the mouth's side, stops just short of it and turns in.
     for (const d of drives) {
@@ -108,7 +111,7 @@ export class Parking {
       if (s < 3 || s > e.len - 3) continue;
       this.driveOf.set(d.code, this.spots.length);
       // Nose to the house, as it drove in.
-      this.addSpot(ne.e, s, ne.side, d.x, net.heightAt(e, ne.s) + DRIVE_UP, d.z, Math.atan2(d.mx - d.x, d.mz - d.z));
+      this.addSpot(net, ne.e, s, ne.side, d.x, d.z, Math.atan2(d.mx - d.x, d.mz - d.z));
       this.spots[this.spots.length - 1].drive = { owner: -1, mouth: ne.s };
     }
   }
@@ -124,9 +127,11 @@ export class Parking {
     return true;
   }
 
-  private addSpot(edge: number, s: number, side: number, x: number, y: number, z: number, yaw: number): void {
+  /** A spot for a car at (x, z) facing yaw, standing on the drawn ground (a car's size: the stance of the usual car). */
+  private addSpot(net: RoadNet, edge: number, s: number, side: number, x: number, z: number, yaw: number): void {
     const id = this.spots.length;
-    this.spots.push({ id, edge, s, side, x, y, z, yaw, car: -1 });
+    const [L, W] = DIMS.sedan, st = settle((px, pz) => net.groundAt(px, pz), x, z, yaw, L, W, { y: 0, pitch: 0, roll: 0 });
+    this.spots.push({ id, edge, s, side, x, y: st.y, z, yaw, pitch: st.pitch, roll: st.roll, car: -1 });
     const k = gkey(Math.floor(x / G), Math.floor(z / G));
     let l = this.grid.get(k);
     if (!l) this.grid.set(k, (l = []));

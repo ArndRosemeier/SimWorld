@@ -11,7 +11,7 @@
  */
 import { Group, InstancedBufferAttribute, Vector3, type Camera, type Mesh } from 'three/webgpu';
 import { VEHICLE_KINDS } from '../build/vehicles';
-import { CAR_STRIDE, PARKED_STRIDE, STATE_STRIDE, vehiclePose, type TrafficMsg } from '../traffic/feed';
+import { CAR_STRIDE, PARKED_STRIDE, POSE_STRIDE, STATE_STRIDE, vehiclePose, type TrafficMsg } from '../traffic/feed';
 import type { WorkerPool } from '../workers/pool';
 import type { FromTown, ToTown } from '../workers/townProtocol';
 import { VEHICLE } from './materials';
@@ -32,7 +32,7 @@ interface Model {
   farRadius: number;
   room: number;
   n: number;
-  src: { iPose: Float32Array; iSize: Float32Array; iPaint: Float32Array; iState: Float32Array };
+  src: { iPose: Float32Array; iSize: Float32Array; iPaint: Float32Array; iState: Float32Array; iTilt: Float32Array };
 }
 
 export class VehiclesView {
@@ -41,7 +41,7 @@ export class VehiclesView {
   readonly counts = { moving: 0, parked: 0 };
   private readonly models = new Map<string, Model | null>();
   private readonly cam = new Vector3();
-  private readonly p = new Float32Array(4);
+  private readonly p = new Float32Array(POSE_STRIDE);
 
   /** `priority`: of the model builds in the town workers (after the town's own pieces). */
   constructor(private readonly stage: Stage, private readonly pool: WorkerPool<ToTown, FromTown>, private readonly priority = 70) {
@@ -63,7 +63,7 @@ export class VehiclesView {
     }
     if (parked) {
       const n = parked.cars.length / CAR_STRIDE, P = parked.poses;
-      for (let i = 0, o = 0; i < n; i++, o += PARKED_STRIDE) if (this.addInstance(parked.cars, i, P.subarray(o, o + 4), P, o + 4, null, 0)) np++;
+      for (let i = 0, o = 0; i < n; i++, o += PARKED_STRIDE) if (this.addInstance(parked.cars, i, P.subarray(o, o + POSE_STRIDE), P, o + POSE_STRIDE, null, 0)) np++;
     }
     this.counts.moving = nm;
     this.counts.parked = np;
@@ -77,7 +77,7 @@ export class VehiclesView {
   }
 
   /**
-   * Add car `i` of `cars` at `pose` (x, y, z, yaw), its paint from `paint` at `po`, its lights from `state` at `so`
+   * Add car `i` of `cars` at `pose` (POSE_STRIDE: x, y, z, yaw, pitch, roll), its paint from `paint` at `po`, its lights from `state` at `so`
    * (none: parked) to its model's instances; false while the model loads.
    */
   private addInstance(cars: Int32Array, i: number, pose: Float32Array, paint: Float32Array, po: number, state: Float32Array | null, so: number): boolean {
@@ -85,7 +85,8 @@ export class VehiclesView {
     if (!m) return false;
     if (m.n === m.room) this.grow(m);
     const j = m.n++;
-    m.src.iPose.set(pose, j * 4);
+    m.src.iPose.set(pose.subarray(0, 4), j * 4);
+    m.src.iTilt.set(pose.subarray(4, 6), j * 2);
     m.src.iSize[j * 2] = m.src.iSize[j * 2 + 1] = 1;
     m.src.iPaint.set(paint.subarray(po, po + 3), j * 3);
     if (state) m.src.iState.set(state.subarray(so, so + STATE_STRIDE), j * 4);
@@ -127,4 +128,4 @@ export class VehiclesView {
 }
 
 /** Instance arrays with room for `n`. */
-const room = (n: number): Model['src'] => ({ iPose: new Float32Array(n * 4), iSize: new Float32Array(n * 2), iPaint: new Float32Array(n * 3), iState: new Float32Array(n * 4) });
+const room = (n: number): Model['src'] => ({ iPose: new Float32Array(n * 4), iSize: new Float32Array(n * 2), iPaint: new Float32Array(n * 3), iState: new Float32Array(n * 4), iTilt: new Float32Array(n * 2) });

@@ -17,7 +17,7 @@ import { RoadKind, type RuralPlan, type RuralRoad } from '../world/rural';
 import type { Railway } from '../plan/types';
 import { RAIL_HW } from '../plan/rail';
 import { TERRAIN_DROP } from '../world/ground';
-import { closestOnPolyline, resample } from '../geom/geom2';
+import { closestOnPolyline, pointInPoly, polyBounds, resample } from '../geom/geom2';
 import { MeshBuilder } from './meshBuilder';
 import { drapeShape, groundSpecs, GroundLayer } from './ground';
 import { terrainMeshHeight } from './terrainMesh';
@@ -41,6 +41,8 @@ const FINE_R = 1000;
 const DASH_ON = 3, DASH_OFF = 6;
 /** Draped edges slope this far out and this far down, under the terrain mesh (no raised slab from the side). */
 const LIP_W = 0.6, LIP_DOWN = TERRAIN_DROP + 0.12;
+/** A farmyard's lip reaches this far out (m) and this far down under the ground (`lip`). */
+const YARD_LIP = 1.6, LIP_UNDER = TERRAIN_DROP + 0.12;
 /** Railway: ballast top, sleeper band top, rail top (above the natural ground), gauge, track centres. */
 const BALLAST = 0.3, SLEEPER = 0.33, RAIL_TOP = 0.5, RAIL_HALF = 0.04, GAUGE = 1.435, TRACK = 1.9;
 /** Bridges: deck slab depth, parapet height and width, clearance over the water (road, rail). */
@@ -60,13 +62,10 @@ export function buildCountryRoads(rural: RuralPlan, rail: Railway | null, terrai
 
   for (const R of rural.roads) {
     if (tile && !nearTile(R.pts, tile, 80)) continue;
-    const full = courseOf(terrain, R.pts, R.bridges, CLEAR_ROAD);
-    full.rise = riseOf(R);
-    const C = slice(full, R.trim, full.length);
-    if (C.n < 2) continue;
+    const { full, surface } = roadSwept(R, terrain);
+    if (surface.C.n < 2) continue;
     const dy = DY[R.kind], hw = R.hw;
-    const layer = R.kind === RoadKind.Main ? GroundLayer.Asphalt : R.kind === RoadKind.Lane ? GroundLayer.AsphaltLight : GroundLayer.Dirt;
-    sweep(ctx, C, [-hw - LIP_W, -LIP_DOWN, layer, -hw, dy, layer, 0, dy, layer, hw, dy, layer, hw + LIP_W, -LIP_DOWN, layer]);
+    sweep(ctx, surface.C, surface.prof);
     if (R.kind === RoadKind.Main) {
       // Dashed centre line, from 20 m beyond the town's ground.
       const P = DASH_ON + DASH_OFF;
@@ -98,27 +97,50 @@ function nearTile(P: number[], t: TileBox, pad: number): boolean {
 
 // ------------------------------------------------------------------ railway
 
-function railway(ctx: Sweep, rail: Railway, rural: RuralPlan): void {
+/** A surface swept along a course: the cross section `prof` (offset, height, layer per point), level within `level` of the line. */
+interface Swept { C: Course; prof: number[]; level: number }
+
+/** A country road's surface (from where it leaves the town's ground), and its whole course. */
+function roadSwept(R: RuralRoad, terrain: Terrain): { full: Course; surface: Swept } {
+  const full = courseOf(terrain, R.pts, R.bridges, CLEAR_ROAD);
+  full.rise = riseOf(R);
+  const dy = DY[R.kind], hw = R.hw;
+  const layer = R.kind === RoadKind.Main ? GroundLayer.Asphalt : R.kind === RoadKind.Lane ? GroundLayer.AsphaltLight : GroundLayer.Dirt;
+  return { full, surface: { C: slice(full, R.trim, full.length), prof: [-hw - LIP_W, -LIP_DOWN, layer, -hw, dy, layer, 0, dy, layer, hw, dy, layer, hw + LIP_W, -LIP_DOWN, layer], level: -1 } };
+}
+
+/**
+ * The railway's surfaces: its ballast bed, and each level crossing's slab (level with the rail heads, ramped down to
+ * the road each side) with the arc length range it covers; and the whole course.
+ */
+function railSwept(rail: Railway, rural: RuralPlan, terrain: Terrain): { full: Course; bed: Swept; crossings: { swept: Swept; s: number; h: number; layer: number }[] } {
   const pts = resample(rail.pts, 5);
-  const full = courseOf(ctx.T, pts, rail.bridges, CLEAR_RAIL);
-  const W = RAIL_HW + 1;
+  const full = courseOf(terrain, pts, rail.bridges, CLEAR_RAIL);
+  const W = RAIL_HW + 1, y = RAIL_TOP + 0.005;
   // Level crossings: arc-length ranges along the line (wider where the road crosses obliquely).
-  const gaps: { s: number; h: number; layer: number }[] = [];
+  const crossings: { swept: Swept; s: number; h: number; layer: number }[] = [];
   for (const X of rural.crossings) {
     const R = rural.roads[X.road];
     const q = closestOnPolyline(pts, X.x, X.z), i = segAt(full, q.s)[0];
     const r = closestOnPolyline(R.pts, X.x, X.z), k = r.seg * 2;
     const dx = R.pts[k + 2] - R.pts[k], dz = R.pts[k + 3] - R.pts[k + 1], l = Math.hypot(dx, dz) || 1;
     const sin = Math.abs((full.lx[i] * dx + full.lz[i] * dz) / l);
-    gaps.push({ s: q.s, h: Math.min(3 * R.hw, (R.hw + 1) / Math.max(0.3, sin)), layer: R.kind === RoadKind.Track ? GroundLayer.Dirt : GroundLayer.Asphalt });
+    const h = Math.min(3 * R.hw, (R.hw + 1) / Math.max(0.3, sin)), layer = R.kind === RoadKind.Track ? GroundLayer.Dirt : GroundLayer.Asphalt;
+    crossings.push({ s: q.s, h, layer, swept: { C: slice(full, q.s - h, q.s + h), prof: [-W - 3, DY[0], layer, -W, y, layer, W, y, layer, W + 3, DY[0], layer], level: RAIL_HW } });
   }
-  gaps.sort((a, b) => a.s - b.s);
+  crossings.sort((a, b) => a.s - b.s);
+  const bed = { C: full, prof: [-W, -LIP_DOWN, GroundLayer.Gravel, -RAIL_HW + 0.6, BALLAST, GroundLayer.Gravel, RAIL_HW - 0.6, BALLAST, GroundLayer.Gravel, W, -LIP_DOWN, GroundLayer.Gravel], level: RAIL_HW };
+  return { full, bed, crossings };
+}
 
-  sweep(ctx, full, [-W, -LIP_DOWN, GroundLayer.Gravel, -RAIL_HW + 0.6, BALLAST, GroundLayer.Gravel, RAIL_HW - 0.6, BALLAST, GroundLayer.Gravel, W, -LIP_DOWN, GroundLayer.Gravel], RAIL_HW);
+function railway(ctx: Sweep, rail: Railway, rural: RuralPlan): void {
+  const { full, bed, crossings } = railSwept(rail, rural, ctx.T);
+  const W = RAIL_HW + 1;
+  sweep(ctx, bed.C, bed.prof, bed.level);
   // Sleeper bands and rails run between the crossings.
   let s = 0;
   const runs: [number, number][] = [];
-  for (const g of gaps) { if (g.s - g.h > s) runs.push([s, g.s - g.h]); s = Math.max(s, g.s + g.h); }
+  for (const g of crossings) { if (g.s - g.h > s) runs.push([s, g.s - g.h]); s = Math.max(s, g.s + g.h); }
   if (s < full.length) runs.push([s, full.length]);
   for (const [a, b] of runs) {
     const C = slice(full, a, b);
@@ -129,11 +151,10 @@ function railway(ctx: Sweep, rail: Railway, rural: RuralPlan): void {
       }
     }
   }
-  // The crossings: a road-surface slab level with the rail heads, ramped down to the road each side; flush rails in it.
-  for (const g of gaps) {
-    const C = slice(full, g.s - g.h, g.s + g.h);
-    const y = RAIL_TOP + 0.005;
-    sweep(ctx, C, [-W - 3, DY[0], g.layer, -W, y, g.layer, W, y, g.layer, W + 3, DY[0], g.layer], RAIL_HW);
+  // The crossings: the slab, flush rails in it.
+  for (const g of crossings) {
+    const C = g.swept.C, y = RAIL_TOP + 0.005;
+    sweep(ctx, C, g.swept.prof, g.swept.level);
     for (const t of [-TRACK, TRACK]) for (const o of [t - GAUGE / 2, t + GAUGE / 2]) sweep(ctx, C, [o - RAIL_HALF, y + 0.005, GroundLayer.Curb, o + RAIL_HALF, y + 0.005, GroundLayer.Curb], RAIL_HW);
   }
   for (const sp of full.spans) bridge(ctx, slice(full, sp.s0, sp.s1), W + PARAPET_W, BALLAST);
@@ -261,20 +282,6 @@ function deckAt(C: Course, T: Terrain, s: number, x: number, z: number): number 
 }
 
 /**
- * Height of a country road's surface at arc length s along it (on its bridges the deck's): what a
- * car drives on. `y(s)` for the road's centreline.
- */
-export function countryRoadSurface(road: RuralRoad, terrain: Terrain): (s: number) => number {
-  const C = courseOf(terrain, road.pts, road.bridges, CLEAR_ROAD), dy = DY[road.kind], rise = riseOf(road) ?? (() => 1);
-  return (s) => {
-    const [x, z] = pointAt(C, s);
-    const deck = deckAt(C, terrain, s, x, z);
-    if (deck === deck) return deck + dy;
-    return s <= road.trim ? terrain.height(x, z) : standOn(terrain)(x, z) + dy * rise(s);
-  };
-}
-
-/**
  * Height of the rail heads at arc length s along the railway (along `rail.pts`), bridge decks
  * included: where the trains run (src/traffic/trains.ts). `RAIL_TRACK`: each track's centre
  * from the line's.
@@ -339,13 +346,7 @@ function sweep(ctx: Sweep, C: Course, prof: number[], level = -1): void {
   const row = (i: number): number => {
     const base = mb.vcount;
     const cx = C.x[i], cz = C.z[i], lx = C.lx[i], lz = C.lz[i];
-    const deck = deckAt(C, T, C.s[i], cx, cz);
-    const yc = deck === deck ? deck : level >= 0 ? centreHeight(C, T, i) : 0;
-    const k = C.rise ? C.rise(C.s[i]) : 1;
-    for (let e = 0; e <= segs; e++) {
-      const o = prof[e * 3], dy = prof[e * 3 + 1];
-      ys[e] = (deck === deck || Math.abs(o) <= level ? yc : standOn(T)(cx + lx * o, cz + lz * o)) + (dy > 0 ? dy * k : dy);
-    }
+    rowHeights(C, T, i, prof, level, ys);
     for (let k = 0; k < segs; k++) {
       mb.set('aLayer', prof[k * 3 + 2]);
       const wall = Math.abs(ny[k]) < 0.5;
@@ -369,13 +370,116 @@ function sweep(ctx: Sweep, C: Course, prof: number[], level = -1): void {
   }
 }
 
+/** The heights of a cross section's points at row i of a course (into ys): what `sweep` draws, and `sweptGround` reads. */
+function rowHeights(C: Course, T: Terrain, i: number, prof: readonly number[], level: number, ys: number[] | Float64Array, at = 0): void {
+  const cx = C.x[i], cz = C.z[i], lx = C.lx[i], lz = C.lz[i];
+  const deck = deckAt(C, T, C.s[i], cx, cz);
+  const yc = deck === deck ? deck : level >= 0 ? centreHeight(C, T, i) : 0;
+  const k = C.rise ? C.rise(C.s[i]) : 1;
+  for (let e = 0; e < prof.length / 3; e++) {
+    const o = prof[e * 3], dy = prof[e * 3 + 1];
+    ys[at + e] = (deck === deck || Math.abs(o) <= level ? yc : standOn(T)(cx + lx * o, cz + lz * o)) + (dy > 0 ? dy * k : dy);
+  }
+}
+
+/**
+ * Read a swept surface's height (as `sweep` draws it): `(i, x, z)` gives the height at (x, z) on the strip between
+ * rows i and i + 1, NaN off it. The strip is the quad between the two rows' cross sections (each across by its own
+ * normal: a bend's strip is a trapezoid), so the point is found in it by its fraction t along and offset o across
+ * (a few rounds of solving one for the other). The rows' heights are measured when first needed.
+ */
+function sweptGround(sw: Swept, T: Terrain): (i: number, x: number, z: number) => number {
+  const { C, prof, level } = sw, np = prof.length / 3;
+  const ys = new Float64Array(C.n * np).fill(NaN), o0 = prof[0], o1 = prof[prof.length - 3];
+  const row = (r: number, o: number): number => {
+    if (ys[r * np] !== ys[r * np]) rowHeights(C, T, r, prof, level, ys, r * np);
+    let e = 0;
+    while (e < np - 2 && prof[(e + 1) * 3] < o) e++;
+    const a = prof[e * 3], b = prof[(e + 1) * 3], f = b > a ? Math.max(0, Math.min(1, (o - a) / (b - a))) : 0;
+    return ys[r * np + e] + (ys[r * np + e + 1] - ys[r * np + e]) * f;
+  };
+  return (i, x, z) => {
+    const j = Math.min(C.n - 1, i + 1);
+    const ax = C.x[i], az = C.z[i], bx = C.x[j], bz = C.z[j], alx = C.lx[i], alz = C.lz[i], blx = C.lx[j], blz = C.lz[j];
+    const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz;
+    let t = l2 > 0 ? ((x - ax) * dx + (z - az) * dz) / l2 : 0, o = 0;
+    for (let k = 0; k < 4; k++) {
+      // Across, at t: from the centre there along the normal there.
+      const cx = ax + dx * t, cz = az + dz * t, lx = alx + (blx - alx) * t, lz = alz + (blz - alz) * t;
+      o = ((x - cx) * lx + (z - cz) * lz) / (lx * lx + lz * lz || 1);
+      // Along, at o: between the two rows' points at offset o.
+      const px = ax + alx * o, pz = az + alz * o, qx = bx + blx * o - px, qz = bz + blz * o - pz, q2 = qx * qx + qz * qz;
+      t = q2 > 0 ? ((x - px) * qx + (z - pz) * qz) / q2 : 0;
+    }
+    if (t < -1e-4 || t > 1 + 1e-4 || o < o0 - 1e-4 || o > o1 + 1e-4) return NaN;
+    t = Math.max(0, Math.min(1, t));
+    return row(i, o) * (1 - t) + row(j, o) * t;
+  };
+}
+
+/** One segment of a swept surface, for finding the surfaces under a point. */
+interface SweptSeg { at: (i: number, x: number, z: number) => number; i: number; sx: number; sz: number; ux: number; uz: number; l2: number; pad: number }
+
+/**
+ * The drawn countryside under points: the country roads (with their lips), the railway's bed and its level crossings,
+ * the farmyards. `at(x, z)` is the height of the highest of them there (the one that shows), NaN off all of them;
+ * a road in the town (up to its `trim`) is the town's to draw. What wheels and feet stand on out of town
+ * (src/build/drawnGround.ts).
+ */
+export function countryGround(rural: RuralPlan, rail: Railway | null, terrain: Terrain): (x: number, z: number) => number {
+  const swepts: Swept[] = rural.roads.map((R) => roadSwept(R, terrain).surface);
+  if (rail) {
+    const r = railSwept(rail, rural, terrain);
+    swepts.push(r.bed, ...r.crossings.map((c) => c.swept));
+  }
+  const G = 16, grid = new Map<number, SweptSeg[]>();
+  for (const sw of swepts) {
+    const at = sweptGround(sw, terrain), C = sw.C, pad = Math.max(Math.abs(sw.prof[0]), Math.abs(sw.prof[sw.prof.length - 3])) + 0.5;
+    for (let i = 0; i + 1 < C.n; i++) {
+      const x0 = Math.min(C.x[i], C.x[i + 1]) - pad, x1 = Math.max(C.x[i], C.x[i + 1]) + pad;
+      const z0 = Math.min(C.z[i], C.z[i + 1]) - pad, z1 = Math.max(C.z[i], C.z[i + 1]) + pad;
+      for (let gx = Math.floor(x0 / G); gx <= Math.floor(x1 / G); gx++) for (let gz = Math.floor(z0 / G); gz <= Math.floor(z1 / G); gz++) {
+        const k = gx * 65536 + gz;
+        let l = grid.get(k);
+        if (!l) grid.set(k, (l = []));
+        l.push({ at, i, sx: C.x[i], sz: C.z[i], ux: C.x[i + 1] - C.x[i], uz: C.z[i + 1] - C.z[i], l2: (C.x[i + 1] - C.x[i]) ** 2 + (C.z[i + 1] - C.z[i]) ** 2, pad });
+      }
+    }
+  }
+  // The farmyards with their lips (`lip`: from the yard's edge down under the terrain mesh LIP_OUT m out), by bounds.
+  const yards = rural.farms.flatMap((f) => rural.layout(f.id).paved.map((p) => {
+    const b = polyBounds(p.poly);
+    return { poly: p.poly, ring: [...p.poly, p.poly[0], p.poly[1]], box: [b[0] - YARD_LIP, b[1] - YARD_LIP, b[2] + YARD_LIP, b[3] + YARD_LIP] };
+  }));
+  const H = standOn(terrain);
+  return (x, z) => {
+    let y = NaN;
+    for (const g of grid.get(Math.floor(x / G) * 65536 + Math.floor(z / G)) ?? []) {
+      // (Nowhere near the segment: not on its strip.)
+      const t = g.l2 > 0 ? Math.max(0, Math.min(1, ((x - g.sx) * g.ux + (z - g.sz) * g.uz) / g.l2)) : 0;
+      const ex = x - g.sx - g.ux * t, ez = z - g.sz - g.uz * t;
+      if (ex * ex + ez * ez > g.pad * g.pad) continue;
+      const h = g.at(g.i, x, z);
+      if (h === h && !(h <= y)) y = h;
+    }
+    for (const { poly, ring, box } of yards) {
+      if (x < box[0] || x > box[2] || z < box[1] || z > box[3]) continue;
+      const f = pointInPoly(poly, x, z) ? 0 : closestOnPolyline(ring, x, z).d / YARD_LIP;
+      if (f > 1) continue;
+      const h = H(x, z) + YARD_DY + (-LIP_UNDER - YARD_DY) * f;
+      if (!(h <= y)) y = h;
+    }
+    return y;
+  };
+}
+
 /**
  * A lip round a draped area (counter-clockwise outline): slopes from its surface down under the
  * terrain mesh a little way out, so the edge does not show as a raised slab from the side.
  * (Scale's `skirt` in src/build/rural.ts.)
  */
 function lip(mb: MeshBuilder, T: Terrain, poly: number[], dy: number, layer: number): void {
-  const W = 1.6, DOWN = TERRAIN_DROP + 0.12;
+  const W = YARD_LIP, DOWN = LIP_UNDER;
   const n = poly.length >> 1;
   mb.set('aLayer', layer);
   // Outward normals at the corners (averaged with the neighbouring edges: no gaps at the corners).

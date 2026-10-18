@@ -2,8 +2,8 @@
  * The traffic network of the town: every road a car can use (arterials, local streets, country
  * roads, farm tracks; not the footpaths) as edges between the junction nodes of the town's road
  * lines (`townRoads`, src/plan/roads.ts), with the lane layout, the speed limit, the junction
- * rules (traffic lights at the main crossroads, give way where a minor road meets a major one)
- * and the road surface height along each edge (bridge decks included). A* routing, lane offsets.
+ * rules (traffic lights at the main crossroads, give way where a minor road meets a major one),
+ * and the height of the drawn ground the wheels stand on (`groundAt`, src/build/drawnGround.ts). A* routing, lane offsets.
  *
  * Ported from Scale (src/sim/RoadNet.ts): Scale rebuilds it from the streamed cells; SimWorld
  * plans the whole town at once, so it is built once from the plan. Bridge cuts stay behind.
@@ -16,8 +16,7 @@ import { LineSource, townRoads, type RoadLine } from '../plan/roads';
 import { pointInPoly, slicePolyline } from '../geom/geom2';
 import { RoadClass } from '../plan/types';
 import { boundaryAt } from '../world/boundary';
-import { bridgeDeckSurface } from '../build/bridges';
-import { countryRoadSurface } from '../build/rural';
+import { drawnGround, type DrawnGround } from '../build/drawnGround';
 
 /** What a car has to do at a junction it drives into from one edge. */
 export const enum Rule { Free = 0, Signal = 1, GiveWay = 2, Yield = 3 }
@@ -55,8 +54,6 @@ export interface REdge {
   centre: boolean;
   /** What a car arriving at node a (index 0) and at node b (index 1) must do there. */
   rule: [Rule, Rule];
-  /** Road surface height every SURF_STEP metres from a. */
-  ys: Float32Array;
   /** The town road line it is a piece of, and the arc length where it starts on it. */
   line: number;
   /** Its street (`RoadNet.streets`), -1 for unnamed tracks. */
@@ -66,8 +63,6 @@ export interface REdge {
 
 /** The council's limit through the centre (km/h), and how far off a road its central cell may lie (m). */
 const ZONE_KMH = 30, CENTRE_PAD = 10;
-/** Spacing of the surface height samples (m). */
-export const SURF_STEP = 4;
 const GRID = 32;
 /** Key of a square of a grid (spatial hashes of the traffic). */
 export const gridKey = (i: number, j: number): number => (i + 32768) * 65536 + (j + 32768);
@@ -81,19 +76,20 @@ export class RoadNet {
   /** Street names (the place graph's street places carry the same names). */
   readonly streets: string[];
   private readonly grid = new Map<number, number[]>();
+  /** The drawn ground (src/build/drawnGround.ts): what the wheels stand on. */
+  readonly ground: DrawnGround;
   /** The council's 30 km/h zone through the centre is in force (`TownRules.speed30`): faster roads there are 30. */
   zone30 = false;
 
   constructor(town: Town) {
     const roads = townRoads(town);
     this.streets = roads.streets.map((st) => st.name);
-    const { terrain, macro } = town;
+    const { macro } = town;
+    this.ground = drawnGround(town);
     this.nodes = roads.nodes.map((n) => ({ x: n.x, z: n.z, edges: [], signal: false, exit: false }));
-    const bridgeOf = new Map(macro.bridges.map((b) => [b.edge, b]));
     const central = macro.cells.filter((c) => CENTRAL_DISTRICTS.has(c.district)).map((c) => c.poly);
     roads.lines.forEach((L, li) => {
       if (L.cls === RoadClass.Path) return;
-      const surf = surfaceOf(L);
       for (let k = 0; k + 1 < L.cuts.length; k++) {
         const A = L.cuts[k], B = L.cuts[k + 1];
         if (A.node === B.node || B.s - A.s < 0.5) continue;
@@ -101,11 +97,6 @@ export class RoadNet {
         const cum = [0];
         for (let i = 2; i < pts.length; i += 2) cum.push(cum[cum.length - 1] + Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]));
         const len = cum[cum.length - 1];
-        const n = Math.max(2, Math.ceil(len / SURF_STEP) + 1), ys = new Float32Array(n);
-        for (let i = 0; i < n; i++) {
-          const s = Math.min(len, i * SURF_STEP), [x, z] = pointOn(pts, cum, s);
-          ys[i] = surf ? surf(A.s + s) : terrain.height(x, z);
-        }
         const [mx, mz] = pointOn(pts, cum, len / 2);
         const inTown = Math.hypot(mx, mz) < boundaryAt(macro.boundary, mx, mz) + 60;
         // (A main road runs along the edge of its cells: in the centre if a central cell is on either side.)
@@ -114,7 +105,7 @@ export class RoadNet {
         this.edges.push({
           a: A.node, b: B.node, pts, cum, len, width: L.width, sidewalk: L.sidewalk, lanes: Math.max(1, L.lanes), cls: L.cls, source: L.source,
           park: L.source === LineSource.Local && L.cls === RoadClass.Street ? 2 : 0,
-          kmh: limitOf(L, inTown), centre, rule: [Rule.Free, Rule.Free], ys, line: li, s0: A.s, street: L.street,
+          kmh: limitOf(L, inTown), centre, rule: [Rule.Free, Rule.Free], line: li, s0: A.s, street: L.street,
         });
         this.nodes[A.node].edges.push(id);
         this.nodes[B.node].edges.push(id);
@@ -141,19 +132,6 @@ export class RoadNet {
         }
       }
     });
-
-    function surfaceOf(L: RoadLine): ((s: number) => number) | null {
-      if (L.source === LineSource.Arterial) {
-        const br = bridgeOf.get(L.ref);
-        return br ? bridgeDeckSurface(br, terrain) : null;
-      }
-      if (L.source === LineSource.Country || L.source === LineSource.Track) {
-        const r = town.rural.roads[L.ref];
-        // The drawn surface: a little above the ground (more on the bigger roads), decks on bridges.
-        return countryRoadSurface(r, terrain);
-      }
-      return null;
-    }
   }
 
   /**
@@ -195,10 +173,10 @@ export class RoadNet {
     return (this.zone30 && e.centre ? Math.min(e.kmh, ZONE_KMH) : e.kmh) / 3.6;
   }
 
-  /** Surface height at arc length s along an edge. */
-  heightAt(e: REdge, s: number): number {
-    const f = Math.max(0, Math.min(e.ys.length - 1, s / SURF_STEP)), i = Math.min(e.ys.length - 2, Math.floor(f)), t = f - i;
-    return e.ys[i] + (e.ys[i + 1] - e.ys[i]) * t;
+
+  /** Height of the drawn ground at (x, z) (`DrawnGround`): what a wheel there stands on. */
+  groundAt(x: number, z: number): number {
+    return this.ground.heightAt(x, z);
   }
 
   /** Nearest edge to a point: edge id, arc param s, distance, side (+1 right of a→b). */
