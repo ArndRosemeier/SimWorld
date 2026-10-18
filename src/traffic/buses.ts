@@ -21,6 +21,13 @@ const STOP_DWELL = 15;
 const SLOW_S_PER_KM = 20;
 
 /** A bus that sets off: where it comes on to the map, its stops and where it leaves. */
+/** The exit whose road leads towards a region town by its compass direction (the nearby town when unknown). */
+export function exitTowardRegion(world: World, net: RoadNet, region: string | null): number {
+  const places = world.region?.region.places;
+  const place = places?.find((p) => p.name === region) ?? places?.[1];
+  return net.exitToward(place ? COMPASS.indexOf(place.dir) * 45 : 0);
+}
+
 export interface BusTrip {
   car: Car;
   run: Run;
@@ -39,25 +46,11 @@ interface RunPlan { enter: number; leaveBy: number; halts: { x: number; z: numbe
 /** Plans the timetable's bus runs on a road network (once per run) and says which set off when. */
 export class Buses {
   private readonly plans = new Map<number, RunPlan | null>();
-  private readonly exits: { node: number; bearing: number }[];
+  constructor(private readonly world: World, private readonly net: RoadNet) {}
 
-  constructor(private readonly world: World, private readonly net: RoadNet) {
-    const ns = net.nodes;
-    let cx = 0, cz = 0;
-    for (const n of ns) { cx += n.x; cz += n.z; }
-    cx /= Math.max(1, ns.length); cz /= Math.max(1, ns.length);
-    // Bearing of each exit from the town's middle: 0 north (−z), 90 east (+x).
-    this.exits = ns.flatMap((n, i) => (n.exit ? [{ node: i, bearing: (Math.atan2(n.x - cx, -(n.z - cz)) * 180) / Math.PI }] : []));
-  }
-
-  /** The exit whose road leads towards a region town (its compass direction), or the first exit. */
+  /** The exit whose road leads towards a region town (the nearby town, where the depot is, for null). */
   exitTowards(region: string | null): number {
-    const place = this.world.region?.region.places.find((p) => p.name === region) ?? this.world.region?.region.places[1];
-    if (!this.exits.length) return -1;
-    if (!place) return this.exits[0].node;
-    const want = COMPASS.indexOf(place.dir) * 45;
-    const off = (b: number) => Math.abs((((b - want) % 360) + 540) % 360 - 180);
-    return this.exits.reduce((a, b) => (off(b.bearing) < off(a.bearing) ? b : a)).node;
+    return exitTowardRegion(this.world, this.net, region);
   }
 
   /** Bus runs that come on to the map in the game minutes (since, clock]. */
