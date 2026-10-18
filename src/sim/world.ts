@@ -32,6 +32,7 @@ import { runEncounters, type Encounter } from './encounters';
 import { forget } from './knowledge';
 import { fadeRelations } from './relations';
 import { lifeDay } from './life';
+import { phoneCalls } from './phone';
 import { economyDay } from './economy';
 
 export interface World {
@@ -101,7 +102,7 @@ export function tick(world: World, minutes = 1): void {
     world.clock++;
     if (world.clock % MINUTES_PER_DAY === 0) passDays(world, 1);
     updateNeeds(world, 1);
-    if (world.clock % 60 === 0) updateMoods(world);
+    if (world.clock % 60 === 0) { updateMoods(world); phoneCalls(world); }
     arrive(world);
     decideAll(world);
     runEncounters(world);
@@ -202,9 +203,8 @@ export const placesOf = (world: World, kinds: readonly PlaceKind[]): PlaceId[] =
  * way to change a place's kind, so the per-kind lookups stay right.
  */
 export function setPlaceKind(world: World, place: PlaceId, kind: PlaceKind, patch: Partial<Pick<Place, 'name' | 'hours' | 'staff' | 'capacity'>>): void {
-  const p = world.graph.places[place];
-  p.kind = kind;
-  Object.assign(p, patch);
+  // A new place object: the old one may be shared with the planner's graph, which keeps the town as planned.
+  world.graph.places[place] = { ...world.graph.places[place], ...patch, kind };
   world.kindOf[place] = PLACE_KINDS.indexOf(kind);
   placeCache.delete(world);
 }
