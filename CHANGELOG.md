@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.137 — Debug menu and Report this spot
+
+- Shift+Ctrl+F12 opens a debug menu: version, seed, game time, where you stand, frames per second and shader stats, plus setting the date and time, autopilot and a shader report.
+- F8 (or Report this spot in the debug menu) copies a report of the moment to paste into the project chat: your note, a link that loads the same town, time, person and spot again, and the browser's errors. When the world came from a save or a time skip, it can download the save to attach.
+
 ## v0.136 — A minimap
 
 - A small round map now sits in the bottom right corner while you are down in the streets. It shows the streets with their names, the buildings, water and woods, your home, the building you are in, the bus stops and the people you know who are out near you (family in green, others in blue).
