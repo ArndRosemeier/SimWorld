@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.108 — Windows you can look out of
+
+- Inside a building, the walls have openings where the facade has its windows, and you see the street through them.
+- The glass of every facade is see-through from inside.
+
 ## v0.107 — An Easter egg hunt in the park
 
 - On Easter Sunday late morning, after church, the children of the town hunt eggs in the park (on the square if there is no park), and the grown-ups who live with young children come along.
