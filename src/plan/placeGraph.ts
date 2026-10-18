@@ -8,14 +8,14 @@
  * Pure; a function of the planned town.
  */
 import { Rng, deriveSeed, clamp } from '@futuremagic/core';
-import { polyArea, polyCentroid, pointInPoly, type Poly } from '../geom/geom2';
+import { alongLine, polyArea, polyCentroid, pointInPoly, slicePolyline, upperBound, type Poly } from '../geom/geom2';
 import type { Place, PlaceGraph, PlaceKind, RoadEdge, RoadNode } from '../sim/places';
 import { KINDS, defaultHours, defaultStaff } from '../sim/placeKinds';
 import { dwellingsOf, flatsDoor } from './building';
 import { eateryName, type Eatery } from './eatery';
 import { AMENITY_LABEL, PLACE_KIND_OF } from './amenities';
 import { ROOTS, cityName, shopName } from './names';
-import { alongLine, townRoads, upperBound } from './roads';
+import { LineSource, townRoads } from './roads';
 import { siteToWorld, inSite, type LandmarkKind } from './landmarks';
 import { frontDoor } from './terrace';
 import { PEOPLE_PER_HOME, type Town } from './town';
@@ -77,7 +77,12 @@ export function placeGraphOf(town: Town): PlaceGraph {
       edgeSeen.add(key);
       const length = b.s - a.s;
       const grade = Math.abs(terrain.height(nodes[b.node].x, nodes[b.node].z) - terrain.height(nodes[a.node].x, nodes[a.node].z)) / length;
-      edges.push({ a: a.node, b: b.node, length: Math.round(Math.max(length, Math.hypot(nodes[b.node].x - nodes[a.node].x, nodes[b.node].z - nodes[a.node].z)) * 10) / 10, walk: Math.round((L.walk / (1 + 4 * grade)) * 100) / 100 });
+      const edge: RoadEdge = { a: a.node, b: b.node, length: Math.round(Math.max(length, Math.hypot(nodes[b.node].x - nodes[a.node].x, nodes[b.node].z - nodes[a.node].z)) * 10) / 10, walk: Math.round((L.walk / (1 + 4 * grade)) * 100) / 100 };
+      // Where people walk (src/street): the middle of the sidewalk, the verge of a country road, a path's middle.
+      edge.side = round1(L.sidewalk > 0 ? L.width / 2 + L.sidewalk / 2 : L.source === LineSource.Country ? L.width / 2 + 0.7 : 0);
+      const pts = slicePolyline(L, a.s, b.s);
+      if (pts.length > 4) edge.pts = pts.map(round1);
+      edges.push(edge);
     }
   }
 

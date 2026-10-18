@@ -13,7 +13,8 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | `src/plan`, `src/world` | The town planner and terrain (ported from Scale). Pure data. | core; from `src/sim` only `import type` (the place graph contract) and the per-kind defaults in `src/sim/placeKinds.ts` |
 | `src/interior` | Building interiors (ported from Scale's interior designer): storeys cut into rooms by a theme, doors, stairs and lifts, furniture, and the spots where people sleep, sit and work. Pure data from the building. | core, `src/geom`, `src/plan`, `src/build/massing` (tiers); from `src/sim` only types and `src/sim/placeKinds.ts` (guarded) |
 | `src/build` | Mesh data from the plan: terrain tiles, water, the town's ground, building shells with facade attributes, landmarks, country roads, the procedural material textures (ported from Scale). Typed arrays, runs in workers. | core, `src/geom`, `src/plan`, `src/world` (no three.js, guarded) |
-| `src/workers` | The worker pool and the workers (town workers, texture workers; the sim worker, planned). | everything pure |
+| `src/workers` | The worker pool and the workers (town workers, texture workers, body workers, the sim worker). | everything pure |
+| `src/street` | The street layer (L1): where each inhabitant out of doors walks (tracks along the sidewalks of their real route, strolls at parks and squares) and how they look (body, today's clothes). Pure, runs in the sim worker and in headless tests. | core, `src/geom`, `src/plan`, `src/world`, `src/build`, `src/sim` (no three.js, guarded) |
 | `src/traffic` | The town's traffic: the road network for cars, the cars driving and parking, the car trips out of the sim. Pure, runs on the main thread for the visible town and in headless tests. | core, `src/plan`, `src/world`, `src/build`, `src/sim` (reads the world, never writes it) |
 | `src/talk` | The procedural text engine (background chatter, fallback answers). Pure. | core, `src/sim` types |
 | `src/llm` | OpenRouter, the model roster, task routing, usage ledger, prompt building, response contracts. No state of its own about NPCs. | core, `src/sim` types |
@@ -64,6 +65,11 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Did something compile on the render path? Is a shader over budget? | `shaders.report()` in the console; `stage.hudLine()` | `src/render/shaders/monitor.ts` |
 | A human: body, skeleton, materials, clothes, animation | `Humanoid` | `@futuremagic/humanoid/three` |
 | A human's look from a seed | `randomAppearance(race, seed, opts)` | `@futuremagic/humanoid` |
+| An inhabitant's body and face (ageing with them, the family's colouring), today's clothes (by age, job, the weather they dressed for) | `appearanceOf(seed, info, clock)`, `bodyKey`, `outfitOf(seed, info, clock, cold, wet)`, `coldOf(tempC)` | `src/street/looks.ts` |
+| Build a human's body off the main thread | `Bodies.launch(workers)`, `bodies.geometry(key, appearance, priority)` (the body workers; kept for a while) | `src/render/people/bodies.ts`, `src/workers/body.worker.ts` |
+| The clothes people wear (shells and rigid parts for the humanoid wardrobe) | `WARDROBE` | `src/render/people/wardrobe.ts` |
+| Draw the inhabitants out of doors near the camera | `PeopleView.create(stage, samples, workers)` (its samples go into the warm-up), `view.draw(figures, cx, cz, dt, time)`: a human each, built a few at a time, compiled before they show, shadows only up close | `src/render/people/peopleView.ts` |
+| Walk the camera down on the street, follow someone | `CameraControl` (drone, street, follow) | `src/game/camera.ts` |
 
 ### The town (`src/plan`, `src/world`, `src/geom`)
 
@@ -86,8 +92,8 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Which ground-floor uses does a town have, which sim place kind is each? | `AmenityKind`, `amenityCounts(pop, warm)`, `PLACE_KIND_OF`, `EATERY_OF`, `AMENITY_LABEL` (hours, staff and capacity are the sim's `placeKinds`) | `src/plan/amenities.ts` |
 | What is this shop front / workplace? | `b.amenity` (set by `planTown`), `b.eatery` for the terrace kind | `src/plan/town.ts`, `src/plan/eatery.ts` |
 | The country around the town (big city, larger town, villages, river, roads), as lore | `regionOf(town)` → `Region` (sim contract in `src/sim/region.ts`); `planRegion(hints)` without planning a town | `src/plan/region.ts` |
-| The town's roads as one network of lines (arterials, streets, footpaths, country roads, tracks) cut at their junctions, with street names | `townRoads(town)` → `TownRoads` (`lines`, `nodes`, `streets`, `nearest`); `alongLine`, `slicePolyline`. The place graph and the traffic network are both built from it | `src/plan/roads.ts` |
-| The town as the sim sees it (places, addresses, road network) | `placeGraphOf(town)` → `PlaceGraph`; `buildingRef(place.building)` back to the cell building, site or farm | `src/plan/placeGraph.ts` |
+| The town's roads as one network of lines (arterials, streets, footpaths, country roads, tracks) cut at their junctions, with street names | `townRoads(town)` → `TownRoads` (`lines`, `nodes`, `streets`, `nearest`); a line's points by arc length with `alongLine`, `slicePolyline` (`src/geom/geom2.ts`). The place graph and the traffic network are both built from it | `src/plan/roads.ts` |
+| The town as the sim sees it (places, addresses, road network) | `placeGraphOf(town)` → `PlaceGraph`; `buildingRef(place.building)` back to the cell building, site or farm. Each `RoadEdge` carries its centreline (`pts`, when bent) and where people walk beside it (`side`: mid-sidewalk, a country road's verge) | `src/plan/placeGraph.ts` |
 | Build mesh data (any kind) | `MeshBuilder(specs)` → `build(): MeshData`; the specs are the material kind's `attributes` | `src/build/meshBuilder.ts` |
 | A procedural material texture layer (facade, roof, ground, interior floors and walls; tileable RGBA8 albedo+roughness, normal+height+AO) | `generateFacadeLayer(i, size)`, `generateGroundLayer(i, size)`, `generateInteriorLayer(i, size)` (`InteriorMat`), `FACADE_TILE_METERS`, `GROUND_TILE_METERS`, `INTERIOR_TILE_METERS`, `TEX_SIZE`; building blocks `TNoise`, `worley`, `Tex`, `Layout`, `brickWall`, `stoneBlocks` | `src/build/texgen/` |
 | Terrain tiles and water of the world | `terrainTiles(terrain)`, `buildTerrainTile(…, land)`; `waterSources(terrain)`, `buildWaterTile` | `src/build/terrainMesh.ts` |
@@ -110,6 +116,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Interior meshes: a storey, or the cutaway of one | `buildStorey(mb, plan, opts)`, `buildCutaway(mb, interior, floor, base, facades)` with `INTERIOR_SPECS` (the `INTERIOR` kind: uv in metres, `aLayer` an `InteriorMat` or `LAMP`, `aTint`) | `src/build/interior.ts` |
 | Look at interiors without the game | `?inside=<cell>/<building>&floor=<n>` in the browser; floor plans as SVG: `npx tsx tools/interior/plans.ts` | `src/main.ts`, `tools/interior/plans.ts` |
 | 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |
+| Polylines by arc length: a point at s, a stretch from s0 to s1, the line moved sideways | `polylineCum(pts)` then `alongLine({ pts, cum }, s)`, `slicePolyline({ pts, cum }, s0, s1)`; `offsetPolyline(pts, d)` (mitred) | `src/geom/geom2.ts` |
 | Polygon union, difference, intersection, offset | `src/geom/clip.ts` (clipper) | `src/geom/clip.ts` |
 
 ### Traffic (`src/traffic`)
@@ -131,6 +138,14 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 |---|---|---|
 | Which version is this build, what changed? | `VERSION` and `whatsNewButton()` / `openWhatsNew()` (read CHANGELOG.md at build time via `parseChangelog`); versions are given only by the changelog fold after each merge (`changes/README.md`) | `src/app/whatsNew.ts`, `src/app/changelog.ts`, `tools/changelog.mjs` |
 
+### The street (`src/street`)
+
+| Question | The one way | Where |
+|---|---|---|
+| Where does an inhabitant out of doors walk, from now on? | `trackOf(world, map, id, clock)` → `Track` (keys `(t, x, y, z)`, `hideAfter` the door they go in by, `validUntil`): a pure function of the sim, remade when `signature(world, id)` changes; `sample(keys, t)` places them. Foot trips walk door to door on the sidewalks of `travel.roadPath`; stays at parks, squares and streets stroll between spots; companions walk beside | `src/street/tracks.ts` |
+| Where people can stand: the sidewalk height, bridge decks, an edge's walking line, a park's outline and spots in it | `StreetMap(town, world.graph)`: `groundY`, `edge`, `centreline`, `walkLine`, `area`, `spot`; `OUTDOOR` (the place kinds seen while staying) | `src/street/streetMap.ts` |
+| The deck height of the bridges at a point | `bridgeDecksAt(bridges, terrain)`; along a road by arc length `bridgeDeckSurface` | `src/build/bridges.ts` |
+
 ### Sound (`src/audio`)
 
 | Question | The one way | Where |
@@ -151,9 +166,11 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Run work off the main thread | `new WorkerPool<In, Out>(url, size)` with the worker imported as `…worker.ts?worker&url` (guarded: `new Worker` only there); `start(init)`, `run(msg, priority)` | `src/workers/pool.ts` |
 | Plan the town and build its mesh data off the main thread | the town workers (`ToTown` / `FromTown`, `TownSummary`) | `src/workers/town.worker.ts`, `src/workers/townProtocol.ts` |
 | Generate the material texture layers off the main thread | the texture workers (`ToTex` / `FromTex`) | `src/workers/tex.worker.ts`, `src/workers/texProtocol.ts` |
-| Run the society simulation | the sim worker, talked to through `SimClient` | `src/workers/sim.worker.ts`, `src/game/SimClient.ts` *planned* |
+| Answer the worker pool's messages inside a worker | `serve(handle, transfer)` | `src/workers/serve.ts` |
+| Run the society simulation; the game clock | the sim worker, talked to through `SimClient`: `SimClient.boot(settings, start, startDay, clock, rate)` with `playStart(time)` (today's date and time: the one place the wall clock enters play), `sim.clock`, `sim.poll(x, z)` each frame, `sim.view`, `sim.walkers` | `src/workers/sim.worker.ts`, `src/game/SimClient.ts` |
+| Who is out of doors near the camera, and where exactly are they? | `sim.walkers` (tracks from the worker, changes only), placed each frame with `sim.where(walker, clock)`; the people view gets them as figures from `Street` | `src/game/SimClient.ts`, `src/game/street.ts` |
+| What does a view need from the sim? Where people and pets are and what they do, lit dwellings, cars at home, trips, each dwelling's look (wealth, upkeep, kids, pets, car) | `SimView`: `viewOf(world)` as transferable typed arrays, sent by the sim worker. Every view (people, traffic, windows, gardens) reads it; no view keeps a second channel to the sim, and the planner and build get the per-dwelling look as data, never by deriving it from the plan. So far: date, weather (now and at 07:00), per actor place, destination and activity, the trips as columns with the household (`tripRow`) | `src/sim/view.ts` |
 | Save or load anything | `src/persist` (guarded: `localStorage` only there); the player's small preferences: `readPref`, `writePref`, `readNumPref`, `readJsonPref` (saves of the world, planned) | `src/persist/prefs.ts` |
-| What does a view need from the sim? Where people and pets are and what they do, lit dwellings, cars at home, trips, each dwelling's look (wealth, upkeep, kids, pets, car) | `SimView`: `viewOf(world)` as transferable typed arrays, sent by the sim worker. Every view (people, traffic, windows, gardens) reads it; no view keeps a second channel to the sim, and the planner and build get the per-dwelling look as data, never by deriving it from the plan | `src/sim/view.ts` *planned* (track C) |
 
 ### The society (`src/sim`)
 
@@ -166,8 +183,8 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Where can actors be? | `PlaceGraph` (places with kind, capacity, opening hours, staff slots; road nodes and edges). The planner produces one with `placeGraphOf(town)` (`src/plan/placeGraph.ts`); tests make one with `testTown(seed, size)` | `src/sim/places.ts`, `src/sim/testTown.ts` |
 | What does a place kind offer, when is it open, who works there? | `KINDS` (services, gossip rate, capacity), `defaultHours(kind)`, `defaultStaff(kind, scale)`, the one source: the planner (`placeGraphOf`) and `testTown` both use it, and it stays pure data (anything stateful moves it to a neutral module, never widens the plan→sim allow list); `isOpen(world, place, clock)` | `src/sim/placeKinds.ts`, `src/sim/schedule.ts` |
 | When does this particular business open (half-day Wednesday, late Thursday, closed Mondays, its own quarter hour)? | `withLocalHours(graph, seed)` in `createWorld`: each place's own copy of its kind's `defaultHours`, seeded per place; read the hours from `world.graph`, never from the planner's graph or `defaultHours` | `src/sim/hours.ts` |
-| How long does it take to get between places? Which one is nearest? | `world.travel.minutes(a, b, car)`, `world.travel.nearest(from, candidates)` | `src/sim/travel.ts` |
-| Who is travelling right now, and how (foot, car, bike, bus, train)? | `world.trips`: one `Trip` per traveller under way (mode, from, to, depart, arrive, `run` for a bus or train ride; `leader` for companions riding or walking along, so a family is one car), pushed by `go`, dropped on arrival; the mode rule is `world.travel.mode(a, b, car)`. Traffic is spawned from it | `src/sim/travel.ts`, `src/sim/schedule.ts` |
+| How long does it take to get between places? Which one is nearest? Which roads does the walk take? | `world.travel.minutes(a, b, car)`, `world.travel.nearest(from, candidates)`, `world.travel.roadPath(a, b)` (the road nodes in order) | `src/sim/travel.ts` |
+| Who is travelling right now, and how (foot, car, bike, bus, train)? | `world.trips`: one `Trip` per traveller under way (mode, from, to, depart, arrive, `run` for a bus or train ride; `leader` for companions riding or walking along, so a family is one car), pushed by `go`, dropped on arrival; one actor's: `tripOf(world, id)`; the mode rule is `world.travel.mode(a, b, car)`. Traffic is spawned from it, the street layer walks the foot trips | `src/sim/travel.ts`, `src/sim/schedule.ts` |
 | Where do commuters work, where do the older children go to school? Who is out of town? | places of kind `'away'` (the city, the next town, its secondary school, and `holiday`, where families go away): appended to the planner's graph by `createWorld` (`withOffsite`, the planner's own graph is left as it is), entrance at the town's `gateway` node and `beyond` metres further; `world.offsite` (`work`, `secondary`). Anyone whose place is an `'away'` place is out of town: not drawn, met by nobody. Without a car they ride the timetable: `awayRide(world, from, to, clock)` (via transit's `nextRide`; the trip carries the `run`), else they get a lift | `src/sim/offsite.ts`, `src/sim/travel.ts` |
 | Bus and train lines, stops, timetables, the school bus | `src/sim/transit.ts` (pure, so people ride the bus in the sim) | `transitOf(world)` (stops, lines, runs; built once per world from the place graph, the region and its railway), `runsOnDay`, `departures(world, stop, clock)`, `nextRide(world, from, to, clock)`, `runsAt(world, clock)` |
 | Game time: day, weekday, minute of day | `dayOf`, `weekdayOf`, `minuteOfDay`, `onDay`, `atMinute` | `src/sim/time.ts` |
