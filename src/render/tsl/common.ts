@@ -35,6 +35,8 @@ export const perturbNormalUV = Fn(([eyePos, N, uv, tn, strength]) => {
 export const LIGHT = {
   /** 0 day … 1 full night. */
   night: uniform(0),
+  /** The street lamps, 0 off … 1 on (night, unless the council switches them off after midnight). */
+  lamps: uniform(0),
   /** Outdoor light level 0 … 1 (rooms seen through windows). */
   dayLight: uniform(1),
   /** Fraction of home and office windows lit. */
