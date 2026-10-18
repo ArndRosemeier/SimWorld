@@ -33,6 +33,10 @@ export interface World {
   readonly seed: number;
   /** Game minutes since day 0 (a Monday) 00:00. */
   clock: number;
+  /** Days from 1970-01-01 to game day 0: game days are real dates (src/sim/calendar.ts). */
+  readonly epoch: number;
+  /** The town's latitude in degrees (day length by date). */
+  readonly latitude: number;
   readonly graph: PlaceGraph;
   readonly travel: Travel;
   /** Place → index into PLACE_KINDS, for hot loops. */
