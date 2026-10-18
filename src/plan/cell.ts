@@ -16,14 +16,14 @@ import {
   type Poly, polyArea, polyCentroid, minAreaRect, splitPolyByLine, ensureCCW, cleanPoly, pointInPoly,
   distSqPointSeg, polyBounds, resample, polylineLength, simplifyClosed, segIntersect, rectangularity,
 } from '../geom/geom2';
-import { cleanShapes, difference, intersection, largest, offset, strokePolylines, union, shapesToPolys, type Shape, shapeArea } from '../geom/clip';
+import { cleanShapes, difference, inShape, intersection, largest, offset, strokePolylines, union, shapesToPolys, type Shape, shapeArea } from '../geom/clip';
 import type { Terrain } from '../world/terrain';
 import { RoadClass, type CellInfo, type District, type MacroPlan } from './types';
 import { ROAD_SPEC } from './macro';
 import { STYLES, asLockUp, isSliver, pickStyle, streetDoor, type BuildingDesc, type StyleId } from './building';
 import type { EateryPlan } from './terrace';
 import { crossingsOf } from './crossings';
-import { planDrives, DRIVE_W, type Driveway } from './drives';
+import { planDrives, dressFronts, DRIVE_W, type Driveway } from './drives';
 import { landmarksOfCell, siteRect, siteToWorld, siteZones, worldToSite, SITE_STREET_CLEAR, type Landmark, type ZoneKind } from './landmarks';
 import { landmarkParts, solidFootprints } from './landmarkParts';
 
@@ -109,6 +109,10 @@ export const enum PropType {
   Yew = 31,
   /** A car parked at the kerb of a street (ParkedCar is one in a car park): left out when the traffic draws the household cars in those bays. */
   KerbCar = 32,
+  /** A house's front fence (variant 0 pickets, 1 a low wall), a 2.5 m stretch along its yaw's x (plan/drives.ts). */
+  GardenFence = 33,
+  /** At a driveway's end: variant 0 a garage, 1 a carport, its open front facing the street. */
+  Garage = 34,
 }
 
 export interface CellPlan {
@@ -321,13 +325,14 @@ export function planCell(macro: MacroPlan, cell: CellInfo, terrain: Terrain): Ce
     if (bd) plan.buildings.push(bd);
   });
   frontsOutdoors(plan.buildings);
-  planDrives(plan, rng.fork('drives'));
+  const fronts = planDrives(plan, rng.fork('drives'));
 
   // Junctions (for traffic lights/stop signs and crossings).
   plan.junctions = findJunctions(plan.streets);
 
   // --------------------------------------------------------- 5. props
   placeProps(plan, cell, macro, g, rng.fork('props'), terrain);
+  dressFronts(plan, fronts);
   // ------------------------------------------------------ 5b. landmark props
   for (const lm of sites) placeLandmarkProps(plan, lm, terrain);
   // ------------------------------------------------------ 5c. landmark ground
@@ -475,7 +480,7 @@ function shapeTouchesSite(blk: Shape, lm: Landmark): boolean {
     const [u, v] = worldToSite(lm, blk.outer[i], blk.outer[i + 1]);
     if (Math.abs(u) < lm.hu && Math.abs(v) < lm.hv) return true;
   }
-  for (let i = 0; i < lm.site.length; i += 2) if (pointInPoly(blk.outer, lm.site[i], lm.site[i + 1]) && !blk.holes.some((h) => pointInPoly(h, lm.site[i], lm.site[i + 1]))) return true;
+  for (let i = 0; i < lm.site.length; i += 2) if (inShape(blk, lm.site[i], lm.site[i + 1])) return true;
   return lineHits([...lm.site, lm.site[0], lm.site[1]], [blk.outer]);
 }
 
@@ -1021,7 +1026,7 @@ function nearOtherStreet(plan: CellPlan, si: number, x: number, z: number, clear
 
 function parkingCheck(plan: CellPlan): (si: number, x: number, z: number, dx: number, dz: number, nx: number, nz: number) => boolean {
   const cross = crossingsOf(plan);
-  const onRoad = (x: number, z: number) => plan.carriageway.some((c) => pointInPoly(c.outer, x, z) && !c.holes.some((h) => pointInPoly(h, x, z)));
+  const onRoad = (x: number, z: number) => plan.carriageway.some((c) => inShape(c, x, z));
   const hl = BAY_LENGTH / 2, hw = BAY_DEPTH / 2;
   return (si, x, z, dx, dz, nx, nz) => {
     for (const [a, b] of [[hl, hw], [hl, -hw], [-hl, hw], [-hl, -hw]]) if (!onRoad(x + dx * a + nx * b, z + dz * a + nz * b)) return false;

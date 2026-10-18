@@ -8,7 +8,7 @@ import { LAMP_STRIDE, PROP_STRIDE, lampsOf, propFar, propInstances, propModel } 
 import { PICTURES, SLOT_SIZES, SlotPacker, pictureRect, slotRect, type AtlasRect, type Slot, type SlotSize } from '../src/build/textAtlasLayout';
 import { townRoads } from '../src/plan/roads';
 import { placeGraphOf } from '../src/plan/placeGraph';
-import { signFootprints, signSpots } from '../src/plan/signs';
+import { clockSpots, signFootprints, signSpots } from '../src/plan/signs';
 import { BOARD_KINDS } from '../src/sim/placeKinds';
 import { SIGN_STRIDE, signInstances } from '../src/build/signs';
 import { distSqPointSeg, pointInPoly } from '../src/geom/geom2';
@@ -195,7 +195,8 @@ test('signs: instance lists tie every sign to what it says, on the ground or the
       const [x, y, z] = [g.inst[o], g.inst[o + 1], g.inst[o + 2]], w = g.inst[o + 6];
       assert.ok(Number.isInteger(w) && w >= 0 && w < data.what.length, `${g.model}: what ${w}`);
       const h = town.terrain.height(x, z);
-      if (!(y > h - 1.5 && y < h + 25)) assert.fail(`${g.model} at ${y.toFixed(2)} over ground ${h.toFixed(2)}`);
+      // (Up to a town hall tower's clock.)
+      if (!(y > h - 1.5 && y < h + 45)) assert.fail(`${g.model} at ${y.toFixed(2)} over ground ${h.toFixed(2)}`);
     }
   }
   assert.ok(n > 300, `${n} sign instances`);
@@ -210,6 +211,19 @@ test('signs: instance lists tie every sign to what it says, on the ground or the
   const pinned = new Set(data.what.flatMap((w) => (w.t === 'notice' && !w.every && w.k === 5 ? [w.place] : [])));
   assert.ok(pinned.size >= boardPlaces.length * 0.8, `${pinned.size} boards for ${boardPlaces.length} board places`);
   assert.ok(data.what.some((w) => w.t === 'notice' && w.every), 'posters on the lamp posts');
+  // Public clocks: on the church tower (and the town hall's tower, the station's gable), looking out of the building.
+  const clocks = clockSpots(town);
+  const church = town.macro.landmarks.find((l) => l.kind === 'church')!;
+  assert.ok(clocks.some((c) => Math.hypot(c.x - church.x, c.z - church.z) < church.hu + church.hv), 'a clock on the church');
+  for (const c of clocks) {
+    const lm = town.macro.landmarks.filter((l) => l.kind === 'townhall' || l.kind === 'church' || l.kind === 'station')
+      .sort((a, b) => Math.hypot(c.x - a.x, c.z - a.z) - Math.hypot(c.x - b.x, c.z - b.z))[0];
+    const h = town.terrain.height(c.x, c.z);
+    assert.ok(c.size > 1 && c.y > h + 4, `a clock up on the ${lm.kind}`);
+    // Its front (-sin yaw, -cos yaw) faces away from the site's middle (towers stand at the front).
+    assert.ok(-Math.sin(c.yaw) * (c.x - lm.x) - Math.cos(c.yaw) * (c.z - lm.z) > -0.5, `the ${lm.kind}'s clock faces out`);
+  }
+  assert.equal(data.what.filter((w) => w.t === 'clock').length, 1, 'all clocks show the one time');
 });
 
 test('parked cars stand in kerbside bays, on the carriageway, clear of the cross streets', () => {

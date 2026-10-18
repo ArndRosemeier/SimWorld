@@ -12,6 +12,7 @@ import { Group, Vector3, type Camera, type Mesh } from 'three/webgpu';
 import type { WorkerPool } from '../workers/pool';
 import type { FromTown, ToTown } from '../workers/townProtocol';
 import { isVehicleModel, PROP_STRIDE, type PropGroup } from '../build/streetProps';
+import type { MeshData } from '../build/meshBuilder';
 import { FURNITURE, VEHICLE } from './materials';
 import { instancedFromData, radiusOf, showInstances, splitByDistance } from './meshes';
 import type { Stage } from './stage';
@@ -57,14 +58,13 @@ export async function showProps(stage: Stage, pool: WorkerPool<ToTown, FromTown>
   if (r.type !== 'props') throw new Error(`town worker: props answered ${r.type}`);
   const group = new Group();
   group.name = 'props';
-  const models = await Promise.all(r.groups.map(async (g, i) => {
-    const m = await pool.run({ type: 'propModel', model: g.model }, priority + 1 + i * 0.01);
-    if (m.type !== 'propModel') throw new Error(`town worker: propModel answered ${m.type}`);
-    const p = modelProps(g, m.mesh, m.far);
+  const meshes = await propModels(pool, r.groups, priority + 1);
+  const models = r.groups.map((g, i) => {
+    const p = modelProps(g, meshes[i].mesh, meshes[i].far);
     group.add(p.near);
     if (p.far) group.add(p.far);
     return p;
-  }));
+  });
 
   const last = new Vector3(Infinity, 0, 0), cam = new Vector3();
   const reshow = (camera: Camera, force = false) => {
@@ -88,6 +88,15 @@ export async function showProps(stage: Stage, pool: WorkerPool<ToTown, FromTown>
     lamps: r.lamps,
     update: (camera) => reshow(camera),
   };
+}
+
+/** Each instance list's model (`PropGroup.model`) from the town workers, in order: its mesh and its far stand-in (null for furniture). */
+export function propModels(pool: WorkerPool<ToTown, FromTown>, groups: readonly { model: string }[], priority: number): Promise<{ mesh: MeshData; far: MeshData | null }[]> {
+  return Promise.all(groups.map(async (g, i) => {
+    const m = await pool.run({ type: 'propModel', model: g.model }, priority + i * 0.01);
+    if (m.type !== 'propModel') throw new Error(`town worker: propModel answered ${m.type}`);
+    return m;
+  }));
 }
 
 const same = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, i) => v === b[i]);

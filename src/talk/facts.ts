@@ -69,7 +69,7 @@ const RULES: readonly Rule[] = [
     '{S} moved in with {O}', '{S} {S:has} moved in with {O}', '{S} {S:is} living with {O} now', '{S&O} {S&O:is} living together[ now|]',
   ] },
   { re: /^\{subject\} and \{object\} split up$/, tone: 'bad', lines: [
-    '{S&O} split up', '{S&O} broke up', '{S&O} {S&O:is} finished', '{S&O} {S&O:has} gone their separate ways', '{S&O} called it off',
+    '{S&O} split up', '{S&O} broke up', '{S&O} {S&O:is} finished', '{S&O} {S&O:has} gone {S&O:their} separate ways', '{S&O} called it off',
   ] },
   { re: /^\{subject\} and \{object\} are getting divorced$/, tone: 'bad', lines: [
     '{S&O} {S&O:is} getting divorced', '{S&O} {S&O:is} splitting up', '{S&O} {S&O:is} divorcing', 'the marriage is over for {S&O:obj}',
@@ -88,7 +88,7 @@ const RULES: readonly Rule[] = [
     '{S} moved into {P}', '{S} {S:has} moved into {P}', '{S} {S:is} living at {P} now', '{S} {S:has} moved to {P}',
   ] },
   { re: /^\{subject\} moved out of their parents' place$/, tone: 'news', lines: [
-    '{S} moved out of {S:poss} parents\' place', '{S} {S:has} got a place of {S:poss} own', '{S} finally left home', '{S} {S:has} moved out on {S:poss} own',
+    '{S} {S:has} got a place of {S:poss} own', '{S} finally left home', '{S} {S:has} moved out', '{S} {S:has} found a place of {S:poss} own',
   ] },
   { re: /^\{subject\} moved away to (.+)$/, tone: 'news', lines: [
     '{S} moved away to {1}', '{S} {S:has} gone off to {1}', '{S} {S:has} left for {1}', '{S} live{S:s} in {1} now', '{S} packed up and moved to {1}',

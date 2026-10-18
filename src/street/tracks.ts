@@ -13,11 +13,13 @@ import { alongLine, closestOnPolyline, joinPolylines, polylineCum, polylineLengt
 import { hash2f, hashCombine } from '@futuremagic/core';
 import type { ActorId } from '../sim/actors';
 import type { PlaceId, PlaceKind } from '../sim/places';
-import { isPerson, tripOf, type World } from '../sim/world';
+import { householdOf, isPerson, tripOf, type World } from '../sim/world';
 import { OUTDOOR, type StreetMap } from './streetMap';
 import { avoid, clearWay, crossing, detour, lineClear } from './clearance';
 import type { Footprints } from '../plan/footprints';
 import { SEAT_REACH, seatFront } from './seats';
+import { DOOR_LEG, doorRound, eveningOf, trickOrTreater } from './trickOrTreat';
+import { MINUTES_PER_DAY } from '../sim/time';
 
 export interface Track {
   id: ActorId;
@@ -47,6 +49,8 @@ const TURN = 0.15;
 const WALKING = 0.8;
 /** The slowest walk on a street stay (m/min, ~2.4 km/h: looking in the windows). */
 const AMBLE = 40;
+/** Pace (m per game minute) from door to door on Halloween. */
+const HURRY = 75;
 /** How far ahead a stay's track is laid out (game minutes). */
 const AHEAD = 30;
 /** Spacing (m) of a walk's points, so heights follow the ground. */
@@ -105,7 +109,7 @@ export function trackOf(world: World, map: StreetMap, id: ActorId, clock: number
   // Someone going along (a toddler, the dog) keeps beside who they are with.
   if (lead >= 0 && outside(world, lead) && a.dest[lead] === a.dest[id] && a.place[lead] === a.place[id]) {
     const t = trackOf(world, map, lead, clock);
-    if (t) return { ...t, id, keys: beside(map.fp, t.keys, 0.8), sig, rests: [] };
+    if (t) return { ...t, id, keys: beside(map.fp, t.keys, besideGap(world, id, lead)), sig, rests: [] };
   }
   if (a.dest[id] >= 0) {
     const keys = tripKeys(world, map, id);
@@ -264,6 +268,9 @@ function stayKeys(world: World, map: StreetMap, id: ActorId, place: PlaceId, t0:
   const kind = world.graph.places[place].kind;
   const { leg, speed } = STAY[kind] ?? DEFAULT_STAY;
   const street = kind === 'street';
+  // Halloween evening: the children go round the doors.
+  const anchor = world.actors.cols.arrive[id];
+  if (street && trickOrTreater(world, id, place, anchor)) return roundKeys(world, map, id, anchor, t0, t1);
   const keys: number[] = [];
   const k0 = Math.floor(t0 / leg), k1 = Math.floor(t1 / leg) + 1;
   for (let k = k0; k <= k1; k++) {
@@ -308,6 +315,50 @@ function stayKeys(world: World, map: StreetMap, id: ActorId, place: PlaceId, t0:
     if (seat && start + walk + SETTLE < start + leg - RISE) rests.push(start + walk + SETTLE, start + leg - RISE, seat.yaw + Math.PI, seat.top);
   }
   return keys;
+}
+
+/**
+ * A trick-or-treater's evening from t0 to t1 (src/street/trickOrTreat.ts): from home (they set out at `anchor`)
+ * to each door of their round in turn on the sidewalks, a DOOR_LEG each, a walk and a wait on the doorstep;
+ * then home again.
+ */
+function roundKeys(world: World, map: StreetMap, id: ActorId, anchor: number, t0: number, t1: number): number[] {
+  const round = doorRound(world, map, id, anchor);
+  const door = (r: number): PlaceId => round[r >= 0 && r + 1 < round.length ? r + 1 : 0];
+  const keys: number[] = [];
+  const r0 = Math.max(0, Math.floor((t0 - anchor) / DOOR_LEG)), r1 = Math.max(r0, Math.floor((t1 - anchor) / DOOR_LEG) + 1);
+  for (let r = r0; r <= r1; r++) {
+    const start = anchor + r * DOOR_LEG, from = door(r - 1), to = door(r);
+    // Doorstep to doorstep (a door to door walk without going in at either end).
+    const way = roundWay(world, map, id, anchor, r, from, to);
+    const walk = Math.max(0.01, Math.min(DOOR_LEG * 0.7, polylineLength(way) / HURRY));
+    const ks = timed(map, way, start, start + walk);
+    for (let i = keys.length && keys[keys.length - 4] >= ks[0] ? 4 : 0; i < ks.length; i += 4) keys.push(ks[i], ks[i + 1], ks[i + 2], ks[i + 3]);
+  }
+  return keys;
+}
+
+/** A round's walk from door `from` to door `to` (leg r), doorstep to doorstep on the sidewalks. */
+function roundWay(world: World, map: StreetMap, id: ActorId, anchor: number, r: number, from: PlaceId, to: PlaceId): number[] {
+  // Laid out once: the track is remade every few minutes.
+  const c = eveningOf(map, Math.floor(anchor / MINUTES_PER_DAY));
+  const key = id * 128 + Math.min(r, 127);
+  let way = c.ways.get(key);
+  if (way) return way;
+  const [sx, sz] = map.doorStep(from), [ex, ez] = map.doorStep(to);
+  way = from === to ? [sx, sz, ex + 0.01, ez] : between(walkPath(world, map, id, from, to, ...map.door(from), ...map.door(to)), sx, sz, ex, ez);
+  c.ways.set(key, way);
+  return way;
+}
+
+/** The stretch of `path` from its point at (sx, sz) to its point at (ex, ez), each added when the path misses it. */
+function between(path: number[], sx: number, sz: number, ex: number, ez: number): number[] {
+  const hits = (i: number, x: number, z: number) => Math.hypot(path[i] - x, path[i + 1] - z) < 0.05;
+  let i0 = 0, i1 = path.length - 2;
+  while (i0 < path.length && !hits(i0, sx, sz)) i0 += 2;
+  while (i1 >= 0 && !hits(i1, ex, ez)) i1 -= 2;
+  if (i0 >= path.length || i1 < i0) return [sx, sz, ...path.slice(2, -2), ex, ez];
+  return path.slice(i0, i1 + 2);
 }
 
 /**
@@ -358,6 +409,14 @@ function neighbours(map: StreetMap, node: number): number[] {
     neighbourCache.set(map, adj);
   }
   return adj[node];
+}
+
+/** How far to the side someone going along walks: the first on the left, the next on the right a little further out (where one side is blocked, both on the other), and so on. */
+function besideGap(world: World, id: ActorId, lead: ActorId): number {
+  const a = world.actors.cols, hh = householdOf(world, lead);
+  const along = hh ? [...hh.members, ...hh.animals].filter((f) => a.with[f] === lead).sort((x, y) => x - y) : [];
+  const i = Math.max(0, along.indexOf(id));
+  return (i % 2 ? -1 : 1) * 0.8 * (1 + i * 0.6);
 }
 
 /**

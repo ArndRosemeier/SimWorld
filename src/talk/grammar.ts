@@ -109,7 +109,8 @@ const CONTRACTIONS: readonly [RegExp, string][] = [
   [/\bI am\b(?![.,!?]|$)/g, "I'm"],
   [/\b(you|we|they) are\b(?![.,!?]|$)/gi, "$1're"],
   [/\b(he|she|it|that|there|what|who|where) is\b(?![.,!?]| indeed|$)/gi, "$1's"],
-  [/\b(I|you|we|they) have\b(?= (?:been|got|had|done|seen|heard|lost|found|landed|moved|gone|left|finally|just|never|always|to)\b)/gi, "$1've"],
+  // (Not "Theo and I've": a joined subject keeps "have".)
+  [/(?<!\band )\b(I|you|we|they) have\b(?= (?:been|got|had|done|seen|heard|lost|found|landed|moved|gone|left|finally|just|never|always)\b)/gi, "$1've"],
   [/\b(he|she|it|that|there|who) has\b(?= (?:been|got|had|done|seen|heard|lost|found|landed|moved|gone|left|finally|just|never|always)\b)/gi, "$1's"],
   [/\b(I|you|he|she|we|they) will\b(?![.,!?]|$)/gi, "$1'll"],
   [/\b(I|you|he|she|we|they) would\b(?![.,!?]|$)/gi, "$1'd"],

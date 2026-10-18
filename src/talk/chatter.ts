@@ -17,7 +17,7 @@
 import type { Rng } from '@futuremagic/core';
 import { ACTIVITIES, ACTOR_PERSON, type ActorId } from '../sim/actors';
 import { agendaOn, type Occasion } from '../sim/agenda';
-import { holidayOn, weekdayName, dateOf } from '../sim/calendar';
+import { holidayOn, monthName, weekdayName, dateOf } from '../sim/calendar';
 import type { Encounter } from '../sim/encounters';
 import { avoids } from '../sim/intentions';
 import { beliefAbout, isAbout, knowsStanding, SOURCE_WITNESSED, type Fact } from '../sim/knowledge';
@@ -202,10 +202,11 @@ class Talk {
     const { world: w, e, rng } = this;
     const home = w.actors.cols.home;
     if (home[e.a] === e.place && home[e.b] === e.place) {
-      if (!grave && rng.float() < 0.35) this.line(e.a, 'greet.home');
+      if (!grave && rng.float() < (e.told >= 0 || e.toldBack >= 0 ? 0.15 : 0.35)) this.line(e.a, 'greet.home');
       return;
     }
-    if (rng.float() >= 0.85) return;
+    // (What one overhears mostly starts mid-way; a bare "Hello." "Hi." pair reads as filler, Jev 2026-10-18.)
+    if (rng.float() >= (e.told >= 0 || e.toldBack >= 0 ? 0.15 : 0.6)) return;
     // Met already today: no "how are you?" again.
     if (this.today.met > 0) {
       // Workmates see each other all day; "hello again" is for running into someone twice.
@@ -214,7 +215,7 @@ class Talk {
       return;
     }
     const known = familiarity(this.world, e.a, e.b) >= 0.2;
-    const asks = known && !grave && rng.float() < 0.5;
+    const asks = known && !grave && rng.float() < 0.35;
     if (!this.line(e.a, asks ? 'greet.how' : known ? 'greet.known' : 'greet.stranger')) return;
     if (asks) {
       this.line(e.b, this.low(e.b) ? 'greet.fine.low' : 'greet.fine');
@@ -241,8 +242,8 @@ class Talk {
       }
     }
     // Most talk just ends where the point was made; what one overhears of a goodbye is mostly "See you" (rated
-    // flat: 21% natural with a stock goodbye against 45% without, Jev 2026-10-18). Comfort is always said.
-    if (mood !== 'comfort' && this.rng.float() < (this.x.lines.length >= 4 ? 0.85 : 0.6)) return;
+    // flat: 21% natural with a stock goodbye against 45% without, Jev 2026-10-18). Comfort is said more often (60%).
+    if (this.rng.float() < (mood === 'comfort' ? 0.4 : this.x.lines.length >= 4 ? 0.93 : 0.8)) return;
     if (mood === 'told' && this.asked) mood = 'light';
     const last = this.x.lines[this.x.lines.length - 1].speaker;
     // Comfort comes from the one who heard the bad news, whoever spoke last.
@@ -252,7 +253,7 @@ class Talk {
     if (this.world.actors.cols.home[e.a] === e.place && this.world.actors.cols.home[e.b] === e.place && !night) return;
     const act: ActName = mood === 'sad' ? 'part.sad' : mood === 'comfort' ? 'part.comfort' : mood === 'tense' ? 'part.tense' : mood === 'crime' ? 'part.crime' : night ? 'part.night' : mood === 'told' ? 'part.told' : 'part';
     const said = this.line(who, act);
-    if (this.rng.float() >= 0.7) return;
+    if (this.rng.float() >= (mood === 'comfort' ? 0.4 : 0.7)) return;
     const reply = this.line(back, mood === 'comfort' ? 'part.reply.sad' : mood === 'sad' && who === this.teller ? 'part.reply.told' : night ? 'part.night' : 'part.reply');
     // The answer never repeats the goodbye word for word ("Bye, then." "Bye, then.").
     const letters = (t: string) => t.toLowerCase().replace(/[^a-z ]/g, '');
@@ -301,12 +302,24 @@ class Talk {
       const act: ActName = tone === 'scandal' ? 'react.yours.scandal'
         : self && knew ? (bad ? 'react.yours.bad' : 'react.self.knew') : self ? (tone === 'good' ? (isAbout(f, teller) ? 'react.self.good' : 'react.yours.good') : bad ? 'react.self.bad' : AWAY.test(f.text) ? 'react.away.self' : 'react.self.news')
           : tone === 'good' ? 'react.yours.good' : 'react.yours.bad';
+      // Good or plain news of one's family raises the same question anyone's would ("Oh? Where to?"), answered by the
+      // one who knows best. (Not one's own: "how long have they been together?" does not fit "Theo and I".)
+      // Bad news of one's family gets its question too ("Oh no. How bad is it?"); one's own illness as well.
+      const ownQ = tone !== 'scandal' && !knew ? this.storyQuestion(f, true) : null;
+      const fits = ownQ !== null && (bad ? OWN_BAD_QUESTIONS.has(ownQ) && (!isAbout(f, teller) || ownQ === 'ill' || ownQ === 'illwhat') : OWN_QUESTIONS.has(ownQ) && !isAbout(f, teller));
+      if (ownQ && fits && rng.float() < 0.8) {
+        // (A sympathy that asks nothing itself, so the question is the only one: "Oh no, I'm sorry. Is it serious?")
+        this.line(listener, act === 'react.self.news' || act === 'react.away.self' ? 'react.self.news.q' : bad ? 'react.self.bad' : act, about, false, (x) => !x.includes('?') && !x.endsWith('…'));
+        this.answerQuestion(teller, listener, f, ownQ, about, true);
+        if (bad) this.comforter = listener;
+        return bad ? 'comfort' : 'light';
+      }
       const reply = this.line(listener, act, about) ?? '';
       // "How are you all holding up?" wants an answer, not "Thanks".
       if (act === 'react.yours.scandal') this.line(teller, 'react.yours.scandal.answer');
       else if (bad && /\?$/.test(reply)) this.line(teller, 'react.yours.answer');
       else if (act === 'react.away.self') { if (/\?$/.test(reply)) this.line(teller, 'answer.away'); }
-      else if (act !== 'react.self.news' && act !== 'react.self.knew' && rng.float() < (bad ? 0.9 : 0.8)) this.line(teller, bad ? 'react.self.close.bad' : 'react.self.close');
+      else if (act !== 'react.self.news' && act !== 'react.self.knew' && rng.float() < (bad ? 0.9 : 0.8)) this.line(teller, bad ? 'react.self.close.bad' : 'react.self.close', {}, false, isAbout(f, teller) ? (x) => !/\bWe're\b/.test(x) : undefined);
       if (bad) this.comforter = listener;
       // (Good news of one's own is not left with "Anyway, I'm off": the goodbye is anyone's.)
       return bad ? 'comfort' : tone === 'scandal' ? 'tense' : 'light';
@@ -330,7 +343,8 @@ class Talk {
     }
     // A sceptic doubts a story worth doubting, not a holiday or a new job.
     // (Nobody says "Come on" to a death or an illness.)
-    const doubtful = tone === 'scandal' || tone === 'crime' || tone === 'bad';
+    // (Nor a lost job: nobody says "Come on" to that either.)
+    const doubtful = tone === 'scandal' || tone === 'crime';
     if (doubtful && lv.sceptic > 0.55 && r >= 0 && c.confidence[r] < 0.55 && rng.float() < 0.7) {
       const byName = about.who !== undefined && (tone === 'scandal' || tone === 'crime') && rng.float() < 0.4;
       this.line(listener, byName ? 'doubt.who' : 'doubt', about);
@@ -362,10 +376,16 @@ class Talk {
   /** Two versions of one story meet. Returns whether they argued. */
   private versions(teller: ActorId, listener: ActorId, f: Fact, held: Fact, r: number): boolean {
     const w = this.world, rng = this.rng, c = w.knowledge.beliefs.cols;
+    // The same people with only the place told differently is the same story, unless the place is the point (a
+    // fight at the Crown or the Anchor): "That's not how I heard it. She lost her job" says nothing new.
+    if (held.subject === f.subject && held.object === f.object && held.place !== f.place && toneOf(f) !== 'crime' && toneOf(f) !== 'scandal') {
+      this.line(listener, 'react.knew');
+      return false;
+    }
     if (held.subject === f.subject && held.object === f.object && held.place === f.place) {
       const tone = toneOf(f);
-      if (tone !== 'bad' && tone !== 'sad' && tone !== 'tragic' && tone !== 'crime' && tone !== 'scandal') {
-        // A bigger or smaller engagement is the same engagement.
+      if (tone !== 'bad' && tone !== 'sad' && tone !== 'crime' && tone !== 'scandal') {
+        // A bigger or smaller engagement is the same engagement (and nobody heard a death "wasn't that bad").
         this.line(listener, 'react.knew');
         return false;
       }
@@ -499,15 +519,36 @@ class Talk {
   }
 
   /** The listener asks what the story raises; the teller answers from what the town knows (the agenda, the baby). */
-  private answerQuestion(teller: ActorId, listener: ActorId, f: Fact, q: string, about: Record<string, string | undefined>): void {
+  private answerQuestion(teller: ActorId, listener: ActorId, f: Fact, q: string, about: Record<string, string | undefined>, own = false): void {
     const w = this.world;
-    const asked = this.line(listener, `ask.${q}` as ActName, about);
+    // "Had a little girl": nobody then asks "boy or girl?", but what she is called.
+    if (q === 'baby' && /\b(boy|girl)\b/.test(this.x.lines.filter((l) => l.speaker === teller).at(-1)?.text ?? '')) q = 'babyname';
+    const kidPro = f.object >= 0 && female(w, f.object) ? { kid_obj: 'her', kid_pos: 'her' } : { kid_obj: 'him', kid_pos: 'his' };
+    const asked = this.line(listener, `ask.${q}` as ActName, { ...about, ...kidPro });
     if (!asked) return;
-    if (q === 'baby') {
-      const kid = female(w, f.object) ? 'girl' : 'boy';
-      this.line(teller, 'answer.kid', { kid, Kid: capital(kid) });
+    // One's own illness, from the one who has it: "They're still doing tests." "Well, I hope it's nothing serious."
+    if (own && isAbout(f, teller) && (q === 'ill' || q === 'illwhat')) {
+      this.line(teller, q === 'ill' ? 'answer.ill.self' : 'answer.illwhat.self');
       this.asked = true;
-      if (this.rng.float() < 0.6) this.line(listener, 'answer.kid.close');
+      if (this.rng.float() < 0.7) this.line(listener, 'close.ill.self');
+      return;
+    }
+    // What the town knows answers it: how long ago it happened, when the baby is due, what the pet is called.
+    const known = this.knownAnswer(f, q);
+    // (One's own family's news is not hearsay: "A few weeks ago.", not "…, I heard".)
+    const firsthand = own ? (x: string) => !FIRSTHAND_NOT.test(x) : undefined;
+    const knownAct = (known?.level ? `answer.${q}.${known.level}` : `answer.${q}.known`) as ActName;
+    if (known && this.line(teller, knownAct, { ...about, ...known }, false, firsthand)) {
+      this.asked = true;
+      const close = own && OWN_CLOSE.has(q) ? `close.${q}.own` : `close.${q}`;
+      if (this.rng.float() < 0.6) this.line(listener, close as ActName, about);
+      return;
+    }
+    if (q === 'baby' || q === 'babyname') {
+      const kid = female(w, f.object) ? 'girl' : 'boy';
+      this.line(teller, q === 'babyname' ? 'answer.babyname' : 'answer.kid', { kid, Kid: capital(kid), Name: firstName(w, f.object), ...kidPro });
+      this.asked = true;
+      if (this.rng.float() < 0.6) this.line(listener, q === 'babyname' ? 'close.babyname' : 'answer.kid.close', { Name: firstName(w, f.object) });
       return;
     }
     if (q === 'funeral' || q === 'wedding') {
@@ -522,15 +563,55 @@ class Talk {
       }
     }
     if (q === 'funeral' || q === 'wedding') {
-      this.line(teller, 'answer.dunno');
+      this.line(teller, 'answer.dunno', {}, false, own ? (x) => !FIRSTHAND_NOT.test(x) : undefined);
       if (this.rng.float() < 0.5) this.line(listener, 'answer.dunno.close');
       return;
     }
     // The answer never claims more than the town knows ("Nobody's said", "They're looking").
-    const answer = this.line(teller, `answer.${q}` as ActName, about);
+    const answer = this.line(teller, `answer.${q}` as ActName, about, false, firsthand);
     if (!answer) return;
     this.asked = true;
-    if (this.rng.float() < 0.6) this.line(listener, DUNNO.test(answer) && !/^close\.(ill|illwhat|sudden|caught|what|about)$/.test(`close.${q}`) ? 'close.dunno' : `close.${q}` as ActName, about);
+    if (this.rng.float() < 0.6) this.line(listener, DUNNO.test(answer) && !/^close\.(ill|illwhat|sudden|caught|what|about)$/.test(`close.${q}`) ? 'close.dunno' : own && OWN_CLOSE.has(q) ? `close.${q}.own` as ActName : `close.${q}` as ActName, about);
+  }
+
+  /** How long ago `days` is (a span, or when), one of the ways people say it; {month} is the month it happened in. */
+  private timeWords(days: number, at: number, ago: boolean): string {
+    const row = TIME_WORDS.find(([limit]) => days < limit)!;
+    const opts = ago ? row[2] : row[1];
+    return opts[this.rng.int(0, opts.length - 1)].replace('{month}', monthName(dateOf(this.world, at).month));
+  }
+
+  /** Slots for an answer the sim knows (`answer.<q>.known`), or null. */
+  private knownAnswer(f: Fact, q: string): Record<string, string> | null {
+    const w = this.world;
+    const days = Math.max(0, (w.clock - f.time) / 1440);
+    switch (q) {
+      case 'since': case 'gone': { const span = this.timeWords(days, f.time, false); return { span, Span: capital(span) }; }
+      case 'started': case 'marriedwhen': { const when = this.timeWords(days, f.time, true); return { when, When: capital(when) }; }
+      case 'due': {
+        const left = 270 - days;
+        if (left < 0) return null;
+        const due = left < 12 ? 'any day now' : left < 40 ? 'in a few weeks' : `in ${monthName(dateOf(w, f.time + 270 * 1440).month)}`;
+        return { due, Due: capital(due) };
+      }
+      case 'ill': {
+        // Still very ill (the sim's health) is something to say; otherwise the usual answers.
+        if (f.subject < 0 || !w.actors.cols.alive[f.subject]) return null;
+        return w.actors.cols.health[f.subject] < 0.3 ? { level: 'worse' } : null;
+      }
+      case 'wherefound': {
+        // Near where the finder lives (the sim knows who found it, not where).
+        const home = f.object >= 0 ? w.actors.cols.home[f.object] : -1;
+        const street = home >= 0 ? w.streetOf[home] : -1;
+        return street >= 0 ? { at: placeName(w, street, this.d) } : null;
+      }
+      case 'petname': {
+        const hh = f.subject >= 0 ? householdOf(w, f.subject) : null;
+        const pets = hh ? hh.members.filter((m) => !isPerson(w, m)) : [];
+        return pets.length ? { pet: firstName(w, pets[pets.length - 1]) } : null;
+      }
+      default: return null;
+    }
   }
 
   /** A funeral or wedding on the agenda about `who`, in the next weeks. */
@@ -822,6 +903,30 @@ const QUESTIONS: readonly { re: RegExp; q: string | readonly string[]; known?: b
   { re: /^\{subject\} is the new /, q: 'office' },
   { re: / is holding its /, q: 'event' },
 ];
+
+/** Questions about a family member's news that the teller answers as one who knows ("Oh? Where to?"). */
+const OWN_QUESTIONS: ReadonlySet<string> = new Set(['started', 'enjoying', 'since', 'wedding', 'married', 'marriedwhen', 'due', 'having', 'whereto', 'whyleave', 'petname', 'petseen', 'movednice', 'retired', 'newpeople']);
+/** Questions about a family member's bad news (and one's own illness). */
+const OWN_BAD_QUESTIONS: ReadonlySet<string> = new Set(['funeral', 'ill', 'illwhat', 'jobless', 'look', 'gone', 'bitten']);
+/** What one does not say of one's own family's news: hearsay ("I heard", "nobody's said"). */
+const FIRSTHAND_NOT = /I heard|apparently|from what I hear|didn't like to ask|nobody's said|nobody's saying|I haven't heard|I didn't ask|If they do|No idea|I couldn't say|Who knows/i;
+/** Questions whose close differs when the news is the teller's family's ("You'll miss him", not "We'll miss him"). */
+const OWN_CLOSE: ReadonlySet<string> = new Set(['whyleave', 'whereto']);
+
+/** Days → how long it has gone on and when it happened, as people say them ("about a month", "back in September"). */
+const TIME_WORDS: readonly [number, readonly string[], readonly string[]][] = [
+  [1, ['just a day or so'], ['today', 'just today']], [2, ['just a day or so', 'since yesterday'], ['yesterday']],
+  [4, ['a couple of days', 'only a few days'], ['a few days ago', 'the other day']],
+  [6, ['about a week', 'nearly a week'], ['a few days ago', 'earlier this week']],
+  [13, ['about a week', 'a week or so', 'over a week'], ['last week', 'a week or so ago']],
+  [21, ['a couple of weeks', 'two weeks or so', 'about two weeks'], ['a couple of weeks ago', 'two weeks ago']],
+  [30, ['three weeks or so', 'nearly a month', 'a few weeks'], ['three weeks ago or so', 'a few weeks back', 'a few weeks ago']],
+  [50, ['about a month', 'a month or so', 'over a month', 'since {month}'], ['about a month ago', 'last month', 'back in {month}']],
+  [80, ['a couple of months', 'about two months', 'since {month}'], ['a couple of months ago', 'back in {month}']],
+  [250, ['a few months', 'months now', 'since {month}'], ['a few months ago', 'back in {month}']],
+  [Infinity, ['about a year', 'ages', 'over a year'], ['a while ago', 'ages ago']],
+];
+
 
 /** Answers that say nothing ("I didn't ask", "No idea"): what follows cannot build on them. */
 const DUNNO = /^(I'm not sure|I don't know|No idea|I didn't ask|Nobody|Not yet|I haven't|If they do|I couldn't|Couldn't|Who knows)/;

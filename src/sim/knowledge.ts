@@ -266,7 +266,7 @@ export function believe(world: World, holder: ActorId, fact: number, confidence:
  * Retelling may change a detail (plan §2.2 distortion): usually it grows in the telling, sometimes the wrong person
  * or place gets attached. Careless, imaginative tellers distort more. Returns the fact actually told.
  */
-function maybeDistort(world: World, teller: ActorId, fact: Fact, roll: Roll): Fact {
+function maybeDistort(world: World, teller: ActorId, listener: ActorId, fact: Fact, roll: Roll): Fact {
   const p = 0.05 * (1.5 - traitOf(world, teller, T_CONSC)) * (0.5 + traitOf(world, teller, T_OPEN));
   if (roll.float() >= p) return fact;
   const v: Fact = { ...fact, id: world.knowledge.facts.length, parent: fact.id, truth: false, originator: fact.originator };
@@ -277,7 +277,8 @@ function maybeDistort(world: World, teller: ActorId, fact: Fact, roll: Roll): Fa
     const row = world.relations.anyKnown(teller, roll);
     if (row < 0) return fact;
     const other = world.relations.t.cols.to[row];
-    if (other === fact.subject || other === fact.object || !isPerson(world, other)) return fact;
+    // (Never on the listener, the teller or the teller's family: they would know.)
+    if (other === fact.subject || other === fact.object || other === listener || other === teller || world.relations.isFamily(teller, other) || !isPerson(world, other)) return fact;
     v.subject = other;
   } else if (fact.place >= 0 && fact.text.includes('{place}') && world.graph.places[fact.place].kind !== 'away') {
     // (Not a place out of town: "the city" never becomes "away on a trip".)
@@ -300,7 +301,7 @@ export function tell(world: World, teller: ActorId, listener: ActorId, fact: num
   const c = world.knowledge.beliefs.cols;
   const rng = tickRng(world, 'tell', teller, listener);
   const held = world.knowledge.facts[c.fact[r]];
-  const told = maybeDistort(world, teller, held, rng);
+  const told = maybeDistort(world, teller, listener, held, rng);
   hear(world, teller, listener, told, c.confidence[r], held.secret);
   c.told[r] = Math.min(65535, c.told[r] + 1);
   c.salience[r] *= 0.8; // old news to the teller, more so each time they tell it
@@ -313,6 +314,8 @@ export function tell(world: World, teller: ActorId, listener: ActorId, fact: num
 const CHILD_TELLS = 10;
 /** Stories not for children outside the family: crimes, affairs, illness, fights. */
 const ADULT_TOPICS: ReadonlySet<FactTopic> = new Set(['crime', 'romance', 'health']);
+/** What a child under 10 is told about other people (see `exchange`). */
+const KID_TOPICS: ReadonlySet<FactTopic> = new Set(['family', 'event', 'other']);
 /** Below this magnitude a story is small news (see `exchange`). */
 const SMALL_NEWS = 0.15;
 const knowsOf = (world: World, who: ActorId, of: ActorId): boolean => {
@@ -331,10 +334,10 @@ export function exchange(world: World, teller: ActorId, listener: ActorId, hub: 
   const k = world.knowledge;
   const list = k.byHolder[teller];
   if (!list || list.length === 0) return -1;
-  // Toddlers pass on no stories and nobody tells them one; a young child tells only family.
+  // Toddlers and small children pass on no stories and nobody tells them one; a young child tells only family.
   const age = ageOf(world, teller);
   // (Nor does a grown-up tell a young child outside the family who went where.)
-  if (age < 4 || ageOf(world, listener) < 4 || ((age < CHILD_TELLS || ageOf(world, listener) < CHILD_TELLS) && !world.relations.isFamily(teller, listener))) return -1;
+  if (age < 6 || ageOf(world, listener) < 5 || ((age < CHILD_TELLS || ageOf(world, listener) < CHILD_TELLS) && !world.relations.isFamily(teller, listener))) return -1;
   const c = k.beliefs.cols;
   const rel = world.relations;
   // Children neither hear nor pass on someone else's adult business outside the family.
@@ -352,10 +355,15 @@ export function exchange(world: World, teller: ActorId, listener: ActorId, hub: 
     if (buzz?.size) { const b = buzz.get(k.facts[c.fact[r]].root); if (b) s /= 1 + b / BUZZ_HALF; }
     if (s <= bestScore) continue; // cheap test first: most stories lose here
     const f = k.facts[c.fact[r]];
-    if (f.subject === listener) continue; // you don't gossip to someone about themselves
+    if (f.subject === listener || f.object === listener) continue; // you don't gossip to someone about themselves
     if (young && isAdultStory(f)) continue; // nor tell a child someone else's adult business
     if (little && isAdultStory(f)) continue; // and a small child is kept out of it even at home
+    // A child under 10 hears children's news (pets, babies, what is on), not who got a job or moved house; and no
+    // one else's death.
+    if (ageOf(world, listener) < CHILD_TELLS && f.subject !== teller && (!KID_TOPICS.has(f.topic) || f.text === '{subject} died') && !rel.isFamily(listener, f.subject)) continue;
     if (f.subject === teller && f.topic === 'crime') continue; // nobody spreads their own misdeeds
+    // "She's seriously ill" is not passed on once she is well again.
+    if (f.topic === 'health' && f.subject >= 0 && world.actors.cols.health[f.subject] >= 0.9 && world.actors.cols.alive[f.subject]) continue;
     // Children pass on children's news, and tell their family what they saw themselves.
     if (age < 13 && (isAdultStory(f) || f.topic === 'job' || f.topic === 'politics') && !(grownUpKin && c.source[r] === SOURCE_WITNESSED)) continue;
     if (f.text.startsWith("{subject}'s family are away") && householdOf(world, f.subject) === householdOf(world, teller)) continue; // one's own family's trip is no news

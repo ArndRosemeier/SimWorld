@@ -9,6 +9,7 @@ import { EMOTIONS, PROPOSABLE_INTENTIONS, type Claim, type ProposableIntention, 
 import { FACT_TOPICS } from '../sim/knowledge';
 import { backgroundBlock, transcript, type Message, type NpcPromptInput, type RefKind, type RefTable } from './prompt';
 import type { JsonSchema } from './wire';
+import type { CheckOutput, Tone } from './decide';
 
 // --- the wire schema (strict mode: every property required, optional ones nullable) -------------
 
@@ -204,6 +205,54 @@ export function parseAppraisal(json: string, input: AppraisalInput, refs: RefTab
   if (isObj(raw.end_conversation)) changes.push({ kind: 'endConversation', reason: text(raw.end_conversation.reason, 200) ?? '' });
 
   return { proposal: { npc, partner: ctx.partner.id, conversation: ctx.conversation, changes }, dropped };
+}
+
+// --- the quick check (npc.check, a decision model) -------------------------------------------------
+
+/** Below this chance that anything changed, plain small talk skips the appraisal call. */
+const SKIP_BELOW = 0.15;
+/** How sure the check must be before its tone or off-fiction verdict overrides the appraisal. */
+const SURE = 0.6;
+
+/** Small talk the check is sure changed nothing (and no warmth or edge to it): the appraisal can be skipped. */
+export function needsAppraisal(check: CheckOutput): boolean {
+  return !(check.notable < SKIP_BELOW && (check.tone === 'polite' || check.tone === 'neutral') && check.offFiction < SURE);
+}
+
+/** The least a hostile line costs, in the proposal's -1..1 deltas (ordinary 1/3, strong 2/3). */
+const TONE_FLOOR: Partial<Record<Tone, { trust?: number; affection?: number; respect?: number; fear?: number }>> = {
+  rude: { affection: -1 / 3 },
+  insulting: { affection: -2 / 3, respect: -1 / 3 },
+  threatening: { trust: -2 / 3, affection: -1 / 3, fear: 2 / 3 },
+};
+
+/**
+ * The appraisal, steadied by the quick check. Language models forgive too easily: a line the check is sure was rude,
+ * insulting or threatening costs at least its floor toward the partner (personality still softens it in
+ * `applyProposal`). A line aimed at the AI rather than the person ("you love me now") changes no belief, plan or
+ * warmer feeling. Pure; `dropped` notes what the check overrode.
+ */
+export function steadied(result: AppraisalResult, check: CheckOutput): AppraisalResult {
+  const { proposal } = result;
+  const dropped = [...result.dropped];
+  let changes = [...proposal.changes];
+  const partner = proposal.partner;
+  if (check.offFiction >= SURE) {
+    const kept = changes.filter((c) => !(c.kind === 'belief' || c.kind === 'intention'
+      || (c.kind === 'relation' && c.toward === partner && ((c.trust ?? 0) > 0 || (c.affection ?? 0) > 0 || (c.respect ?? 0) > 0))));
+    if (kept.length < changes.length) dropped.push(`check: the line spoke to the AI, not the person; ${changes.length - kept.length} change(s) ignored`);
+    changes = kept;
+  }
+  const floor = check.toneConfidence >= SURE ? TONE_FLOOR[check.tone] : undefined;
+  if (floor) {
+    const i = changes.findIndex((c) => c.kind === 'relation' && c.toward === partner);
+    const was = i >= 0 ? changes[i] as Extract<ProposalChange, { kind: 'relation' }> : { kind: 'relation' as const, toward: partner, reason: '' };
+    const low = (v: number | undefined, f: number | undefined) => (f === undefined ? v : Math.min(v ?? 0, f));
+    const rel = stripUndefined({ ...was, trust: low(was.trust, floor.trust), affection: low(was.affection, floor.affection), respect: low(was.respect, floor.respect), reason: was.reason || `the partner was ${check.tone}` });
+    if (i >= 0) changes[i] = rel; else changes.push(rel);
+    if (floor.fear && !changes.some((c) => c.kind === 'emotion')) changes.push({ kind: 'emotion', emotion: 'fear', delta: floor.fear, reason: 'the partner threatened them' });
+  }
+  return { proposal: { ...proposal, changes }, dropped };
 }
 
 /**
