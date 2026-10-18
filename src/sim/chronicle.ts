@@ -151,6 +151,7 @@ function settleAtHome(world: World): void {
     for (let n = 0; n < NEED_COUNT; n++) a.needs[id * NEED_COUNT + n] = Math.max(a.needs[id * NEED_COUNT + n], 0.7);
   }
   world.encounters.length = 0;
+  world.trips.length = 0;
 }
 
 // ---- the digest ------------------------------------------------------------------------------------------

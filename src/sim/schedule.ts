@@ -12,6 +12,7 @@ import { activeIntention, avoids } from './intentions';
 import { urgentNeed } from './needs';
 import { HABITS, HABIT_COUNT, T_CONSC, T_EXTRA, T_OPEN, V_FAITH } from './people';
 import { KINDS, type Service } from './placeKinds';
+import type { Trip } from './travel';
 import type { DayMask, PlaceId, PlaceKind } from './places';
 import type { Job } from './people';
 import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIES, speciesId } from './species';
@@ -73,6 +74,11 @@ export function arrive(world: World): void {
       a.activity[id] = a.planned[id];
     }
   }
+  // Drop the trips that are over: arrived, or replaced by a new plan on the way.
+  const trips = world.trips;
+  let n = 0;
+  for (const t of trips) if (a.dest[t.who] === t.to && a.arrive[t.who] === t.arrive && a.alive[t.who]) trips[n++] = t;
+  trips.length = n;
 }
 
 /** Everyone whose activity has ended decides what to do next. */
@@ -102,7 +108,9 @@ export function go(world: World, id: ActorId, place: PlaceId, activity: number, 
     a.activity[id] = activity;
     a.until[id] = Math.max(until, now + 5);
   } else {
-    const t = world.travel.minutes(from, place, hasCar(world, id));
+    const car = hasCar(world, id);
+    const t = world.travel.minutes(from, place, car);
+    world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode: world.travel.mode(from, place, car), leader: -1 });
     a.dest[id] = place;
     a.arrive[id] = now + t;
     const street = world.streetOf[place];
@@ -121,9 +129,13 @@ function leadFollowers(world: World, leader: ActorId): void {
   const hh = householdOf(world, leader);
   if (!hh) return;
   const outing = OUTINGS.has(a.dest[leader] >= 0 ? a.planned[leader] : a.activity[leader]);
+  let trip: Trip | undefined;
+  if (a.dest[leader] >= 0) for (let i = world.trips.length - 1; i >= 0 && !trip; i--) if (world.trips[i].who === leader) trip = world.trips[i];
   for (const list of [hh.members, hh.animals]) for (const f of list) {
     if (a.with[f] !== leader) continue;
     if (!outing) { a.with[f] = -1; a.until[f] = world.clock; continue; }
+    // They ride or walk along: one car, one group on the pavement.
+    if (trip && a.dest[f] !== trip.to) world.trips.push({ ...trip, who: f, leader });
     a.place[f] = a.place[leader]; a.dest[f] = a.dest[leader]; a.arrive[f] = a.arrive[leader];
     a.activity[f] = a.activity[leader]; a.planned[f] = a.planned[leader]; a.until[f] = a.until[leader];
   }
