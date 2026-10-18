@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.140 — Skip a few hours
+
+- The time skip offers an hour, three hours and six hours, and "until morning", "until noon", "until evening" and "until night", next to the skips of days up to a year.
+- A skip of a few hours is lived minute by minute, so everyone in town is where their routine has taken them when the skip ends.
+
 ## v0.139 — Bug reports are reproduced before they are fixed
 
 - Every bug you report with F8 is now replayed from its link in a test browser before anyone starts the fix, so the fix is checked against what you actually saw.
