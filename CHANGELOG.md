@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.153 — People and animals stand on the ground as it is drawn
+
+- Walkers, people standing about and animals no longer float over the road or sink into fields: their feet follow the ground exactly as it is drawn, up and down kerbs, across roads, on slopes, paths and fields.
+- Someone walking beside another person (a child, the dog) stays on the ground too, instead of keeping the height of the path next to them.
+- The player's own ground near them is measured finer, so steps and kerbs under them match what is drawn.
+
 ## v0.152 — Cars stand on the road
 
 - Cars, buses, bikes, police cars, ambulances and parked cars no longer float above the road or sink into it: every wheel stands on the road surface as it is drawn, on hills, across cambered country roads, on bridges and in driveways.
