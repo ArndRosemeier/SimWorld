@@ -644,11 +644,27 @@
     "reason": "Canvas 2D's own grammar for a gradient: the title's dusk sky and the signs' and atlas pictures' shading each make their own; a wrapper would only rename the canvas API."
   },
   {
+    "key": "idiom: [.append .label] in simworld/app/debug.ts + simworld/app/llmSettings.ts + simworld/app/shell.ts",
+    "reason": "Each panel puts its own rows' labels into its own elements (menu entries, debug tools, model rows); the shared part is already el() in src/app/dom.ts."
+  },
+  {
+    "key": "idiom: [.warn console] in simworld/game/SimClient.ts + simworld/persist/saves.ts + simworld/workers/sim.worker.ts",
+    "reason": "A save that cannot be fetched, stored or loaded is said once where it fails, each with its own words; play goes on without it (the report collects the warnings, src/app/consoleLog.ts)."
+  },
+  {
+    "key": "same name: simworld/app/debug.ts#add + simworld/app/shell.ts#add",
+    "reason": "The debug menu and the game's Menu are two separate panels by design (Arnd: debug tools stay out of the normal menu); add() is each one's way to take an entry."
+  },
+  {
     "key": "idiom: [.arc .beginPath] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/render/signPaint.ts",
     "reason": "Canvas 2D's own grammar for a circle (start a path, arc): the map's dots and rings, the title's moon and the signs' dials each draw their own; a wrapper would only rename the canvas API."
   },
   {
     "key": "idiom: [.beginPath .fillStyle] in simworld/app/title.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the title's pictures, the signs' painters and the atlas pictures each paint their own shapes; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.addEventListener .preventDefault] in simworld/app/mapPanel.ts + simworld/app/minimap.ts + simworld/game/debugTools.ts",
+    "reason": "The DOM's own grammar for taking an event over (the map's wheel and drag, the debug menu's forms); each handler does something different, a wrapper would only rename addEventListener."
   }
 ]

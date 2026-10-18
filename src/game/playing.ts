@@ -51,6 +51,8 @@ export class Playing {
   /** The building whose interior stands in the physics world (-1: none), and the one coming up. */
   private interior = -1;
   private entering: { code: number; done: Promise<boolean> } | null = null;
+  /** Where the next take-over stands the body (a report's repro link: `?stand=`, `?look=`), used once. */
+  private placeAt: { id: number; stand: Stand; look: { orbit: number; pitch: number } | null } | null = null;
 
   constructor(private readonly sim: SimClient, private readonly cam: CameraControl, private readonly street: Street, private readonly seed: number, private readonly goingIn: GoingInside) {
     // The interior's shut doors are solid (src/interior/doors.ts): a set of their own, renewed as they open and shut.
@@ -70,14 +72,36 @@ export class Playing {
 
   /**
    * Once the town shows: play as `be` (an inhabitant's id, from `?be=`), else as whoever the loaded save was being
-   * played as, else bring up the picker.
+   * played as, else bring up the picker. `at` (a report's repro link) stands them there, in building
+   * `at.stand.building` (-1 out of doors), the camera turned `at.look`; `at.autopilot` leaves their routine running them.
    */
-  async takeOver(be: number | null): Promise<void> {
+  async takeOver(be: number | null, at: { stand: Stand | null; look: { orbit: number; pitch: number } | null; autopilot: boolean } | null = null): Promise<void> {
     const r = await this.sim.ask({ op: 'cards' });
     const was = r.status?.alive ? r.status : null;
     const card = r.cards.find((c) => c.id === (be ?? was?.id ?? -1));
-    if (card) return this.become(card, be === null && was ? was.autopilot : false);
+    if (card && at?.stand) this.placeAt = { id: card.id, stand: at.stand, look: at.look };
+    if (card) return this.become(card, at?.autopilot || (be === null && was ? was.autopilot : false));
     return this.choose(r.cards);
+  }
+
+  /** Autopilot on (their routine runs them) or off (you steer them from where they are). */
+  setAutopilot(on: boolean): void {
+    if (on) { this.dropAvatar(); void this.sim.ask({ op: 'autopilot', on }); } else void this.takeWheel();
+  }
+
+  /** The body you steer now (null on autopilot, or while the sim walks them). */
+  get body(): { x: number; y: number; z: number; yaw: number } | null {
+    const a = this.avatar;
+    return a ? { x: a.x, y: a.y, z: a.z, yaw: a.yaw } : null;
+  }
+
+  /** The building whose interior is up (its `Place.building` code, what it is), and the floor height `y` stands on (0 ground; null out of doors). */
+  where(y: number): { building: number; about: string; floor: number | null } {
+    const ins = this.goingIn.inside;
+    if (!ins || this.interior !== ins.building) return { building: -1, about: '', floor: null };
+    let floor = 0;
+    ins.indoors.storeys.forEach((st, f) => { if (y >= st.y - 0.3) floor = f; });
+    return { building: ins.building, about: ins.about, floor };
   }
 
   /** Show the picker (the cards are fetched fresh unless given: lives move on while you play). */
@@ -109,7 +133,7 @@ export class Playing {
     this.closePicker();
     this.panel?.close();
     const panel = new PlayPanel(card, {
-      autopilot: (on) => { if (on) { this.dropAvatar(); void this.sim.ask({ op: 'autopilot', on }); } else void this.takeWheel(); },
+      autopilot: (on) => this.setAutopilot(on),
       actions: async () => (await this.sim.ask({ op: 'actions' })).actions,
       // Sent somewhere: the sim walks them there (a walking key takes over again on the way).
       go: (a) => { this.dropAvatar(); void this.sim.ask({ op: 'go', place: a.place, activity: a.activity }); },
@@ -145,7 +169,15 @@ export class Playing {
     try {
       const phys = await this.physics();
       let at: { x: number; y: number; z: number; yaw: number } | null = null, building = -1;
-      if (indoorsNow(s, this.sim) && (await this.goIn(phys, s.building)) && this.sim.player?.id === s.id) {
+      const want = this.placeAt?.id === s.id ? this.placeAt : null;
+      this.placeAt = null;
+      if (want) {
+        // Stand where the report says, in its building when it was indoors (out of doors if that has no interior now).
+        const st = want.stand;
+        if (st.building >= 0 && !(await this.goIn(phys, st.building))) console.warn(`repro: building ${st.building} has no interior to stand in`);
+        else building = st.building;
+        at = { x: st.x, y: st.y, z: st.z, yaw: st.yaw };
+      } else if (indoorsNow(s, this.sim) && (await this.goIn(phys, s.building)) && this.sim.player?.id === s.id) {
         at = this.standUp(phys, s.id);
         if (at) building = s.building;
       }
@@ -158,7 +190,7 @@ export class Playing {
       if (this.sim.player?.id !== s.id) return;
       this.avatar = new Avatar(phys, at.x, at.y, at.z, at.yaw);
       this.street.setSelf(s.id, this.avatar);
-      this.cam.behind(at.yaw);
+      this.cam.behind(want?.look?.orbit ?? at.yaw, want?.look?.pitch);
       this.told.t = 0;
       await this.tell(at.x, at.z, building);
     } finally {
@@ -343,6 +375,9 @@ export class Playing {
     return inside;
   }
 }
+
+/** Where to stand the body: feet at (x, y, z), facing `yaw`, in building `building` (-1 out of doors). */
+export interface Stand { x: number; y: number; z: number; yaw: number; building: number }
 
 /** How far around the body the solids are fetched (m); fetched again after walking a third of it. */
 const SOLIDS_R = 75;
