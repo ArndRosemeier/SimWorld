@@ -1,7 +1,7 @@
 /**
- * Lit windows as the sim says (src/street/windows.ts): two small data textures the facade shader reads. The
- * map finds the building behind a fragment (its slot), the shares texture says what share of that building's
- * home and office windows are lit. The sky sets `WINDOW_LIGHT.gloom` (how much a room needs its lamp in daylight
+ * Lit windows as the sim says (src/street/windows.ts): small data textures the facade shader reads. The map
+ * finds the building behind a fragment (its slot), the shares texture says what share of that building's home
+ * and office windows are lit, the looks texture how kept-up and well-off it is (wear on the walls). The sky sets `WINDOW_LIGHT.gloom` (how much a room needs its lamp in daylight
  * under heavy cloud); at night every room someone is awake in is lit.
  *
  * Both textures have a fixed size from the start, so the shaders compiled at the warm-up keep them; the town's
@@ -31,6 +31,8 @@ function dataTex(data: Uint8Array, w: number, h: number, format: typeof RGFormat
 
 const mapTex = dataTex(new Uint8Array(WINDOW_MAP * WINDOW_MAP * 2), WINDOW_MAP, WINDOW_MAP, RGFormat);
 const shareTex = dataTex(new Uint8Array(WINDOW_SLOTS), SHARE_W, SHARE_H, RedFormat);
+/** Per slot: upkeep and wealth (0 … 255), src/street/windows.ts `buildingLooksOf`. */
+const looksTex = dataTex(new Uint8Array(WINDOW_SLOTS * 2), SHARE_W, SHARE_H, RGFormat);
 const uOrigin = uniform(new Vector2(0, 0));
 /** 1 / (map size in metres). */
 const uInvSize = uniform(1);
@@ -63,16 +65,37 @@ export function setLitShares(shares: Uint8Array): void {
   shareTex.needsUpdate = true;
 }
 
+/** How the town's buildings look today (upkeep, wealth per slot), once a game day from the sim's town face. */
+export function setBuildingLooks(looks: Uint8Array): void {
+  (looksTex.image.data as Uint8Array).set(looks.subarray(0, WINDOW_SLOTS * 2));
+  looksTex.needsUpdate = true;
+}
+
+/** TSL: the slot of the building at a world point (-1 for none) and its texel in the per-slot textures. */
+function slotAt(xz: ReturnType<typeof vec2>) {
+  const m = texture(mapTex, xz.sub(uOrigin).mul(uInvSize));
+  // The slot + 1 as two bytes (low, high); 0 is no building.
+  const slot = floor(dot(m.rg, vec2(255, 65280)).add(0.5)).sub(1).toVar();
+  return { slot, uv: vec2(slot.mod(SHARE_W).add(0.5).div(SHARE_W), floor(slot.div(SHARE_W)).add(0.5).div(SHARE_H)) };
+}
+
 /**
  * TSL: the share of a building's people in and awake (0 … 1) at a world point inside it, or -1 outside the town's
  * buildings (or before the sim is ready). Also read by the chimney smoke (src/render/tsl/smoke.ts).
  */
 export function buildingAwake(xz: ReturnType<typeof vec2>) {
-  const m = texture(mapTex, xz.sub(uOrigin).mul(uInvSize));
-  // The slot + 1 as two bytes (low, high); 0 is no building.
-  const slot = floor(dot(m.rg, vec2(255, 65280)).add(0.5)).sub(1).toVar();
-  const su = slot.mod(SHARE_W).add(0.5).div(SHARE_W), sv = floor(slot.div(SHARE_W)).add(0.5).div(SHARE_H);
-  return select(slot.lessThan(0), float(-1), texture(shareTex, vec2(su, sv)).r);
+  const { slot, uv } = slotAt(xz);
+  return select(slot.lessThan(0), float(-1), texture(shareTex, uv).r);
+}
+
+/**
+ * TSL: how the building at a world point looks (upkeep, wealth, 0 … 1), or (-1, -1) outside the town's buildings.
+ * Before the sim's first town face both read 0, which `buildingLooksOf` never writes (its least is 1/255):
+ * callers treat an upkeep of 0 as unknown.
+ */
+export function buildingLooks(xz: ReturnType<typeof vec2>) {
+  const { slot, uv } = slotAt(xz);
+  return select(slot.lessThan(0), vec2(-1, -1), texture(looksTex, uv).rg);
 }
 
 /**

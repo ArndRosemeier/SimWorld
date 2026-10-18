@@ -19,7 +19,10 @@ import { h_noise2 as vnoise } from '@futuremagic/humanoid/three/nodes/peopleNois
 import type { MaterialArrays } from '../textures';
 import { h11, h21, LIGHT, SNOW_ALBEDO, perturbNormalUV } from './common';
 import { setDiffuse } from './ground';
-import { windowLit } from '../windowLight';
+import { buildingLooks, windowLit } from '../windowLight';
+
+/** Upkeep (0 … 1) below which a building's walls show wear, fully at 0. */
+const WEAR_FROM = 0.55;
 
 const Surf = struct({
   albedo: 'vec3', rough: 'float', metal: 'float', tn: 'vec2', nStr: 'float', emis: 'vec3', ao: 'float', glass: 'float', door: 'float',
@@ -314,6 +317,21 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
         tn.assign(vec2(0.0)); rough.assign(0.9); metal.assign(0.0); ao.assign(0.8);
       });
     }
+    If(frontFacing.and(glass.lessThan(0.5)), () => {
+      // Wear from the sim's upkeep: a neglected building's walls go grey and grimy, in streaks running down
+      // from the ledges and in blotches; a well-off household's paint is fresh. Unknown (0) shows none.
+      const looks = buildingLooks(positionWorld.xz.sub(nW.xz.mul(0.5))).toVar();
+      If(looks.x.greaterThan(0.002), () => {
+        const wear = clamp(sub(WEAR_FROM, looks.x).mul(1.0 / WEAR_FROM), 0.0, 1.0);
+        const streak = vnoise(vec2(positionWorld.x.add(positionWorld.z).mul(1.7), positionWorld.y.mul(0.12)));
+        const blot = vnoise(vec2(positionWorld.x.sub(positionWorld.z), positionWorld.y).mul(0.8));
+        const dirt = wear.mul(add(mul(0.6, streak), mul(0.4, blot))).toVar();
+        const grey = dot(albedo, vec3(0.3, 0.59, 0.11));
+        albedo.assign(mix(albedo, vec3(grey).mul(0.7).add(vec3(0.035, 0.03, 0.02)), dirt.mul(0.8)));
+        rough.assign(mix(rough, 0.95, dirt.mul(0.5)));
+        albedo.mulAssign(add(1.0, clamp(looks.y.sub(0.6).mul(2.5), 0.0, 1.0).mul(0.07)));
+      });
+    });
     If(uWet.greaterThan(0.001).and(frontFacing).and(glass.lessThan(0.5)), () => {
       // Rain-darkened walls, in streaks and patches.
       const wW = uWet.mul(add(0.55, mul(0.45, vnoise(vec2(positionWorld.x.add(positionWorld.z), positionWorld.y.mul(0.25)).mul(0.6)))));
