@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.072 — Autumn: each tree turns at its own pace, fallen leaves on the ground
+
+- Leafy trees no longer all turn colour together: each tree turns at its own pace, so in October the town shows green, yellow, orange and red-brown side by side.
+- Fallen leaves gather on lawns, gardens and bare earth from mid-October, fewer on swept paving and a few on the roads. They are yellow and orange at first and turn brown as the trees go bare, then are cleared or rot away by the new year.
+- Rain darkens the fallen leaves, and snow covers them.
+
 ## v0.071 — Parked cars in the planned bays
 
 - The town's parked cars now stand in the parking bays the town planner laid out along the kerbs, which keep clear of junctions, zebra crossings and driveways. Before, the cars had their own bays every few metres, which could block a driveway or a crossing.
