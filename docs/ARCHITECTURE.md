@@ -204,7 +204,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 
 | Question | The one way | Where |
 |---|---|---|
-| Run work off the main thread | `new WorkerPool<In, Out>(url, size)` with the worker imported as `…worker.ts?worker&url` (guarded: `new Worker` only there); `start(init)`, `run(msg, priority)` | `src/workers/pool.ts` |
+| Run work off the main thread | `new WorkerPool<In, Out>(url, size)` with the worker imported as `…worker.ts?worker&url` (guarded: `new Worker` only there); `start(init)`, `run(msg, priority)`; a worker that fails to start rejects with `WorkerStartError` (which worker and why; `outdated` when its file is gone after a deploy, and main then reloads once) | `src/workers/pool.ts` |
 | Plan the town and build its mesh data off the main thread | the town workers (`ToTown` / `FromTown`, `TownSummary`) | `src/workers/town.worker.ts`, `src/workers/townProtocol.ts` |
 | Generate the material texture layers off the main thread | the texture workers (`ToTex` / `FromTex`) | `src/workers/tex.worker.ts`, `src/workers/texProtocol.ts` |
 | Answer the worker pool's messages inside a worker | `serve(handle, transfer)` | `src/workers/serve.ts` |

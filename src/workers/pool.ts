@@ -6,6 +6,38 @@
  * `{ type: 'error', message }` reply rejects it.
  */
 export interface PoolMessage { type: string }
+
+/**
+ * A worker that failed to start, with what went wrong in words. `outdated`: its script is gone from the server,
+ * because this page came from an earlier deploy (a cached page after the game was updated); a reload fixes it.
+ */
+export class WorkerStartError extends Error {
+  constructor(message: string, readonly outdated: boolean) { super(message); this.name = 'WorkerStartError'; }
+}
+
+/** The worker's file name, for messages ("sim.worker-AB12.js"). */
+const scriptName = (url: string): string => url.split('/').pop()?.split('?')[0] || url;
+
+/**
+ * Words for a worker's `error` event. An exception in the worker comes as an ErrorEvent with its message and
+ * place; a script that failed to load or parse comes as a bare Event, so ask the server whether the file is there.
+ */
+async function startError(url: string, e: Event): Promise<WorkerStartError> {
+  const name = scriptName(url);
+  if (e instanceof ErrorEvent && e.message) {
+    const at = e.filename ? ` (${scriptName(e.filename)}:${e.lineno}:${e.colno})` : '';
+    return new WorkerStartError(`${name}: ${e.message}${at}`, false);
+  }
+  let status = 0, html = false;
+  try {
+    const r = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    status = r.status;
+    html = (r.headers.get('content-type') ?? '').includes('text/html'); // a host that answers a missing file with its page
+  } catch { /* offline: say so below */ }
+  if (status === 404 || (status === 200 && html)) return new WorkerStartError(`${name} is not on the server any more: this page is from an older version of SimWorld`, true);
+  return new WorkerStartError(`${name} did not load (${status ? `server answered ${status}` : 'no answer from the server'})`, false);
+}
+
 export type Reply<T> = T & { job?: number };
 
 type Job<In, Out> = { msg: In & { job?: number }; priority: number; resolve: (r: Out) => void; reject: (e: Error) => void };
@@ -29,14 +61,14 @@ export class WorkerPool<In extends PoolMessage, Out extends PoolMessage> {
       this.busy.push(0);
       ready.push(new Promise((res, rej) => {
         w.onmessage = (ev: MessageEvent<Out>) => (ev.data.type === 'error' ? rej(new Error((ev.data as unknown as { message: string }).message)) : res(ev.data));
-        w.onerror = (e) => rej(new Error(e.message));
+        w.onerror = (e) => { e.preventDefault(); void startError(this.url, e).then(rej); };
       }));
       w.postMessage(init(i));
     }
     const replies = await Promise.all(ready);
     this.workers.forEach((w, i) => {
       w.onmessage = (ev: MessageEvent<Reply<Out>>) => this.onMessage(i, ev.data);
-      w.onerror = (e) => console.error('worker error', e.message);
+      w.onerror = (e) => { void startError(this.url, e).then((err) => console.error('worker error', err.message)); };
     });
     return replies;
   }
