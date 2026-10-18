@@ -30,7 +30,6 @@ export function breaches(tests, files, totalMs, budget = BUDGET, scale = SCALE) 
 export default async function* budgetReporter(source) {
   const tests = [];
   const files = new Map();
-  const t0 = performance.now();
   let pass = 0, fail = 0;
   for await (const event of source) {
     if (event.type === 'test:diagnostic' && event.data.nesting === 0) continue;
@@ -49,7 +48,10 @@ export default async function* budgetReporter(source) {
       files.set(file, (files.get(file) ?? 0) + ms);
     }
   }
-  const totalMs = performance.now() - t0;
+  // Since the process started, not since this reporter did: with the test files in one process the reporter can
+  // start reading events only after they ran, so its own start time says nothing about the run (CI showed 0.1 s).
+  // The tests' own time is a floor, so the cap can never be measured away.
+  const totalMs = Math.max(performance.now(), tests.reduce((a, t) => a + t.ms, 0));
   const out = breaches(tests, files, totalMs);
   if (process.env.CI_TIMES_OUT) {
     fs.writeFileSync(process.env.CI_TIMES_OUT, JSON.stringify({ totalMs: Math.round(totalMs), tests: tests.length, files: Object.fromEntries([...files].map(([f, ms]) => [f, Math.round(ms)])) }, null, 1));
