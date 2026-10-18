@@ -53,17 +53,17 @@ test('appraisal: refs become ids, the partner is the belief source, zero steps a
     memory: { summary: 'Tom said the mill is closing.', importance: 14 },
     end_conversation: null,
   });
-  const { proposal, dropped, utterances } = parseAppraisal('```json\n' + json + '\n```', input, refsFor(input.context));
+  const { proposal, dropped } = parseAppraisal('```json\n' + json + '\n```', input, refsFor(input.context));
   assert.deepEqual([proposal.npc, proposal.partner, proposal.conversation], [RUTH, TOM, 'c-ruth-tom-1']);
   const saturday = 5 * 1440;
   assert.deepEqual(proposal.changes, [
     { kind: 'relation', toward: TOM, trust: -1 / 3, reason: 'spreads gossip' },
     { kind: 'emotion', emotion: 'surprise', delta: 2 / 3, reason: '' },
     { kind: 'belief', claim: { text: 'The mill is closing', topic: 'other', secret: false }, plausibility: 0.45 },
+    { kind: 'utterance', claim: { text: 'Anna Keller cleans for the Brandts', about: ANNA, topic: 'job', secret: false }, form: 'lie' },
     { kind: 'intention', intention: 'meet', person: TOM, place: FOUNTAIN, at: saturday + 17 * 60, reason: 'Meet me at the fountain at five' },
     { kind: 'memory', summary: 'Tom said the mill is closing.', importance: 1, emotion: 'surprise' },
   ]);
-  assert.deepEqual(utterances, [{ claim: { text: 'Anna Keller cleans for the Brandts', about: ANNA, topic: 'job', secret: false }, form: 'lie' }], 'held back until the sim takes utterances');
   assert.deepEqual(dropped.map((d) => d.split(':')[0]), ['relation', 'belief', 'intention', 'intention tell', 'intention']);
   assert.match(dropped[0], /toward the speaker themselves/);
   assert.match(dropped[3], /quote not found in the reply/);

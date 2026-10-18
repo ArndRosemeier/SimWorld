@@ -102,8 +102,6 @@ export interface AppraisalResult {
   proposal: Proposal;
   /** Items the model returned that could not be used, with why (for the dev overlay and tests). */
   dropped: string[];
-  /** Claims the NPC made that are not among its beliefs; not passed to the sim until it has a change kind for them. */
-  utterances: { claim: Claim; form: 'speculation' | 'lie' }[];
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -125,7 +123,6 @@ export function parseAppraisal(json: string, input: AppraisalInput, refs: RefTab
   const ctx = input.context;
   const npc = ctx.npc.id;
   const changes: ProposalChange[] = [];
-  const held: AppraisalResult['utterances'] = [];
 
   /** A single ref of one kind: the id, undefined when absent, null (and reported) when it names nothing usable. */
   const one = (kind: RefKind, r: unknown, what: string): number | undefined | null => {
@@ -169,13 +166,13 @@ export function parseAppraisal(json: string, input: AppraisalInput, refs: RefTab
     changes.push({ kind: 'belief', claim, plausibility: PLAUSIBILITY[stance] });
   }
 
-  // The model still classifies the speaker's own claims (so they never land in `beliefs`), but the sim
-  // has no change kind for them yet: they are checked and held back until it does.
+  // The speaker's own claims that are not among its beliefs: a lie becomes a rumour sourced from the
+  // NPC, speculation only a memory (the sim decides).
   for (const u of arr(raw.utterances)) {
     const claim = isObj(u) ? claimOf(u, 'utterance') : undefined;
-    const kind = isObj(u) && (u.kind === 'speculation' || u.kind === 'lie') ? u.kind : undefined;
-    if (!claim || !kind) dropped.push(`utterance: missing claim or kind ${JSON.stringify(u)}`);
-    else held.push({ claim, form: kind });
+    const form = isObj(u) && (u.kind === 'speculation' || u.kind === 'lie') ? u.kind : undefined;
+    if (!claim || !form) dropped.push(`utterance: missing claim or kind ${JSON.stringify(u)}`);
+    else changes.push({ kind: 'utterance', claim, form });
   }
 
   for (const i of arr(raw.intentions)) {
@@ -206,7 +203,7 @@ export function parseAppraisal(json: string, input: AppraisalInput, refs: RefTab
 
   if (isObj(raw.end_conversation)) changes.push({ kind: 'endConversation', reason: text(raw.end_conversation.reason, 200) ?? '' });
 
-  return { proposal: { npc, partner: ctx.partner.id, conversation: ctx.conversation, changes }, dropped, utterances: held };
+  return { proposal: { npc, partner: ctx.partner.id, conversation: ctx.conversation, changes }, dropped };
 }
 
 /**
