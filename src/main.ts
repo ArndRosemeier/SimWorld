@@ -243,8 +243,9 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       view.signs.setFacts({ kind: shownFace.kind, name: shownFace.name, flags: shownFace.looks.flags, hours: shownFace.hours });
     }
     view.signs?.update(camera);
+    sky.lampsOffAtMidnight = sim.town.rules.lightsOffAtMidnight;
     sky.update(dt, time, time.clock, w, camera, rate);
-    if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.night);
+    if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.lamps);
     else placeLamps(lights, undefined, 0, 0, 0);
     precip.fall(dt, camera, w, w.windDir, sky.day, sky.flash);
     smoke.puff(dt, w, minuteOfDay(sim.clock), sky.day);
