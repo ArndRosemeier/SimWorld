@@ -84,6 +84,9 @@ export function splitByDistance(pose: Float32Array, n: number, cam: { x: number;
   return [a, b];
 }
 
+/** A model's radius round its origin (m), from its geometry's bounding sphere: an instanced mesh's per instance, for `showInstances`. */
+export const radiusOf = (m: Mesh): number => { const s = m.geometry.boundingSphere!; return s.center.length() + s.radius; };
+
 /** The geometry of mesh data whose attributes must be the kind's (checked). */
 function geometryOf(d: MeshData, kind: MaterialKind): BufferGeometry {
   const want = ['position', 'normal', ...kind.attributes.map((a) => a.name)].sort().join(',');

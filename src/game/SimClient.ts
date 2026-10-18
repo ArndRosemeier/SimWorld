@@ -8,14 +8,19 @@
  */
 import { WorkerPool } from '../workers/pool';
 import simWorkerUrl from '../workers/sim.worker.ts?worker&url';
-import type { ActorInfo, FromSim, HeightGrid, ToSim } from '../workers/simProtocol';
+import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim } from '../workers/simProtocol';
+import type { PlayerStatus } from '../sim/player';
 import { DEFAULT_LATITUDE, daysOf, epochFor, weekdayOfDays, type CivilDate } from '../sim/calendar';
-import type { SimView } from '../sim/view';
+import type { SimView, TownFace } from '../sim/view';
+import type { TrafficMsg } from '../traffic/feed';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
+import { dropSave, readSave, storeSave } from '../persist/saves';
 
 /** Real milliseconds between street updates (the plan's L1 rate, ~5 Hz). */
 const UPDATE_MS = 200;
+/** Real milliseconds between autosaves. */
+const AUTOSAVE_MS = 5 * 60_000;
 /** How far around the camera the worker reports people (m). */
 export const STREET_RADIUS = 260;
 
@@ -52,6 +57,9 @@ export function followSim(w: ScreenWorld, sim: SimClient): void {
   w.clock = sim.clock;
 }
 
+/** The store key of a town's save: one save per town (its settings). */
+const saveKey = (s: TownSettings): string => `town:${s.seed}:${s.size}`;
+
 /** Someone out of doors near the camera. */
 export interface Walker {
   readonly id: number;
@@ -69,28 +77,88 @@ export class SimClient {
   private clock0 = 0;
   private base = 0;
   private busy = false;
+  /** The street update under way (a skip waits for it, then holds the next ones off). */
+  private inflight: Promise<unknown> = Promise.resolve();
   private last = 0;
   private readonly infos = new Map<number, ActorInfo>();
 
-  private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView) {
+  private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView, private readonly key: string) {
     this.view = view;
+    this.town = view.town!;
   }
+
+  /** The vehicles from the latest street update (src/traffic/feed.ts): the moving ones, and the parked ones as last sent. */
+  traffic: TrafficMsg | null = null;
+  /** The parked cars as last sent (they come only when they changed; poses PARKED_STRIDE each). */
+  parked: { poses: Float32Array; cars: Int32Array } | null = null;
 
   /** The sim's latest view snapshot (src/sim/view.ts): every view reads the sim from here. */
   view: SimView;
+  /** The town's face as of today (the latest `view.town`): what each place is now, its looks, the council's rules. */
+  town: TownFace;
 
   /**
    * Start the worker: it plans the town, makes the world (play beginning on the real date `start`, game day
    * `startDay`) and runs it to `clock`.
    */
-  static async boot(settings: TownSettings, start: CivilDate, startDay: number, clock: number, rate: number): Promise<SimClient> {
+  static async boot(settings: TownSettings, start: CivilDate, startDay: number, clock: number, rate: number, opts: { resume?: boolean } = {}): Promise<SimClient> {
+    const key = saveKey(settings);
+    const save = opts.resume ? await readSave(key) : null;
     const pool = new WorkerPool<ToSim, FromSim>(simWorkerUrl, 1);
-    const [ready] = await pool.start(() => ({ type: 'init', settings, start, startDay, clock }));
+    const [ready] = await pool.start(() => ({ type: 'init', settings, start, startDay, clock, save: save?.bytes ?? null }));
     if (ready.type !== 'ready') throw new Error(ready.type === 'error' ? ready.message : 'the sim worker did not start');
-    const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view);
-    c.clock0 = ready.clock;
-    c.base = performance.now();
+    const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view, key);
+    c.restart(ready.clock);
+    if (save && !ready.resumed) void dropSave(key); // it no longer fits this build or town
     return c;
+  }
+
+  /**
+   * Save the world now, under this town's key (one save per town: a new one replaces it). Resolves to whether it
+   * was stored. `boot(..., { resume: true })` plays on from it.
+   */
+  async saveNow(): Promise<boolean> {
+    const m = await this.pool.run<Extract<FromSim, { type: 'saved' }>>({ type: 'save' }, 0);
+    return storeSave(this.key, m.bytes, m.clock);
+  }
+
+  /** Save when the tab is hidden (closing, switching away) and every `AUTOSAVE_MS` of play. */
+  keepSaved(): void {
+    let last = performance.now();
+    const save = (): void => { last = performance.now(); void this.saveNow(); };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') save(); });
+    setInterval(() => { if (performance.now() - last >= AUTOSAVE_MS) save(); }, AUTOSAVE_MS / 4);
+  }
+
+  /** The time skip: `days` whole days on, the same time of day. Everyone out of doors is drawn afresh. */
+  async skip(days: number): Promise<void> {
+    await this.inflight;
+    this.busy = true;
+    try {
+      const m = await this.pool.run<Extract<FromSim, { type: 'skipped' }>>({ type: 'skip', days }, 0);
+      this.view = m.view;
+      if (m.view.town) this.town = m.view.town;
+      this.walkers.clear();
+      this.restart(m.clock);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** The player's person as of the worker's last answer (src/sim/player.ts), null while nobody is picked. */
+  player: PlayerStatus | null = null;
+
+  /** A player request (cards, become, autopilot, actions, go, digest); updates `player`. */
+  async ask(op: PlayerOp): Promise<PlayerReply> {
+    const r = await this.pool.run<PlayerReply>({ type: 'player', op }, 0);
+    this.player = r.status;
+    return r;
+  }
+
+  /** The game clock reads `clock` now. */
+  private restart(clock: number): void {
+    this.clock0 = clock;
+    this.base = performance.now();
   }
 
   /** The game clock now (game minutes since day 0, fractional). */
@@ -118,8 +186,11 @@ export class SimClient {
     if (this.busy || now - this.last < UPDATE_MS) return;
     this.busy = true;
     this.last = now;
-    this.pool.run<Extract<FromSim, { type: 'street' }>>({ type: 'update', clock: this.clock, x, z, r: STREET_RADIUS }, 0).then((m) => {
-      if (m.view) this.view = m.view;
+    this.inflight = this.pool.run<Extract<FromSim, { type: 'street' }>>({ type: 'update', clock: this.clock, x, z, r: STREET_RADIUS }, 0).then((m) => {
+      if (m.view) { this.view = m.view; if (m.view.town) this.town = m.view.town; }
+      this.player = m.player;
+      this.traffic = m.traffic;
+      if (m.traffic.parked) this.parked = { poses: m.traffic.parked, cars: m.traffic.parkedCars! };
       for (const i of m.info) this.infos.set(i.id, i);
       for (const id of m.gone) this.walkers.delete(id);
       for (const t of m.tracks) {

@@ -95,7 +95,6 @@ export function kinWord(world: World, who: ActorId, bond: Bond, voice: Voice | n
   }
 }
 
-/** How well `of` knows `who` (0 when not at all). */
 /** How well `of` knows `who` (0 for strangers). */
 export const familiarity = (world: World, of: ActorId, who: ActorId): number => {
   const r = world.relations.row(of, who);

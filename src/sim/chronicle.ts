@@ -61,7 +61,8 @@ export function history(world: World, years: number): void {
   const total = historyDays(years);
   const recent = Math.min(total, 28), year = Math.min(total - recent, 336);
   // Far back only the life events matter: what was said then is long forgotten.
-  chronicle(world, total - recent - year, { step: 56, talksPerDay: 0 });
+  // (Only when there is a far back: `chronicle` with no days still finishes the day, which would add one.)
+  if (total - recent - year > 0) chronicle(world, total - recent - year, { step: 56, talksPerDay: 0 });
   chronicle(world, year, { step: 28 });
   chronicle(world, recent, { step: 7 });
 }

@@ -13,6 +13,7 @@ import { meshFromData } from './meshes';
 import type { Stage } from './stage';
 import { showProps, type PropsShown } from './propsView';
 import { showVegetation, type VegetationShown } from './vegetationView';
+import { showSigns, type SignsShown } from './signsView';
 
 export interface TownView {
   root: Group;
@@ -25,9 +26,12 @@ export interface TownView {
   props?: PropsShown;
   /** The trees and shrubs of the town and the countryside (src/render/vegetationView.ts), once placed. */
   vegetation?: VegetationShown;
+  /** The signs: shop names and hours, estate boards, street names, town signs (src/render/signsView.ts), once placed. */
+  signs?: SignsShown;
 }
 
-export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town: TownSummary, onProgress: (done: number, total: number) => void = () => {}): TownView {
+/** `onChimneys`: the chimney tops (x, y, z each) of each piece's buildings, as they come in. */
+export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town: TownSummary, onProgress: (done: number, total: number) => void = () => {}, onChimneys: (tops: number[]) => void = () => {}): TownView {
   const root = new Group();
   root.name = 'town';
   stage.scene.add(root);
@@ -54,12 +58,16 @@ export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town:
   // The trees after the cells too: the town's, then the countryside's.
   view.total++;
   const trees = showVegetation(stage, pool, root, town, 60 + town.cells).then((v) => { view.vegetation = v; onProgress(++view.done, view.total); });
-  view.ready = Promise.all([props, trees, ...jobs.map(async ({ msg, priority }) => {
+  // The signs after the props.
+  view.total++;
+  const signs = showSigns(stage, pool, root, 50 + town.cells).then((s) => { view.signs = s; onProgress(++view.done, view.total); });
+  view.ready = Promise.all([props, trees, signs, ...jobs.map(async ({ msg, priority }) => {
     const r = await pool.run(msg, priority);
     switch (r.type) {
       case 'terrain': await place(r.mesh, TERRAIN); break;
       case 'water': await place(r.mesh, WATER); break;
-      case 'cell': case 'country': case 'bridges': await place(r.ground, GROUND); await place(r.buildings, FACADE); break;
+      case 'cell': case 'country': if (r.chimneys.length) onChimneys(r.chimneys); await place(r.ground, GROUND); await place(r.buildings, FACADE); break;
+      case 'bridges': await place(r.ground, GROUND); await place(r.buildings, FACADE); break;
       case 'landmark': await place(r.mesh, FACADE); break;
     }
     onProgress(++view.done, view.total);

@@ -10,9 +10,13 @@
  * `?rain=0…1`, `?wind=0…1` what the soundscape hears (src/audio/env.ts); `?mute` keeps it silent.
  *
  * The society runs in the sim worker from the start; Enter takes the camera down to the street, where the
- * inhabitants out of doors walk their real errands (src/game/street.ts, keys in src/game/camera.ts).
+ * inhabitants out of doors walk their real errands (src/game/street.ts, keys in src/game/camera.ts) and the household
+ * cars drive their trips, with the buses and the rounds (src/traffic, run in the sim worker; src/render/vehiclesView.ts).
  * `?date=YYYY-MM-DD` starts on that day (default: today), `?time=HH:MM` at that time (default: the time of day now), `?speed=…` runs game time that
  * many times faster than real time (default 1), `?street=x,z&yaw=…` and `?follow=<id>` start on the street.
+ *
+ * Once the town shows, the picker comes up over it (src/game/playing.ts): pick an inhabitant and the camera flies
+ * down to them and stays with them while you play as them. `?be=<id>` starts as that inhabitant.
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
@@ -21,6 +25,7 @@ import { Stage } from './render/stage';
 import { fitSunShadow, makeLights, placeLamps } from './render/lights';
 import { DaySky } from './render/sky';
 import { Precipitation } from './render/precip';
+import { ChimneySmoke } from './render/smoke';
 import { WEATHER_KINDS, describeWeather, forceWeather, weatherAt, type Weather, type WeatherKind } from './sim/weather';
 import { setParcels } from './render/tsl/ground';
 import { showTown } from './render/townView';
@@ -37,7 +42,9 @@ import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
 import { SimClient, followSim, playStart, screenWorld, type ScreenWorld } from './game/SimClient';
 import { Street } from './game/street';
 import { CameraControl } from './game/camera';
+import { Playing } from './game/playing';
 import { PeopleView } from './render/people/peopleView';
+import { VehiclesView } from './render/vehiclesView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
 import { FEMALE, MALE } from './sim/actors';
 import { hhmm, minuteOfDay } from './sim/time';
@@ -45,6 +52,8 @@ import { formatDate } from './sim/calendar';
 import { TownAudio } from './audio/townAudio';
 import { soundEnvFromSim, soundEnvOf, soundOverrides } from './audio/env';
 import { soundButton } from './app/soundPanel';
+import { paperButton } from './app/paperPanel';
+import { mapButton } from './app/mapPanel';
 
 const HAZE = 0xa9c8e4;
 
@@ -82,7 +91,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const q0 = new URLSearchParams(location.search);
   const rate = Math.max(0, Number(q0.get('speed') ?? 1)) || 1;
   // The society: planned and populated in its own worker while the rest loads.
-  const simulated = SimClient.boot(settings, play.start, play.startDay, play.clock, rate);
+  // `?resume`: play on from this town's last save (made when the tab is hidden, and every few minutes).
+  const simulated = SimClient.boot(settings, play.start, play.startDay, play.clock, rate, { resume: q0.has('resume') });
   // The town workers start planning at once; the texture workers generate the facade textures
   // meanwhile (the shaders need them before the warm-up), then the renderer warms up.
   const pool = new WorkerPool<ToTown, FromTown>(townWorkerUrl, Math.min(4, cores));
@@ -126,6 +136,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   void stage.add(sky.dome);
   const precip = new Precipitation(settings.seed);
   void stage.add(precip.mesh);
+  const smoke = new ChimneySmoke(settings.seed);
+  void stage.add(smoke.mesh);
   step('Planning the town', 0.15);
 
   const [ready] = await planned;
@@ -137,11 +149,16 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   // What the town sounds like where: one worker works it out alongside the meshes.
   void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { time.region = { region: { coastal: r.map.coastal } }; audio.setTown(r.map); });
-  const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total));
+  const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total), (tops) => smoke.addChimneys(tops));
 
   step('Waking the town', 0.15);
   const sim = await simulated;
+  if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);
+  sim.keepSaved();
+  document.body.append(paperButton(() => sim.view));
   const street = new Street(sim, people, settings.seed);
+  // The traffic runs in the sim worker beside the world; its vehicles come with every street update.
+  const vehicles = new VehiclesView(stage, pool, 70 + town.cells);
 
   // The drone drift: a slow circle around the town, high enough to see it whole (or fixed by ?at=…).
   const q = new URLSearchParams(location.search);
@@ -151,9 +168,15 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   cam.pickNear = (x, z) => street.next(x, z);
   if (q.has('street')) { const [sx, sz] = q.get('street')!.split(',').map(Number); cam.toStreet(sx, sz, num('yaw', 0)); }
   const followId = q.has('follow') ? num('follow', -1) : -1;
+  // The picker comes up over the town once it shows; picking someone plays as them (?be=<id> skips the picker).
+  const playing = new Playing(sim, cam, street, settings.seed);
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
   const fwd = { x: 0, y: 0, z: 0 };
+  document.body.append(mapButton(
+    async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
+    () => (cam.mode === 'drone' ? null : { x: camera.position.x, z: camera.position.z, fx: fwd.x, fz: fwd.z }),
+  ));
   renderer.setAnimationLoop((t: number) => {
     const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
     lastT = t;
@@ -163,28 +186,38 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     if (followId >= 0 && cam.following < 0 && cam.mode !== 'follow' && sim.walkers.has(followId)) cam.follow(followId);
     const target = cam.mode === 'follow' ? street.where(cam.following) : null;
     cam.update(dt, t, target);
-    const ground = cam.mode === 'drone' ? { x: cx, z: cz } : { x: camera.position.x, z: camera.position.z };
+    const player = cam.mode === 'play' ? playing.track(dt, t, stage.waiting > 0) : null;
+    const ground = player ?? (cam.mode === 'drone' ? { x: cx, z: cz } : { x: camera.position.x, z: camera.position.z });
     sim.poll(ground.x, ground.z);
     people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);
+    vehicles.show(camera, sim.clock, sim.traffic, sim.parked);
     // The sun's shadow covers the whole town from above, the streets around you down there.
     if (cam.mode !== 'drone') fitSunShadow(lights, camera.position.x, camera.position.y, camera.position.z, 70);
     else if (shadowMode !== 'drone') fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
     shadowMode = cam.mode;
     view.vegetation?.update(camera);
     view.props?.update(camera);
+    view.signs?.update(camera);
     sky.update(dt, time, time.clock, w, camera, rate);
     if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.night);
     else placeLamps(lights, undefined, 0, 0, 0);
     precip.fall(dt, camera, w, w.windDir, sky.day, sky.flash);
+    smoke.puff(dt, w, minuteOfDay(sim.clock), sky.day);
     renderer.render(scene, camera);
     const e = camera.matrixWorld.elements;
     fwd.x = -e[8]; fwd.y = -e[9]; fwd.z = -e[10];
     audio.frame(dt, { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: fwd.x, fy: fwd.y, fz: fwd.z, ux: e[4], uy: e[5], uz: e[6] }, soundEnvFromSim(time, sim.view, sim.clock, ears));
-    if (!shown && view.done > 0) { shown = true; document.getElementById('loading')?.remove(); audio.startTown(); }
+    if (!shown && view.done > 0) {
+      shown = true;
+      document.getElementById('loading')?.remove();
+      audio.startTown();
+      if (q.has('be')) void sim.ask({ op: 'cards' }).then((r) => { const c = r.cards.find((x) => x.id === num('be', -1)); return c ? playing.become(c) : playing.choose(); });
+      else if (!q.has('street') && followId < 0) void playing.choose();
+    }
     if (hud) {
       const c = sim.clock, n = people.counts;
-      const who = cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '\nEnter: down to the street' : '\nW A S D walk, drag to look, F follow someone, Esc up';
-      hud.textContent = `${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(c)))}, ${describeWeather(w)} · ${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${who}`;
+      const who = cam.mode === 'play' ? '\nDrag to look around' : cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '' : '\nW A S D walk, drag to look, F follow someone, Esc up';
+      hud.textContent = `${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(c)))}, ${describeWeather(w)} · ${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${vehicles.counts.moving} vehicles on the road, ${vehicles.counts.parked} parked · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${who}`;
     }
   });
   await view.ready;

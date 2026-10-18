@@ -1,5 +1,105 @@
 # Changelog
 
+## v0.068 — Council decisions change the town
+
+- When the council passes something, it happens about a month later and the town hears of it: the pool closes, the 30 km/h limit is in force, parking in the centre costs money, the street lights go off at midnight.
+- Sunday trading: the supermarket and the bigger shops open on Sunday afternoons, with new Sunday shifts that locals take.
+- Cutting the library's hours really shuts it on Tuesdays and Thursdays and at five, and the librarians work less.
+- Higher local rates and parking charges come out of households' budgets.
+- Building projects (the bypass, the new estate, wind turbines, a skate park) start months after the vote, take their time, and are news when they open.
+- A passed issue is settled and does not come up again.
+- The game now gets the town's face from the sim once a day: what each shop is now and its name, to-let and for-sale boards, upkeep and wealth, and the council's rules, ready for signs, boards and street lights to show.
+
+## v0.067 — Trees follow the seasons
+
+- Deciduous trees drop their leaves through November and stand bare over the winter; they leaf again in April. Conifers keep their needles.
+- Distant trees thin to a twiggy crown in winter too.
+- In spring some trees (about one in seven) blossom white and pink for a few weeks.
+
+## v0.066 — Cars on the streets
+
+- The town's traffic is now on screen: household cars drive their owners' real trips and park near where they are going. Buses keep to their timetable, and the bin lorry, the post van and the delivery vans make their rounds.
+- Each household's car stands in a bay near home or wherever its driver went, always the same model and colour. When someone drives off, their car leaves its bay, so no car is ever shown twice.
+- Cars light up as they should: headlights after dark, brake lights, indicators at turns, and hazard lights when a bus or van stops.
+- The cars in car parks stay as they were.
+
+## v0.065 — Shop signs, street names and the town sign
+
+- Every shop, café, pub, office and works now has its real name on the front: a painted fascia over the shop window in its own colours and type, a hanging sign by a café's or pub's door, a brass plate by an office door, big letters on a works' wall.
+- The opening hours hang by each shop's door, day by day.
+- Street-name signs stand at the corners of junctions, and public buildings have their name boards out front.
+- "Welcome to" signs with the town's name stand beside the roads into town, with a thank-you on the back.
+- An empty shop unit shows the estate agent's TO LET board on its fascia instead of a name.
+
+## v0.064 — Choose who to be, and live their life
+
+- When the town has loaded, a picker opens over it: "Who will you be?" Every inhabitant has a card with their work, who they live with and what is going on in their life (recently widowed, new in town, engaged, not speaking to a brother, out of work…). Search by name, job or street, filter by "in love", "has a secret", "grieving" and more, sort by "most going on", or press "Surprise me".
+- Open a card to see the whole story, including the secrets only you will know, then press "Be …". The camera flies down to them and stays with them: behind them out of doors, circling their house while they are inside.
+- A panel shows who you are, what you are doing and how fed, rested and happy you are. Autopilot lets your routine run your day; switch it off and you decide. "What now?" lists what you can do: at home, at work, visiting the people closest to you, and the town's cafés, shops and parks, with how far each is and whether it is open.
+- "Skip time" moves on a day, a week, a month or up to a year; afterwards you read what your character lived through and heard in that time. "Save" saves the town, and "Someone else" brings the picker back.
+- The town now starts with a year of history behind it, so people have pasts, and it starts on the right day (it used to begin a day late).
+
+## v0.063 — Saves and the time skip in the game
+
+- The game saves the town when you switch away from the tab and every five minutes. Open it with `?resume` to play on from the last save.
+- `?skip=N` skips N days on start, to the same time of day; the town lives through them (life events, gossip) and everyone is drawn afresh.
+- Saves go to the browser's IndexedDB, gzipped, one per town.
+
+## v0.062 — The fields change through the farming year
+
+- The countryside follows the calendar: winter wheat and barley are green shoots in the winter, ripen gold in July and leave pale stubble until the autumn ploughing.
+- Rapeseed flowers bright yellow in late April and May. Maize and beet fields are bare ploughed soil in spring, green all summer and harvested in the autumn.
+- From far away the patchwork's average colour changes with them.
+
+## v0.061 — People walk around trees, cars and street furniture
+
+- People on the sidewalk step around street trees, lamps, benches, bins, café tables and parked cars instead of walking through them, and keep off building walls.
+- Each person stays inside the sidewalk: a narrow sidewalk has one walking line, a wide one room for several.
+- Corners no longer send walkers past the corner and back.
+- A walk to a door across the street crosses it where no parked car, lamp or tree is in the way, near the door, and not in the middle of a junction.
+- People leave and enter by the front of the building, not through the wall beside the door.
+- People strolling on squares, in parks and up and down a street keep walking most of the time, with a short pause, instead of standing about.
+- A save that no longer fits (an older save version, a changed town) no longer stops `?resume` from starting: play starts afresh and the old save is dropped.
+
+## v0.060 — The seam index names the paper and notices in the sim view
+
+- The SimView row in the architecture notes now lists the town's media (newest paper and board notices).
+
+## v0.059 — Chimney smoke
+
+- When it is cold, smoke rises from the chimneys of houses with the heating on: none on a mild day, most chimneys near freezing, more in the morning and the evening than in the small hours.
+- The smoke drifts with the wind, rises straight on a still day and is torn along low in a gale; it is pale by day, faint at night and thinner in the rain.
+
+## v0.058 — Front doors open onto the street
+
+- No front door opens into the house next door any more: on corner plots and narrow wedges the front was sometimes put on the shared wall.
+- Oddly pinched building outlines are gone.
+
+## v0.057 — The town map
+
+- A "Map" button opens a map of the town in the style of a printed town plan: every street with its name, the main roads in yellow, buildings, parks, the river or sea, the woods, the railway, and the town's landmarks by name.
+- An arrow shows where you are and which way you face when you are down in the street.
+- Drag to move around; zoom with the mouse wheel or the + and − buttons.
+
+## v0.056 — Read the town's paper
+
+- A "Paper" button beside Sound opens this week's issue of the town's paper: the front page, news around town, business, police news, births, marriages and deaths, what's on in the coming week, and the notices on the boards (lost pets, funerals, coming events).
+- There is a paper to read from the moment you arrive: last week's issue, with what's on from today.
+- Council stories say when the council meets next.
+
+## v0.055 — Saves and the time skip in the game
+
+- The game saves the town when you switch away from the tab and every five minutes. Open it with `?resume` to play on from the last save.
+- `?skip=N` skips N days on start, to the same time of day; the town lives through them (life events, gossip) and everyone is drawn afresh.
+- Saves go to the browser's IndexedDB, gzipped, one per town.
+
+## v0.054 — No more flickering ground, and parked cars that leave junctions free
+
+- The ground no longer flickers: lawns, squares and the church grounds no longer lie a centimetre over the block beneath them, and dirt tracks, lanes and main roads keep clear of each other and of the farmyards where they meet.
+- Far out in the country the roads no longer sink into the hills.
+- Parked cars keep five metres back from every cross street and off the zebra crossings, so a side street is never blocked.
+- Street trees, lamps, bins and benches stand in a strip along the kerb, leaving the sidewalk free to walk on.
+
 ## v0.053 — A care home, a petrol station, and fewer empty-looking shop fronts
 
 - The town has a care home now: a two- or three-storey house with a garden behind it, on a quiet street at the edge of the residential part. The oldest townspeople living alone move in there.

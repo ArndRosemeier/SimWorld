@@ -22,10 +22,10 @@
 import { Rng, hash32 } from '@futuremagic/core';
 import { Rule, gridKey as cellKey, type REdge, type RoadNet } from './roadNet';
 import type { Parking, Spot } from './parking';
+import type { VehicleKind } from '../build/vehicles';
 
-export type VKind =
-  | 'sedan' | 'hatch' | 'wagon' | 'suv' | 'van' | 'pickup' | 'taxi' | 'police' | 'sports' | 'bus' | 'truck' | 'delivery' | 'shuttle'
-  | 'ambulance' | 'firetruck' | 'flatbed';
+/** A vehicle's kind: the vehicle models' (src/build/vehicles.ts). */
+export type VKind = VehicleKind;
 
 /** Length and width (m) per kind (Scale's DIMS). */
 export const DIMS: Record<VKind, [number, number]> = {

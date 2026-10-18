@@ -4,20 +4,29 @@
  * the clock the main thread asks for; for the camera's surroundings it says who is out of doors and the
  * track each of them walks. Started by the worker pool only; talked to through src/game/SimClient.ts.
  */
-import { planTown } from '../plan/town';
+import { planTown, type Town } from '../plan/town';
 import { placeGraphOf } from '../plan/placeGraph';
 import { regionOf } from '../plan/region';
 import { createWorld } from '../sim/synth';
+import { chronicle, digest, historyDays } from '../sim/chronicle';
+import { loadWorld, saveWorld } from '../sim/save';
+import { dayOf, MINUTES_PER_DAY } from '../sim/time';
 import { tick, nameOf, jobOf, householdOf, type World } from '../sim/world';
-import { ACTIVITIES, ACTOR_PERSON } from '../sim/actors';
+import { becomePlayer, doingOf, playerActions, playerGo, playerStatus, setAutopilot } from '../sim/player';
+import { cardsOf } from '../sim/profile';
+import { ACTOR_PERSON } from '../sim/actors';
 import { viewOf, viewTransfers } from '../sim/view';
 import { StreetMap } from '../street/streetMap';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
-import type { ActorInfo, FromSim, HeightGrid, ToSim, TrackMsg } from './simProtocol';
+import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
+import { TrafficFeed, trafficTransfers } from '../traffic/feed';
 
 let world: World | null = null;
 let map: StreetMap | null = null;
+/** The town's traffic, driven by the world's car trips and rounds, and the town it drives in. */
+let traffic: TrafficFeed | null = null;
+let roads: Town | null = null;
 /** The track each actor has now, while they are out of doors (made lazily, kept until L0 changes or it runs out). */
 const tracks = new Map<number, Track>();
 /** Actors the main thread has a track of (id → the signature it was made from, its validity). */
@@ -28,6 +37,11 @@ const known = new Set<number>();
 let sentAt = -1;
 /** Extra distance before someone shown counts as gone (no flicker at the edge). */
 const KEEP = 40;
+/**
+ * Years of town history lived before play (the chronicle, about 1.5 s for 1,500 people): enough past for the
+ * inhabitant cards to have stories (widowed in June, new in town, not speaking to a brother).
+ */
+const HISTORY_YEARS = 1;
 
 function simJob(m: ToSim): FromSim {
   const t0 = performance.now();
@@ -35,17 +49,68 @@ function simJob(m: ToSim): FromSim {
   if (m.type === 'init') {
     const town = planTown(m.settings);
     const graph = placeGraphOf(town);
-    world = createWorld(graph, m.settings.seed, { region: regionOf(town), start: m.start, startDay: m.startDay });
+    // A save that no longer fits (another save version, another town) is set aside: play starts afresh.
+    let resumed: World | null = null;
+    if (m.save) try { resumed = loadWorld(graph, m.save); } catch (e) { console.warn('save not loaded', e); }
+    world = resumed ?? createWorld(graph, m.settings.seed, { region: regionOf(town), start: m.start, startDay: m.startDay, history: HISTORY_YEARS });
     map = new StreetMap(town, world.graph);
-    runTo(Math.max(m.clock, world.clock));
+    forget();
+    // With a history the world's day 0 lies that many weeks back (the same weekday): play starts after it.
+    if (!resumed) runTo(Math.max(m.clock + historyDays(HISTORY_YEARS) * MINUTES_PER_DAY, world.clock));
+    traffic = new TrafficFeed((roads = town), world);
     sentAt = world.clock;
-    return { type: 'ready', clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), ms: took() };
+    return { type: 'ready', resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world, true), ms: took() };
   }
-  if (!world || !map) throw new Error('sim worker: not initialised');
+  if (!world || !map || !traffic) throw new Error('sim worker: not initialised');
+  if (m.type === 'save') return { type: 'saved', clock: world.clock, bytes: saveWorld(world), ms: took() };
+  if (m.type === 'skip') {
+    skip(world, m.days);
+    forget();
+    // The days skipped: the cars stand where the world now says, the traffic starts afresh.
+    traffic = new TrafficFeed(roads!, world);
+    sentAt = world.clock;
+    return { type: 'skipped', clock: world.clock, view: viewOf(world, true), ms: took() };
+  }
+  if (m.type === 'player') return playerJob(world, m.op, took);
   runTo(m.clock);
-  const view = world.clock !== sentAt ? viewOf(world) : null;
+  traffic.run(m.clock);
+  const view = world.clock !== sentAt ? viewOf(world, dayOf(world.clock) !== dayOf(sentAt)) : null;
   sentAt = world.clock;
-  return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), ms: took() };
+  return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), player: playerOut(world, map, m.clock), traffic: traffic.message(), ms: took() };
+}
+
+/** A player request (src/sim/player.ts), answered with their status after it. */
+function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
+  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], status: null, ms: 0 };
+  if (op.op === 'cards') out.cards = cardsOf(w);
+  else if (op.op === 'become') becomePlayer(w, op.id, op.autopilot);
+  else if (op.op === 'autopilot') setAutopilot(w, op.on);
+  else if (op.op === 'go') playerGo(w, op.place, op.activity);
+  else if (op.op === 'digest' && w.player) out.digest = digest(w, w.player.id, op.since);
+  // The menu is wanted after a move too (what is there to do where they are going).
+  if (op.op === 'actions' || op.op === 'go' || op.op === 'become') out.actions = playerActions(w);
+  // Their track changes at once: drop it, so the next street update makes and sends the new one.
+  if (op.op !== 'cards' && op.op !== 'digest' && w.player) tracks.delete(w.player.id);
+  out.status = playerOut(w, map!, w.clock);
+  out.ms = took();
+  return out;
+}
+
+/** The player's status, placed on the street when they are out of doors (wherever the camera is). */
+function playerOut(w: World, map: StreetMap, clock: number): ReturnType<typeof playerStatus> {
+  const s = playerStatus(w);
+  if (!s || !s.alive) return s;
+  let t = tracks.get(s.id);
+  if (!t || t.sig !== signature(w, s.id) || clock >= t.validUntil) {
+    const fresh = trackOf(w, map, s.id, clock);
+    if (fresh) tracks.set(s.id, (t = fresh)); else { tracks.delete(s.id); t = undefined; }
+  }
+  if (t && clock <= t.hideAfter) {
+    const p: [number, number, number] = [0, 0, 0];
+    sample(t.keys, clock, p);
+    s.x = p[0]; s.z = p[2]; s.outdoors = true;
+  }
+  return s;
 }
 
 /** Tick the world up to the whole minute of `clock`. */
@@ -53,6 +118,24 @@ function runTo(clock: number): void {
   const w = world!;
   const target = Math.floor(clock);
   if (target > w.clock) tick(w, target - w.clock);
+}
+
+/**
+ * Skip `days` whole days to the same time of day: the chronicle runs to midnight `days` days on (the rest of
+ * today counts as the first), and the live tick runs the morning up to the hour it was.
+ */
+function skip(w: World, days: number): void {
+  const n = Math.max(1, Math.floor(days));
+  const at = w.clock % MINUTES_PER_DAY;
+  chronicle(w, n);
+  runTo(w.clock + at);
+}
+
+/** Drop the street state: after a load or a skip nobody is where the main thread last saw them. */
+function forget(): void {
+  tracks.clear();
+  shown.clear();
+  known.clear();
 }
 
 /** The street around (x, z) as a change to what the main thread has. */
@@ -87,14 +170,6 @@ function street(w: World, map: StreetMap, clock: number, x: number, z: number, r
   return { tracks: out, gone, info };
 }
 
-/** What someone out of doors is up to, in words. */
-function doingOf(w: World, id: number): string {
-  const a = w.actors.cols, places = w.graph.places;
-  const act = ACTIVITIES[a.dest[id] >= 0 ? a.planned[id] : a.activity[id]];
-  if (a.dest[id] >= 0) return `walking to ${places[a.dest[id]].name} (${act})`;
-  return `${act} at ${places[a.place[id]].name}`;
-}
-
 function infoOf(w: World, id: number): ActorInfo {
   const a = w.actors.cols;
   const person = a.kind[id] === ACTOR_PERSON;
@@ -114,6 +189,8 @@ function heightGrid(map: StreetMap, half: number, step: number): HeightGrid {
 
 serve<ToSim, FromSim>(simJob, (r) => {
   if (r.type === 'ready') return [r.ground.h.buffer, ...viewTransfers(r.view)];
-  if (r.type === 'street') return [...r.tracks.map((t) => t.keys.buffer), ...(r.view ? viewTransfers(r.view) : [])];
+  if (r.type === 'street') return [...r.tracks.map((t) => t.keys.buffer), ...(r.view ? viewTransfers(r.view) : []), ...trafficTransfers(r.traffic)];
+  if (r.type === 'saved') return [r.bytes.buffer];
+  if (r.type === 'skipped') return viewTransfers(r.view);
   return [];
 });

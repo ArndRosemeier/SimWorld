@@ -424,3 +424,14 @@ export function strikesIn(seed: number, m: number, lightning: number): Strike[] 
   for (let i = 0; i < n; i++) out.push({ at: r.float() * 55, distance: 400 + r.float() * r.float() * 6000, angle: r.float() * Math.PI * 2 });
   return out;
 }
+
+/**
+ * The share of homes with the heating on (a boiler's plume or a stove's smoke from the chimney): by how cold
+ * it is (none above ~15 °C, nearly all near freezing), most when people are up in the morning and the evening,
+ * turned down in the small hours. `minute`: of the day.
+ */
+export function heatingShare(tempC: number, minute: number): number {
+  const h = minute / 60;
+  const when = h < 5.5 ? 0.3 : h < 9 ? 1 : h < 16.5 ? 0.65 : h < 23 ? 1 : 0.4;
+  return 0.92 * smoothstep(15, 3, tempC) * when;
+}

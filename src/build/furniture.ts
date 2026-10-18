@@ -9,7 +9,8 @@
  *  - uv     text atlas coordinates (src/build/textAtlasLayout.ts pictures) where a panel shows one
  *  - aFurn  vec3: x FMat id, y 0..1 emissive mask (lamp lenses, signal lenses, back-lit signs),
  *           z sub-material code: 0 plain, 1 red / 2 amber / 3 green signal lens, 4 pedestrian
- *           "don't walk" / 5 "walk" lens, 7 back-lit sign, 8 foliage, 9 fixed paint (ignores the
+ *           "don't walk" / 5 "walk" lens, 6 lettering from the instance's own atlas slot (iSign;
+ *           uv 0..1 over the face), 7 back-lit sign, 8 foliage, 9 fixed paint (ignores the
  *           instance tint), 10 status LED (EV chargers)
  *  - aColor vec3 default paint / plastic colour (linear). The instance tint (iTint.rgb, sRGB)
  *           replaces it for PaintedMetal / Plastic vertices when non-zero.
@@ -28,9 +29,10 @@ import {
 
 export type FurnitureKind = 'lampModern' | 'lampClassic' | 'lampDouble' | 'trafficLight' | 'bench' | 'bin' | 'hydrant' | 'mailbox' | 'bollard' | 'planter' | 'busStop' | 'fountain' | 'statue' | 'kiosk' | 'stopSign' | 'playground' | 'manhole' | 'newsStand' | 'bikeRack' | 'phoneBooth' | 'evCharger'
   | 'cafeTable' | 'cafeChair' | 'parasol' | 'awning' | 'menuBoard' | 'terraceRail' | 'parklet'
-  | 'cemWall' | 'gravestone' | 'grave' | 'tomb';
+  | 'cemWall' | 'gravestone' | 'grave' | 'tomb'
+  | 'signBoard' | 'signPost' | 'signFrame' | 'signBracket';
 
-export const FURNITURE_KINDS: FurnitureKind[] = ['lampModern', 'lampClassic', 'lampDouble', 'trafficLight', 'bench', 'bin', 'hydrant', 'mailbox', 'bollard', 'planter', 'busStop', 'fountain', 'statue', 'kiosk', 'stopSign', 'playground', 'manhole', 'newsStand', 'bikeRack', 'phoneBooth', 'evCharger', 'cafeTable', 'cafeChair', 'parasol', 'awning', 'menuBoard', 'terraceRail', 'parklet', 'cemWall', 'gravestone', 'grave', 'tomb'];
+export const FURNITURE_KINDS: FurnitureKind[] = ['lampModern', 'lampClassic', 'lampDouble', 'trafficLight', 'bench', 'bin', 'hydrant', 'mailbox', 'bollard', 'planter', 'busStop', 'fountain', 'statue', 'kiosk', 'stopSign', 'playground', 'manhole', 'newsStand', 'bikeRack', 'phoneBooth', 'evCharger', 'cafeTable', 'cafeChair', 'parasol', 'awning', 'menuBoard', 'terraceRail', 'parklet', 'cemWall', 'gravestone', 'grave', 'tomb', 'signBoard', 'signPost', 'signFrame', 'signBracket'];
 
 /** The vertex attributes of furniture meshes besides position and normal (the `FURNITURE` kind's). */
 export const FURNITURE_SPECS: AttrSpec[] = [{ name: 'uv', size: 2 }, { name: 'aFurn', size: 3 }, { name: 'aColor', size: 3 }];
@@ -1028,6 +1030,69 @@ function menuBoard(fb: FB, v: number): number {
   return 1.45;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Signs that say something of their own (src/build/signs.ts): the lettering is the instance's
+// atlas slot (iSign), so one model serves every shop, street and notice.
+// ---------------------------------------------------------------------------------------------
+
+/** The lettered face of a sign board: uv 0..1 over the face, read from the instance's slot. */
+const LETTERING: PO = { m: FMat.Signage, e: 1, s: 6, c: [1, 1, 1] };
+
+/**
+ * A sign board 1 m × 1 m centred on its origin in x and y, scaled per instance (iSize: width,
+ * height; the depth scales with the width). v0: one lettered face (-Z) on a body 2 cm deep behind
+ * it (z 0 … -0.02: the origin is its back, against a wall); v1: lettered on both faces, 2 cm thick
+ * centred (blades, hanging signs, estate boards). The body takes the instance's paint.
+ */
+function signBoard(fb: FB, v: number): number {
+  const body = paint([0.12, 0.13, 0.14]);
+  if (v % 2 === 0) {
+    fb.box(body, 1, 1, 0.018, 0, 0, -0.009);
+    fb.add(xform(plane(0.985, 0.97), rotY(Math.PI)), M(0, 0, -0.0185), LETTERING);
+  } else {
+    fb.box(body, 1, 1, 0.016, 0, 0, 0);
+    fb.add(xform(plane(0.985, 0.97), rotY(Math.PI)), M(0, 0, -0.0085), LETTERING);
+    fb.add(plane(0.985, 0.97), M(0, 0, 0.0085), LETTERING);
+  }
+  return 1;
+}
+
+/** v0: a street-name post, galvanised, 3 m (blades at 2.55 and 2.8 m); v1: an estate agent's timber post, 1.9 m, with an arm the board hangs from (at 1.45 m, 0.35 m out). */
+function signPost(fb: FB, v: number): number {
+  if (v % 2 === 0) {
+    fb.cyl(METAL, 0.032, 0.035, 3.0, 0, 0, 0, 10);
+    fb.sphere(METAL, 0.04, 0, 3.0, 0, 1, 0.6, 1, 10, 6, Math.PI / 2);
+    return 3.04;
+  }
+  const timber: PO = { m: FMat.Wood, c: [0.92, 0.9, 0.86] };
+  fb.box(timber, 0.075, 1.9, 0.075, 0, 0.95, 0);
+  fb.box(timber, 0.7, 0.06, 0.06, 0.35, 1.84, 0);
+  for (const x of [0.12, 0.58]) fb.rod(METAL, [x, 1.81, 0], [x, 1.72, 0], 0.004, 4);
+  return 1.9;
+}
+
+/** The legs of a free-standing board: v0 the town sign (two posts 2.1 m apart, 2.3 m tall), v1 a public building's name board (two low posts 1.4 m apart, 1.3 m tall). */
+function signFrame(fb: FB, v: number): number {
+  const leg = paint([0.2, 0.22, 0.24]);
+  const [half, h] = v % 2 === 0 ? [1.05, 2.3] : [0.7, 1.3];
+  for (const x of [-half, half]) {
+    fb.cyl(leg, 0.045, 0.05, h, x, 0, 0.06, 10);
+    fb.cyl(CONCRETE, 0.12, 0.13, 0.06, x, 0, 0.06, 10);
+  }
+  return h;
+}
+
+/** A wrought-iron bracket for a hanging sign: a wall plate at the origin, the arm out along +X (0.95 m), two hooks at 0.3 and 0.8 m. */
+function signBracket(fb: FB): number {
+  const iron = paint([0.05, 0.05, 0.05], true);
+  fb.box(iron, 0.02, 0.22, 0.08, 0.01, -0.05, 0);
+  fb.box(iron, 0.95, 0.03, 0.025, 0.475, 0, 0);
+  fb.rod(iron, [0.02, -0.15, 0], [0.45, -0.01, 0], 0.01, 5);
+  fb.tube(iron, [[0.6, 0.015, 0], [0.75, 0.09, 0], [0.9, 0.04, 0]], 0.008, 5, 8);
+  for (const x of [0.3, 0.8]) fb.rod(iron, [x, -0.015, 0], [x, -0.08, 0], 0.005, 4);
+  return 0.2;
+}
+
 /** Low glass windscreen with a fabric band in the café's colour, 2 m long (along X). */
 function terraceRail(fb: FB, _v: number): number {
   const post = paint([0.12, 0.12, 0.12], true);
@@ -1225,6 +1290,10 @@ export function buildFurniture(kind: FurnitureKind, variant = 0): FurnitureModel
     case 'gravestone': height = gravestone(fb, v); radius = 0.35; breakable = 'topple'; break;
     case 'grave': height = grave(fb, v); radius = v === 0 ? 0.6 : 0.4; breakable = v === 0 ? 'solid' : 'topple'; break;
     case 'tomb': height = tomb(fb, v); radius = v === 0 ? 2.0 : 1.0; breakable = 'solid'; break;
+    case 'signBoard': height = signBoard(fb, v); radius = 0.5; breakable = 'solid'; break;
+    case 'signPost': height = signPost(fb, v); radius = 0.06; breakable = 'bend'; break;
+    case 'signFrame': height = signFrame(fb, v); radius = v === 0 ? 1.3 : 0.9; breakable = 'solid'; break;
+    case 'signBracket': height = signBracket(fb); radius = 0.5; breakable = 'solid'; break;
   }
   return { kind, mesh: fb.mb.build(), height, radius, lights, breakable };
 }
