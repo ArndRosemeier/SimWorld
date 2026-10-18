@@ -65,6 +65,13 @@ export class DerivedTable<S extends Record<string, readonly [TypedCtor, number, 
   constructor(spec: S, capacity: number) { this.t = new Columns(spec, capacity); }
   get count(): number { return this.t.count; }
   get cols(): Columns<S>['cols'] { return this.t.cols; }
+
+  /** Append a row that belongs to `actor` (needs an `actor` column). */
+  protected rowFor(actor: number): number {
+    const r = this.t.add();
+    (this.t.cols as unknown as { actor: Int32Array }).actor[r] = actor;
+    return r;
+  }
 }
 
 /** Column spec helper so call sites read `f32()`, `i32(-1)`, `f32(5)` (width 5). */

@@ -44,8 +44,7 @@ export class PersonTable extends DerivedTable<typeof PERSON_COLUMNS> {
   constructor() { super(PERSON_COLUMNS, 256); }
 
   addPerson(actor: ActorId, first: string, last: string): number {
-    const r = this.t.add();
-    this.t.cols.actor[r] = actor;
+    const r = this.rowFor(actor);
     this.first[r] = first;
     this.last[r] = last;
     return r;

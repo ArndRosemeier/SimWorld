@@ -86,14 +86,14 @@ export function applyProposal(world: World, npc: ActorId, proposal: Proposal): A
         let softened = false;
         // Personality scales how easily feelings move: agreeable people warm up faster, neurotic ones sour faster;
         // trust from someone they barely know grows slowly.
-        const scale = (d: number, dim: 'trust' | 'affection' | 'respect') => {
+        const byPersonality = (d: number, dim: 'trust' | 'affection' | 'respect') => {
           if (d > 0) return d * (0.6 + 0.6 * trait(T_AGREE)) * (dim === 'trust' ? 0.5 + c.familiarity[r] : 1);
           return d * (0.7 + 0.6 * trait(T_NEURO));
         };
         for (const dim of ['trust', 'affection', 'respect'] as const) {
           const raw = change[dim];
           if (raw === undefined || !Number.isFinite(raw) || raw === 0) continue;
-          const want = scale(raw, dim);
+          const want = byPersonality(raw, dim);
           const [d, note] = budget(`${change.toward}:${dim}`, want, PER_TURN[dim]);
           if (note || Math.abs(want - raw) > 1e-6) softened = true;
           if (note) notes.push(note);

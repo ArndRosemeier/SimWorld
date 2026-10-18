@@ -26,8 +26,7 @@ export class AnimalTable extends DerivedTable<typeof ANIMAL_COLUMNS> {
   constructor() { super(ANIMAL_COLUMNS, 64); }
 
   addAnimal(actor: ActorId, name: string): number {
-    const r = this.t.add();
-    this.t.cols.actor[r] = actor;
+    const r = this.rowFor(actor);
     this.name[r] = name;
     return r;
   }
