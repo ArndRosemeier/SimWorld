@@ -12,7 +12,7 @@ import { EMERGENCY_KEY, SERVICE_KEY, ServiceRounds, exitTowardRegion, roundGoal 
 import { agendaOn } from '../src/sim/agenda';
 import { carPlace, regionOfPlace, type CarTrip } from '../src/traffic/trips';
 import { TownTraffic } from '../src/traffic/townTraffic';
-import { CAR_STRIDE, PARKED_STRIDE, POSE_STRIDE, POST_STRIDE, TrafficFeed, vehiclePose } from '../src/traffic/feed';
+import { CAR_STRIDE, HORN_STRIDE, PARKED_STRIDE, POSE_STRIDE, POST_STRIDE, TrafficFeed, vehiclePose } from '../src/traffic/feed';
 import { tick } from '../src/sim/world';
 import { VISITOR_KEY, visitorsAt } from '../src/traffic/visitors';
 import { isOpen } from '../src/sim/schedule';
@@ -268,4 +268,12 @@ test('the feed: the world drives the traffic; moving cars between recorded momen
     }
   }
   assert.ok(moving > 0, 'cars on the road');
+  // A driver kept waiting sounds the horn: it comes with the next message, once.
+  const v = feed.town.traffic.vehicles[0];
+  v.wait = 26;
+  feed.town.traffic.onHorn!(v);
+  const h = feed.message().horns;
+  assert.equal(h.length, HORN_STRIDE);
+  assert.deepEqual([h[1], h[3], h[4]], [v.x, v.z, 0]);
+  assert.equal(feed.message().horns.length, 0);
 });
