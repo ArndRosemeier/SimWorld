@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.022 — Traffic: the town's cars, driven by its people
+
+- The town has a road network for cars: right-hand lanes, speed limits in km/h (50 on the main roads, 30 in the side streets, 80 out of town), traffic lights where main roads cross, and side roads that give way to the main road.
+- Cars come from the inhabitants: when someone sets off by car, their household's car pulls out of its kerbside bay, drives there and parks in a free bay near where they are going. A car out with one person is not there for the rest of the family.
+- A few cars from the region pass through on the country roads, more in the rush hours.
+- Not on screen yet: the cars are drawn in the next change, on top of the car models.
+
+## v0.021 — Every journey is recorded
+
+- The simulation now keeps a list of everyone who is on their way somewhere: where from, where to, when they left and arrive, and whether they walk or drive. Children and the dog travel with whoever takes them, in the same car.
+- Nothing new is visible yet. The traffic and the people on the street will be drawn from this list.
+
 ## v0.020 — The town keeps a real calendar
 
 - Game days are real dates now: play starts in the current week, and the season, the length of the day and the holidays follow the real calendar.

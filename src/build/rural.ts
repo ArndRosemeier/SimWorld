@@ -12,7 +12,7 @@
  * stand-in for Scale's src/build/bridges.ts).
  */
 import type { Terrain } from '../world/terrain';
-import { RoadKind, type RuralPlan } from '../world/rural';
+import { RoadKind, type RuralPlan, type RuralRoad } from '../world/rural';
 import type { Railway } from '../plan/types';
 import { RAIL_HW } from '../plan/rail';
 import { TERRAIN_DROP } from '../world/ground';
@@ -204,6 +204,19 @@ function deckAt(C: Course, T: Terrain, s: number, x: number, z: number): number 
     return Math.max(T.height(x, z), b.ya + (b.yb - b.ya) * t + b.k * Math.min(1, 2.5 * Math.sin(Math.PI * t)));
   }
   return NaN;
+}
+
+/**
+ * Height of a country road's surface at arc length s along it (on its bridges the deck's): what a
+ * car drives on. `y(s)` for the road's centreline.
+ */
+export function countryRoadSurface(road: RuralRoad, terrain: Terrain): (s: number) => number {
+  const C = courseOf(terrain, road.pts, road.bridges, CLEAR_ROAD), dy = DY[road.kind];
+  return (s) => {
+    const [x, z] = pointAt(C, s);
+    const deck = deckAt(C, terrain, s, x, z);
+    return (deck === deck ? deck : terrain.height(x, z)) + dy;
+  };
 }
 
 /** The part of a course between arc lengths a and b (end points interpolated). */
