@@ -18,6 +18,7 @@ import { ACTOR_PERSON } from '../sim/actors';
 import { viewOf, viewTransfers } from '../sim/view';
 import { StreetMap } from '../street/streetMap';
 import { windowSlots } from '../street/windows';
+import { whoIsInside } from '../street/inside';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
@@ -75,6 +76,10 @@ function simJob(m: ToSim): FromSim {
   }
   if (m.type === 'player') return playerJob(world, m.op, took);
   if (m.type === 'chat') return { type: 'chat', res: chatOp(world, m.req) };
+  if (m.type === 'inside') {
+    const w = world;
+    return { type: 'inside', people: whoIsInside(w, m.building).map((p) => ({ ...p, info: infoOf(w, p.id), doing: doingOf(w, p.id) })), ms: took() };
+  }
   runTo(m.clock);
   traffic.run(m.clock);
   const view = world.clock !== sentAt ? viewOf(world, dayOf(world.clock) !== dayOf(sentAt)) : null;

@@ -14,9 +14,14 @@ import type { MaterialArrays } from '../textures';
 import { perturbNormalUV } from './common';
 import { setDiffuse } from './ground';
 
-/** Interior light state: `lamps` 0 … 1, how bright the ceiling lamps and lamp shades glow. */
+/**
+ * Interior light state: `lamps` 0 … 1, how bright the ceiling lamps and lamp shades glow; `room`
+ * 0 … 1, how much the switched-on lamps light the rooms (no three lights: a fill on every surface,
+ * src/render/interiorView.ts `setRoomLight`).
+ */
 export const INTERIOR_LIGHT = {
   lamps: uniform(1),
+  room: uniform(0),
 };
 
 /** Sets up `mat` as the interior look over the interior texture family; layers from `arrays.layers` on are lamps (src/build/interior.ts `LAMP`). */
@@ -39,6 +44,6 @@ export function interiorLook(mat: MeshStandardNodeMaterial, arrays: MaterialArra
   setDiffuse(mat, () => albedo.mul(ao));
   mat.roughnessNode = select(lamp, float(0.5), ar.a);
   mat.metalnessNode = float(0);
-  mat.emissiveNode = select(lamp, vTint.mul(INTERIOR_LIGHT.lamps).mul(1.4), vTint.mul(0));
+  mat.emissiveNode = select(lamp, vTint.mul(INTERIOR_LIGHT.lamps).mul(1.4), albedo.mul(ao).mul(INTERIOR_LIGHT.room.mul(0.45)));
   mat.normalNode = perturbNormalUV(positionView, normalView, tuv, select(lamp, vec2(0), nh.xy.mul(2.0).sub(1.0)), float(1));
 }
