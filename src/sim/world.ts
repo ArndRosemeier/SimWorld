@@ -8,6 +8,7 @@
 import { Rng, deriveSeed } from '@futuremagic/core';
 import type { ActorId, ActorTable } from './actors';
 import type { Agenda } from './agenda';
+import type { Offsite } from './offsite';
 import { pruneAgenda } from './agenda';
 import type { AnimalTable } from './animals';
 import type { Intention } from './intentions';
@@ -41,6 +42,8 @@ export interface World {
   readonly epoch: number;
   /** The town's latitude in degrees (day length by date). */
   readonly latitude: number;
+  /** Places off the map: where commuters work, the secondary school (src/sim/offsite.ts). */
+  readonly offsite: Offsite;
   readonly graph: PlaceGraph;
   readonly travel: Travel;
   /** Place → index into PLACE_KINDS, for hot loops. */
