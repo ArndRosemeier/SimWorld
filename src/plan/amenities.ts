@@ -35,15 +35,6 @@ export const PLACE_KIND_OF: Record<AmenityKind, PlaceKind> = {
   estateagent: 'estateagent', beauty: 'beauty', physio: 'physio', gym: 'gym', funeral: 'funeral',
 };
 
-/** What a kind is called on a sign ("Elm Street Pharmacy"). */
-export const AMENITY_LABEL: Record<AmenityKind, string> = {
-  pharmacy: 'Pharmacy', police: 'Police', bakery: 'Bakery', butcher: 'Butcher', post: 'Post Office', bank: 'Bank', library: 'Library',
-  hairdresser: 'Hair Studio', garage: 'Garage', pub: 'Arms', cafe: 'Café', restaurant: 'Restaurant', pizzeria: 'Pizzeria',
-  icecream: 'Ice Cream', bar: 'Bar', grocer: 'Corner Shop', shop: 'Shop', office: 'Offices', workshop: 'Workshop', factory: 'Works', vacant: '',
-  hardware: 'Hardware', clothes: 'Fashion', florist: 'Flowers', newsagent: 'News', charity: 'Charity Shop', takeaway: 'Takeaway', hotel: 'Hotel',
-  estateagent: 'Estate Agents', beauty: 'Beauty', physio: 'Physiotherapy', gym: 'Fitness', funeral: 'Funeral Directors',
-};
-
 /**
  * How many of each ground-floor kind a town of `pop` inhabitants has (the rest of its shop
  * fronts become shops, corner shops, offices or stand empty). `warm`: 0 cold … 1 warm climate.
