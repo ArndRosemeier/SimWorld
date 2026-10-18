@@ -6,7 +6,7 @@
 import type { Hours, PlaceKind, StaffSlot } from './places';
 import { EVERY_DAY, WEEKDAYS } from './places';
 
-export type Category = 'home' | 'food' | 'service' | 'institution' | 'work' | 'outdoor';
+export type Category = 'home' | 'food' | 'service' | 'institution' | 'work' | 'outdoor' | 'away';
 
 /** Activities a visitor (not staff) can do at a place. */
 export type Service = 'eat' | 'shop' | 'socialize' | 'leisure' | 'worship' | 'exercise' | 'errand' | 'doctor' | 'school' | 'roam' | 'graze';
@@ -61,6 +61,8 @@ export const KINDS: Record<PlaceKind, KindInfo> = {
   street: k('outdoor', ['roam'], 0.002, 1000),
   woods: k('outdoor', ['leisure', 'exercise', 'roam'], 0.002, 1000),
   field: k('outdoor', ['graze', 'roam'], 0.001, 1000),
+  // Out of town: nobody meets anyone there in the sim (the city's crowds are not simulated).
+  away: k('away', [], 0, 100000),
 };
 
 export const isHome = (kind: PlaceKind): boolean => KINDS[kind].category === 'home';

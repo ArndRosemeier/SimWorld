@@ -28,6 +28,8 @@ export const PLACE_KINDS = [
   'office', 'workshop', 'factory', 'farm',
   // outdoors
   'park', 'square', 'sports', 'cemetery', 'street', 'woods', 'field',
+  // off the map: the city, the next town, the secondary school there (added by the sim, never by the planner)
+  'away',
 ] as const;
 export type PlaceKind = (typeof PLACE_KINDS)[number];
 
@@ -79,6 +81,11 @@ export interface Place {
   staff: StaffSlot[];
   /** The planner's building or lot id, so the views can find the geometry. -1 when none. */
   building: number;
+  /**
+   * Metres of road beyond the entrance, off the map (kind 'away' only): the entrance is where the road leaves town,
+   * and the place itself lies this far along it. People there are out of town and not drawn.
+   */
+  beyond?: number;
 }
 
 /** A road-network junction. */

@@ -18,6 +18,7 @@ import type { Job } from './people';
 import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIES, speciesId } from './species';
 import { atMinute, dayOf, MINUTES_PER_DAY, minuteOfDay, weekdayOf } from './time';
 import { drawingOn } from './agenda';
+import { awayRide } from './offsite';
 import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
 import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, type World } from './world';
 
@@ -110,8 +111,10 @@ export function go(world: World, id: ActorId, place: PlaceId, activity: number, 
     a.until[id] = Math.max(until, now + 5);
   } else {
     const car = hasCar(world, id);
-    const t = world.travel.minutes(from, place, car);
-    world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode: world.travel.mode(from, place, car), leader: -1 });
+    // Out of town without a car: the next bus or train on the timetable (the school bus for pupils), else a lift.
+    const ride = car ? null : awayRide(world, from, place, now);
+    const t = ride ? ride.minutes : world.travel.minutes(from, place, car);
+    world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode: ride ? ride.mode : world.travel.mode(from, place, car), leader: -1, run: ride ? ride.run : -1 });
     a.dest[id] = place;
     a.arrive[id] = now + t;
     const street = world.streetOf[place];
@@ -212,7 +215,7 @@ function anchors(world: World, id: ActorId): Day {
     }
   }
   let school: [number, number] | null = null;
-  if (pc.school[p] >= 0 && pc.leaveUntil[p] <= now && (world.graph.places[pc.school[p]].kind === 'school' ? schoolDay(world, now) : runsLike(world, now) < 5)) {
+  if (pc.school[p] >= 0 && pc.leaveUntil[p] <= now && (world.graph.places[pc.school[p]].kind === 'kindergarten' ? runsLike(world, now) < 5 : schoolDay(world, now))) {
     const kg = world.graph.places[pc.school[p]].kind === 'kindergarten';
     const age = ageOf(world, id);
     const s = atMinute(now, kg ? 450 : 465), e = atMinute(now, kg ? 870 : age < 10 ? 780 : 915);
