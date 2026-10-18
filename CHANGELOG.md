@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.023 — The town has weather
+
+- The town has weather of its own, the same for everyone in it: sunny spells, cloud, drizzle, rain, thunderstorms on summer afternoons, morning fog in autumn and winter, and snow in winter that stays on the ground until it thaws.
+- Streets stay wet for a while after rain, and wet streets freeze to ice on cold nights.
+- Not on screen yet: the sky and the people start reacting to it in the next changes.
+
 ## v0.022 — Traffic: the town's cars, driven by its people
 
 - The town has a road network for cars: right-hand lanes, speed limits in km/h (50 on the main roads, 30 in the side streets, 80 out of town), traffic lights where main roads cross, and side roads that give way to the main road.
