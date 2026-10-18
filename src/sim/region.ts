@@ -146,13 +146,13 @@ const KIN: { words: [string, string]; minAge: number; maxAge: number; female: nu
   { words: ['uncle', 'aunt'], minAge: 18, maxAge: 55, female: 0.55 },
 ];
 
+/** The region's towns and villages (none in a world made without a region). */
+export const regionPlaces = (world: World): readonly RegionPlace[] => world.region?.region.places ?? [];
+
 /**
  * A real place out there for someone moving away (life events): weighted by size and nearness, or one offering
  * `service` (a care home's hospital town, a student's university city). Null when the world has no region.
  */
-/** The region's towns and villages (none in a world made without a region). */
-export const regionPlaces = (world: World): readonly RegionPlace[] => world.region?.region.places ?? [];
-
 export function regionDestination(world: World, rng: Rng, service?: RegionService): RegionPlace | null {
   const places = regionPlaces(world).filter((p) => !service || p.services.includes(service));
   return places.length ? rng.weighted(places, (p) => Math.sqrt(p.population) / Math.max(3, p.km)) : null;

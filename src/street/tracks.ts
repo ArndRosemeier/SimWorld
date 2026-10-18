@@ -49,6 +49,8 @@ const TURN = 0.15;
 const WALKING = 0.8;
 /** The slowest walk on a street stay (m/min, ~2.4 km/h: looking in the windows). */
 const AMBLE = 40;
+/** The furthest (m) a street stay walks along one road before turning back. */
+const STREET_TURN = 150;
 /** Pace (m per game minute) from door to door on Halloween. */
 const HURRY = 75;
 /** How far ahead a stay's track is laid out (game minutes). */
@@ -171,7 +173,10 @@ export function walkPath(world: World, map: StreetMap, id: ActorId, from: PlaceI
 
 /** From (ox, oz) to (dx, dz) along the sidewalks of the route between two places. */
 function streetPath(world: World, map: StreetMap, id: ActorId, from: PlaceId, to: PlaceId, ox: number, oz: number, dx: number, dz: number): number[] {
-  const route = world.travel.roadPath(from, to);
+  // Out of the door onto their own street, or back in from it: straight there (not by way of the street's
+  // place, which on a long road can be far away).
+  const own = world.streetOf[from] === to || world.streetOf[to] === from;
+  const route = own ? [] : world.travel.roadPath(from, to);
   const es: [number, number][] = [];
   for (let i = 0; i + 1 < route.length; i++) {
     const e = map.edge(route[i], route[i + 1]);
@@ -384,9 +389,18 @@ function legEnd(world: World, map: StreetMap, id: ActorId, place: PlaceId, k: nu
   return [x, z, -1];
 }
 
-/** A street stay goes up and down the street: even legs end at the street's own node, odd ones at a neighbour. */
+/**
+ * Where a street stay starts from: the road node at their own front door when it is their own street (a long
+ * country road's place can be kilometres from the house), else the street's own node.
+ */
+function streetAnchor(world: World, id: ActorId, place: PlaceId): number {
+  const home = world.actors.cols.home[id];
+  return home >= 0 && world.streetOf[home] === place ? world.graph.places[home].node : world.graph.places[place].node;
+}
+
+/** A street stay goes up and down the street: even legs end at their anchor node, odd ones toward a neighbour. */
 function streetNode(world: World, map: StreetMap, id: ActorId, place: PlaceId, k: number): number {
-  const home = world.graph.places[place].node;
+  const home = streetAnchor(world, id, place);
   if (k % 2 === 0) return home;
   const next = neighbours(map, home);
   return next.length ? next[Math.floor(hash2f(hashCombine(world.seed, id), place, k) * next.length)] : home;
@@ -397,7 +411,11 @@ function streetLeg(world: World, map: StreetMap, id: ActorId, place: PlaceId, ka
   const a = streetNode(world, map, id, place, ka), b = streetNode(world, map, id, place, kb);
   const e = map.edge(a, b), n = map.graph.nodes[a];
   if (e < 0) return [n.x, n.z, n.x + 0.01, n.z];
-  return map.walkLine(e, a, 1, laneOf(world, id));
+  // On a long road they turn round after a while: out over its first STREET_TURN metres, back over the same.
+  const line = map.walkLine(e, a, 1, laneOf(world, id)), L = polylineLength(line);
+  if (L <= STREET_TURN) return line;
+  const M = { pts: line, cum: polylineCum(line) };
+  return ka % 2 === 0 ? slicePolyline(M, 0, STREET_TURN) : slicePolyline(M, L - STREET_TURN, L);
 }
 
 const neighbourCache = new WeakMap<StreetMap, number[][]>();

@@ -19,7 +19,7 @@ import { dayOf } from '../sim/time';
 import { TownTraffic } from './townTraffic';
 import { carPlace, carTripsSince } from './trips';
 import { TRAIN_KEY, type TrainCar } from './trains';
-import type { Car } from './traffic';
+import { urgent, type Car } from './traffic';
 
 /** Floats per vehicle and moment in `TrafficMsg.poses`: x, y, z, yaw. */
 export const POSE_STRIDE = 4;
@@ -157,7 +157,7 @@ export class TrafficFeed {
   message(): TrafficMsg {
     const K = this.hist.length;
     // The road vehicles, then the train cars in any recorded moment (a train's lights are always on).
-    const vs: { id: number; car: Car; state: number[]; pose: number[] }[] = this.town.traffic.vehicles.map((v) => ({ id: v.id, car: v.car, state: [v.headlights, v.brake, v.indicator, 1], pose: [v.x, v.y, v.z, v.yaw] }));
+    const vs: { id: number; car: Car; state: number[]; pose: number[] }[] = this.town.traffic.vehicles.map((v) => ({ id: v.id, car: v.car, state: [v.headlights, v.brake, v.siren || (v.halted >= 0 && urgent(v.goal)) ? 3 : v.indicator, 1], pose: [v.x, v.y, v.z, v.yaw] }));
     const seen = new Set<number>();
     for (const h of this.hist) for (const id of h.poses.keys()) if (id < 0) seen.add(id);
     for (const [id, c] of this.trainCars) {

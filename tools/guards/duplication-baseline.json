@@ -432,10 +432,6 @@
     "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
   {
-    "key": "idiom: [.members .some] in simworld/sim/groups.ts + simworld/sim/politics.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
-    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
-  },
-  {
     "key": "idiom: [.add .mul] in simworld/render/tsl/furniture.ts + simworld/render/tsl/smoke.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },

@@ -127,3 +127,42 @@ export interface PlaceGraph {
   nodes: RoadNode[];
   edges: RoadEdge[];
 }
+
+/** The homes on one street: how many households, and where they are. */
+export interface StreetHomes {
+  street: string;
+  homes: number;
+  /** The home nearest the middle of them: where a bus stop or a delivery round calls "on" that street (a street's own place can lie far out along a country road). */
+  at: Place;
+}
+
+/** Every street people live on, with where its homes cluster (`StreetHomes.at`). */
+export function streetHomes(graph: PlaceGraph): StreetHomes[] {
+  const by = new Map<string, Place[]>();
+  for (const p of graph.places) {
+    if (p.homes <= 0 || !p.street) continue;
+    let l = by.get(p.street);
+    if (!l) by.set(p.street, (l = []));
+    l.push(p);
+  }
+  const out: StreetHomes[] = [];
+  for (const [street, ps] of by) {
+    let n = 0, x = 0, z = 0;
+    for (const p of ps) { n += p.homes; x += p.x * p.homes; z += p.z * p.homes; }
+    x /= n; z /= n;
+    let at = ps[0];
+    for (const p of ps) if (Math.hypot(p.x - x, p.z - z) < Math.hypot(at.x - x, at.z - z)) at = p;
+    out.push({ street, homes: n, at });
+  }
+  return out;
+}
+
+/** How far from (x, z) the nearest `share` of the town's households live (m): the built-up town's radius round its centre. */
+export function homesRadius(graph: PlaceGraph, x: number, z: number, share = 0.9): number {
+  const d: [number, number][] = graph.places.filter((p) => p.homes > 0).map((p) => [Math.hypot(p.x - x, p.z - z), p.homes]);
+  d.sort((a, b) => a[0] - b[0]);
+  const total = d.reduce((s, [, h]) => s + h, 0);
+  let acc = 0;
+  for (const [r, h] of d) if ((acc += h) >= total * share) return r;
+  return d.length ? d[d.length - 1][0] : 0;
+}
