@@ -232,10 +232,6 @@
     "reason": "Different questions about a list of members (a household's grown-up at home, a club member who holds an office, a councillor who agrees with an issue): each is one Array.some with its own predicate; the shared part is Array.some itself."
   },
   {
-    "key": "idiom: [.profile .seed] in simworld/plan/cell.ts + simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/rail.ts + simworld/world/terrain.ts",
-    "reason": "Each derives its own named stream from the terrain profile's seed (deriveSeed(profile.seed, name)); the one way is deriveSeed, used, not copied."
-  },
-  {
     "key": "idiom: [.coastDistance .coastal .profile] in simworld/build/forest.ts + simworld/plan/landmarks.ts + simworld/world/rural.ts",
     "reason": "Each reads the terrain profile's coast to keep its own things (forest, landmarks, farms) off the shore; the one way is terrain.profile, used, not copied."
   },
@@ -620,7 +616,19 @@
     "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
   },
   {
+    "key": "same name: simworld/game/inside.ts#enter + simworld/render/interiorView.ts#enter",
+    "reason": "Layers of one thing: going into a building in the game (people, light) calls the view that draws its interior."
+  },
+  {
+    "key": "same name: simworld/game/inside.ts#enter + simworld/traffic/traffic.ts#enter",
+    "reason": "Unrelated: the player going into a building, and a vehicle entering the traffic."
+  },
+  {
+    "key": "same name: simworld/game/inside.ts#leave + simworld/sim/groups.ts#leave",
+    "reason": "Unrelated: the player stepping out of a building, and a person leaving a group."
+  },
+  {
     "key": "idiom: [.profile .seed] in simworld/plan/cell.ts + simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/rail.ts + simworld/world/terrain.ts",
-    "reason": "Each planner stage reads the town profile (terrain.profile and its seed) for its own numbers; field reads, no copied logic. It crossed the idiom finder's information floor only because new files (the looks check) raised the file count it weighs names by."
+    "reason": "Each derives its own named stream from the terrain profile's seed (deriveSeed(profile.seed, name)); the one way is deriveSeed, used, not copied."
   }
 ]

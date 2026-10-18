@@ -12,7 +12,7 @@
  * that know which home they belong to.
  */
 import type { Rng } from '@futuremagic/core';
-import { polyArea, pointInPoly, polyCentroid, polyBounds, distSqPointSeg, type Poly } from '../geom/geom2';
+import { polyArea, pointInPoly, polyCentroid, polyBounds, distSqPointSeg, distPointPolyEdge, type Poly } from '../geom/geom2';
 import { intersection, largest } from '../geom/clip';
 import type { BuildingDesc } from '../plan/building';
 import { WALLS } from './fill/palette';
@@ -125,6 +125,7 @@ export function planStorey(b: BuildingDesc, poly: Poly, floor: number, y: number
   // Rooms furnished by their theme once the walls and doors are final.
   for (const { room, items } of furnish) {
     const A = roomArea(room.poly, plan.walls, poly, facade, keepOut);
+    if (door && distPointPolyEdge(room.poly, door.x, door.z) < 0.5) A.entry = [door.x, door.z];
     for (const f of new Filler(A, r, undefined, fits).fill(items(room.type, A))) plan.furniture.push({ ...f, unit: room.unit });
   }
   lightsOf(plan);
@@ -371,6 +372,10 @@ function lookOf(type: RoomType, ground: boolean, r: Rng): Pick<Room, 'floorMat' 
     case 'storage': case 'workshop': case 'garage': case 'factory': case 'parking': return { floorMat: 'concrete', wallColor: [0.8, 0.8, 0.78] };
     case 'shop': case 'salon': return { floorMat: 'tile', wallColor: r.pick(WALLS) };
     case 'dining': return { floorMat: 'wood', wallColor: r.pick(WALLS) };
+    case 'nave': return { floorMat: 'stone', wallColor: [0.93, 0.91, 0.86] };
+    case 'classroom': case 'playroom': return { floorMat: 'wood', wallColor: r.pick(WALLS) };
+    case 'consulting': return { floorMat: 'tile', wallColor: [0.92, 0.94, 0.95] };
+    case 'dayroom': return { floorMat: 'carpet', wallColor: r.pick(WALLS) };
     default: return { floorMat: ground && r.chance(0.3) ? 'tile' : r.chance(0.7) ? 'wood' : 'carpet', wallColor: r.pick(WALLS) };
   }
 }

@@ -17,11 +17,9 @@ import { meshFromData } from './meshes';
 import type { Stage } from './stage';
 import { INTERIOR_LIGHT } from './tsl/interior';
 
-/** A building in a cell: as `buildingRef` decodes `Place.building`. */
-export interface BuildingKey { cell: number; index: number }
-
 export interface Inside {
-  key: BuildingKey;
+  /** Its `Place.building` code. */
+  building: number;
   /** Walls, furniture, floors, stairs, street doors and spots, in world coordinates. */
   indoors: Indoors;
   /** What the building is, for the HUD. */
@@ -32,31 +30,34 @@ export class InteriorView {
   private mesh: Mesh | null = null;
   private inside: Inside | null = null;
   /** The building being fetched (a later `enter` wins). */
-  private wanted: BuildingKey | null = null;
+  private wanted = -1;
 
   constructor(private readonly pool: WorkerPool<ToTown, FromTown>, private readonly stage: Stage) {}
 
   /** The building shown now, null when out of doors. */
   get current(): Inside | null { return this.inside; }
 
-  /** Show building `key` (the one shown before goes); resolves with it once it is in the scene, null if another `enter` or `leave` came first. */
-  async enter(key: BuildingKey): Promise<Inside | null> {
-    if (this.inside && same(this.inside.key, key)) return this.inside;
-    this.wanted = key;
-    const r = await this.pool.run<Extract<FromTown, { type: 'indoors' }>>({ type: 'indoors', cell: key.cell, index: key.index }, 0);
-    if (!this.wanted || !same(this.wanted, key)) return null;
+  /**
+   * Show the building whose `Place.building` code is `building` (the one shown before goes); resolves with it once it
+   * is in the scene, null if another `enter` or `leave` came first.
+   */
+  async enter(building: number): Promise<Inside | null> {
+    if (this.inside?.building === building) return this.inside;
+    this.wanted = building;
+    const r = await this.pool.run<Extract<FromTown, { type: 'indoors' }>>({ type: 'indoors', building }, 0);
+    if (this.wanted !== building) return null;
     const mesh = r.mesh ? meshFromData(r.mesh, INTERIOR) : null;
     if (mesh) await this.stage.add(mesh);
-    if (!this.wanted || !same(this.wanted, key)) { if (mesh) this.unload(mesh); return null; }
+    if (this.wanted !== building) { if (mesh) this.unload(mesh); return null; }
     this.clear();
     this.mesh = mesh;
-    this.inside = { key, indoors: r.indoors, about: r.about };
+    this.inside = { building, indoors: r.indoors, about: r.about };
     return this.inside;
   }
 
   /** Back out of doors: the building's interior goes. */
   leave(): void {
-    this.wanted = null;
+    this.wanted = -1;
     this.clear();
   }
 
@@ -76,5 +77,3 @@ export class InteriorView {
     m.geometry.dispose();
   }
 }
-
-const same = (a: BuildingKey, b: BuildingKey) => a.cell === b.cell && a.index === b.index;

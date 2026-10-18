@@ -16,15 +16,27 @@ import { dwellingsOf, flatsDoor, streetDoor, type BuildingDesc, type FrontDoor }
 import { PLACE_KIND_OF, type AmenityKind } from '../plan/amenities';
 import { buildingTiers } from '../build/massing';
 import { KINDS, defaultStaff } from '../sim/placeKinds';
-import type { StaffSlot } from '../sim/places';
+import type { PlaceKind, StaffSlot } from '../sim/places';
 import { coreFits, planCores } from './cores';
 import { planStorey, type StoreyCores, type StoreyUse } from './storey';
 import { homeItems, homeProgram, type HomeRoom } from './fill/home';
 import { workItems, workProgram, type Need, type Work } from './fill/work';
 import type { FloorPlan, Furn, FurnUse, Spot } from './types';
 
-/** What the people of a workplace are, when the caller knows (the sim's place): its staff and capacity. */
-export interface PlaceUse { staff: readonly StaffSlot[]; capacity: number }
+/**
+ * What the people of a workplace are, when the caller knows (the sim's place): its staff and capacity; `kind` the
+ * place's kind where the building has no amenity to tell it (a public building's walk-in body, src/interior/landmark.ts).
+ */
+export interface PlaceUse { staff?: readonly StaffSlot[]; capacity?: number; kind?: PlaceKind }
+
+/** The layouts of the public buildings' kinds (their walk-in bodies). */
+const SITE_WORK: Partial<Record<PlaceKind, Work>> = {
+  church: 'church', school: 'school', kindergarten: 'kindergarten', doctor: 'clinic', fire: 'fire', supermarket: 'supermarket',
+  carehome: 'carehome', station: 'station', petrol: 'grocery',
+};
+
+/** The place kind of a building's workplace: the caller's, else its amenity's. */
+const kindOf = (b: BuildingDesc, place: PlaceUse | undefined): PlaceKind | null => place?.kind ?? (b.amenity ? PLACE_KIND_OF[b.amenity] : null);
 
 /** One home in the building. */
 export interface Unit {
@@ -81,8 +93,9 @@ export function storeyPoly(b: BuildingDesc, f: number, tiers = buildingTiers(b))
 }
 const area = polyArea;
 
-/** The workplace layout of an amenity (a shop is a clothes shop one time in three, else a general store). */
-export function workOf(b: BuildingDesc): Work | null {
+/** The workplace layout of an amenity (a shop is a clothes shop one time in three, else a general store), or of a public building's `kind`. */
+export function workOf(b: BuildingDesc, kind?: PlaceKind | null): Work | null {
+  if (kind && SITE_WORK[kind]) return SITE_WORK[kind]!;
   const a = b.amenity;
   if (!a) return b.use === 'office' ? 'office' : b.use === 'industrial' ? 'workshop' : b.shopfront || b.use === 'retail' ? 'vacant' : null;
   const MAP: Record<AmenityKind, Work> = {
@@ -109,7 +122,7 @@ export function peakStaff(slots: readonly StaffSlot[]): number {
 
 /** Who a workplace's floors are for: staff on site at once (shared over `floors`), and seats. */
 function needOf(b: BuildingDesc, place: PlaceUse | undefined, floors: number): Need {
-  const kind = b.amenity ? PLACE_KIND_OF[b.amenity] : null;
+  const kind = kindOf(b, place);
   if (!kind) return { staff: 0, seats: 0 };
   const staff = peakStaff(place?.staff ?? defaultStaff(kind));
   const cap = place?.capacity ?? KINDS[kind].capacity;
@@ -118,15 +131,18 @@ function needOf(b: BuildingDesc, place: PlaceUse | undefined, floors: number): N
   return { staff: Math.ceil(staff / Math.max(1, floors)), seats };
 }
 
+/** Workplaces whose upper storeys are more of the same (offices, classrooms, consulting rooms, residents' rooms). */
+const UPSTAIRS = new Set<Work>(['office', 'school', 'clinic', 'carehome']);
+
 /** What each storey is for. */
 function usesOf(b: BuildingDesc, place: PlaceUse | undefined): StoreyUse[] {
   const n = Math.max(1, b.floors);
   if (b.use === 'parking' || b.style === 'garage') return Array.from({ length: n }, () => ({ kind: 'parking' }));
-  const work = workOf(b), homes = dwellingsOf(b);
+  const work = workOf(b, place?.kind), homes = dwellingsOf(b);
   const whole = b.use === 'office' || b.use === 'industrial' || b.use === 'retail' || b.use === 'civic' || (work && !homes);
   // Storeys with the workplace: the ground floor, or all of them (an office block, a hall, a shop with rooms over it).
   const workFloors = work ? (whole ? n : 1) : 0;
-  const need = needOf(b, place, b.amenity === 'office' ? workFloors : 1);
+  const need = needOf(b, place, work && UPSTAIRS.has(work) ? workFloors : 1);
   const uses: StoreyUse[] = [];
   const rooms = (w: Work, f: number, nd: Need): StoreyUse => ({
     kind: 'rooms', program: workProgram(w, f === 0), unit: -1,
@@ -134,9 +150,9 @@ function usesOf(b: BuildingDesc, place: PlaceUse | undefined): StoreyUse[] {
   });
   for (let f = 0; f < n; f++) {
     if (f < workFloors) {
-      // Above a hall or a shop: its offices (the staff room, the bookkeeping).
-      const w = f === 0 || work === 'office' ? work! : 'office';
-      uses.push(rooms(w, f, f === 0 || work === 'office' ? need : { staff: 1, seats: 0 }));
+      // Above a hall or a shop: its offices (the staff room, the bookkeeping); an office block, a school, a clinic or a care home goes on upstairs.
+      const same = f === 0 || UPSTAIRS.has(work!);
+      uses.push(rooms(same ? work! : 'office', f, same ? need : { staff: 1, seats: 0 }));
       continue;
     }
     const first = workFloors;
@@ -177,11 +193,11 @@ export function planInterior(b: BuildingDesc, place?: PlaceUse): Interior {
     storeys.push(best!);
   }
   const spots = spotsOf(storeys);
-  const kind = b.amenity ? PLACE_KIND_OF[b.amenity] : null;
+  const kind = kindOf(b, place);
   standIn(storeys, spots, kind ? peakStaff(place?.staff ?? defaultStaff(kind)) : 0);
   const doors = [streetDoorOf(b, door, !fd || !cores.entry ? dwellingsOf(b) > 0 : false)];
   if (fd && cores.entry) doors.push(streetDoorOf(b, fd, true));
-  return { storeys, units: unitsOf(storeys), work: workOf(b), spots, doors };
+  return { storeys, units: unitsOf(storeys), work: workOf(b, place?.kind), spots, doors };
 }
 
 /** Rooms where staff without a desk or counter of their own stand and work. */
@@ -276,7 +292,7 @@ function spotsOfPiece(f: Furn, floor: number, out: Spot[]): void {
     return;
   }
   if (f.use === 'sit' || SEATS.has(f.kind)) {
-    const k = f.kind === 'sofa' ? Math.max(2, Math.round(f.w / 0.75)) : 1;
+    const k = f.kind === 'sofa' ? Math.max(2, Math.round(f.w / 0.75)) : f.kind === 'pew' ? Math.max(2, Math.floor(f.w / 0.6)) : 1;
     for (let i = 0; i < k; i++) at(f.use, (i - (k - 1) / 2) * (f.w / k), 0, f.yaw);
     return;
   }

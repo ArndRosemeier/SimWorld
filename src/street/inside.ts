@@ -41,7 +41,7 @@ interface SpotLike { use: FurnUse; unit: number }
 
 /**
  * Who goes where: for each person (in order) the index of their spot in `spots`, -1 when none is left. Asleep:
- * a bed of their home. At work in a workplace: a desk or counter. Otherwise a seat of their home (a visitor
+ * a bed of their home (or one that is no home's, in a care home). At work in a workplace: a desk or counter. Otherwise a seat of their home (a visitor
  * or a customer: a seat not in a home), then any seat, then anywhere free. No spot is given twice.
  */
 export function spotsFor(people: readonly InsidePerson[], spots: readonly SpotLike[]): number[] {
@@ -56,6 +56,8 @@ export function spotsFor(people: readonly InsidePerson[], spots: readonly SpotLi
   for (const i of order) {
     const p = people[i];
     if (p.activity === A.sleep) out[i] = claim((s) => s.use === 'sleep' && s.unit === p.unit && p.unit >= 0);
+    // (A bed that is nobody's home: a care home's room.)
+    if (out[i] < 0 && p.activity === A.sleep) out[i] = claim((s) => s.use === 'sleep' && s.unit < 0);
     else if (p.activity === A.work && p.unit < 0) out[i] = claim((s) => (s.use === 'work' || s.use === 'serve') && s.unit < 0);
     if (out[i] < 0 && p.activity !== A.sleep) out[i] = claim((s) => s.use === 'sit' && s.unit === p.unit);
     if (out[i] < 0) out[i] = claim((s) => s.use === 'sit');

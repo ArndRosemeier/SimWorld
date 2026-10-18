@@ -96,6 +96,11 @@ export interface LmPart {
    */
   inner?: boolean;
   /**
+   * A box one can walk into (SimWorld): its storeys (the material's ground floor height `gh`, then `fh` each). The
+   * interior planner furnishes it for the landmark's kind (src/interior/landmark.ts).
+   */
+  body?: number;
+  /**
    * A clock face (a thin box): its dial looks out on the part's +v side (1) or -v side (-1). The
    * hands are not parts: the signs draw the time on it (src/plan/signs.ts `clockSpots`).
    */
@@ -188,6 +193,8 @@ export interface Opt {
   clear?: boolean;
   /** Walkable however thin (LmPart.deck). */
   deck?: boolean;
+  /** The walk-in box, with this many storeys (LmPart.body). */
+  body?: number;
 }
 
 /** Builds parts in a local frame (nested frames for sub-assemblies like planes). */
@@ -254,6 +261,7 @@ export class Kit {
     };
     if (o.clear) part.clear = true;
     if (o.deck) part.deck = true;
+    if (o.body) part.body = o.body;
     this.parts.push(part);
     return part;
   }
