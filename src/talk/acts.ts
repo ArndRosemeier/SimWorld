@@ -3,7 +3,7 @@
  * authoring time (Arnd's decision: authoring-time LLM = Claude) and curated; shipped as static data.
  *
  * Region-neutral English (Arnd, 2026-10-18: an invented, western-adjacent world, nothing that identifies a region):
- * no "mom" or "mum", "vacation" or "holiday", "fall" or "autumn", "Alright?" or "y'all"; British spelling where a
+ * no "mom" or "mum", "vacation" or "holiday", "fall" or "autumn" (people go "away", school has "breaks"), "Alright?" or "y'all"; British spelling where a
  * word differs, but such words are avoided. `DIALECT_MARKED` (src/lang/dialect.ts) is the gate the tests run.
  *
  * Banks come in adjacency pairs: every act that expects an answer has its answering acts, and a bank holds only
