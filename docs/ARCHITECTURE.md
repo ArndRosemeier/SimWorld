@@ -280,3 +280,9 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Question | The one way | Where |
 |---|---|---|
 | Play a sound: ambience bed, spatial one-shot | the audio engine (guarded: `AudioContext` only there) | `src/audio/` *planned* (track G) |
+
+### The setting
+
+| Question | The one way | Where |
+|---|---|---|
+| How are prices, licence plates, phone numbers, addresses, the emergency number and school grades written? Is this generated name a real place? Does this phrase bank use a banned word? | the invented world's conventions (D27, plan R7), next to the vocabulary in `src/lang/words.ts`. Never a string literal with a real currency, format or dialect word elsewhere | `src/lang/` *planned* (Town planner port) |
