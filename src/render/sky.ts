@@ -171,6 +171,8 @@ export class DaySky {
     SEASON.leaf.value = doy > 200 ? smoothstep(255, 295, doy) : 0;
     SEASON.bare.value = doy > 200 ? smoothstep(305, 335, doy) : 1 - smoothstep(95, 125, doy);
     SEASON.blossom.value = smoothstep(95, 110, doy) * (1 - smoothstep(118, 135, doy));
+    // Fallen leaves gather from mid-October, most in November, then are swept up or rot away by the new year.
+    SEASON.litter.value = doy > 200 ? smoothstep(275, 318, doy) * (1 - smoothstep(330, 362, doy)) : 0;
     VEG.wind.value = clamp(w.wind * 2, 0.15, 2);
     // The fields by the farming calendar (world/landuse `cropLook`), and their average for far away.
     const lin = (c: number) => Math.pow(c, 2.2);
