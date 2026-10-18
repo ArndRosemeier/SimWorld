@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.128 — No browser menu over the game
+
+- Right-click dragging to look around no longer opens the browser's menu.
+- Middle-click, the mouse wheel and Space or the arrow keys no longer make the browser scroll or zoom the page while you play; the chat and the menus still scroll as before.
+- Dragging the view no longer selects text on the screen, and the drag keeps going when the mouse leaves the window.
+
 ## v0.127 — Cyclists on the roads
 
 - People with a bike now cycle in town in dry weather when the way is longer than they like to walk. Most children from nine and half the grown-ups have one. Car owners cycle only if they are keen.
