@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.111 — Public clocks tell the time
+
+- The clocks on the church tower, the town hall's clock tower and the old station's gable now show the game's time of day, to the minute.
+- Plain dials with hour marks and no numerals; every public clock in town agrees.
+
+## v0.110 — Trick-or-treaters on Halloween
+
+- On Halloween evening (31 October, 17:00 to 20:30) children go from door to door in their street and the next ones, ringing at the homes that put up Halloween decorations, then go home.
+- Children from 8 go on their own. Smaller ones go with a parent or an older brother or sister, never alone.
+- Children wear costumes that evening: ghosts, witches with pointed hats, cats with ears, pumpkins and vampires.
+- When two small children walk with a grown-up, they now walk one on each side instead of in the same spot.
+
+## v0.109 — Fences, garages and carports
+
+- Houses have a white picket fence, a low brick wall or a hedge along the front, with gaps at the driveway and the path.
+- Many driveways end at a garage, or have a timber carport over the car.
+- Fixed: concrete, stone and planter shrubs on street furniture rendered black (planters, bench legs, statue plinths, cemetery walls and graves).
+
 ## v0.108 — Windows you can look out of
 
 - Inside a building, the walls have openings where the facade has its windows, and you see the street through them.

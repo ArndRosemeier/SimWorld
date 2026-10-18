@@ -1,7 +1,8 @@
 /**
  * The town's signs on the stage (town-realism track A): shop fascias, hanging signs, brass plates
  * and works' names, opening hours on the doors, estate agents' boards, public buildings' name
- * boards, street-name posts and the town signs. The town workers list the instances per model
+ * boards, street-name posts, the town signs and the public clocks (the game's time of day). The
+ * town workers list the instances per model
  * (src/build/signs.ts, the mounts from src/plan/signs.ts); here each model is a geometry-instanced
  * mesh of the `FURNITURE` kind, every instance with its own lettering slot of the text atlas
  * (`iSign`). What a sign says comes from the facts (`SignFacts`: the sim's town face, the planner's
@@ -44,6 +45,8 @@ export interface SignsShown {
   setFacts(facts: SignFacts): void;
   /** Give the signs the notices up in town (the sim's media, `day` today's game day); they redraw what changed at the next update. */
   setNotices(notices: readonly Notice[], day: number): void;
+  /** The time of day for the public clocks (minute of the day); they move at the next update when it changes. */
+  setTime(minuteOfDay: number): void;
   /** Once a frame: show the signs in range of the camera, with their words. */
   update(camera: Camera): void;
 }
@@ -95,6 +98,8 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
   /** The notices up at each place, oldest first. */
   let noticesAt = new Map<number, Notice[]>();
   let noticesSaid = '';
+  /** The minute of the day the public clocks show. */
+  let minute = 720;
   const agentName = () => {
     for (let p = 0; p < facts.name.length; p++) if (PLACE_KINDS[facts.kind[p]] === 'estateagent' && facts.name[p]) return facts.name[p];
     return fillName(boardWord('agent'), { city: signs.town });
@@ -127,6 +132,7 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
       case 'town': return own(`town|${w.back}|${signs.town}`, paint.townSign(signs.town, w.back));
       case 'post': return { key: '', said: 'post', size: 'strip', paint: paint.blank };
       case 'cork': return own('cork', paint.cork(w.stand ? 1.4 / 0.8 : 1.0 / 0.75));
+      case 'clock': return { key: 'clock', said: `${minute}`, size: 'card', paint: paint.clockFace(minute) };
       case 'notice': {
         const list = noticesAt.get(w.place);
         const n = list && (w.every ? list[w.k % list.length] : list[w.k]);
@@ -213,6 +219,13 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
         list.push(n);
       }
       readFacts();
+      stale = true;
+    },
+    setTime(m) {
+      const now = Math.floor(m);
+      if (now === minute) return;
+      minute = now;
+      signs.what.forEach((w, i) => { if (w.t === 'clock') sayings.set(i, sayingOf(w, i, '')); });
       stale = true;
     },
     update: (camera) => reshow(camera),

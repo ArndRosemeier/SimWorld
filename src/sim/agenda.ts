@@ -110,6 +110,11 @@ export function agendaOn(world: World, day: number): readonly Occasion[] {
   return cached(world, day).all;
 }
 
+/** The evening's trick-or-treating on game day `day` (Halloween, on every street), or null. */
+export function trickOrTreating(world: World, day: number): Occasion | null {
+  return drawingOn(world, day).find((o) => o.kind === 'halloween') ?? null;
+}
+
 /** The occasions on `day` that draw anyone (pull > 0): what the schedule offers. */
 export function drawingOn(world: World, day: number): readonly Occasion[] {
   return cached(world, day).drawing;
@@ -165,7 +170,7 @@ function seasonal(world: World, day: number, out: Occasion[]): void {
   switch (h.kind) {
     case 'summerFestival': seasonOccasion('festival', 'the summer festival', square, 11, 23.5, 1.4, 'all', A.socialize); break;
     case 'christmasMarket': seasonOccasion('christmasMarket', 'the Christmas market', square, weekend ? 11 : 16, 21, 0.6, 'all', A.socialize); break;
-    case 'halloween': seasonOccasion('halloween', 'trick-or-treating', -1, 17, 19.5, 2, 'children', A.leisure); break;
+    case 'halloween': seasonOccasion('halloween', 'trick-or-treating', -1, 17, 20.5, 2, 'children', A.leisure); break;
     case 'easter': seasonOccasion('eggHunt', 'the Easter egg hunt', green(world), 11.25, 12.75, 1.5, 'families', A.leisure); break;
     case 'newYearsEve': seasonOccasion('newYear', 'the New Year fireworks', square, 23.5, 24.5, 0.9, 'adults', A.socialize); break;
     case 'christmasEve': seasonOccasion('service', 'the Christmas Eve service', church, 17, 18.25, 1.6, 'faith', A.worship); break;
