@@ -22,7 +22,7 @@ import { awayRide } from './offsite';
 import { DRIVE_IF_WALK_OVER } from './travel';
 import { isCold, isFoul, isNiceOut, isWetOut, weatherAt } from './weather';
 import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
-import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, tripOf, type World } from './world';
+import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, playerDrives, tickRng, tripOf, type World } from './world';
 
 /** Does a weekday mask include weekday `wd`? */
 const onMask = (mask: DayMask, wd: number) => ((mask >> wd) & 1) === 1;
@@ -91,6 +91,7 @@ export function decideAll(world: World): void {
   const a = world.actors.cols;
   for (let id = 0; id < world.actors.count; id++) {
     if (!a.alive[id] || a.dest[id] >= 0 || a.until[id] > world.clock) continue;
+    if (playerDrives(world, id)) continue;
     if (a.with[id] >= 0 && follow(world, id)) continue;
     if (a.kind[id] === ACTOR_PERSON) decidePerson(world, id);
     else decideAnimal(world, id);
