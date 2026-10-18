@@ -44,8 +44,7 @@ const RULES: readonly Rule[] = [
     '{S} {S:is} done with {P}. Quit',
   ] },
   { re: /^\{subject\} got a job at \{place\}$/, tone: 'good', lines: [
-    '{S} got a job at {P}', '{S} {S:is} starting at {P}', '{S} {S:has} [landed|found|got] a job at {P}', '{P} took {S:obj} on',
-    '{S} {S:is} working at {P} now', '{S} start{S:s} at {P}[ next week| soon|]',
+    '{S} got a job at {P}', '{S} {S:has} [landed|found|got] a job at {P}', '{S} {S:is} working at {P} now', '{S} just started at {P}',
   ] },
   { re: /^\{subject\} retired from \{place\}$/, tone: 'news', lines: [
     '{S} retired from {P}', '{S} {S:has} finally retired', '{S} {S:has} retired from {P}',
@@ -56,7 +55,7 @@ const RULES: readonly Rule[] = [
     'there\'s going to be a wedding: {S&O}',
   ] },
   { re: /^\{subject\} and \{object\} got married$/, tone: 'good', lines: [
-    '{S&O} got married', '{S&O} tied the knot', '{S&O} {S&O:is} married now', '{S} married {O}',
+    '{S&O} got married', '{S&O} tied the knot', '{S&O} {S&O:is} married now',
   ] },
   { re: /^\{subject\} is going out with \{object\}$/, tone: 'good', lines: [
     '{S} {S:is} going out with {O}', '{S} {S:is} seeing {O}', '{S&O} {S&O:is} a couple now', '{S&O} {S&O:is} together now',
@@ -125,7 +124,7 @@ const RULES: readonly Rule[] = [
   ] },
   { re: /^\{subject\} got into a fight with \{object\} at \{place\}$/, tone: 'scandal', lines: [
     '{S} got into a fight with {O} at {P}', '{S&O} had a fight at {P}', '{S&O} came to blows at {P}', '{S} {S:was} fighting with {O} at {P}',
-    '{S} went for {O} at {P}',
+    '{S} started a fight with {O} at {P}',
   ] },
   { re: /^there was a shouting match between \{subject\} and \{object\} at \{place\}$/, tone: 'scandal', lines: [
     'there was a shouting match between {S&O} at {P}', '{S&O} {S&O:was} shouting at each other at {P}', '{S} yelled at {O} at {P}',

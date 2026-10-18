@@ -311,8 +311,15 @@ export function tell(world: World, teller: ActorId, listener: ActorId, fact: num
 
 /** Age from which a child passes stories on to anyone (younger ones tell their family). */
 const CHILD_TELLS = 10;
-/** Stories not for children outside the family: crimes, affairs, illness. */
+/** Stories not for children outside the family: crimes, affairs, illness, fights. */
 const ADULT_TOPICS: ReadonlySet<FactTopic> = new Set(['crime', 'romance', 'health']);
+/** Below this magnitude a story is small news (see `exchange`). */
+const SMALL_NEWS = 0.15;
+const knowsOf = (world: World, who: ActorId, of: ActorId): boolean => {
+  const r = world.relations.row(who, of);
+  return r >= 0 && world.relations.t.cols.familiarity[r] >= 0.15;
+};
+const isAdultStory = (f: Fact): boolean => ADULT_TOPICS.has(f.topic) || /\bfight\b|came to blows/.test(f.text);
 
 /**
  * One side of a conversation may share news (plan §2.2): the most salient story the listener has not heard, if the
@@ -326,10 +333,13 @@ export function exchange(world: World, teller: ActorId, listener: ActorId, hub: 
   if (!list || list.length === 0) return -1;
   // Toddlers pass on no stories and nobody tells them one; a young child tells only family.
   const age = ageOf(world, teller);
-  if (age < 4 || ageOf(world, listener) < 4 || (age < CHILD_TELLS && !world.relations.isFamily(teller, listener))) return -1;
+  // (Nor does a grown-up tell a young child outside the family who went where.)
+  if (age < 4 || ageOf(world, listener) < 4 || ((age < CHILD_TELLS || ageOf(world, listener) < CHILD_TELLS) && !world.relations.isFamily(teller, listener))) return -1;
   const c = k.beliefs.cols;
   const rel = world.relations;
-  const young = ageOf(world, listener) < 13 && !rel.isFamily(teller, listener);
+  // Children neither hear nor pass on someone else's adult business outside the family.
+  const young = (ageOf(world, listener) < 13 || age < 13) && !rel.isFamily(teller, listener);
+  const little = ageOf(world, listener) < 8 || age < 8;
   const rr = rel.row(teller, listener);
   const home = householdOf(world, listener);
   const familiarity = rr >= 0 ? rel.t.cols.familiarity[rr] : 0;
@@ -342,8 +352,14 @@ export function exchange(world: World, teller: ActorId, listener: ActorId, hub: 
     if (s <= bestScore) continue; // cheap test first: most stories lose here
     const f = k.facts[c.fact[r]];
     if (f.subject === listener) continue; // you don't gossip to someone about themselves
-    if (young && ADULT_TOPICS.has(f.topic)) continue; // nor tell a child someone else's adult business
+    if (young && isAdultStory(f)) continue; // nor tell a child someone else's adult business
+    if (little && isAdultStory(f)) continue; // and a small child is kept out of it even at home
+    if (age < 13 && (isAdultStory(f) || f.topic === 'job' || f.topic === 'politics')) continue; // children pass on children's news
+    if (f.text.startsWith("{subject}'s family are away") && householdOf(world, f.subject) === householdOf(world, teller)) continue; // one's own family's trip is no news
     if (f.subject >= 0 && home !== null && householdOf(world, f.subject) === home) continue; // nor about their own household
+    // Small news (a holiday, a new job) is only worth telling to someone who knows the people, or about one's own.
+    // (Nor to their own family, who know: "your daughter's family went camping".)
+    if (f.magnitude < SMALL_NEWS && f.subject >= 0 && (rel.isFamily(listener, f.subject) || (householdOf(world, f.subject) === householdOf(world, teller) ? familiarity < 0.6 : f.subject !== teller && !knowsOf(world, listener, f.subject)))) continue;
     if (f.secret) {
       const need = c.flags[r] & F_PROMISED ? 0.85 + 0.15 * (traitOf(world, teller, T_AGREE) + traitOf(world, teller, T_CONSC)) / 2 : 0.7;
       if (trust < need) continue;

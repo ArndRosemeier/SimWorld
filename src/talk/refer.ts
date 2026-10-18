@@ -15,6 +15,7 @@ import type { PlaceId } from '../sim/places';
 import { BONDS, FAMILY_MASK, bondBit, type Bond } from '../sim/relations';
 import { SPECIES } from '../sim/species';
 import { ageOf, firstName, householdOf, jobOf, nameOf, type World } from '../sim/world';
+import { dwellingWord } from '../lang/words';
 import { expand } from './grammar';
 import type { Voice } from './voice';
 
@@ -29,6 +30,9 @@ export class Discourse {
 
   /** The place the story at hand is about (people are not described by their job there). */
   topicPlace: PlaceId = -1;
+
+  /** Someone was already placed by their street ("from Kepler Lane") in this conversation. */
+  streetSaid = false;
 
   constructor(public speaker: ActorId, public listener: ActorId, readonly rng: Rng) {}
 
@@ -135,10 +139,13 @@ function describe(world: World, who: ActorId, d: Discourse): string {
   else if (age < 20) options.push(`the ${surname} ${f ? 'girl' : 'boy'}`, `${firstName(world, who)} ${surname}`);
   if (options.length === 0 || rng.float() < 0.3) {
     const home = world.actors.cols.home[who];
-    const street = home >= 0 ? world.graph.places[home].street : '';
+    // One "from Kepler Lane" per conversation: two in a row read like a register.
+    const street = home >= 0 && !d.streetSaid ? world.graph.places[home].street : '';
     options.push(street ? `${nameOf(world, who)} from ${street}` : nameOf(world, who), nameOf(world, who));
   }
-  return options[rng.int(0, options.length - 1)];
+  const np = options[rng.int(0, options.length - 1)];
+  if (/ from /.test(np)) d.streetSaid = true;
+  return np;
 }
 
 /**
@@ -233,7 +240,7 @@ export function placeName(world: World, place: PlaceId, d: Discourse | null): st
     if (world.actors.cols.home[d.listener] === place) return 'your place';
   }
   if (isDwelling(world, place)) {
-    return d && d.rng.float() < 0.5 ? `${p.kind === 'apartments' ? 'the apartments' : 'a house'} on ${p.street}` : p.name;
+    return d && d.rng.float() < 0.5 ? `${dwellingWord(p.kind)} on ${p.street}` : p.name;
   }
   return p.name.startsWith('The ') ? 'the' + p.name.slice(3) : p.name;
 }
@@ -298,8 +305,10 @@ export function realiseSlots(world: World, text: string, s: ActorId, o: ActorId,
   // One's own new home is not "our place" in the story of moving there: "a house on Elm Street".
   if (place >= 0 && (world.actors.cols.home[d.speaker] === place || world.actors.cols.home[d.listener] === place) && /\b(into|at|to) \{P\}/.test(text)) {
     const p = world.graph.places[place];
-    text = text.replace(/\{P\}/g, p.street ? `${p.kind === 'apartments' ? 'the apartments' : 'a house'} on ${p.street}` : 'a new place');
+    text = text.replace(/\{P\}/g, p.street ? `${dwellingWord(p.kind)} on ${p.street}` : 'a new place');
   }
+  // Nobody retires "from Oakborough": from their job there.
+  if (place >= 0 && world.graph.places[place]?.kind === 'away' && world.offsite.town[place] === world.graph.places[place].name) text = text.replace(/retired from \{P\}/g, 'retired from {S:poss} job in {P}');
   // A town off the map is "in" ("got a job in Tilford"), not "at" (its school is "at").
   if (place >= 0 && world.graph.places[place]?.kind === 'away' && world.offsite.town[place] === world.graph.places[place].name) text = text.replace(/\b(at|from) \{P\}/g, (_, prep: string) => (prep === 'at' ? 'in {P}' : 'from {P}'));
   return text.replace(/\{(S&O|S|O|P)(?::(\w+))?\}/g, (m, who: string, form: string | undefined) => {
@@ -316,7 +325,8 @@ export function realiseSlots(world: World, text: string, s: ActorId, o: ActorId,
     if (form === 'family') return family(world, id, d);
     if (form === 'kid') return id >= 0 && female(world, id) ? 'girl' : 'boy';
     if (form === 'first') return id >= 0 ? (id === d.speaker ? 'I' : id === d.listener ? 'you' : firstName(world, id)) : 'someone';
-    if (form === 'name') return id >= 0 ? nameOf(world, id) : 'someone';
+    // (A pet goes by its first name: "their cat Molly", never a person's full name.)
+    if (form === 'name') return id >= 0 ? (isPersonActor(world, id) ? nameOf(world, id) : firstName(world, id)) : 'someone';
     const agree = AGREE[form];
     return agree ? agree[pers(id)] : m;
   });

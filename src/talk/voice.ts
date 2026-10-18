@@ -57,7 +57,7 @@ const PET: Record<AgeGroup, readonly string[]> = {
 export const DIALECT_MARKED: readonly RegExp[] = [
   /\b(mom|moms|mommy|momma|mum|mums|mummy)\b/i, /\bvacation\b/i, /\bholiday\b/, /\b(the|this|in|last|next) fall\b/i, /\bautumn\b/,
   /\by'all\b/i, /\beh\?/i, /^Alright\?/, /\b(mate|buddy|bloody|blimey|knackered|cheers|ta|innit|reckon|gotten|y'know)\b/i,
-  /\b(queue|fortnight|poorly|gran|grandad|flatmate|the flats|sidewalk|pavement|petrol|candy|sweets|rubbish|garbage|trash)\b/i,
+  /\b(queue|fortnight|poorly|gran|grandad|flatmate|the flats|apartments?|sidewalk|pavement|petrol|candy|sweets|rubbish|garbage|trash)\b/i,
   /\b(courting|fella|lads|folks|awesome|brilliant|proper|sorted|cuppa|hiya|oi|cosy|cozy|realise|realize)\b/i,
 ];
 

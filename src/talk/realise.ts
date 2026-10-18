@@ -13,7 +13,7 @@ import { beliefAbout, isAbout, SOURCE_BROADCAST, SOURCE_COMMON, SOURCE_WITNESSED
 import { householdOf, tickRng, type World } from '../sim/world';
 import { ACTS, phrasesFor, type ActName } from './acts';
 import { isSeeable, phrasings, type Tone } from './facts';
-import { bare, contract, decap, fillSlots, finish, pick, uncontract, type PickContext, type TalkMemory } from './grammar';
+import { bare, capital, contract, decap, fillSlots, finish, pick, uncontract, type PickContext, type TalkMemory } from './grammar';
 import { Discourse, isFamilyTie, namesOf, objectForm, pronoun, realiseSlots, refer, tie } from './refer';
 import { FILLERS, voiceOf, type Voice } from './voice';
 
@@ -114,7 +114,7 @@ export function say(world: World, fact: Fact | number, speaker: ActorId, listene
   // Opener.
   const forced = typeof opts.opener === 'string' ? opts.opener : null;
   // Most stories are just told; an opener ("Have you heard?") is for the talkative, for big news and for secrets.
-  const wantOpener = forced !== null || (opts.opener !== false && rng.float() < 0.15 + 0.3 * voice.verbosity + 0.25 * f.magnitude + (f.secret ? 0.5 : 0));
+  const wantOpener = forced !== null || (opts.opener !== false && rng.float() < 0.05 + 0.25 * voice.verbosity + 0.2 * f.magnitude + (f.secret ? 0.5 : 0));
   if (wantOpener) {
     const act: ActName = forced ?? (f.secret && !self ? 'news.open.secret' : self ? 'news.open.self'
       : tone === 'crime' ? 'news.open.crime'
@@ -136,7 +136,7 @@ export function say(world: World, fact: Fact | number, speaker: ActorId, listene
   if (!own) {
     // "I saw it myself" fits a fight or a break-in, not someone's holiday.
     if (source === SOURCE_WITNESSED) { if (isSeeable(tone) && rng.float() < 0.4) { after = phrase('hedge.witnessed', voice, ctx); sourced = true; } }
-    else if (source === SOURCE_BROADCAST) { if (rng.float() < 0.4) after = phrase('hedge.broadcast', voice, ctx); }
+    else if (source === SOURCE_BROADCAST) { if (rng.float() < 0.4) { after = phrase('hedge.broadcast', voice, ctx); sourced = true; } }
     else if (source !== SOURCE_COMMON) {
       const unsure = confidence < 0.4 || voice.nerves > 0.8;
       // Who told them is decided first: "Someone said … My sister told me" says two things.
@@ -147,7 +147,12 @@ export function say(world: World, fact: Fact | number, speaker: ActorId, listene
         const h = phrase(pre, voice, ctx, keepPre);
         if (h) { body = `${h} ${body}`; hedged = true; }
       }
-      if (named) {
+      if (named && isAbout(f, source)) {
+        // Told by the very person the story is about: "She told me herself", never their full name again.
+        const pro = pronoun(world, source, 'subj');
+        after = fillSlots(phrase('hedge.told.self', voice, ctx), { Pro: capital(pro), pro_obj: pronoun(world, source, 'obj'), self: world.actors.cols.sex[source] === 0 ? 'herself' : 'himself' });
+        sourced = true;
+      } else if (named) {
         const np = refer(world, source, d, 'subj', voice);
         after = fillSlots(phrase('hedge.told', voice, ctx), { src: np, src_o: objectForm(np) });
         sourced = true;
