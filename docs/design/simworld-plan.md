@@ -28,6 +28,13 @@ Grounded in a read of `Scale` (commit `eee2b85`, 17 Oct 2026), `Dunfinity`, `Ass
 | D17 | **PRs merge to main automatically** once CI is green (Arnd does not use Git); CLAUDE.md rule 11. |
 | D18 | **Version +0.001 per merge**, a What's new panel, and main deployed to GitHub Pages after each merge (PRs #10, #11). The What's new button moves onto the selector/loading screen (R2) once that exists. |
 | D19 | **The surroundings are lore only:** a big city, a larger nearby town with the hospital, a handful of villages, river, hills, woods and highway exist as things people know and mention, never as simulated places (PR #13, `regionOf`). |
+| D20 | **Road conventions:** right-hand traffic, metric signs (km/h), the yellow centre line. |
+| D21 | **The game date follows the real calendar** (a new game starts on today's date and moves on with play and time skips), in a **temperate climate with real winters and snow**; sunrise and sunset follow the date. |
+| D22 | **Economy real but simple:** monthly household budgets (wages, pensions, benefits, rent or mortgage, bills, groceries, car) and business revenue from the customers who actually come; businesses can close and new ones open. |
+| D23 | **Phones are in:** calls and messages spread news, mostly between close ties and slower than face to face, so the gossip hubs still matter. |
+| D24 | **Holidays:** Christmas, New Year, Easter, Halloween, plus the town's own summer festival and Christmas market. No national holidays (they would place the town). |
+| D25 | **The secondary school is in the larger nearby town** (lore, D19); a school bus takes the teenagers there every school morning and back in the afternoon. |
+| D26 | **Town realism** (checklist [town-realism.md](town-realism.md)): anything visible that changes over time is caused by the sim and read from it; seeded decoration only for wear and clutter. Built as tracks A–H across threads (R8). |
 
 ## Round 2: what these decisions change
 
@@ -138,6 +145,45 @@ both. Crime exists only at a low rate (theft, a bar fight, vandalism), romance i
 model (attraction, dating, cheating, break-ups, marriage), politics is local only (council, mayor, a local issue to
 argue about, like a new road or closing the pool).
 
+
+### R8. Town realism (D20–D26)
+
+The checklist, with status and priority per item, is [town-realism.md](town-realism.md). Its one rule: **every visible
+detail that changes over time is caused by the sim.** A car stands in the driveway because its household is home, a
+window is lit because someone in that dwelling is awake, the bins are out because it is that street's collection day,
+the shop shows a to-let board because it went bust last month. In code that means:
+
+- **The views never invent state the sim has.** Lit windows, cars at home or on the road, bins out, people and pets on
+  the street, a house dark while the family is away: all read from the sim's view snapshot (`SimView`, below). The
+  planner and the build never derive household facts (kids, wealth, car, age) from the plan on their own; the sim's
+  per-dwelling look reaches them as data.
+- **Facts NPCs react to live in `src/sim`:** the date, season, daylight, weather, timetables, prices, the town's agenda
+  of events. The live tick, the chronicle (time skip and history) and headless tests then see exactly what the screen
+  shows, and an NPC can say "terrible rain this morning" because it rained in the sim.
+- **Seeded decoration is fine for wear and clutter** (cracks, moss, a gnome), never for anything that moves or changes.
+- **The real date enters through the app only.** A new game passes today's date into `createWorld`; nothing in the pure
+  layers reads the wall clock (guarded). Day 0 stays a Monday; the calendar maps the clock to a date so that play
+  begins on today's date, whatever history ran before it.
+
+**Tracks and owners** (dispatched 18 Oct 2026; one thread each):
+
+| Track | Thread | Owns (seams in docs/ARCHITECTURE.md) |
+|---|---|---|
+| A. Street dressing | Town planner port | driveways, paths, boundaries, gardens, bins, garages, parking bays, petrol station, signs, poles and wires, road decals, shop signs; the text atlas for any lettering in the world (`src/render/textAtlas.ts`) |
+| B. Sky, weather and seasons | Sky, weather and seasons | `src/sim/calendar.ts` (date, season, sun), `src/sim/weather.ts`, the sky and weather views, the one writer of `LIGHT`, the lamp light pool in `lights.ts`, seasonal vegetation, crops and snow, lit windows |
+| C. People and animals on the street | People and animals on the street | the sim worker, `SimClient`, `src/sim/view.ts` (`SimView`), L0→L2 promotion and demotion, crowds, activities, clothing, pets, livestock and birds on screen |
+| D. Traffic and transport | Traffic and transport | traffic mechanics and vehicle views, household cars, `src/sim/transit.ts` (lines, stops, timetables, the school bus), service rounds, emergency vehicles, cyclists |
+| E. Town calendar and rhythms | Society simulation | `src/sim/agenda.ts` (recurring and one-off town events), hours per weekday, commuters to the region, school terms and holidays in `calendar.ts`, families away, ceremonies, phones as a knowledge channel, `world.trips` (who travels how) |
+| F. Institutions, clubs and economy | Economy, institutions and clubs | `src/sim/economy.ts`, `src/sim/groups.ts` (clubs, congregations, council), `src/sim/politics.ts`, the new place kinds in `placeKinds.ts`; their placement with the Town planner port |
+| G. Ambient audio | Ambient audio | `src/audio/` (the one place that makes an `AudioContext`) |
+| H. Town media | later, after E | the weekly paper, notice boards, posters, the map, clocks and timetables shown in the world; uses the text atlas, `broadcast` and `src/talk` |
+
+**Order between tracks.** C lands `SimClient` and the first `SimView` early; B's lit windows and D's household cars read
+from it, never from a channel of their own. E adds `world.trips` before D spawns traffic from trips. F's clubs and
+council meetings go into E's agenda, not a second calendar. B owns the date; E adds holidays and terms to the same
+module. A track that needs a field another track's seam does not have yet adds it to that seam (or asks its owner),
+never builds a parallel one (CLAUDE.md rule 1).
+
 ---
 
 ## 0. The one decision everything else hangs on
@@ -247,7 +293,9 @@ Spread happens **only at encounters** (L0 detects co-presence per place per tick
 - **Household:** dinner exchanges the day's news between family members.
 - **Broadcast:** a weekly local paper, notice board, maybe a radio line; these create low-salience beliefs in many
   people at once.
-- Later, optional: phones/messages (would make spread much faster; a deliberate design knob).
+- **Phones (D23):** calls and messages between close ties (kin, partners, close friends), less often and with a
+  lower share chance than face to face, so a phone spreads news fast along strong ties while the hubs still carry
+  most gossip. A channel in `src/sim/knowledge.ts` like the others.
 
 **Distortion:** on each retelling a small chance to mutate a detail (who, how much, where), weighted by the teller's
 traits, creating a linked rumour variant. Over days you get competing versions; people with a reliable source correct

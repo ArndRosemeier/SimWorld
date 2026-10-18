@@ -21,7 +21,7 @@ import { KINDS, type Service } from './placeKinds';
 import { ACTOR_PERSON } from './actors';
 import type { Relations } from './relations';
 import type { RegionKnowledge } from './region';
-import { Travel } from './travel';
+import { Travel, type Trip } from './travel';
 import { MINUTES_PER_DAY } from './time';
 import { updateNeeds, updateMoods } from './needs';
 import { decideAll, arrive } from './schedule';
@@ -35,6 +35,10 @@ export interface World {
   readonly seed: number;
   /** Game minutes since day 0 (a Monday) 00:00. */
   clock: number;
+  /** Days from 1970-01-01 to game day 0: game days are real dates (src/sim/calendar.ts). */
+  readonly epoch: number;
+  /** The town's latitude in degrees (day length by date). */
+  readonly latitude: number;
   readonly graph: PlaceGraph;
   readonly travel: Travel;
   /** Place → index into PLACE_KINDS, for hot loops. */
@@ -53,6 +57,8 @@ export interface World {
   readonly intentions: Intention[][];
   /** Encounters of the last tick (who met whom where, and what was told). Read by views and the chatter engine. */
   readonly encounters: Encounter[];
+  /** Journeys under way (src/sim/travel.ts): filled by `go`, dropped on arrival. */
+  readonly trips: Trip[];
   /** Per-conversation clamps and the decision log of `applyProposal`. */
   readonly mind: MindLedger;
   /** Life events so far, pregnancies, couples (src/sim/life.ts). */

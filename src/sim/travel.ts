@@ -3,7 +3,28 @@
  * and is cached, so a town with a few hundred distinct entrance nodes answers every query from typed arrays.
  */
 import { MinHeap } from '@futuremagic/core';
+import type { ActorId } from './actors';
 import type { PlaceGraph, PlaceId } from './places';
+
+/** How someone travels. Bike, bus and train come with transit (src/sim/transit.ts). */
+export type Mode = 'foot' | 'car' | 'bike' | 'bus' | 'train';
+
+/**
+ * A journey under way (`world.trips`): filled by `go`, dropped on arrival. Traffic spawns its cars from the car trips
+ * and the street view its walkers from the rest; companions (children, the dog) have their own trip with `leader`
+ * set to the one they travel with, so a family is one car.
+ */
+export interface Trip {
+  who: ActorId;
+  from: PlaceId;
+  to: PlaceId;
+  /** Clock minutes. */
+  depart: number;
+  arrive: number;
+  mode: Mode;
+  /** The traveller they go with (driver or companion), -1 when travelling on their own account. */
+  leader: ActorId;
+}
 
 /** Walking speed, metres per game minute (4.8 km/h). */
 export const WALK_M_PER_MIN = 80;
@@ -85,6 +106,11 @@ export class Travel {
       if (t < bt) { bt = t; best = p; }
     }
     return best;
+  }
+
+  /** How someone with or without a car goes from a to b: they drive when walking would take too long. */
+  mode(a: PlaceId, b: PlaceId, car = false): Mode {
+    return car && a !== b && this.metres(a, b) / WALK_M_PER_MIN > DRIVE_IF_WALK_OVER ? 'car' : 'foot';
   }
 
   /** Whole game minutes from a to b, walking or (with a car, when worth it) driving. At least 1 between places. */

@@ -73,10 +73,10 @@ export const TRADES: Partial<Record<PlaceKind, Trade>> = {
   restaurant: t(32, 0.62, 0.03, 'adult', 0.35, 1500),
   takeaway: t(16, 0.6, 0.04, 'adult', 0.2, 700),
   pharmacy: t(14, 0.3, 0.045, 'adult', 0.2, 900),
-  hairdresser: t(32, 0.85, 0.025, 'adult', 0.15, 600),
-  beauty: t(40, 0.82, 0.008, 'adult', 0.15, 500),
+  hairdresser: t(32, 0.7, 0.025, 'adult', 0.15, 800),
+  beauty: t(40, 0.6, 0.008, 'adult', 0.15, 900),
   garage: t(260, 0.5, 0.003, 'car', 0.25, 1200),
-  shop: t(25, 0.42, 0.04, 'adult', 0.15, 800),
+  shop: t(25, 0.45, 0.15, 'adult', 0.15, 800),
   petrol: t(55, 0.08, 0.06, 'car', 1.5, 1500),
   hardware: t(28, 0.38, 0.035, 'owner', 0.4, 1600),
   clothes: t(45, 0.42, 0.014, 'adult', 0.2, 900),
@@ -84,7 +84,7 @@ export const TRADES: Partial<Record<PlaceKind, Trade>> = {
   newsagent: t(6, 0.3, 0.08, 'adult', 0.1, 500),
   charity: t(8, 0.92, 0.022, 'adult', 0.1, 300),
   estateagent: { model: 'events', events: ['arrived', 'leftHome', 'departed'], basket: 2500, margin: 0.9, rate: 0, who: 'adult', outside: 0.5, premises: 700 },
-  physio: t(45, 0.85, 0.007, 'adult', 0.25, 600),
+  physio: t(45, 0.7, 0.007, 'adult', 0.25, 900),
   gym: t(4.5, 0.85, 0.055, 'fit', 0.15, 1200),
   funeral: { model: 'events', events: ['death'], basket: 3800, margin: 0.5, rate: 0, who: 'adult', outside: 1.5, premises: 800 },
   hotel: ext(2500), bank: ext(1200), office: ext(2000), workshop: ext(900), factory: ext(6000), farm: ext(800),
@@ -248,11 +248,8 @@ export function settleEconomy(world: World, rng: Rng): void {
   e.day = today(world);
   e.month = monthOf(e.day);
   for (const p of world.graph.places) {
-    const tr = TRADES[p.kind];
-    if (p.kind === 'vacant') { b.status[p.id] = BIZ_VACANT; b.since[p.id] = e.day - rng.int(30, 400); continue; }
-    if (!tr) continue;
+    if (b.status[p.id] !== BIZ_NONE || !TRADES[p.kind]) continue;
     b.status[p.id] = BIZ_OPEN;
-    b.quality[p.id] = clamp(rng.gaussian(0.55, 0.18), 0.05, 1);
     b.since[p.id] = e.day - rng.int(200, 9000);
     b.ratio[p.id] = 1.1 + rng.gaussian(0, 0.05);
   }
@@ -280,6 +277,70 @@ export function settleEconomy(world: World, rng: Rng): void {
   reviewHouseholds(world, income, rng.fork('review'), false);
   customerBase(world);
   for (const p of world.graph.places) if (b.status[p.id] === BIZ_OPEN) b.cash[p.id] = fixedCosts(world, p.id) * rng.range(1, 4);
+}
+
+/**
+ * The high street as the town can carry it, before anyone is hired: where the planner put more businesses of a kind
+ * than the town's spending supports, the weakest have already closed and stand empty. Every business gets its
+ * quality here. Called by `createWorld` after the households and before the jobs.
+ */
+export function levelMarket(world: World, rng: Rng): void {
+  const b = world.economy.biz.cols;
+  const day = today(world);
+  for (const p of world.graph.places) {
+    if (p.kind === 'vacant') { b.status[p.id] = BIZ_VACANT; b.since[p.id] = day - rng.int(30, 400); continue; }
+    if (TRADES[p.kind]) b.quality[p.id] = clamp(rng.gaussian(0.55, 0.18), 0.05, 1);
+  }
+  const pools = buyerPools(world);
+  const surplus: [PlaceId, PlaceKind][] = [];
+  let fronts = placesOf(world, ['vacant']).length, empty = fronts;
+  for (const kind of Object.keys(TRADES) as PlaceKind[]) {
+    if (TRADES[kind]!.model !== 'customers') continue;
+    const open = placesOf(world, [kind]).sort((x, y) => b.quality[x] - b.quality[y]);
+    fronts += open.length;
+    while (open.length > 1 && viability(kind, pools, open.length) < OWNER_MINIMUM) surplus.push([open.shift()!, kind]);
+  }
+  // Some of the surplus stands empty (a high street has a few to-let boards); the rest went to small offices:
+  // the insurance agent, the tax adviser, the solicitor.
+  rng.shuffle(surplus);
+  for (const [place, kind] of surplus) {
+    if (empty < Math.ceil(fronts * MAX_EMPTY)) {
+      setPlaceKind(world, place, 'vacant', { hours: [], staff: [], capacity: 0 });
+      b.status[place] = BIZ_VACANT;
+      b.former[place] = PLACE_KINDS.indexOf(kind);
+      b.since[place] = day - rng.int(30, 900);
+      empty++;
+    } else {
+      const p = world.graph.places[place];
+      setPlaceKind(world, place, 'office', { name: `${p.street.split(' ')[0]} ${rng.pick(SMALL_OFFICES)}`, hours: [], staff: defaultStaff('office', 0.15), capacity: 10 });
+    }
+  }
+}
+
+/** Share of shop fronts that may stand empty when the town is made. */
+const MAX_EMPTY = 0.12;
+const SMALL_OFFICES = ['Insurance', 'Tax Advisers', 'Solicitors', 'Accountants', 'Architects', 'Travel', 'Lettings', 'Opticians'];
+
+/** What an owner must take home for a business to be worth running. */
+const OWNER_MINIMUM = 1500;
+
+/** How many people could buy at each kind of business (by `Who`). */
+function buyerPools(world: World): Record<Who, number> {
+  const pool: Record<Who, number> = { adult: 0, drinker: 0, car: 0, owner: 0, fit: 0 };
+  for (let id = 0; id < world.actors.count; id++) {
+    if (!isPerson(world, id)) continue;
+    const age = ageOf(world, id), hh = householdOf(world, id);
+    for (const w of Object.keys(pool) as Who[]) if (eligible(world, age, hh, w)) pool[w]++;
+  }
+  return pool;
+}
+
+/** Monthly profit (before the owner's pay) each of `n` businesses of a kind can expect from the town's demand. */
+function viability(kind: PlaceKind, pools: Record<Who, number>, n: number): number {
+  const tr = TRADES[kind]!;
+  const perMonth = (pools[tr.who] * tr.rate * tr.basket * (1 + tr.outside) * DAYS_PER_MONTH) / Math.max(1, n);
+  const staff = defaultStaff(kind).reduce((s, st, i) => s + (i === 0 ? 0 : st.count * payOf({ ...st, id: -1, place: -1, holder: -1 })), 0);
+  return perMonth * tr.margin - staff - tr.premises;
 }
 
 // ---- the daily close -------------------------------------------------------------------------------------
@@ -386,7 +447,13 @@ function eligible(world: World, age: number, hh: Household | null, who: Who): bo
     case 'adult': return age >= 16;
     case 'drinker': return age >= 18;
     case 'car': return age >= 18 && !!hh?.car;
-    case 'owner': return age >= 25 && hh !== null && world.economy.hh.cols.tenure[hh.id] !== TENURE_RENT && world.economy.hh.cols.tenure[hh.id] !== TENURE_CARE;
+    case 'owner': {
+      if (age < 25 || hh === null) return false;
+      // Before the budgets are settled: houses are mostly owned, flats mostly rented.
+      if (hh.id >= world.economy.hh.count) return world.graph.places[hh.home].kind !== 'apartments';
+      const t = world.economy.hh.cols.tenure[hh.id];
+      return t !== TENURE_RENT && t !== TENURE_CARE;
+    }
     case 'fit': return age >= 18 && age < 66;
   }
 }
@@ -530,18 +597,19 @@ function reviewMonth(world: World, rng: Rng): void {
     const tr = TRADES[p.kind]!;
     const fixed = fixedCosts(world, i);
     let close = false;
-    if (tr.model === 'external') close = p.kind !== 'farm' && b.ratio[i] < 0.95 && rng.chance(0.12);
+    if (tr.model === 'external') close = p.kind !== 'farm' && b.ratio[i] < 0.95 && rng.chance(0.04);
     else close = b.cash[i] < -2 * fixed || (tr.model === 'customers' && b.red[i] >= 4 && rng.chance(0.25));
     if (close) closeBusiness(world, i, rng.fork('close', i));
   }
-  // Openings: an empty unit gets a tenant now and then, if the town can carry another business of some kind.
+  // Openings: now and then an empty unit gets a tenant (one a month at most), if the town can carry another business.
   for (const p of world.graph.places) {
-    if (b.status[p.id] !== BIZ_VACANT || today(world) - b.since[p.id] < 45 || !rng.chance(0.15)) continue;
+    if (b.status[p.id] !== BIZ_VACANT || today(world) - b.since[p.id] < 45 || !rng.chance(0.06)) continue;
     // Only shop fronts take a new shop: a closed works or office block stays empty (or waits for the planner).
     const was = b.former[p.id] >= 0 ? PLACE_KINDS[b.former[p.id]] : null;
     if (was && KINDS[was].category !== 'food' && KINDS[was].category !== 'service') continue;
     const kind = whatTheTownLacks(world, rng);
     if (kind) openBusiness(world, p.id, kind, rng.fork('open', p.id));
+    break;
   }
   // Households.
   const income = monthlyIncome(world, draws);
@@ -762,26 +830,15 @@ export function closeBusiness(world: World, place: PlaceId, rng: Rng): void {
 /** The kind of business the town would support next, or null if it is served well enough already. */
 function whatTheTownLacks(world: World, rng: Rng): PlaceKind | null {
   const b = world.economy.biz.cols;
-  let people = 0, drinkers = 0, cars = 0, owners = 0, fit = 0;
-  for (let id = 0; id < world.actors.count; id++) {
-    if (!isPerson(world, id)) continue;
-    const age = ageOf(world, id), hh = householdOf(world, id);
-    if (age >= 16) people++;
-    if (age >= 18) drinkers++;
-    if (age >= 18 && age < 66) fit++;
-    if (age >= 18 && hh?.car) cars++;
-    if (eligible(world, age, hh, 'owner')) owners++;
-  }
-  const pool: Record<Who, number> = { adult: people, drinker: drinkers, car: cars, owner: owners, fit };
+  const pools = buyerPools(world);
   const options: { kind: PlaceKind; profit: number }[] = [];
   for (const kind of OPENABLE) {
-    const tr = TRADES[kind]!;
     const n = placesOf(world, [kind]).filter((p) => b.status[p] === BIZ_OPEN).length;
     if (kind === 'charity' && n > 0) continue;
-    const perMonth = (pool[tr.who] * tr.rate * tr.basket * (1 + tr.outside) * DAYS_PER_MONTH) / (n + 1);
-    const staff = defaultStaff(kind).reduce((s, st, i) => s + (i === 0 ? 0 : st.count * payOf({ role: st.role, days: st.days, start: st.start, end: st.end, minAge: st.minAge } as Job)), 0);
-    const profit = perMonth * tr.margin - staff - tr.premises;
-    if (profit > 1200) options.push({ kind, profit });
+    const profit = viability(kind, pools, n + 1);
+    // A newcomer needs clear room: a good margin, and nobody of that kind already struggling.
+    const struggling = placesOf(world, [kind]).some((p) => b.status[p] === BIZ_OPEN && b.red[p] > 0);
+    if (profit > 2 * OWNER_MINIMUM && !struggling) options.push({ kind, profit });
   }
   if (options.length === 0) return null;
   return rng.weighted(options, (o) => o.profit).kind;

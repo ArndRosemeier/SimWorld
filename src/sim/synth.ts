@@ -14,8 +14,11 @@ import { newMemories } from './memory';
 import { settleRegion, type Region } from './region';
 import { newMindLedger } from './mind/apply';
 import { newLife } from './life';
-import { newEconomy, settleEconomy } from './economy';
-import { history } from './chronicle';
+import { levelMarket, newEconomy, settleEconomy } from './economy';
+import { history, historyDays } from './chronicle';
+import { DEFAULT_LATITUDE, epochFor, type CivilDate } from './calendar';
+
+const DEFAULT_DATE: CivilDate = { year: 2026, month: 10, day: 19 };
 import { FEMALE_NAMES, MALE_NAMES, PET_NAMES, SURNAMES } from './names';
 import { HABIT_COUNT, PersonTable, T_CONSC, T_EXTRA, T_OPEN, V_FAITH, type Habit, HABITS, type Household } from './people';
 import { KINDS, isHome } from './placeKinds';
@@ -38,6 +41,13 @@ interface Spec { age: number; sex: number; role: 'head' | 'partner' | 'child' | 
 export interface WorldOptions {
   /** Game day the world starts on (default 0, a Monday). With `history`, the day the history starts. */
   startDay?: number;
+  /**
+   * The real date of the first day of play (default 19 October 2026). The calendar puts that week on the clock:
+   * play starts on the Monday of it plus `startDay`'s weekday. The app passes today's date.
+   */
+  start?: CivilDate;
+  /** The town's latitude in degrees (default 51). */
+  latitude?: number;
   /** The country around the town (the planner's `regionOf(town)`): lore everyone knows, people's ties to it. */
   region?: Region;
   /**
@@ -53,9 +63,11 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
   const idx = placeIndex(graph);
   const world: World = {
     seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
+    epoch: epochFor(opts.start ?? DEFAULT_DATE, (opts.startDay ?? 0) + historyDays(opts.history ?? 0)),
+    latitude: opts.latitude ?? DEFAULT_LATITUDE,
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
-    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(), region: null, economy: newEconomy(graph.places.length),
+    intentions: [], encounters: [], trips: [], mind: newMindLedger(), life: newLife(), region: null, economy: newEconomy(graph.places.length),
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);
@@ -97,6 +109,9 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     // Shared surname for the lineage (unless the adult married into another name).
     if (rng.chance(0.6)) world.people.last[a.row[adult]] = parents.surname;
   }
+
+  // Businesses the town cannot carry have closed already (their units stand empty), before anyone is hired.
+  levelMarket(world, rng.fork('market'));
 
   // ---- jobs from staff slots ------------------------------------------------------------------------------
   for (const place of graph.places) for (const s of place.staff) for (let i = 0; i < s.count; i++) {
