@@ -1,6 +1,6 @@
 /**
  * The traffic as the main thread sees it: the sim worker runs the town's traffic next to the world
- * (`TrafficFeed`: the world's car trips and rounds every game minute, the cars driven a little ahead
+ * (`TrafficFeed`: the world's car trips, rounds and visitors every game minute, the cars driven a little ahead
  * of the game clock) and sends, with every street update, where each moving vehicle is at a few
  * moments (`TrafficMsg`) and, when it changed, where the cars stand parked. The vehicle view places
  * the moving ones between those moments (`vehiclePose`), like the people on their tracks.
@@ -14,7 +14,7 @@ import type { Town } from '../plan/town';
 import { PropType } from '../plan/cell';
 import { Footprints } from '../plan/footprints';
 import type { World } from '../sim/world';
-import { TownTraffic, householdCar } from './townTraffic';
+import { TownTraffic } from './townTraffic';
 import { carPlace, carTripsSince } from './trips';
 
 /** Floats per vehicle and moment in `TrafficMsg.poses`: x, y, z, yaw. */
@@ -53,6 +53,8 @@ const AHEAD = 2;
 const OUT_OF_TOWN = 5;
 /** Rounds that came on to the map this long before the town was loaded (min) still start. */
 const LATE = 30;
+/** Visitors who came this long before the town was loaded (min) may still be in town. */
+const STAYS = 240;
 
 /** The town's traffic driven by a world, recorded for the view (the sim worker's). */
 export class TrafficFeed {
@@ -87,6 +89,8 @@ export class TrafficFeed {
     this.town.trips(under, world.clock);
     // The rounds that came on to the map in the last half hour too (the buses and vans already in town).
     this.town.rounds(world, world.clock - LATE, world.clock);
+    // The visitors in town now (the longest stay is four hours): parked, or on their way in.
+    this.town.visitors(world, world.clock - STAYS, world.clock);
     this.record();
   }
 
@@ -97,13 +101,14 @@ export class TrafficFeed {
 
   /**
    * Catch up with the world (ticked to the whole minute of `clock`): the new game minutes' car
-   * trips and rounds, then the cars run to a little past `clock`, recording where they are.
+   * trips, rounds and visitors, then the cars run to a little past `clock`, recording where they are.
    */
   run(clock: number): void {
     const w = this.world;
     if (w.clock > this.fed) {
       this.town.trips(carTripsSince(w, this.fed), w.clock);
       this.town.rounds(w, this.fed, w.clock);
+      this.town.visitors(w, this.fed, w.clock);
       this.fed = w.clock;
     }
     const sun = sunPosition(w, clock).elevation;
@@ -158,7 +163,7 @@ export class TrafficFeed {
       parked = new Float32Array(spots.length * PARKED_STRIDE);
       parkedCars = new Int32Array(spots.length * CAR_STRIDE);
       spots.forEach((s, i) => {
-        const car = householdCar(this.world.seed, s.car);
+        const car = this.town.carOf(s.car);
         parked!.set([s.x, s.y, s.z, s.yaw, ...paintColor(car.kind, car.key)], i * PARKED_STRIDE);
         parkedCars!.set([car.key, VEHICLE_KINDS.indexOf(car.kind), car.variant], i * CAR_STRIDE);
       });
