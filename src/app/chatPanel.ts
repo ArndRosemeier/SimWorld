@@ -194,7 +194,7 @@ export class ChatPanel {
     this.body.style.display = talk ? '' : 'none';
     this.other.style.display = talk ? 'none' : '';
     if (talk) {
-      if (!this.talking && !this.body.childElementCount) this.body.append(el('div', 'chat-empty', 'Walk up to someone on the street and press T to talk to them.'));
+      if (!this.talking && !this.body.childElementCount) this.body.append(el('div', 'chat-empty', 'Walk up to someone, out in the street or indoors at home, in a shop or at work, and press T to talk to them.'));
       this.scroll();
       return;
     }

@@ -24,7 +24,7 @@ const lowFirst = (s: string) => (/^[A-Z][a-z]/.test(s) && !/^[A-Z][a-z]+ [A-Z]/.
 const first = (name: string) => name.split(/\s+/)[0];
 
 /** What the partner's line is after, roughly. */
-export type Intent = 'greet' | 'bye' | 'thanks' | 'howAreYou' | 'doing' | 'work' | 'news' | 'person' | 'place' | 'weather' | 'yes' | 'no' | 'question' | 'statement';
+export type Intent = 'greet' | 'bye' | 'thanks' | 'howAreYou' | 'plans' | 'doing' | 'work' | 'news' | 'person' | 'place' | 'weather' | 'yes' | 'no' | 'question' | 'statement';
 
 const RE: [Intent, RegExp][] = [
   ['bye', /\b(bye|goodbye|see you|see ya|take care|cheerio|good night|gotta go|have to go|must go|later)\b/i],
@@ -33,6 +33,7 @@ const RE: [Intent, RegExp][] = [
   ['news', /\b(news|gossip|heard|hear anything|what's new|whats new|anything new|happening|going on|rumou?r)\b/i],
   ['weather', /\b(weather|rain|raining|sunny|snow|cold|hot|warm|freezing|wind|windy|fog)\b/i],
   ['work', /\b(work|job|working|do for a living|shift|boss|business)\b/i],
+  ['plans', /\b(your|any) plans\b|\b(doing|up to|on) (today|tonight|later|this (morning|afternoon|evening))\b|\bbusy (today|day)\b|\bwhat('s| is) on today\b/i],
   ['doing', /\bwhat are you (doing|up to)\b|\bwhere are you (going|off to|headed)\b|\bwhat brings you\b/i],
   ['greet', /^\s*(hi|hello|hey|hiya|morning|good (morning|afternoon|evening)|evening|afternoon|howdy|yo)\b/i],
   ['yes', /^\s*(yes|yeah|yep|sure|ok|okay|of course|right)\b/i],
@@ -204,6 +205,15 @@ function weather(v: Manner, input: NpcPromptInput): string {
   return wet ? v.r.pick([`Miserable, isn't it? ${capitalize(w.split(',')[0])}.`, 'Wet again. Typical.']) : nice ? v.r.pick(['Lovely day for it.', 'Makes a change, this sunshine.']) : v.r.pick([`${capitalize(w.split(',')[0])}. Could be worse.`, 'Grey old day.']);
 }
 
+/** What they have on today (`state.plans`, from the sim's day for them). */
+function plans(v: Manner, input: NpcPromptInput): string {
+  const day = (input.state.plans ?? []).map((p) => p.replace(/(\d\d:\d\d)-(\d\d:\d\d)/, 'from $1 to $2'));
+  if (!day.length) return v.r.pick(['Nothing much planned today.', 'Nothing fixed today, as it happens.', 'A quiet day, for once.']);
+  if (v.liking < -0.4) return 'Busy enough.';
+  const list = day.length > 1 ? `${day.slice(0, -1).join(', ')} and ${day[day.length - 1]}` : day[0];
+  return v.r.pick([`Today? ${capitalize(list)}.`, `I've got ${list}.`, `${capitalize(list)}, so it's a full day.`].slice(0, day.length > 1 ? 3 : 2));
+}
+
 /**
  * The NPC's answer to the partner's newest line, without an LLM. Same input as `npc.speech`, so it can never say
  * more than the NPC believes.
@@ -228,6 +238,7 @@ export function proceduralReply(input: NpcPromptInput, w?: ReplyWorld): string {
       case 'bye': s = v.liking < -0.3 ? 'Right. Bye.' : v.r.pick(['Bye then, take care.', 'See you around.', `Take it easy${v.familiar > 0.35 ? `, ${first(v.partner)}` : ''}.`]); break;
       case 'thanks': s = v.r.pick(['You\'re welcome.', 'No trouble.', 'Any time.']); break;
       case 'howAreYou': s = howAreYou(v, input, w); break;
+      case 'plans': s = plans(v, input); break;
       case 'doing': s = doing(v, input); break;
       case 'work': s = work(v, input); break;
       case 'news': s = news(v, input, w); break;

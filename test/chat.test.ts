@@ -6,7 +6,9 @@ import { ACTOR_PERSON, A } from '../src/sim/actors';
 import { addFact, beliefAbout, believe, witness } from '../src/sim/knowledge';
 import { memoriesOf } from '../src/sim/memory';
 import { chatOp, TALK_MIN_AGE } from '../src/chat/ops';
-import { ageOf } from '../src/sim/world';
+import { ageOf, jobOf } from '../src/sim/world';
+import { plansToday } from '../src/sim/profile';
+import { worksOn } from '../src/sim/schedule';
 import { chatContext } from '../src/chat/context';
 import { stopToTalk } from '../src/sim/mind/chat';
 import type { Turn } from '../src/llm';
@@ -71,4 +73,26 @@ test('chat: nobody holds a conversation with a toddler', () => {
   if (tot === undefined) return;
   const r = chatOp(w, { op: 'start', npc: tot, player });
   assert.ok(r.op === 'start' && r.header === null);
+});
+
+test('chat: at home, family know each other\'s day, and "any plans today?" gets the day from the sim', () => {
+  const a = w.actors.cols;
+  const worker = people.find((id) => jobOf(w, id) && people.some((o) => o !== id && a.home[o] === a.home[id] && ageOf(w, o) >= TALK_MIN_AGE))!;
+  const kin = people.find((o) => o !== worker && a.home[o] === a.home[worker] && ageOf(w, o) >= TALK_MIN_AGE)!;
+  const job = jobOf(w, worker)!;
+  // Early on a day they work.
+  const saved = w.clock;
+  let day = Math.floor(w.clock / 1440);
+  while (!worksOn(w, job, day * 1440 + job.start)) day++;
+  w.clock = day * 1440 + Math.max(0, job.start - 60);
+  try {
+    const plans = plansToday(w, worker);
+    assert.ok(plans.some((p) => p.startsWith(`work at ${w.graph.places[job.place].name}`)), JSON.stringify(plans));
+    const seen = chatContext(w, kin, worker, 'c5', ask('Morning!')).input;
+    assert.ok(seen.partner.knownFacts?.some((f) => f.startsWith('today: work at')), JSON.stringify(seen.partner.knownFacts));
+    const own = chatContext(w, worker, kin, 'c6', ask('Any plans today?')).input;
+    assert.deepEqual(own.state.plans, plans);
+    const r = chatOp(w, { op: 'procedural', npc: worker, player: kin, conversation: 'c6', turns: ask('Any plans today?') });
+    assert.ok(r.op === 'procedural' && /work at/.test(r.reply), r.op === 'procedural' ? r.reply : '');
+  } finally { w.clock = saved; }
 });

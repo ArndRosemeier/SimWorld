@@ -20,7 +20,7 @@
  * down to them and stays with them while you play as them. `?be=<id>` starts as that inhabitant. `?still` keeps the
  * drone view without the title or the picker, for screenshots (the looks check, tools/looks/check.mjs): once the town is built the
  * page's root gets `data-town="built"`.
- * On the street, T talks to the person nearest you (or the one you follow).
+ * T talks to the person nearest you (or the one you follow), out of doors or in the building you are in.
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { createRenderer, GraphicsUnavailable } from '../render/renderer';

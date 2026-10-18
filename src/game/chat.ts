@@ -1,6 +1,6 @@
 /**
- * Talking to an inhabitant (plan §3.2, §5): walk up to someone on the street and press T (or T while following
- * them). They stop and turn to you; the chat panel opens. Each line you type runs one turn:
+ * Talking to an inhabitant (plan §3.2, §5): walk up to someone and press T (or T while following them): on the
+ * street, or indoors with whoever is in the building you are in (src/game/inside.ts), at home, in a shop, at work. They stop and turn to you; the chat panel opens. Each line you type runs one turn:
  *
  *  1. the sim worker builds what the person knows for this moment (src/chat/context.ts: only their own beliefs);
  *  2. their reply streams in from `npc.speech` (or, without a key or when every model fails, the procedural engine
@@ -24,9 +24,12 @@ import type { SimClient } from './SimClient';
 import type { Street } from './street';
 import { formatDate } from '../sim/calendar';
 import { DAYS_PER_YEAR, hhmm, MINUTES_PER_DAY, minuteOfDay } from '../sim/time';
+import { A } from '../sim/actors';
 
 /** How close you must be to talk to someone (m). */
 export const TALK_RANGE = 6;
+/** Height difference (m) under which someone is on your floor (a storey is about 3 m). */
+const SAME_FLOOR = 1.8;
 /** Turns of the conversation sent with each request (older ones are summarised by memory, not resent). */
 const TURNS_KEPT = 24;
 /** Failures that no other model fixes: no point trying again this conversation. */
@@ -74,26 +77,30 @@ export class Chat {
   /** Your inhabitant, as the picker set it in the sim (-1 before anyone is picked: the sim then lends you a stand-in). */
   private get me(): number { return this.sim.player?.id ?? -1; }
 
-  /** Where you stand: your inhabitant's figure while you play them, else the camera on the street. */
-  private here(): { x: number; z: number } {
+  /** Where you stand: your inhabitant's figure while you play them (with the floor they are on), else the camera. */
+  private here(): { x: number; y?: number; z: number } {
     const f = this.cam.mode === 'play' && this.me >= 0 ? this.street.where(this.me) : undefined;
     return f ?? this.cam.position();
   }
 
   get talking(): boolean { return this.talk !== null; }
 
-  /** Who T would talk to now: the person followed, or the nearest one in reach on the street; -1 if nobody. */
+  /**
+   * Who T would talk to now: the person followed, or the nearest one in reach, wherever you are (on the street, at
+   * home with the family, in a shop, at work) and on your floor; -1 if nobody.
+   */
   target(): number {
     if (this.cam.mode === 'drone') return -1;
     if (this.cam.mode === 'follow' && this.cam.following >= 0) return this.canTalk(this.cam.following) ? this.cam.following : -1;
     const p = this.here();
-    return this.street.peopleNear(p.x, p.z, TALK_RANGE).find((n) => n.id !== this.me && this.canTalk(n.id))?.id ?? -1;
+    return this.street.peopleNear(p.x, p.z, TALK_RANGE)
+      .find((n) => n.id !== this.me && (p.y === undefined || Math.abs(n.y - p.y) < SAME_FLOOR) && this.canTalk(n.id))?.id ?? -1;
   }
 
-  /** Old enough to hold a conversation (the sim checks again on `start`). */
+  /** Awake and old enough to hold a conversation (the sim checks the age again on `start`). */
   private canTalk(id: number): boolean {
-    const w = this.sim.walkers.get(id);
-    return !!w && (this.sim.clock / MINUTES_PER_DAY - w.info.birth) / DAYS_PER_YEAR >= TALK_MIN_AGE;
+    const w = this.street.walkerOf(id);
+    return !!w && w.activity !== A.sleep && (this.sim.clock / MINUTES_PER_DAY - w.info.birth) / DAYS_PER_YEAR >= TALK_MIN_AGE;
   }
 
   /** A HUD line: who you could talk to, or who you are talking to. */
@@ -103,7 +110,7 @@ export class Chat {
     if (now - this.hintAt > 250) {
       this.hintAt = now;
       const id = this.target();
-      const w = id >= 0 ? this.sim.walkers.get(id) : undefined;
+      const w = id >= 0 ? this.street.walkerOf(id) : undefined;
       this.hintText = w ? `T: talk to ${w.info.name}` : '';
     }
     return this.hintText;
