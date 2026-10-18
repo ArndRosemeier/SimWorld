@@ -12,6 +12,7 @@ import { tick, nameOf, jobOf, householdOf, type World } from '../sim/world';
 import { ACTIVITIES, ACTOR_PERSON } from '../sim/actors';
 import { viewOf, viewTransfers } from '../sim/view';
 import { StreetMap } from '../street/streetMap';
+import { windowSlots } from '../street/windows';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
@@ -39,7 +40,7 @@ function simJob(m: ToSim): FromSim {
     map = new StreetMap(town, world.graph);
     runTo(Math.max(m.clock, world.clock));
     sentAt = world.clock;
-    return { type: 'ready', clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), ms: took() };
+    return { type: 'ready', clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), windows: windowSlots(town, graph), ms: took() };
   }
   if (!world || !map) throw new Error('sim worker: not initialised');
   runTo(m.clock);

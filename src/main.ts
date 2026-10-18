@@ -37,7 +37,9 @@ import { Street } from './game/street';
 import { CameraControl } from './game/camera';
 import { PeopleView } from './render/people/peopleView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
-import { FEMALE, MALE } from './sim/actors';
+import { A, FEMALE, MALE } from './sim/actors';
+import { litShares } from './street/windows';
+import { setLitShares, setWindowMap } from './render/windowLight';
 import { hhmm, minuteOfDay } from './sim/time';
 import { formatDate } from './sim/calendar';
 import { TownAudio } from './audio/townAudio';
@@ -132,6 +134,11 @@ async function start(audio: TownAudio, live: LiveClock): Promise<void> {
 
   step('Waking the town', 0.15);
   const sim = await simulated;
+  // Lit windows follow who is in and awake (src/street/windows.ts), refreshed with every game minute.
+  setWindowMap(sim.windows);
+  const lit = new Uint8Array(sim.windows.count);
+  sim.onView = (v) => { litShares(v, sim.windows, A.sleep, lit); setLitShares(lit); };
+  sim.onView(sim.view);
   const street = new Street(sim, people, settings.seed);
 
   // The drone drift: a slow circle around the town, high enough to see it whole (or fixed by ?at=…).

@@ -19,6 +19,7 @@ import { h_noise2 as vnoise } from '@futuremagic/humanoid/three/nodes/peopleNois
 import type { MaterialArrays } from '../textures';
 import { h11, h21, LIGHT, perturbNormalUV } from './common';
 import { setDiffuse } from './ground';
+import { windowLit } from '../windowLight';
 
 const Surf = struct({
   albedo: 'vec3', rough: 'float', metal: 'float', tn: 'vec2', nStr: 'float', emis: 'vec3', ao: 'float', glass: 'float', door: 'float',
@@ -295,7 +296,8 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
                   lit.assign(h11(winId.mul(5.0)).lessThan(uShopLit));
                   lightCol.assign(vec3(1.0, 0.92, 0.78).mul(1.6));
                 }).Else(() => {
-                  lit.assign(h11(winId.mul(13.0)).lessThan(uLitFrac));
+                  // Homes and offices: lit as the sim says who is in and awake (src/render/windowLight.ts).
+                  lit.assign(windowLit(positionWorld.xz.sub(nW.xz.mul(0.8)), h11(winId.mul(13.0)), uLitFrac));
                   lightCol.assign(mix(vec3(1.0, 0.82, 0.58), vec3(0.85, 0.9, 1.0), step(0.8, h11(winId.mul(23.0)))).mul(1.3));
                 });
                 const inside = room.mul(select(lit, lightCol, vec3(uDayLight.mul(0.13).add(0.004))));

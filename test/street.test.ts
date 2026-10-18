@@ -9,6 +9,9 @@ import { ACTOR_PERSON } from '../src/sim/actors';
 import { StreetMap, OUTDOOR } from '../src/street/streetMap';
 import { trackOf, sample, type Track } from '../src/street/tracks';
 import { outfitOf, bodyKey, type LookInfo } from '../src/street/looks';
+import { litShares, windowSlots } from '../src/street/windows';
+import { A } from '../src/sim/actors';
+import { pointInPoly, polyCentroid } from '../src/geom/geom2';
 
 // The smallest planned town (the street layer needs real streets), its people on a Monday morning.
 const town = planTown({ seed: 1, size: 0 });
@@ -109,4 +112,37 @@ test('view: the snapshot carries every trip and everyone\'s whereabouts, in buff
   const buffers = viewTransfers(v);
   assert.equal(new Set(buffers).size, buffers.length, 'no buffer sent twice');
   assert.ok(!buffers.includes(a.dest.buffer), 'not the sim\'s own columns');
+});
+
+test('windows: each building finds its slot from inside its walls, and its windows light up with the people in and awake', () => {
+  const slots = windowSlots(town, world.graph);
+  let checked = 0;
+  town.cells.forEach((plan, ci) => plan.buildings.forEach((b, bi) => {
+    const [cx, cz] = polyCentroid(b.poly);
+    if (!pointInPoly(b.poly, cx, cz)) return;
+    const i = Math.floor((cx - slots.x0) / slots.cell), j = Math.floor((cz - slots.z0) / slots.cell);
+    const slot = slots.map[j * slots.w + i] - 1;
+    assert.ok(slot >= 0, `building ${ci}/${bi} has a slot`);
+    const p = world.graph.places.findIndex((pl) => pl.building === ci * 65536 + bi);
+    if (p >= 0) assert.equal(slots.placeSlot[p], slot, 'its places point at it');
+    checked++;
+  }));
+  assert.ok(checked > 20, `${checked} buildings checked`);
+
+  // Two people at a block of flats: awake, asleep, on their way out.
+  const home = world.graph.places.findIndex((pl, i) => pl.homes > 1 && slots.placeSlot[i] >= 0);
+  const slot = slots.placeSlot[home], out = new Uint8Array(slots.count);
+  const at = (activity: number, dest: number) => ({ ...viewOf(world), place: Int32Array.of(home, home), dest: Int32Array.of(dest, dest), activity: Uint8Array.of(activity, activity) });
+  litShares(at(A.idle, -1), slots, A.sleep, out);
+  assert.ok(out[slot] > 0, 'awake at home: some windows lit');
+  assert.ok(out.reduce((n, v, i) => n + (v && i !== slot ? 1 : 0), 0) === 0, 'and only there');
+  litShares(at(A.sleep, -1), slots, A.sleep, out);
+  assert.equal(out[slot], 0, 'asleep: dark');
+  litShares(at(A.travel, home), slots, A.sleep, out);
+  assert.equal(out[slot], 0, 'gone out: dark');
+
+  // The real town at 08:00: some homes lit, not all.
+  litShares(viewOf(world), slots, A.sleep, out);
+  const lit = out.filter((v) => v > 0).length;
+  assert.ok(lit > 0 && lit < slots.count, `${lit} of ${slots.count} buildings lit`);
 });

@@ -6,6 +6,7 @@
  */
 import type { CivilDate } from '../sim/calendar';
 import type { SimView } from '../sim/view';
+import type { WindowSlots } from '../street/windows';
 import type { TownSettings } from '../world/settings';
 
 export type ToSim =
@@ -56,7 +57,8 @@ export interface HeightGrid {
 }
 
 export type FromSim =
-  | { type: 'ready'; clock: number; people: number; ground: HeightGrid; view: SimView; ms: number }
+  /** `windows`: the town's buildings for the lit windows (src/street/windows.ts), once. */
+  | { type: 'ready'; clock: number; people: number; ground: HeightGrid; view: SimView; windows: WindowSlots; ms: number }
   /** `view`: the snapshot, when the game minute has moved on since the last one sent (else null). */
   | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; ms: number }
   | { type: 'error'; message: string };

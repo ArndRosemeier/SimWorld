@@ -11,6 +11,7 @@ import simWorkerUrl from '../workers/sim.worker.ts?worker&url';
 import type { ActorInfo, FromSim, HeightGrid, ToSim } from '../workers/simProtocol';
 import type { CivilDate } from '../sim/calendar';
 import type { SimView } from '../sim/view';
+import type { WindowSlots } from '../street/windows';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
 
@@ -52,12 +53,14 @@ export class SimClient {
   private last = 0;
   private readonly infos = new Map<number, ActorInfo>();
 
-  private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView) {
+  private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView, readonly windows: WindowSlots) {
     this.view = view;
   }
 
   /** The sim's latest view snapshot (src/sim/view.ts): every view reads the sim from here. */
   view: SimView;
+  /** Called with each new view snapshot (views that redraw per game minute, such as the lit windows). */
+  onView: ((v: SimView) => void) | null = null;
 
   /**
    * Start the worker: it plans the town, makes the world (play beginning on the real date `start`, game day
@@ -67,7 +70,7 @@ export class SimClient {
     const pool = new WorkerPool<ToSim, FromSim>(simWorkerUrl, 1);
     const [ready] = await pool.start(() => ({ type: 'init', settings, start, startDay, clock }));
     if (ready.type !== 'ready') throw new Error(ready.type === 'error' ? ready.message : 'the sim worker did not start');
-    const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view);
+    const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view, ready.windows);
     c.clock0 = ready.clock;
     c.base = performance.now();
     return c;
@@ -99,7 +102,7 @@ export class SimClient {
     this.busy = true;
     this.last = now;
     this.pool.run<Extract<FromSim, { type: 'street' }>>({ type: 'update', clock: this.clock, x, z, r: STREET_RADIUS }, 0).then((m) => {
-      if (m.view) this.view = m.view;
+      if (m.view) { this.view = m.view; this.onView?.(m.view); }
       for (const i of m.info) this.infos.set(i.id, i);
       for (const id of m.gone) this.walkers.delete(id);
       for (const t of m.tracks) {
