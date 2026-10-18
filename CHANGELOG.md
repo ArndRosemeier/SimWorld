@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.042 — The town can be saved and loaded
+
+- The whole town (every person, what they know, their plans, the shops' books) can now be saved and loaded again, and it carries on exactly as it would have. The save and load buttons come with the in-game simulation.
+- A business that opens in an empty shop now keeps its own hours too.
+
+## v0.041 — Phone calls between family and friends
+
+- People now phone and message family who live elsewhere and good friends, mostly in the evening. Teenagers and young adults do it more.
+- News travels down the line, but more slowly than face to face, and only between people who are close. Nobody phones a stranger.
+
+## v0.040 — Every shop keeps its own hours
+
+- Shops no longer all open and close on the same minute. Some close at one on Wednesdays, some stay open until eight on Thursdays, and some small shops and cafés take Mondays off.
+- About half the pubs open at lunchtime on weekends.
+
 ## v0.039 — People on the street
 
 - The town now lives while you watch: the whole population runs in the background from the moment the game loads, on today's real date and at the real time of day.
