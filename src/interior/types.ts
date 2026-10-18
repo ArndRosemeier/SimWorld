@@ -99,6 +99,12 @@ export interface Spot {
   use: FurnUse;
   floor: number;
   x: number; z: number; yaw: number;
+  /**
+   * Height of the seat or mattress top above the floor (0 standing). A seat: (x, z) its middle, facing
+   * (sin yaw, cos yaw), away from its back. A bed: (x, z) the middle of the mattress (of one half of a double),
+   * (sin yaw, cos yaw) from the head end to the foot. Work and serve: standing there, facing the desk or counter.
+   */
+  seat: number;
   /** The home it is in, -1 elsewhere. */
   unit: number;
 }

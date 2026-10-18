@@ -202,7 +202,7 @@ function standIn(storeys: FloorPlan[], spots: Spot[], staff: number): void {
       if (!pointInPoly(r.poly, x, z) || distPolyEdge(r.poly, x, z) < 0.5) continue;
       if (s.furniture.some((f) => f.h > 0.05 && onPiece(f, x, z, 0.35))) continue;
       if (spots.some((p) => p.floor === s.floor && Math.hypot(p.x - x, p.z - z) < 0.8)) continue;
-      spots.push({ use: 'work', floor: s.floor, x, z, yaw: 0, unit: -1 });
+      spots.push({ use: 'work', floor: s.floor, x, z, yaw: 0, seat: 0, unit: -1 });
       short--;
     }
     if (short <= 0) return;
@@ -264,7 +264,8 @@ function spotsOfPiece(f: Furn, floor: number, out: Spot[]): void {
   if (!f.use) return;
   const fx = Math.sin(f.yaw), fz = Math.cos(f.yaw), rx = Math.cos(f.yaw), rz = -Math.sin(f.yaw);
   const unit = f.unit ?? -1;
-  const at = (use: FurnUse, along: number, ahead: number, yaw: number) => out.push({ use, floor, x: f.x + rx * along + fx * ahead, z: f.z + rz * along + fz * ahead, yaw, unit });
+  const seat = (use: FurnUse) => (use === 'sleep' ? f.h : use !== 'sit' ? 0 : f.kind === 'barCounter' ? 0.75 : Math.min(0.48, f.h * 0.5));
+  const at = (use: FurnUse, along: number, ahead: number, yaw: number) => out.push({ use, floor, x: f.x + rx * along + fx * ahead, z: f.z + rz * along + fz * ahead, yaw, seat: seat(use), unit });
   const SEATS = new Set(['chair', 'officeChair', 'sofa', 'armchair', 'bunk']);
   if (f.use === 'sleep') { const k = f.kind === 'bedDouble' ? 2 : 1; for (let i = 0; i < k; i++) at('sleep', k === 2 ? (i - 0.5) * f.w / 2 : 0, 0, f.yaw); return; }
   if (f.kind === 'salonChair') { at('sit', 0, 0, f.yaw); at('work', 0, -(f.d / 2 + 0.35), f.yaw); return; }

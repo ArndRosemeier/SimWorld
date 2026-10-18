@@ -162,6 +162,11 @@ export class SimClient {
     return r;
   }
 
+  /** Who is inside building `building` (a `Place.building` code) now (src/street/inside.ts). */
+  async inside(building: number): Promise<Extract<FromSim, { type: 'inside' }>['people']> {
+    return (await this.pool.run<Extract<FromSim, { type: 'inside' }>>({ type: 'inside', building }, 0)).people;
+  }
+
   /** The game clock reads `clock` now. */
   private restart(clock: number): void {
     this.clock0 = clock;

@@ -38,6 +38,7 @@ import type { FromTex, ToTex } from './workers/texProtocol';
 import { loadTextures, loadVegetationTextures } from './render/textures';
 import { INTERIOR, useTextures } from './render/materials';
 import { InteriorView } from './render/interiorView';
+import { GoingInside } from './game/inside';
 import { openWhatsNew, VERSION, whatsNewButton } from './app/whatsNew';
 import { Shell } from './app/shell';
 import type { FromTown, ToTown } from './workers/townProtocol';
@@ -203,6 +204,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   shell.add({ label: 'Models and key', group: 'Chat', open: () => openLlmSettings(llm) });
   const followId = q.has('follow') ? num('follow', -1) : -1;
   // The picker comes up over the town once it shows; picking someone plays as them (?be=<id> skips the picker).
+  // Going into the building the player's person is in: its interior, the people in it, its room lights.
+  const goingIn = new GoingInside(sim, street, new InteriorView(pool, stage));
   const playing = new Playing(sim, cam, street, settings.seed);
   shell.add({ label: 'Choose who to be', group: 'Play', open: () => void playing.choose() });
   const hud = document.getElementById('hud');
@@ -225,6 +228,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     const target = cam.mode === 'follow' ? street.where(cam.following) : null;
     cam.update(dt, t, target);
     const player = cam.mode === 'play' ? playing.track(dt, t, stage.waiting > 0) : null;
+    goingIn.update(t);
     const ground = player ?? (cam.mode === 'drone' ? { x: cx, z: cz } : { x: camera.position.x, z: camera.position.z });
     sim.poll(ground.x, ground.z);
     people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);

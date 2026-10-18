@@ -25,8 +25,8 @@ export interface Slab { floor: number; y: number; outer: Poly; holes: Poly[] }
 /** An outer wall piece along the storey's outline, from a to b, between y0 and y1 (world); (nx, nz) points out of the building. */
 export interface OuterWall { floor: number; ax: number; az: number; bx: number; bz: number; y0: number; y1: number; nx: number; nz: number }
 
-/** Somewhere to put a person (src/interior/types.ts Spot) at its world height. */
-export interface IndoorSpot { use: FurnUse; floor: number; x: number; y: number; z: number; yaw: number; unit: number }
+/** Somewhere to put a person (src/interior/types.ts Spot: what x, z, yaw and seat mean) with its floor's world height `y`. */
+export interface IndoorSpot { use: FurnUse; floor: number; x: number; y: number; z: number; yaw: number; seat: number; unit: number }
 
 export interface Indoors {
   /** World y of the ground floor. */
@@ -120,7 +120,7 @@ export function indoorsOf(I: Interior, base: number): Indoors {
     storeys: I.storeys.map((s) => ({ y: base + s.y, height: s.height })),
     doors: I.doors.map((d) => ({ ...d, y: base })),
     colliders, ramps, slabs, outer,
-    spots: I.spots.map((p) => ({ use: p.use, floor: p.floor, x: p.x, y: base + I.storeys[p.floor].y, z: p.z, yaw: p.yaw, unit: p.unit })),
+    spots: I.spots.map((p) => ({ use: p.use, floor: p.floor, x: p.x, y: base + I.storeys[p.floor].y, z: p.z, yaw: p.yaw, seat: p.seat, unit: p.unit })),
   };
 }
 
