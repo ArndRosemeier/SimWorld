@@ -224,10 +224,6 @@
     "reason": "The length of a wall segment ({ax, az, bx, bz}, the interior's IWall and the filler's Edge) before walking along it."
   },
   {
-    "key": "idiom: [.x .y .z] in simworld/audio/soundscape.ts + simworld/audio/townAudio.ts + simworld/main.ts",
-    "reason": "Reading a position's three coordinates (listener and sound positions): plain field access, nothing to fold. Took the place of the facade-bay group in the finder's top idioms when main.ts grew."
-  },
-  {
     "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/home.ts + simworld/interior/fill/work.ts",
     "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
   },
@@ -380,30 +376,6 @@
     "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
   },
   {
-    "key": "idiom: [.filter .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/politics.ts",
-    "reason": "Picking household members by a condition (adults, children, earners) in the systems that need different conditions; each filter is one line with its own predicate."
-  },
-  {
-    "key": "idiom: [.members .some] in simworld/sim/groups.ts + simworld/sim/politics.ts + simworld/sim/schedule.ts",
-    "reason": "Different questions about a list of members (a household's grown-up at home, a club member who holds an office, a councillor who agrees with an issue): each is one Array.some with its own predicate; the shared part is Array.some itself."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts + simworld/street/tracks.ts + simworld/workers/sim.worker.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/economy.ts + simworld/sim/encounters.ts + simworld/street/tracks.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/phone.ts + simworld/sim/schedule.ts + simworld/street/tracks.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
     "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
@@ -434,5 +406,37 @@
   {
     "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.actors .cols .home] in simworld/sim/life.ts + simworld/sim/profile.ts + simworld/sim/synth.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+  },
+  {
+    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
+    "reason": "Regrouped: the same bay arithmetic as before in the building massing, the plan and the terraces (the group changed when files elsewhere moved)."
+  },
+  {
+    "key": "idiom: [.filter .known] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/synth.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+  },
+  {
+    "key": "idiom: [.filter .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/politics.ts + simworld/sim/profile.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+  },
+  {
+    "key": "idiom: [.filter .members] in simworld/sim/life.ts + simworld/sim/politics.ts + simworld/sim/profile.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+  },
+  {
+    "key": "idiom: [.home .place] in simworld/sim/actions.ts + simworld/sim/player.ts + simworld/sim/schedule.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+  },
+  {
+    "key": "idiom: [.known .to] in simworld/sim/life.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+  },
+  {
+    "key": "idiom: [.members .some] in simworld/sim/groups.ts + simworld/sim/politics.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   }
 ]

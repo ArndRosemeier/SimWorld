@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testTown } from '../src/sim/testTown';
 import { createWorld } from '../src/sim/synth';
+import { historyDays } from '../src/sim/chronicle';
 import { loadWorld, saveWorld } from '../src/sim/save';
 import { isPerson, tick } from '../src/sim/world';
 import { A } from '../src/sim/actors';
@@ -10,6 +11,10 @@ import { becomePlayer, playerActions, playerGo, setAutopilot } from '../src/sim/
 
 const planned = testTown(7, 220);
 const world = createWorld(planned, 7, { history: 1 });
+
+test('history: a year of it ends on the morning play starts, not a day later', () => {
+  assert.equal(world.clock, historyDays(1) * 1440 + 360);
+});
 
 test('profile: every living person has a card with a line, a household and their home', () => {
   const cards = cardsOf(world);

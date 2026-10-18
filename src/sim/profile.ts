@@ -12,7 +12,7 @@ import { ACTOR_PERSON, FEMALE, type ActorId } from './actors';
 import { dateOf, monthName } from './calendar';
 import { ownerOf } from './economy';
 import { groupsOf } from './groups';
-import type { LifeEvent } from './life';
+import { bonded, type LifeEvent } from './life';
 import { bondBit, FAMILY_MASK, type Bond } from './relations';
 import { DAYS_PER_YEAR, MINUTES_PER_DAY } from './time';
 import { SPECIES } from './species';
@@ -127,8 +127,8 @@ function occupationOf(world: World, id: ActorId, tags: { v: number }): string {
     const place = places[job.place];
     if (ownerOf(world, job.place) === job) { tags.v |= TAG_OWNER; return `Owns ${place.name}`; }
     if (job.role === 'mayor') { tags.v |= TAG_OFFICE; return 'The mayor'; }
-    if (place.kind === 'away') return `${cap(job.role)}, commutes to ${place.name}`;
-    return `${cap(job.role)} at ${place.name}`;
+    if (place.kind === 'away') return `${capitalize(job.role)}, commutes to ${place.name}`;
+    return `${capitalize(job.role)} at ${place.name}`;
   }
   const school = world.people.cols.school[world.actors.cols.row[id]];
   if (age < 18) tags.v |= TAG_CHILD;
@@ -141,7 +141,8 @@ function occupationOf(world: World, id: ActorId, tags: { v: number }): string {
   return small ? 'At home with the children' : 'Out of work';
 }
 
-const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+/** "Baker" from "baker". */
+export const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Who they live with, and where. */
 function householdText(world: World, id: ActorId, tags: { v: number }): string {
@@ -180,7 +181,7 @@ function householdText(world: World, id: ActorId, tags: { v: number }): string {
   if (mf >= 0 && ff >= 0) { parts[mf] = `${their(world, id)} parents`; parts.splice(ff, 1); }
   if (!parts.some((p) => / (child|children|son|daughter)\b/.test(p))) {
     // A parent whose children have moved out still counts for the filter, if they live in town.
-    if (bondedAlive(world, id, bondBit('child')).length) tags.v |= TAG_PARENT;
+    if (bonded(world, id, bondBit('child')).length) tags.v |= TAG_PARENT;
   }
   return `Lives with ${list(parts.filter(Boolean))}${on}${pet}`;
 }
@@ -188,24 +189,16 @@ function householdText(world: World, id: ActorId, tags: { v: number }): string {
 const article = (w: string): string => (/^[aeiou]/.test(w) ? `an ${w}` : `a ${w}`);
 const list = (xs: string[]): string => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
-/** People `id` has any of the `mask` bonds to (from id's side), alive or not. */
-function bonded(world: World, id: ActorId, mask: number): ActorId[] {
-  const rel = world.relations, c = rel.t.cols, out: ActorId[] = [];
-  for (const r of rel.known(id)) if (c.bonds[r] & mask) out.push(c.to[r]);
-  return out;
-}
-const bondedAlive = (world: World, id: ActorId, mask: number): ActorId[] => bonded(world, id, mask).filter((x) => world.actors.cols.alive[x]);
-
 /** Life events by the person they are about, and by the other party. */
 interface EventIndex { who: Map<ActorId, LifeEvent[]>; other: Map<ActorId, LifeEvent[]>; deathDay: Map<ActorId, number> }
 
 function indexEvents(world: World): EventIndex {
   const who = new Map<ActorId, LifeEvent[]>(), other = new Map<ActorId, LifeEvent[]>(), deathDay = new Map<ActorId, number>();
-  const add = (m: Map<ActorId, LifeEvent[]>, k: ActorId, e: LifeEvent): void => { const l = m.get(k); if (l) l.push(e); else m.set(k, [e]); };
+  const fileUnder = (m: Map<ActorId, LifeEvent[]>, k: ActorId, e: LifeEvent): void => { const l = m.get(k); if (l) l.push(e); else m.set(k, [e]); };
   for (const e of world.life.events) {
     if (e.kind === 'holiday' || e.kind === 'birthday') continue;
-    if (e.who >= 0) add(who, e.who, e);
-    if (e.other >= 0) add(other, e.other, e);
+    if (e.who >= 0) fileUnder(who, e.who, e);
+    if (e.other >= 0) fileUnder(other, e.other, e);
     if (e.kind === 'death' && e.who >= 0) deathDay.set(e.who, e.day);
   }
   return { who, other, deathDay };
@@ -222,7 +215,7 @@ function situationsOf(world: World, id: ActorId, ev: EventIndex, secrets: Map<Ac
   };
   const a = world.actors.cols;
   // Deaths in the family: a partner, then the closest kin.
-  for (const other of bonded(world, id, FAMILY_MASK)) {
+  for (const other of bonded(world, id, FAMILY_MASK, true)) {
     if (a.alive[other] || a.kind[other] !== ACTOR_PERSON) continue;
     const day = ev.deathDay.get(other);
     if (day === undefined) continue;
@@ -260,7 +253,7 @@ function situationsOf(world: World, id: ActorId, ev: EventIndex, secrets: Map<Ac
   const preg = world.life.pregnant.get(id);
   if (preg) out.push(preg.announced ? { text: 'expecting a baby', weight: 0.75, tags: 0 } : { text: 'secretly expecting a baby', weight: 0.8, tags: TAG_SECRET, secret: true });
   const baby = theirs.filter((e) => e.kind === 'birth' && today - e.day <= RECENT.baby).pop()
-    ?? bondedAlive(world, id, bondBit('child')).map((c) => (ev.who.get(c) ?? []).find((e) => e.kind === 'birth')).find((e) => e && today - e.day <= RECENT.baby);
+    ?? bonded(world, id, bondBit('child')).map((c) => (ev.who.get(c) ?? []).find((e) => e.kind === 'birth')).find((e) => e && today - e.day <= RECENT.baby);
   if (baby) out.push({ text: `a new ${a.sex[baby.who] === FEMALE ? 'daughter' : 'son'}, ${firstName(world, baby.who)}`, weight: 0.7, tags: TAG_PARENT });
   // Moving in, work.
   const came = last('arrived', RECENT.newcomer);

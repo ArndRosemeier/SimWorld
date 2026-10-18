@@ -119,9 +119,9 @@ export function lifeDay(world: World, days = 1): void {
 const personRow = (world: World, id: ActorId) => world.actors.cols.row[id];
 
 /** Living people A has a `mask` bond to. */
-export function bonded(world: World, id: ActorId, mask: number): ActorId[] {
+export function bonded(world: World, id: ActorId, mask: number, gone = false): ActorId[] {
   const rel = world.relations, c = rel.t.cols, out: ActorId[] = [];
-  for (const r of rel.known(id)) if (c.bonds[r] & mask && world.actors.cols.alive[c.to[r]]) out.push(c.to[r]);
+  for (const r of rel.known(id)) if (c.bonds[r] & mask && (gone || world.actors.cols.alive[c.to[r]])) out.push(c.to[r]);
   return out;
 }
 

@@ -7,9 +7,11 @@
  * Pure: the sim worker answers the game's `play` and `act` messages with these.
  */
 import { A, ACTIVITIES, type ActorId } from './actors';
+import { NEED_COUNT } from './species';
 import { isHome, KINDS, type Service } from './placeKinds';
 import type { PlaceId } from './places';
 import { bondBit, FAMILY_MASK } from './relations';
+import { capitalize } from './profile';
 import { go, isOpen } from './schedule';
 import { MINUTES_PER_DAY } from './time';
 import { hasCar, isPerson, jobOf, nameOf, placesWith, type World } from './world';
@@ -76,21 +78,21 @@ export function playerActions(world: World): PlayerAction[] {
   const car = hasCar(world, id);
   const minutes = (to: PlaceId): number => (to === here ? 0 : Math.round(world.travel.minutes(here, to, car)));
   const out: PlayerAction[] = [];
-  const add = (label: string, group: string, place: PlaceId, activity: number): void => {
+  const offer = (label: string, group: string, place: PlaceId, activity: number): void => {
     out.push({ label, group, place, activity, minutes: minutes(place), open: isHome(places[place].kind) || places[place].hours.length === 0 || isOpen(world, place, world.clock + minutes(place)) });
   };
   // Here: what this place offers.
-  if (here === home) for (const [label, act] of AT_HOME) add(label, 'Here', home, act);
+  if (here === home) for (const [label, act] of AT_HOME) offer(label, 'Here', home, act);
   else {
-    for (const s of SERVICE_ACTIONS) if (KINDS[places[here].kind]?.services.includes(s.service)) add(ACTIVITIES[s.activity] === 'eat' ? 'Eat here' : capital(s.group), 'Here', here, s.activity);
-    add('Wait here', 'Here', here, A.idle);
-    if (home >= 0) for (const [label, act] of AT_HOME) add(label, 'Home', home, act);
+    for (const s of SERVICE_ACTIONS) if (KINDS[places[here].kind]?.services.includes(s.service)) offer(ACTIVITIES[s.activity] === 'eat' ? 'Eat here' : capitalize(s.group), 'Here', here, s.activity);
+    offer('Wait here', 'Here', here, A.idle);
+    if (home >= 0) for (const [label, act] of AT_HOME) offer(label, 'Home', home, act);
   }
   // Work or school.
   const job = jobOf(world, id);
-  if (job) add(`${capital(job.role)} at ${places[job.place].name}`, 'Work', job.place, A.work);
+  if (job) offer(`${capitalize(job.role)} at ${places[job.place].name}`, 'Work', job.place, A.work);
   const school = world.people.cols.school[a.row[id]];
-  if (school >= 0) add(places[school].name, 'Work', school, A.school);
+  if (school >= 0) offer(places[school].name, 'Work', school, A.school);
   // The people closest to them, at home.
   const rel = world.relations, c = rel.t.cols;
   const ties = rel.known(id)
@@ -98,17 +100,15 @@ export function playerActions(world: World): PlayerAction[] {
     .map((r) => ({ r, close: c.familiarity[r] * 0.5 + c.affection[r] + ((c.bonds[r] & FAMILY_MASK) ? 0.3 : 0) + ((c.bonds[r] & bondBit('friend')) ? 0.3 : 0) }))
     .sort((x, y) => y.close - x.close)
     .slice(0, VISITS);
-  for (const { r } of ties) add(`Visit ${nameOf(world, c.to[r])}`, 'Visit', a.home[c.to[r]], A.visit);
+  for (const { r } of ties) offer(`Visit ${nameOf(world, c.to[r])}`, 'Visit', a.home[c.to[r]], A.visit);
   // The town's services, the nearest few of each.
   for (const s of SERVICE_ACTIONS) {
     const near = placesWith(world, s.service).filter((pl) => pl !== here && places[pl].kind !== 'away')
       .map((pl) => ({ pl, m: minutes(pl) })).sort((x, y) => x.m - y.m).slice(0, PER_SERVICE);
-    for (const { pl } of near) add(places[pl].name, s.group, pl, s.activity);
+    for (const { pl } of near) offer(places[pl].name, s.group, pl, s.activity);
   }
   return out;
 }
-
-const capital = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
  * The player sends their person to do `activity` at `place` (travelling there first). With autopilot on this is a
@@ -119,4 +119,48 @@ export function playerGo(world: World, place: PlaceId, activity: number, hours =
   const p = world.player;
   if (!p || !isPerson(world, p.id)) return;
   go(world, p.id, place, activity, p.autopilot ? world.clock + hours * 60 : world.clock + MINUTES_PER_DAY);
+}
+
+/** What someone is up to, in words ("walking to Elm Street Bakery (shop)", "work at the town hall"). */
+export function doingOf(world: World, id: ActorId): string {
+  const a = world.actors.cols, places = world.graph.places;
+  const act = ACTIVITIES[a.dest[id] >= 0 ? a.planned[id] : a.activity[id]];
+  if (a.dest[id] >= 0) return `walking to ${places[a.dest[id]].name} (${act})`;
+  return a.place[id] >= 0 ? `${act} at ${places[a.place[id]].name}` : act;
+}
+
+/** The player's person as the play panel shows them. */
+export interface PlayerStatus {
+  id: ActorId;
+  name: string;
+  /** False once they have died or moved away (the game then asks the player to pick someone else). */
+  alive: boolean;
+  autopilot: boolean;
+  doing: string;
+  /** Where they are, or where they are heading while on the way. */
+  place: PlaceId;
+  placeName: string;
+  /** That place's entrance (the camera looks there while they are indoors). */
+  x: number;
+  z: number;
+  travelling: boolean;
+  /** Out of doors: (x, z) is then where they are on the street (the sim worker fills this in from their track). */
+  outdoors: boolean;
+  /** Needs 0..1 (food, rest, social, hygiene, fun: NEEDS order), and mood -1..1. */
+  needs: number[];
+  mood: number;
+}
+
+/** The player's person now, null while nobody is picked. */
+export function playerStatus(world: World): PlayerStatus | null {
+  const p = world.player;
+  if (!p) return null;
+  const id = p.id, a = world.actors.cols, alive = isPerson(world, id);
+  const place = a.dest[id] >= 0 ? a.dest[id] : a.place[id] >= 0 ? a.place[id] : a.home[id];
+  const pl = world.graph.places[Math.max(0, place)];
+  return {
+    id, name: nameOf(world, id), alive, autopilot: p.autopilot, doing: alive ? doingOf(world, id) : 'gone',
+    place, placeName: pl.name, x: pl.x, z: pl.z, travelling: a.dest[id] >= 0, outdoors: false,
+    needs: Array.from(a.needs.subarray(id * NEED_COUNT, id * NEED_COUNT + NEED_COUNT)), mood: a.mood[id],
+  };
 }
