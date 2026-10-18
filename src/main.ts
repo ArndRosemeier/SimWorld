@@ -20,6 +20,7 @@ import { createRenderer, GraphicsUnavailable } from './render/renderer';
 import { Stage } from './render/stage';
 import { fitSunShadow, makeLights } from './render/lights';
 import { DaySky } from './render/sky';
+import { Precipitation } from './render/precip';
 import { WEATHER_KINDS, describeWeather, forceWeather, weatherAt, type Weather, type WeatherKind } from './sim/weather';
 import { setParcels } from './render/tsl/ground';
 import { showTown } from './render/townView';
@@ -123,6 +124,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   await stage.warmUp(warm);
   people.warmedUp();
   void stage.add(sky.dome);
+  const precip = new Precipitation(settings.seed);
+  void stage.add(precip.mesh);
   step('Planning the town', 0.15);
 
   const [ready] = await planned;
@@ -170,6 +173,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     view.vegetation?.update(camera);
     view.props?.update(camera);
     sky.update(dt, time, time.clock, w, camera, rate);
+    precip.fall(dt, camera, w, w.windDir, sky.day, sky.flash);
     renderer.render(scene, camera);
     const e = camera.matrixWorld.elements;
     fwd.x = -e[8]; fwd.y = -e[9]; fwd.z = -e[10];

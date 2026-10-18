@@ -45,6 +45,8 @@ export const LIGHT = {
   eatLit: uniform(1),
   /** Wet walls and ground after rain, 0 … 1. */
   wet: uniform(0),
+  /** Lying snow, 0 none … 1 a full white cover (from the weather's snow depth). */
+  snow: uniform(0),
 };
 
 /**
@@ -87,3 +89,7 @@ export function poseByInstance(mat: NodeMaterial, position = posed(positionGeome
     return base.call(this, builder);
   };
 }
+
+/** The look of fresh snow (linear albedo) and of trodden, gritted slush on roads. */
+export const SNOW_ALBEDO = [0.86, 0.88, 0.92] as const;
+export const SLUSH_ALBEDO = [0.32, 0.31, 0.3] as const;

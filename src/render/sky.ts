@@ -1,7 +1,7 @@
 /**
  * The day cycle on screen: the sky dome, the sun and the moon where the calendar puts them (src/sim/calendar.ts),
  * the weather (src/sim/weather.ts) in the clouds, the light and the haze, lightning, and the scene's light state
- * (`LIGHT`: night, daylight, wet streets, lit windows) every look reads. Ported from Scale (src/render/SkySystem.ts,
+ * (`LIGHT`: night, daylight, wet streets, lying snow, lit windows) every look reads. Ported from Scale (src/render/SkySystem.ts,
  * the lightning of src/render/Weather.ts); the sun path is the real one for the date, not Scale's equinox loop.
  *
  * Nothing here changes a shader: only uniforms, light intensities and colours, the fog's colour and range, the
@@ -11,13 +11,14 @@
 import { Color, Vector3, type Camera, type Fog, type Mesh, type Scene, type WebGPURenderer } from 'three/webgpu';
 import { Rng, clamp, deriveSeed, lerp, smoothstep } from '@futuremagic/core';
 import { MeshBuilder } from '../build/meshBuilder';
-import { moonLit, moonPhase, moonPosition, sunAt, sunPosition, type Dated } from '../sim/calendar';
+import { dateOf, moonLit, moonPhase, moonPosition, sunAt, sunPosition, type Dated } from '../sim/calendar';
 import { minuteOfDay } from '../sim/time';
 import type { Weather } from '../sim/weather';
 import { aimSun, type Lights } from './lights';
 import { SKY_DOME } from './materials';
 import { meshFromData } from './meshes';
-import { LIGHT } from './tsl/common';
+import { LIGHT, SEASON } from './tsl/common';
+import { VEG } from './tsl/vegetation';
 import { SKY, clearSkyColor } from './tsl/sky';
 import { EXPOSURE } from './renderer';
 
@@ -33,6 +34,8 @@ export class DaySky {
   readonly moonDir = new Vector3();
   /** Lightning flash 0 … ~1.5 now (the audio hooks thunder onto `onStrike`). */
   flash = 0;
+  /** Daylight now, 0 night … 1 day. */
+  day = 0;
   /** Called at each strike with its distance (m): thunder follows after distance / 343 m/s. */
   onStrike: ((distance: number) => void) | null = null;
   private pulses: { t: number; amp: number }[] = [];
@@ -68,7 +71,7 @@ export class DaySky {
     SKY.moonSun.value.copy(this.moonDir).multiplyScalar(Math.cos(pa)).addScaledVector(_perp, Math.sin(pa) * (pa > Math.PI ? -1 : 1));
 
     const sunUp = this.sunDir.y;
-    const day = smoothstep(-0.12, 0.15, sunUp);
+    const day = (this.day = smoothstep(-0.12, 0.15, sunUp));
     const night = 1 - smoothstep(-0.2, 0.02, sunUp);
     const golden = smoothstep(0.35, 0.02, sunUp) * day;
     this.lightning(dtReal, w);
@@ -134,6 +137,8 @@ export class DaySky {
     LIGHT.night.value = night;
     LIGHT.dayLight.value = day;
     LIGHT.wet.value = w.wet;
+    LIGHT.snow.value = smoothstep(0.3, 5, w.snowCm);
+    this.seasons(dateOf(world, clock).dayOfYear, w);
     this.windows(world, clock, night);
 
     // Exposure: a little brighter at night, darker under storm clouds.
@@ -153,6 +158,17 @@ export class DaySky {
     LIGHT.litFrac.value = lerp(0.04, frac, Math.max(night, dark ? 1 : 0.15));
     LIGHT.shopLit.value = h > 7.5 && h < 21.5 ? 0.92 : 0.12;
     LIGHT.eatLit.value = h > 6.5 && h < 22 ? 0.97 : h >= 22 ? 0.8 : h < 1.5 ? 0.45 : 0.06;
+  }
+
+  /**
+   * The trees by the date and the weather: leaves turn from mid-September, fall in
+   * November, come back in April after the blossom; the wind in the branches is the weather's.
+   */
+  private seasons(doy: number, w: Weather): void {
+    SEASON.leaf.value = doy > 200 ? smoothstep(255, 295, doy) : 0;
+    SEASON.bare.value = doy > 200 ? smoothstep(305, 335, doy) : 1 - smoothstep(95, 125, doy);
+    SEASON.blossom.value = smoothstep(95, 110, doy) * (1 - smoothstep(118, 135, doy));
+    VEG.wind.value = clamp(w.wind * 2, 0.15, 2);
   }
 
   /** Strikes now and then in a storm: flash pulses (a few flickers each); thunder is the audio's (`onStrike`). */

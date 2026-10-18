@@ -16,6 +16,7 @@ import { textAtlas } from './textAtlas';
 import { FURNITURE_SPECS } from '../build/furniture';
 import { VEHICLE_SPECS } from '../build/vehicles';
 import { interiorLook } from './tsl/interior';
+import { precipLook } from './tsl/precip';
 import type { MaterialArrays } from './textures';
 import { facadeSpecs } from '../build/massing';
 import { INTERIOR_SPECS } from '../build/interior';
@@ -183,5 +184,21 @@ export const SKY_DOME = defineKind('sky', [], () => {
   m.fog = false;
   m.lights = false;
   skyLook(m);
+  return m;
+}, { cast: false, receive: false });
+
+/**
+ * Falling rain and snow round the camera (src/render/precip.ts): quads that wrap through a box round the camera
+ * (src/render/tsl/precip.ts). `position` is the quad corner, `aDrop` the drop's random. Unlit, see-through.
+ */
+export const RAIN_SNOW = defineKind('precip', [{ name: 'aDrop', size: 4 }], () => {
+  const m = new NodeMaterial();
+  m.lights = false;
+  m.fog = false;
+  m.transparent = true;
+  m.depthWrite = false;
+  m.side = DoubleSide;
+  m.forceSinglePass = true; // one pass, not three's back-then-front pair for see-through double-sided
+  precipLook(m);
   return m;
 }, { cast: false, receive: false });
