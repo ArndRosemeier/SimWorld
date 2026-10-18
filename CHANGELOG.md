@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.126 — People can ride bicycles
+
+- A rider sits on the saddle, leans to the bars with both hands on the grips, and pedals: the cranks turn with the distance ridden, and a stopped rider rests with one pedal down.
+- The traffic layer shows a cyclist with a `ride` rest at saddle height; where the bars, axle and pedals are is shared, so a bicycle drawn to match lines up.
+
+## v0.125 — Out on the street means outside your own door
+
+- People who step out onto their own street now stay near their house. Before, on a long country road, they walked or even drove kilometres to the middle of the road, and could show up far from home.
+- Walks up and down a street now turn back after about 150 m instead of racing to the far end of a long road.
+
 ## v0.124 — A guard against shaders that only compile once
 
 - The repo check now catches the kind of shader slip that would have broken the fields' look in a second view (a minimap or reflections): a shader helper that reads town-wide settings instead of taking them as inputs.
