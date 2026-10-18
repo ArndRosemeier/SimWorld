@@ -62,6 +62,20 @@ function profileOf(br: Bridge, terrain: Terrain): Profile | null {
 }
 
 /**
+ * Height of a bridged arterial's deck at arc length s along its edge, or null when the bridge has
+ * no water span (then the road lies on the ground).
+ */
+export function bridgeDeckSurface(br: Bridge, terrain: Terrain): ((s: number) => number) | null {
+  const pr = profileOf(br, terrain);
+  if (!pr) return null;
+  // The profile runs along the straight line from the edge's first to its last point.
+  const P = br.pts, cum = [0];
+  for (let i = 2; i < P.length; i += 2) cum.push(cum[cum.length - 1] + Math.hypot(P[i] - P[i - 2], P[i + 1] - P[i - 1]));
+  const k = pr.L / Math.max(1e-6, cum[cum.length - 1]);
+  return (s) => pr.y(s * k);
+}
+
+/**
  * Pier stations (arc length) of a stone or girder bridge between its span ends; none for the
  * other styles.
  */
