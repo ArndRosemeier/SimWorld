@@ -20,7 +20,7 @@ import { yawAxes } from '../plan/signs';
 import type { AtlasRect, SlotSize } from '../build/textAtlasLayout';
 import type { Notice } from '../sim/media';
 import { PLACE_KINDS } from '../sim/places';
-import { LOOK_FOR_SALE, LOOK_TO_LET } from '../sim/economy';
+import { LOOK_FOR_SALE, LOOK_NEW, LOOK_STRUGGLING, LOOK_TO_LET } from '../sim/economy';
 import { hoursLines } from '../sim/hours';
 import { boardWord, fillName } from '../lang/words';
 import { FURNITURE } from './materials';
@@ -38,6 +38,12 @@ import type { Stage } from './stage';
  * a board within WORDS_PER_M times its width (at least MIN_WORDS, at most WORDS): what can be read.
  */
 const RANGE = 260, POST_RANGE = 360, WORDS = 220, WORDS_PER_M = 100, MIN_WORDS = 24;
+/** How long works with `days` to go will still take, as the board puts it ("6 weeks", "5 months"). */
+function worksLeft(days: number): string {
+  const weeks = Math.max(1, Math.ceil(days / 7));
+  return weeks <= 10 ? fillName(boardWord('weeks'), { n: String(weeks) }) : fillName(boardWord('months'), { n: String(Math.round(days / 30)) });
+}
+
 /** The camera moves this far (m) before the signs are checked again. */
 const RECHECK = 8;
 
@@ -142,6 +148,16 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
       case 'post': return { key: '', said: 'post', size: 'strip', paint: paint.blank };
       case 'cork': return own('cork', paint.cork(w.stand ? 1.4 / 0.8 : 1.0 / 0.75));
       case 'clock': return { key: 'clock', said: `${minute}`, size: 'card', paint: paint.clockFace(minute) };
+      case 'works': {
+        // The newest works under way that belong here: the skate park at the sports ground, the rest out of town.
+        const day = facts.day ?? -1;
+        const on = (facts.works ?? []).filter((k) => k.start <= day && day < k.done && (k.key === 'skatepark') === (w.at === 'sports'));
+        const work = on[on.length - 1];
+        if (!work) return null;
+        return own(`works|${work.key}|${worksLeft(work.done - day)}`, paint.worksBoard(signs.town, work.key, worksLeft(work.done - day)));
+      }
+      case 'banner': return facts.flags[w.place] & LOOK_NEW && PLACE_KINDS[facts.kind[w.place]] !== 'vacant' ? own('banner', paint.shopBill('nowOpen')) : null;
+      case 'sale': return facts.flags[w.place] & LOOK_STRUGGLING && !(facts.flags[w.place] & (LOOK_TO_LET | LOOK_NEW)) ? own('sale', paint.shopBill('sale')) : null;
       case 'busFlag': return own(`bus|${stops[w.stop].name}`, paint.busFlag(stops[w.stop].name));
       case 'timetable': {
         const st = stops[w.stop];
