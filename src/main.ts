@@ -159,7 +159,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const inside = new URLSearchParams(location.search).get('inside');
   if (inside) return showInside(inside, pool, stage, lights, renderer, camera, scene);
   const indoors = new URLSearchParams(location.search).get('indoors');
-  if (indoors) return showIndoors(indoors, pool, stage, renderer, camera, scene);
+  if (indoors) return showIndoors(indoors, pool, stage, renderer, camera, scene, () => { fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15); return showTown(stage, pool, town, () => {}, () => {}).ready; });
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   // What the town sounds like where: one worker works it out alongside the meshes.
   void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { time.region = { region: { coastal: r.map.coastal } }; audio.setTown(r.map); });
@@ -313,7 +313,7 @@ async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage
  * through its street door, turning slowly (or fixed with `a=`, radians from looking straight in). `spot=<k>` stands
  * at the k-th spot instead (a bed, a seat, a desk); `room=0…1` the room light (default 1).
  */
-async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene): Promise<void> {
+async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene, outside: () => Promise<unknown>): Promise<void> {
   const q = new URLSearchParams(location.search);
   const [cell, index] = arg.split('/').map(Number);
   step('Planning the rooms', 0.5);
@@ -321,6 +321,9 @@ async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stag
   const r = await view.enter({ cell, index });
   if (!r) throw new Error('no interior');
   view.setRoomLight(Number(q.get('room') ?? 1));
+  // The town round it, to look out of the windows at.
+  step('Building the town', 0.6);
+  await outside();
   // (The fog stays: it is part of every shader's key, and the game keeps it when you go in.)
   const { indoors: ind } = r, door = ind.doors[0], spot = q.has('spot') ? ind.spots[Number(q.get('spot'))] : undefined;
   const [x, y, z, look] = spot ? [spot.x, spot.y, spot.z, spot.yaw] : [door.x - door.nx * 1.2, door.y, door.z - door.nz * 1.2, Math.atan2(-door.nx, -door.nz)];

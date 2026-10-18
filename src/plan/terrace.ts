@@ -18,7 +18,7 @@
  */
 import { Rng, deriveSeed } from '@futuremagic/core';
 import { pointInPoly, distPointPolyEdge, closestOnPolyline, polylineLength, polyBounds, polyCentroid, type Poly } from '../geom/geom2';
-import { doorBayOf, streetDoor } from './building';
+import { baysOf, doorBayOf, streetDoor } from './building';
 import type { Terrain } from '../world/terrain';
 import { RoadClass, type CellInfo, type MacroPlan } from './types';
 import type { BuildingDesc } from './building';
@@ -253,7 +253,7 @@ export function placeEateries(plan: CellPlan, cell: CellInfo, macro: MacroPlan, 
     const r = new Rng(deriveSeed(seed, 'terrace', cell.id, bi));
     const palette = r.int(0, TERRACE_PALETTE.length - 1);
     const at = (u: number, v: number): [number, number] => [ax + ux * u + nx * v, az + uz * u + nz * v];
-    const bays = Math.max(1, Math.round(len / b.bay));
+    const bays = baysOf(b, len);
     const uDoor = (doorBayOf(b.seed, bays) + 0.5) * (len / bays);
     const ep: EateryPlan = { b: bi, kind, terrace: TerraceKind.None, ax, az, ux, uz, nx, nz, len, door: [doors[bi].x, doors[bi].z], tables: [], seats: [], awnings: [], palette };
     // The street the front faces: nearest centreline straight out of the facade.

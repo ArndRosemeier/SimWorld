@@ -13,7 +13,7 @@ import type { MeshStandardNodeMaterial } from 'three/webgpu';
 import {
   Fn, float, int, bool, vec2, vec3, mix, normalize, min, max, abs, fract, exp, floor, fwidth, length, smoothstep, sub, add, mul,
   dot, step, sin, clamp, select, If, attribute, texture, uniformArray, positionWorld, positionView, cameraPosition, normalView, normalWorldGeometry,
-  frontFacing, struct,
+  frontFacing, struct, Discard,
 } from 'three/tsl';
 import { h_noise2 as vnoise } from '@futuremagic/humanoid/three/nodes/peopleNoise';
 import type { MaterialArrays } from '../textures';
@@ -307,9 +307,10 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
     });
 
     if (backPlaster) {
-      // Inside of the shell: plastered interior walls; glass seen from inside is dark (or open).
+      // Inside of the shell: plastered interior walls; through the glass, seen from inside (a building you are in,
+      // src/render/interiorView.ts), the street outside.
       If(frontFacing.not(), () => {
-        If(glass.greaterThan(0.5), () => { albedo.assign(vec3(0.03)); emis.assign(vec3(0.25, 0.3, 0.35).mul(uDayLight)); })
+        If(glass.greaterThan(0.5), () => { Discard(); })
           .Else(() => { albedo.assign(vec3(0.82, 0.8, 0.76).mul(add(0.9, mul(0.1, vnoise(uv.mul(2.0)))))); emis.assign(vec3(0.0)); });
         tn.assign(vec2(0.0)); rough.assign(0.9); metal.assign(0.0); ao.assign(0.8);
       });

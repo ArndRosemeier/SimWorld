@@ -9,7 +9,7 @@ import { planInterior, peakStaff, storeyFacade, type Interior } from '../src/int
 import { MeshBuilder } from '../src/build/meshBuilder';
 import { INTERIOR_SPECS, LAMP, buildCutaway, buildIndoors } from '../src/build/interior';
 import { indoorsOf, STREET_DOOR_H, type Box } from '../src/interior/indoors';
-import { buildingTiers } from '../src/build/massing';
+import { buildingTiers, windowOpenings } from '../src/build/massing';
 
 // One small town shared by the file (planning it is the expensive part); a few buildings of it.
 const town = planTown({ seed: 1, size: 0 });
@@ -149,5 +149,26 @@ test('indoors: the street doors open through solid outer walls, and every room, 
     const mb = new MeshBuilder(INTERIOR_SPECS);
     buildIndoors(mb, I, ind);
     assert.ok(!mb.empty, `${what}: a mesh`);
+  }
+});
+
+test('indoors: the outer walls open where the facade has its windows, every storey of a house looks out', () => {
+  for (const b of homes.slice(0, 3)) {
+    const I = planInterior(b), ind = indoorsOf(I, 10, windowOpenings(b));
+    for (let f = 0; f < I.storeys.length; f++) {
+      const ws = ind.outer.filter((w) => w.floor === f);
+      assert.ok(ws.some((w) => w.windows.length > 0), `${b.style} floor ${f}: a window`);
+      for (const w of ws) {
+        const L = Math.hypot(w.bx - w.ax, w.bz - w.az);
+        let at = 0;
+        for (const [s0, s1, h0, h1] of w.windows) {
+          assert.ok(s0 >= at && s0 < s1 && s1 <= L && w.y0 < h0 && h0 < h1 && h1 < w.y1, `${b.style} floor ${f}: opening ${[s0, s1, h0, h1]} in ${L.toFixed(2)} × ${w.y0}–${w.y1}`);
+          at = s1;
+        }
+      }
+    }
+    const mb = new MeshBuilder(INTERIOR_SPECS);
+    buildIndoors(mb, I, ind);
+    assert.ok(!mb.empty);
   }
 });
