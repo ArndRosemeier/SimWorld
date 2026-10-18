@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.124 — A guard against shaders that only compile once
+
+- The repo check now catches the kind of shader slip that would have broken the fields' look in a second view (a minimap or reflections): a shader helper that reads town-wide settings instead of taking them as inputs.
+
 ## v0.123 — The ground shader builds again for a second view
 
 - Fixed the countryside's field patchwork failing to draw when the ground shader is built a second time, for example for a minimap or a reflection.
