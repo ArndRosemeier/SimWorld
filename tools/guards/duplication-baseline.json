@@ -424,10 +424,6 @@
     "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
   {
-    "key": "idiom: [.addEventListener .type] in simworld/app/paperPanel.ts + simworld/app/picker.ts + simworld/app/whatsNew.ts",
-    "reason": "Regrouped by the finder after unrelated changes."
-  },
-  {
     "key": "idiom: [.filter .known] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/synth.ts",
     "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
@@ -454,18 +450,6 @@
   {
     "key": "idiom: [.add .prepare] in simworld/render/propsView.ts + simworld/render/signsView.ts + simworld/render/townView.ts",
     "reason": "The Stage's contract for adding to your own group (stage.prepare, then group.add; docs/SHADERS.md): each view says it once where it places its meshes."
-  },
-  {
-    "key": "idiom: [.filter .members] in simworld/sim/economy.ts + simworld/sim/groups.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
-    "reason": "Picking household members by a condition (adults, children, earners) in the systems that need different conditions; each filter is one line with its own predicate."
-  },
-  {
-    "key": "idiom: [.filter .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/politics.ts + simworld/sim/profile.ts",
-    "reason": "Picking household members by a condition (adults, children, earners) in the systems that need different conditions; each filter is one line with its own predicate."
-  },
-  {
-    "key": "idiom: [.filter .members] in simworld/sim/life.ts + simworld/sim/politics.ts + simworld/sim/profile.ts",
-    "reason": "Picking household members by a condition (adults, children, earners) in the systems that need different conditions; each filter is one line with its own predicate."
   },
   {
     "key": "idiom: [.front .length .poly] in simworld/plan/building.ts + simworld/plan/cell.ts + simworld/plan/signs.ts",
