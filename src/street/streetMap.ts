@@ -12,7 +12,7 @@ import { inShape, type Shape } from '../geom/clip';
 import { bridgeDecksAt } from '../build/bridges';
 import type { Town } from '../plan/town';
 import { footprintsOf, type Footprints } from '../plan/footprints';
-import { townRoads } from '../plan/roads';
+import { townRoads, type TownRoads } from '../plan/roads';
 import { signFootprints, signSpots } from '../plan/signs';
 import { buildingRef, eachBuilding } from '../plan/placeGraph';
 import { buildingBase, buildingHeight } from '../build/massing';
@@ -59,6 +59,8 @@ export class StreetMap {
   private readonly deck: (x: number, z: number) => number | null;
   /** Everything standing on the ground (props, parked cars, buildings), to keep clear of. */
   readonly fp: Footprints;
+  /** The town's roads (the signs' and bus stops' placement reads them). */
+  readonly roads: TownRoads;
   private readonly entrances = new Map<PlaceId, { door: [number, number]; step: [number, number] }>();
   /** Every bench and café chair seat place in town, and who sits where when. */
   readonly seats: Seat[];
@@ -72,9 +74,10 @@ export class StreetMap {
     graph.edges.forEach((e, i) => { this.edgeOf.set(e.a * n + e.b, i); this.edgeOf.set(e.b * n + e.a, i); });
     this.deck = bridgeDecksAt(town.macro.bridges, town.terrain);
     this.fp = footprintsOf(town.cells);
+    this.roads = townRoads(town);
     this.seats = seatsOf(town.cells);
     // The signs' posts and legs (street names, estate boards, name and notice boards, town signs).
-    const posts = signFootprints(signSpots(town, townRoads(town), graph.places));
+    const posts = signFootprints(signSpots(town, this.roads, graph.places));
     for (let o = 0; o < posts.length; o += 3) this.fp.circle(posts[o], posts[o + 1], posts[o + 2]);
     // Outdoor places with an outline: the cell shape their centre lies in, or their public building's site.
     for (const pl of graph.places) {
