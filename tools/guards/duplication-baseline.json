@@ -524,10 +524,6 @@
     "reason": "A heading from one point to another (atan2 of the x/z difference) in three unrelated places: prop rotation, a person turning to face you, a terrace's orientation."
   },
   {
-    "key": "idiom: [.int .pick] in simworld/plan/cell.ts + simworld/traffic/townTraffic.ts + simworld/traffic/visitors.ts",
-    "reason": "The seeded Rng's own vocabulary (r.int, r.pick from @futuremagic/core): each caller draws its own thing (a prop variant, a car trip, a visitor), there is no shared helper to fold."
-  },
-  {
     "key": "idiom: [.fillRect .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
   }

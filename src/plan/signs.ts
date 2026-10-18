@@ -26,6 +26,7 @@ import { alongLine } from '../geom/geom2';
 import { dwellingsOf, flatsDoorBay, streetDoor, type BuildingDesc } from './building';
 import { PropType } from './cell';
 import { siteToWorld } from './landmarks';
+import { eachBuilding } from './placeGraph';
 import { LineSource, type TownRoads } from './roads';
 import type { Town } from './town';
 
@@ -86,11 +87,10 @@ const OFF_WALL = 0.06;
 
 export function signSpots(town: Town, roads: TownRoads): SignSpots {
   const fronts: FrontSign[] = [], homes: HomeSign[] = [];
-  town.cells.forEach((plan, ci) => plan.buildings.forEach((b, bi) => {
-    const code = ci * 65536 + bi;
+  eachBuilding(town.cells, (b, code) => {
     if (b.amenity && b.amenity !== 'vacant' || b.shopfront) fronts.push(frontSign(b, code));
     if (dwellingsOf(b) > 0) homes.push(homeSign(b, code, roads));
-  }));
+  });
   return { fronts, homes, sites: siteSigns(town), corners: cornerSigns(roads), gateways: gatewaySigns(town, roads), posters: posterSpots(town, roads) };
 }
 

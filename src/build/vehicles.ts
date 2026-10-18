@@ -23,16 +23,19 @@
  */
 import { Rng, clamp, hsl2rgb, lerp, v3, v3sub as sub, v3cross as cross, v3dot as dot, v3norm as norm, v3madd as addS } from '@futuremagic/core';
 import { MeshBuilder, type AttrSpec, type MeshData } from './meshBuilder';
+import { trainCar } from './train';
 
 // ---------------------------------------------------------------- public API
 
 export type VehicleKind =
   | 'sedan' | 'hatch' | 'wagon' | 'suv' | 'van' | 'pickup' | 'taxi' | 'police' | 'sports' | 'bus' | 'truck' | 'delivery' | 'shuttle'
-  | 'ambulance' | 'firetruck' | 'flatbed';
+  | 'ambulance' | 'firetruck' | 'flatbed'
+  /** A railcar (src/build/train.ts): variant 0 a cab car (cab at the front), 1 a middle car. */
+  | 'train';
 
 export const VEHICLE_KINDS: VehicleKind[] = [
   'sedan', 'hatch', 'wagon', 'suv', 'van', 'pickup', 'taxi', 'police', 'sports', 'bus', 'truck', 'delivery', 'shuttle',
-  'ambulance', 'firetruck', 'flatbed',
+  'ambulance', 'firetruck', 'flatbed', 'train',
 ];
 
 /** Variants per kind (`vehicleModel(kind, variant)`, 0 … 3). */
@@ -1808,6 +1811,7 @@ export function buildVehicle(kind: VehicleKind, variant = 0): VehicleModel {
  * parked cars, which never turn their wheels (moving traffic draws `wheel` on its own).
  */
 export function standingVehicle(kind: VehicleKind, variant = 0): MeshData {
+  if (kind === 'train') return trainCar(variant);
   const { built: b } = entry(kind, variant);
   const mb = new MeshBuilder(VEHICLE_SPECS);
   addSoup(mb, b.body, 0, 0, 0, 1);
@@ -1861,6 +1865,8 @@ export function paintColor(kind: VehicleKind, seed: number): [number, number, nu
   }
   // Services: ambulances white (a navy livery band), fire engines red, flatbeds municipal orange.
   if (kind === 'ambulance') return [0.94, 0.94, 0.92];
+  // Trains: an invented operator's few liveries (off-white, slate, deep red, bottle green; the band below the windows from the paint).
+  if (kind === 'train') return r.pick([[0.9, 0.9, 0.87], [0.9, 0.9, 0.87], hsl(0.6, 0.18, 0.3), hsl(0.99, 0.6, 0.33), hsl(0.38, 0.45, 0.24)] as [number, number, number][]);
   if (kind === 'firetruck') return hsl(0.0, 0.8, 0.38 + v(0.02));
   if (kind === 'flatbed') return hsl(0.07, 0.85, 0.48 + v(0.02));
   if (kind === 'shuttle') {
