@@ -63,9 +63,9 @@ export function lookStats(px: ArrayLike<number>): LookStats {
     lums.push(0.2126 * R + 0.7152 * G + 0.0722 * B);
   }
   lums.sort((x, y) => x - y);
-  const q = (p: number) => (lums.length ? lums[Math.min(lums.length - 1, Math.floor(p * lums.length))] : 0);
+  const pct = (p: number) => (lums.length ? lums[Math.min(lums.length - 1, Math.floor(p * lums.length))] : 0);
   const n = Math.max(1, lums.length);
-  return { covered, nan: covered ? bad / covered : 0, p01: q(0.01), p50: q(0.5), p99: q(0.99), mean: [r / n, g / n, b / n], magenta: covered ? magenta / covered : 0 };
+  return { covered, nan: covered ? bad / covered : 0, p01: pct(0.01), p50: pct(0.5), p99: pct(0.99), mean: [r / n, g / n, b / n], magenta: covered ? magenta / covered : 0 };
 }
 
 /**

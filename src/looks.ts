@@ -39,7 +39,7 @@ export interface LooksResult { done: boolean; error?: string; ms: number; missin
 const result: LooksResult = { done: false, ms: 0, missing: [], tiles: [], failures: [] };
 (globalThis as { looks?: LooksResult }).looks = result;
 
-const say = (t: string) => { const el = document.getElementById('status'); if (el) el.textContent = t; };
+const status = (t: string) => { const el = document.getElementById('status'); if (el) el.textContent = t; };
 
 async function run(): Promise<void> {
   const t0 = performance.now();
@@ -51,7 +51,7 @@ async function run(): Promise<void> {
   const planned = pool.start(() => ({ type: 'init', settings }));
   const texPool = new WorkerPool<ToTex, FromTex>(texWorkerUrl, 2);
   await texPool.start(() => ({ type: 'init' }));
-  say('making the textures');
+  status('making the textures');
   const facade = loadTextures(texPool, 'facade', () => {}, 256);
   const interior = loadTextures(texPool, 'interior', () => {}, 256, 100);
   const vegetation = loadVegetationTextures(texPool, 200);
@@ -78,7 +78,7 @@ async function run(): Promise<void> {
   sky.update(0, world, noon, clear, camera);
   useTextures({ facade: await facade, interior: await interior, vegetation: await vegetation });
   texPool.dispose();
-  say('warming up the shaders');
+  status('warming up the shaders');
   // Everything is drawn into the swatch target, so the shaders are built for it once, in the warm-up. (A second build
   // of the terrain's for another target fails to compile: its parcel function loses its uniforms, three r186.)
   const rt = new RenderTarget(S, S, { type: HalfFloatType });
@@ -89,7 +89,7 @@ async function run(): Promise<void> {
   if (ready.type !== 'ready') throw new Error('the town workers did not start');
   const town = ready.town;
   setParcels(town.parcels);
-  say('collecting the swatches');
+  status('collecting the swatches');
   const swatches = await collectSwatches(pool, town);
   // The sky, rain and smoke are not mesh data: the dome seen from inside, rain round the camera, one chimney's smoke.
   const eye = new Vector3(town.x, town.y + 2, town.z);
@@ -105,7 +105,7 @@ async function run(): Promise<void> {
   if (only) swatches.splice(0, swatches.length, ...swatches.filter((s) => only.includes(s.kind)));
   pool.dispose();
 
-  say(`compiling ${swatches.length} swatches`);
+  status(`compiling ${swatches.length} swatches`);
   for (const s of swatches) { s.mesh.visible = false; await stage.add(s.mesh); }
 
   scene.background = null;
@@ -116,7 +116,7 @@ async function run(): Promise<void> {
   let shown = 0;
   for (const p of passes) {
     for (const s of swatches) {
-      say(`${p.name}: ${s.kind} ${s.label}`);
+      status(`${p.name}: ${s.kind} ${s.label}`);
       frame(camera, s);
       sky.update(0.016, world, p.clock, s.kind === 'precip' ? rain : clear, camera);
       fitSunShadow(lights, s.center.x, s.center.y, s.center.z, Math.max(4, s.radius * 2));
@@ -139,7 +139,7 @@ async function run(): Promise<void> {
   }
   result.ms = Math.round(performance.now() - t0);
   result.done = true;
-  say(`${result.tiles.length} swatches, ${result.failures.length} failing${result.missing.length ? `, no swatch for ${result.missing.join(', ')}` : ''} (${(result.ms / 1000).toFixed(1)} s)`);
+  status(`${result.tiles.length} swatches, ${result.failures.length} failing${result.missing.length ? `, no swatch for ${result.missing.join(', ')}` : ''} (${(result.ms / 1000).toFixed(1)} s)`);
 }
 
 /** Point the camera at a swatch: from above and in front for things, from its centre outwards for the sky and rain. */
@@ -189,5 +189,5 @@ function makeSheet(n: number): (i: number, px: Float32Array, label: string, verd
 run().catch((err) => {
   result.error = err instanceof Error ? err.stack ?? err.message : String(err);
   result.done = true;
-  say(`failed: ${result.error}`);
+  status(`failed: ${result.error}`);
 });

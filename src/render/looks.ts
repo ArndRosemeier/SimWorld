@@ -138,10 +138,10 @@ export function splitByVariant(d: MeshData, key: (d: MeshData, i: number) => str
 function oneInstance(d: MeshData, kind: MaterialKind, extra: Record<string, ArrayLike<number>> = {}): Mesh {
   const m = instancedFromData(d, kind, 1);
   const g = m.geometry as InstancedBufferGeometry;
-  const set = (name: string, v: ArrayLike<number>) => { const a = g.getAttribute(name) as InstancedBufferAttribute | undefined; if (a) { (a.array as Float32Array).set(Array.from(v).slice(0, a.itemSize)); a.needsUpdate = true; } };
+  const set = (name: string, v: ArrayLike<number>) => { const a = g.getAttribute(name) as InstancedBufferAttribute | undefined; if (a) { for (let k = 0; k < a.itemSize; k++) a.array[k] = v[k] ?? 0; a.needsUpdate = true; } };
   set('iPose', [0, 0, 0, 0]);
   set('iSize', [1, 1]);
-  for (const [k, v] of Object.entries(extra)) set(k, v);
+  for (const k in extra) set(k, extra[k]);
   return m;
 }
 
@@ -159,7 +159,7 @@ function swatchesOf(kind: MaterialKind, what: string, data: MeshData | null, ext
 }
 
 type Pool = WorkerPool<ToTown, FromTown>;
-async function ask<T extends FromTown['type']>(pool: Pool, msg: ToTown, type: T): Promise<Extract<FromTown, { type: T }>> {
+async function piece<T extends FromTown['type']>(pool: Pool, msg: ToTown, type: T): Promise<Extract<FromTown, { type: T }>> {
   const r = await pool.run(msg, 0);
   if (r.type !== type) throw new Error(`town worker: ${msg.type} answered ${r.type === 'error' ? r.message : r.type}`);
   return r as Extract<FromTown, { type: T }>;
@@ -173,25 +173,25 @@ export async function collectSwatches(pool: Pool, town: TownSummary): Promise<Sw
   const out: Swatch[] = [];
   // The town's ground and buildings, a few cells from the centre out, the landmarks and the countryside.
   for (let c = 0; c < Math.min(town.cells, 6); c++) {
-    const r = await ask(pool, { type: 'cell', cell: c }, 'cell');
+    const r = await piece(pool, { type: 'cell', cell: c }, 'cell');
     out.push(...swatchesOf(GROUND, `cell ${c}`, r.ground), ...swatchesOf(FACADE, `cell ${c}`, r.buildings));
   }
-  for (let l = 0; l < town.landmarks; l++) out.push(...swatchesOf(FACADE, `landmark ${l}`, (await ask(pool, { type: 'landmark', index: l }, 'landmark')).mesh));
-  const country = await ask(pool, { type: 'country' }, 'country');
+  for (let l = 0; l < town.landmarks; l++) out.push(...swatchesOf(FACADE, `landmark ${l}`, (await piece(pool, { type: 'landmark', index: l }, 'landmark')).mesh));
+  const country = await piece(pool, { type: 'country' }, 'country');
   out.push(...swatchesOf(GROUND, 'country', country.ground), ...swatchesOf(FACADE, 'country', country.buildings));
   // Terrain and water: the tiles nearest the centre (water from the first tile that has any).
   const tiles = [...town.tiles].sort((a, b) => Math.hypot(a.x0 + a.size / 2 - town.x, a.z0 + a.size / 2 - town.z) - Math.hypot(b.x0 + b.size / 2 - town.x, b.z0 + b.size / 2 - town.z));
-  for (const t of tiles.slice(0, 3)) out.push(...swatchesOf(TERRAIN, 'terrain', (await ask(pool, { type: 'terrain', tile: t }, 'terrain')).mesh));
+  for (const t of tiles.slice(0, 3)) out.push(...swatchesOf(TERRAIN, 'terrain', (await piece(pool, { type: 'terrain', tile: t }, 'terrain')).mesh));
   for (const t of tiles) {
-    const w = (await ask(pool, { type: 'water', tile: t }, 'water')).mesh;
+    const w = (await piece(pool, { type: 'water', tile: t }, 'water')).mesh;
     if (w) { out.push(...swatchesOf(WATER, 'water', w)); break; }
   }
   // Street furniture: every prop model the town places, with its first instance's paint (iTint). Parked cars are
   // the vehicle kinds below.
-  const props = await ask(pool, { type: 'props', kerbCars: false }, 'props');
+  const props = await piece(pool, { type: 'props', kerbCars: false }, 'props');
   for (const g of props.groups) {
     if (isVehicleModel(g.model) || g.inst.length < PROP_STRIDE) continue;
-    const m = await ask(pool, { type: 'propModel', model: g.model }, 'propModel');
+    const m = await piece(pool, { type: 'propModel', model: g.model }, 'propModel');
     const I = g.inst;
     out.push(...swatchesOf(FURNITURE, g.model, m.mesh, { iTint: [I[5], I[6], I[7], I[8]] }));
   }
@@ -203,7 +203,7 @@ export async function collectSwatches(pool: Pool, town: TownSummary): Promise<Sw
   }
   // Every tree and shrub model: wood, leaves, the far hull.
   for (let i = 0; i < VEG_MODELS.length; i++) {
-    const t = (await ask(pool, { type: 'vegModel', index: i }, 'vegModel')).model;
+    const t = (await piece(pool, { type: 'vegModel', index: i }, 'vegModel')).model;
     out.push(...swatchesOf(BARK, `tree ${i}`, t.wood), ...swatchesOf(LEAVES, `tree ${i}`, t.leaves), ...swatchesOf(TREE_FAR, `tree ${i}`, t.far));
   }
   // Small vertex-coloured things (what people carry, src/render/people/wardrobe.ts): a box in a held thing's colour.
