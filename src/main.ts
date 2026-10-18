@@ -50,7 +50,8 @@ import { PeopleView } from './render/people/peopleView';
 import { VehiclesView } from './render/vehiclesView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
 import { FEMALE, MALE } from './sim/actors';
-import { hhmm, minuteOfDay } from './sim/time';
+import { hhmm, minuteOfDay, MINUTES_PER_DAY } from './sim/time';
+import type { MediaView } from './sim/media';
 import { formatDate } from './sim/calendar';
 import { TownAudio } from './audio/townAudio';
 import { soundEnvFromSim, soundEnvOf, soundOverrides } from './audio/env';
@@ -177,6 +178,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const playing = new Playing(sim, cam, street, settings.seed);
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
+  /** The media the signs last got (the sim's view brings a new one each game minute). */
+  let shownMedia: MediaView | undefined;
   const fwd = { x: 0, y: 0, z: 0 };
   document.body.append(mapButton(
     async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
@@ -202,6 +205,11 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     shadowMode = cam.mode;
     view.vegetation?.update(camera);
     view.props?.update(camera);
+    if (view.signs && sim.view.media !== shownMedia) {
+      // The notices up in town: boards, lamp posts, shop windows (a new view each game minute; the signs redraw only what changed).
+      shownMedia = sim.view.media;
+      view.signs.setNotices(shownMedia?.notices ?? [], Math.floor(sim.view.clock / MINUTES_PER_DAY));
+    }
     view.signs?.update(camera);
     sky.update(dt, time, time.clock, w, camera, rate);
     if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.night);

@@ -7,6 +7,7 @@
  * thread (canvas 2D). New in SimWorld.
  */
 import { hashString } from '@futuremagic/core';
+import type { Notice } from '../sim/media';
 import type { Painter } from './textAtlas';
 
 const SANS = 'Arial, Helvetica, sans-serif', SERIF = 'Georgia, "Times New Roman", serif';
@@ -184,3 +185,67 @@ export function townSign(town: string, back: boolean): Painter {
 
 /** A plain board: the slot of a sign that has no words drawn yet (atlas full, or nothing known). */
 export const blank: Painter = (g, w, h) => { g.fillStyle = '#5b5f63'; g.fillRect(0, 0, w, h); };
+
+/**
+ * A notice board's cork in its wooden frame, "NOTICES" along the top. `aspect`: the board's width
+ * over its height, so the letters keep their shape on a board of another shape than the slot.
+ */
+export function cork(aspect: number): Painter {
+  return (g, w, h) => {
+    const sy = aspect / (w / h);
+    g.fillStyle = '#5a3a1e'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#b98a57'; g.fillRect(12, 12, w - 24, h - 24);
+    // Cork speckle, the same on every board (a fixed pattern, no randomness).
+    for (let i = 0; i < 900; i++) {
+      const x = 12 + ((i * 7919) % 997) / 997 * (w - 24), y = 12 + ((i * 104729) % 991) / 991 * (h - 24);
+      g.fillStyle = i % 3 === 0 ? 'rgba(90,55,25,0.35)' : 'rgba(230,200,150,0.3)';
+      g.fillRect(x, y, 2, 2);
+    }
+    g.save();
+    g.translate(0, h * 0.075);
+    g.scale(1, sy);
+    fit(g, 'NOTICES', w / 2, 0, w * 0.5, (h * 0.11) / sy, SERIF, '#f3e6c8', 'bold');
+    g.restore();
+  };
+}
+
+/** What a notice shows (src/sim/media.ts). */
+export type NoticeFace = Pick<Notice, 'kind' | 'title' | 'lines'>;
+
+/** The notice's own colours by kind: page, header band, header letters, body letters. */
+const NOTICE_LOOK: Record<NoticeFace['kind'], [string, string, string, string]> = {
+  event: ['#fff8e6', '#1f6fb2', '#ffffff', '#1d2733'],
+  funeral: ['#ffffff', '#111111', '#ffffff', '#111111'],
+  lostPet: ['#ffffff', '#c8161d', '#ffffff', '#1b1b1b'],
+  opening: ['#fff3a8', '#e2581c', '#ffffff', '#2a1a05'],
+  closing: ['#ffffff', '#333333', '#ffffff', '#222222'],
+};
+
+/** A notice or poster: a header band with the title, then its lines; a lost pet's has tear-off tabs, a funeral notice a black border. */
+export function notice(n: NoticeFace): Painter {
+  return (g, w, h) => {
+    const found = n.kind === 'lostPet' && /^found/i.test(n.title);
+    const [page, band, head, ink] = NOTICE_LOOK[n.kind];
+    g.fillStyle = page; g.fillRect(0, 0, w, h);
+    if (n.kind === 'funeral') {
+      g.strokeStyle = '#111111'; g.lineWidth = 10; g.strokeRect(9, 9, w - 18, h - 18);
+      fit(g, n.title, w / 2, h * 0.16, w - 50, 30, SERIF, ink, 'bold', true);
+      g.fillStyle = '#111111'; g.fillRect(w * 0.3, h * 0.25, w * 0.4, 2);
+    } else {
+      g.fillStyle = found ? '#1f8a3a' : band; g.fillRect(0, 0, w, h * 0.24);
+      fit(g, n.kind === 'event' ? n.title : n.title.toUpperCase(), w / 2, h * 0.125, w - 24, h * 0.15, n.kind === 'event' ? SERIF : SANS, head, 'bold');
+    }
+    const tabs = n.kind === 'lostPet' && !found;
+    const top = h * 0.31, bottom = tabs ? h * 0.78 : h * 0.94, lh = (bottom - top) / Math.max(3, n.lines.length);
+    n.lines.forEach((l, i) => fit(g, l, w / 2, top + lh * (i + 0.5), w - 26, Math.min(22, lh * 0.7), n.kind === 'funeral' ? SERIF : SANS, ink, i === 0 ? 'bold' : '600'));
+    if (tabs) {
+      // Tear-off phone tabs along the bottom.
+      g.strokeStyle = '#888888'; g.lineWidth = 1; g.setLineDash([4, 3]);
+      g.beginPath(); g.moveTo(0, h * 0.8); g.lineTo(w, h * 0.8); g.stroke();
+      for (let x = w / 7; x < w - 1; x += w / 7) { g.beginPath(); g.moveTo(x, h * 0.8); g.lineTo(x, h); g.stroke(); }
+      g.setLineDash([]);
+      g.fillStyle = '#555555';
+      for (let k = 0; k < 7; k++) g.fillRect(k * (w / 7) + w / 14 - 1, h * 0.84, 2, h * 0.12);
+    }
+  };
+}
