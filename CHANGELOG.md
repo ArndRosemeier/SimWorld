@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.032 — Commuters drive out of town and back
+
+- People who work in the city or the nearby town now drive off the map on the road that leads there, instead of parking at the edge of town.
+- Coming home, their car comes in on that same road and parks near where they are going.
+- A car that is away in the city is not standing in town when the game loads.
+
 ## v0.031 — Rooms have real floors and walls
 
 - Floors are wood boards, tiles, carpet, stone or marble, laid along the room; walls are painted plaster or wallpaper, bathrooms are tiled.
