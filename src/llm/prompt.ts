@@ -213,6 +213,12 @@ const unit = (v: number, words: readonly string[]) => words[Math.min(words.lengt
 
 // --- the speech prompt --------------------------------------------------------------------------
 
+/**
+ * The setting rule (Arnd D27, CLAUDE.md rule 12): the world is invented and only western-adjacent. Every prompt
+ * whose model writes text the player reads carries it.
+ */
+export const SETTING_RULE = 'The town is in an invented country. Mention no real places, brands, institutions or currencies, avoid strongly British or American words, and give prices as plain numbers ("twelve fifty").';
+
 /** Shared by every NPC and every conversation: the cacheable head. Change it rarely. */
 export const SPEECH_RULES = `You are playing one inhabitant of a small modern town, in a conversation with another inhabitant. Stay in character for the whole conversation.
 
@@ -220,6 +226,7 @@ How to answer:
 - Reply only with what your character says out loud, in the first person. You may add a short action in *asterisks*. Never narrate the other person's actions or thoughts.
 - Keep it to what a person would say in one breath in this situation: usually one to three sentences. Longer only when your character would really talk at length.
 - Talk like your character: their age, job, mood, speech style and how they feel about the other person. Ordinary people are not eloquent all the time; they hesitate, deflect, joke, get short with people they dislike.
+- ${SETTING_RULE}
 
 What you know:
 - You know only what is written in this prompt: your life, the people and places listed, your memories and beliefs. You do not know anything else about the town or its people.
