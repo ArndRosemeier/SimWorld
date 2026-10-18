@@ -403,6 +403,9 @@ export function groupsDay(world: World): void {
   const gs = world.groups;
   const key = monthKey(world, now);
   if (gs.month < 0) gs.month = key;
+  // The dead and those who left town are off the lists at once (the lists are the guest lists of meetings).
+  const alive = world.actors.cols.alive;
+  for (const g of gs.list) for (let k = g.members.length - 1; k >= 0; k--) if (!alive[g.members[k]]) leave(g, k);
   for (let k = gs.pending.length - 1; k >= 0; k--) {
     const p = gs.pending[k];
     if (p.start >= now) continue;
