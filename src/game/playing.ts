@@ -8,14 +8,22 @@
  * where the keys say, against the buildings and the street's posts and parked cars around it (fetched from the
  * sim worker as you go, `near`), the camera stays behind it (`updateSteer`), the street draws your person there
  * (`Street.setSelf`), and the sim is told where you are (`steer`). Pressing a walking key on autopilot takes over
- * on the spot; someone indoors steps out of their door.
+ * on the spot.
+ *
+ * Someone in a building is played in it (Arnd: "if the person is in a house, bring me into the house"): its
+ * interior comes up (src/game/inside.ts), its walls, furniture, floors and stairs replace the closed box the
+ * building is out of doors, and you stand up by the bed, seat or desk they were at. Walking up to a street door
+ * brings the interior up the same way, so you walk in and out; the sim hears which building you are in.
  */
 import { Picker } from '../app/picker';
 import { PlayPanel } from '../app/playPanel';
 import type { InhabitantCard } from '../sim/profile';
 import type { NearSolids } from '../workers/simProtocol';
 import type { Physics } from '../physics/physics';
-import { wallBoxes, type SolidPost } from '../physics/solids';
+import { rampBox, wallBoxes, type SolidBox, type SolidPost } from '../physics/solids';
+import { pointInPoly } from '../geom/geom2';
+import type { Indoors } from '../interior/indoors';
+import type { GoingInside } from './inside';
 import { Avatar } from './avatar';
 import type { CameraControl, PlayTarget } from './camera';
 import type { SimClient } from './SimClient';
@@ -35,9 +43,16 @@ export class Playing {
   private solidsAt: { x: number; z: number } | null = null;
   private fetching = false;
   /** When and where the sim was last told where you are, and whether that message is out. */
-  private told = { x: 0, z: 0, t: 0, busy: false };
+  private told = { x: 0, z: 0, t: 0, busy: false, building: -1 };
+  /** The physics world once loaded (the frame needs it at once). */
+  private physNow: Physics | null = null;
+  /** The buildings and street things last fetched (a building's closed walls come back from here after its interior goes). */
+  private lastNear: NearSolids | null = null;
+  /** The building whose interior stands in the physics world (-1: none), and the one coming up. */
+  private interior = -1;
+  private entering: { code: number; done: Promise<boolean> } | null = null;
 
-  constructor(private readonly sim: SimClient, private readonly cam: CameraControl, private readonly street: Street, private readonly seed: number) {}
+  constructor(private readonly sim: SimClient, private readonly cam: CameraControl, private readonly street: Street, private readonly seed: number, private readonly goingIn: GoingInside) {}
 
   /** Who the player is, null while choosing. */
   get playing(): boolean { return this.panel !== null; }
@@ -78,6 +93,7 @@ export class Playing {
   /** Become `card`'s person: on autopilot at first, so they carry on with their day while the camera arrives. */
   async become(card: InhabitantCard, autopilot = false): Promise<void> {
     this.dropAvatar();
+    this.goOut();
     await this.sim.ask({ op: 'become', id: card.id, autopilot });
     this.closePicker();
     this.panel?.close();
@@ -90,6 +106,7 @@ export class Playing {
         const since = Math.floor(this.sim.clock), steering = this.avatar !== null;
         // Your life goes on without you watching: their routine runs the skipped days.
         this.dropAvatar();
+        this.goOut();
         await this.sim.ask({ op: 'autopilot', on: true });
         await this.sim.skip(days);
         if (steering) void this.takeWheel();
@@ -105,8 +122,9 @@ export class Playing {
   }
 
   /**
-   * Take the wheel: the body appears where the person is (their figure on the street, else the doorstep of the
-   * place they are in) and the sim hands them to you.
+   * Take the wheel: the body appears where the person is: in their building by the bed, seat or desk they were at
+   * (whatever they were doing: asleep, they get up), else their figure on the street, else the doorstep of the
+   * place they are in; and the sim hands them to you.
    */
   async takeWheel(): Promise<void> {
     if (this.taking || this.avatar) return;
@@ -114,23 +132,90 @@ export class Playing {
     if (!s || !s.alive) return;
     this.taking = true;
     try {
-      const f = this.street.where(s.id);
-      const at = f ? { x: f.x, z: f.z, yaw: Math.atan2(-f.vx, -f.vz) || (f.face ?? 0) } : s.exit ?? { x: s.x, z: s.z, yaw: 0 };
       const phys = await this.physics();
+      let at: { x: number; y: number; z: number; yaw: number } | null = null, building = -1;
+      if (indoorsNow(s, this.sim) && (await this.goIn(phys, s.building)) && this.sim.player?.id === s.id) {
+        at = this.standUp(phys, s.id);
+        if (at) building = s.building;
+      }
+      if (!at) {
+        const f = this.sim.walkers.has(s.id) ? this.street.where(s.id) : null;
+        const p = f ? { x: f.x, z: f.z, yaw: Math.atan2(-f.vx, -f.vz) || (f.face ?? 0) } : s.exit ?? { x: s.x, z: s.z, yaw: 0 };
+        at = { ...p, y: this.sim.standHeight(p.x, p.z) };
+      }
       await this.fetchSolids(phys, at.x, at.z);
       if (this.sim.player?.id !== s.id) return;
-      this.avatar = new Avatar(phys, at.x, this.sim.standHeight(at.x, at.z), at.z, at.yaw);
+      this.avatar = new Avatar(phys, at.x, at.y, at.z, at.yaw);
       this.street.setSelf(s.id, this.avatar);
+      this.cam.behind(at.yaw);
       this.told.t = 0;
-      await this.tell(at.x, at.z);
+      await this.tell(at.x, at.z, building);
     } finally {
       this.taking = false;
     }
   }
 
+  /**
+   * Where `id` stands up in the building shown: beside the spot they were given (out of the bed, up from the
+   * chair), at the nearest place with room for a person and a floor under it; else just inside a street door.
+   */
+  private standUp(phys: Physics, id: number): { x: number; y: number; z: number; yaw: number } | null {
+    const ins = this.goingIn.inside;
+    if (!ins) return null;
+    const I = ins.indoors, spot = this.goingIn.spotOf(id) ?? I.spots.find((p) => p.use === 'sleep') ?? I.spots[0];
+    const fits = (x: number, y: number, z: number, r: number) => phys.roomAt(x, y, z, r, BODY_H) && phys.clear(x, y + 0.5, z, 0, -1, 0, 1) < 0.8;
+    if (spot) {
+      // Facing away from what they were at (its front is along the spot's yaw); somewhere roomy first, else
+      // anywhere a body fits.
+      const yaw = spot.yaw + Math.PI;
+      for (const roomy of [ROOMY, BODY_R]) for (const r of [0.6, 0.9, 1.3, 1.8]) for (let k = 0; k < 12; k++) {
+        const a = spot.yaw + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 6);
+        const x = spot.x + Math.sin(a) * r, z = spot.z + Math.cos(a) * r;
+        if (fits(x, spot.y, z, roomy)) return { x, y: spot.y, z, yaw: openWay(phys, x, spot.y, z, yaw) };
+      }
+    }
+    const d = I.doors[0];
+    return d ? { x: d.x - d.nx * 1.0, y: I.base, z: d.z - d.nz * 1.0, yaw: Math.atan2(d.nx, d.nz) } : null;
+  }
+
+  /**
+   * Bring building `code`'s interior up and put it in the physics world in place of its closed walls (the one
+   * up before goes). Resolves to whether it stands (false: no interior to walk in, or another came first).
+   */
+  private goIn(phys: Physics, code: number): Promise<boolean> {
+    if (this.interior === code && this.goingIn.inside) return Promise.resolve(true);
+    if (this.entering?.code === code) return this.entering.done;
+    const done = this.goingIn.enter(code).then((ins) => {
+      if (this.entering?.code !== code) return false;
+      this.entering = null;
+      if (!ins) return false;
+      if (this.interior >= 0 && this.interior !== code) this.closeUp(phys, this.interior);
+      this.interior = code;
+      phys.setSolids(`b:${code}`, interiorBoxes(ins.indoors, (x, z) => this.sim.standHeight(x, z)), [], ins.indoors.slabs);
+      return true;
+    });
+    this.entering = { code, done };
+    return done;
+  }
+
+  /** Back out of doors: the interior goes and its building is a closed box again. */
+  private goOut(): void {
+    this.entering = null;
+    if (this.interior < 0 && !this.goingIn.inside) return;
+    this.goingIn.leave();
+    if (this.physNow && this.interior >= 0) this.closeUp(this.physNow, this.interior);
+    this.interior = -1;
+  }
+
+  /** Building `code`'s closed walls again (or none, if it is no longer near). */
+  private closeUp(phys: Physics, code: number): void {
+    const b = this.lastNear?.buildings.find((n) => n.code === code);
+    if (b) phys.setSolids(`b:${code}`, wallBoxes(b.poly, b.y0, b.y1)); else phys.dropSolids(`b:${code}`);
+  }
+
   /** The physics world, loaded once (its module is big: fetched while the picker is up, before anyone needs it). */
   private physics(): Promise<Physics> {
-    this.phys ??= import('../physics/physics').then((m) => m.Physics.create(this.sim.ground));
+    this.phys ??= import('../physics/physics').then((m) => m.Physics.create(this.sim.ground)).then((p) => (this.physNow = p));
     return this.phys;
   }
 
@@ -141,11 +226,11 @@ export class Playing {
     if (this.sim.player) this.street.setSelf(this.sim.player.id, null);
   }
 
-  /** Tell the sim where you are. */
-  private async tell(x: number, z: number): Promise<void> {
+  /** Tell the sim where you are (in building `building`, -1 out of doors). */
+  private async tell(x: number, z: number, building: number): Promise<void> {
     this.told.busy = true;
-    Object.assign(this.told, { x, z, t: performance.now() });
-    try { await this.sim.ask({ op: 'steer', x, z }); } finally { this.told.busy = false; }
+    Object.assign(this.told, { x, z, building, t: performance.now() });
+    try { await this.sim.ask({ op: 'steer', x, z, building }); } finally { this.told.busy = false; }
   }
 
   /** The buildings and street things around (x, z), into the physics world (far ones dropped). */
@@ -154,7 +239,7 @@ export class Playing {
     this.solidsAt = { x, z };
     try {
       const r = await this.sim.ask({ op: 'near', x, z, r: SOLIDS_R });
-      if (r.near) placeSolids(phys, r.near);
+      if (r.near) { this.lastNear = r.near; placeSolids(phys, r.near, this.interior); }
     } finally {
       this.fetching = false;
     }
@@ -172,6 +257,7 @@ export class Playing {
       const panel = this.panel;
       this.panel = null;
       this.dropAvatar();
+      this.goOut();
       this.cam.stopPlay();
       panel.gone(() => { panel.close(); void this.choose(); });
       return null;
@@ -182,6 +268,19 @@ export class Playing {
     if (!this.avatar && keys) void this.takeWheel();
     const av = this.avatar;
     if (av) return this.steer(av, dt, w, compiling);
+    // On autopilot in a building: its interior, the camera in there with them (asleep: by their bed).
+    if (indoorsNow(s, this.sim) && this.physNow) {
+      const phys = this.physNow;
+      void this.goIn(phys, s.building);
+      const ins = this.goingIn.inside;
+      if (this.interior === s.building && ins) {
+        const f = this.street.where(s.id), spot = this.goingIn.spotOf(s.id);
+        const p = f ?? spot ?? { x: ins.indoors.doors[0]?.x ?? s.x, y: ins.indoors.base, z: ins.indoors.doors[0]?.z ?? s.z };
+        const head = { x: p.x, y: p.y + (f || !spot || spot.use !== 'sleep' ? 1.55 : 0.6), z: p.z };
+        this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max));
+        return { x: p.x, z: p.z };
+      }
+    } else if (this.interior >= 0 || this.goingIn.inside) this.goOut();
     const f = this.street.where(s.id);
     const tg = this.target;
     if (f) Object.assign(tg, { x: f.x, y: f.y, z: f.z, vx: f.vx, vz: f.vz, outside: true });
@@ -199,9 +298,33 @@ export class Playing {
     if (!this.fetching && this.solidsAt && Math.hypot(av.x - this.solidsAt.x, av.z - this.solidsAt.z) > SOLIDS_R / 3) void this.fetchSolids(phys, av.x, av.z);
     const head = { x: av.x, y: av.y + 1.55, z: av.z };
     this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max, av.body));
+    const building = this.doorsAround(phys, av);
     const now = performance.now();
-    if (!this.told.busy && (now - this.told.t > TELL_MS || Math.hypot(av.x - this.told.x, av.z - this.told.z) > 6)) void this.tell(av.x, av.z);
+    if (!this.told.busy && (building !== this.told.building || now - this.told.t > TELL_MS || Math.hypot(av.x - this.told.x, av.z - this.told.z) > 6)) void this.tell(av.x, av.z, building);
     return { x: av.x, z: av.z };
+  }
+
+  /**
+   * The doors around the body: walking up to a building's door brings its interior up (in place of its closed
+   * walls); walking away from it puts it back. Returns the building the body stands in (-1: out of doors).
+   */
+  private doorsAround(phys: Physics, av: Avatar): number {
+    const near = this.lastNear;
+    if (!near) return -1;
+    let inside = -1, door = -1, dd = DOOR_NEAR;
+    for (const b of near.buildings) {
+      if (b.code === this.interior && pointInPoly(b.poly, av.x, av.z)) inside = b.code;
+      for (let i = 0; i < b.doors.length; i += 2) {
+        const d = Math.hypot(b.doors[i] - av.x, b.doors[i + 1] - av.z);
+        if (d < dd) { dd = d; door = b.code; }
+      }
+    }
+    if (inside < 0 && door >= 0 && door !== this.interior) void this.goIn(phys, door);
+    else if (inside < 0 && door < 0 && this.interior >= 0) {
+      const b = near.buildings.find((n) => n.code === this.interior);
+      if (!b || !nearPoly(b.poly, av.x, av.z, LEAVE_AT)) this.goOut();
+    }
+    return inside;
   }
 }
 
@@ -211,14 +334,58 @@ const SOLIDS_R = 75;
 const TELL_MS = 2000;
 /** Height of the street's posts, trees and parked cars as the body meets them (m). */
 const POST_H = 2.2;
+/** How close to a street door its building's interior comes up, and how far from its walls it goes again (m). */
+const DOOR_NEAR = 4, LEAVE_AT = 8;
+/** The body as the room it needs: radius and height (src/game/avatar.ts). */
+const BODY_R = 0.3, BODY_H = 1.8;
+/** Room to stand up in when there is a choice: free all round to this radius (m). */
+const ROOMY = 0.6;
+/** Enough room ahead to walk off into (m). */
+const OPEN_AHEAD = 2.5;
 
-/** Put `near` in the physics world: each building's walls (kept while it stays near), the street's posts afresh. */
-function placeSolids(phys: Physics, near: NearSolids): void {
+/** The way to face from feet (x, y, z) with the most room ahead (not a table in your face), `prefer` when it is as open. */
+function openWay(phys: Physics, x: number, y: number, z: number, prefer: number): number {
+  let best = prefer, room = phys.clear(x, y + 0.9, z, -Math.sin(prefer), 0, -Math.cos(prefer), OPEN_AHEAD);
+  for (let k = 1; k < 16 && room < OPEN_AHEAD; k++) {
+    const yaw = prefer + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 8);
+    const d = phys.clear(x, y + 0.9, z, -Math.sin(yaw), 0, -Math.cos(yaw), OPEN_AHEAD);
+    if (d > room + 0.3) { room = d; best = yaw; }
+  }
+  return best;
+}
+
+/** In a building as the sim has it (not walking anywhere, not out of doors): their interior is where they are. */
+function indoorsNow(s: NonNullable<SimClient['player']>, sim: SimClient): boolean {
+  return s.building >= 0 && !s.outdoors && !s.travelling && !sim.walkers.has(s.id);
+}
+
+/** Is (x, z) inside `poly` or within `r` of it (its bounds, grown)? */
+function nearPoly(poly: readonly number[], x: number, z: number, r: number): boolean {
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (let i = 0; i < poly.length; i += 2) { x0 = Math.min(x0, poly[i]); x1 = Math.max(x1, poly[i]); z0 = Math.min(z0, poly[i + 1]); z1 = Math.max(z1, poly[i + 1]); }
+  return x > x0 - r && x < x1 + r && z > z0 - r && z < z1 + r;
+}
+
+/**
+ * A building's interior as boxes: its walls and furniture, each flight of stairs as a ramp, and a ramp up to
+ * each street door whose floor stands higher than the street in front (a building on a slope).
+ */
+function interiorBoxes(I: Indoors, ground: (x: number, z: number) => number): SolidBox[] {
+  const out: SolidBox[] = [...I.colliders, ...I.ramps.map(rampBox)];
+  for (const d of I.doors) {
+    const ox = d.x + d.nx * 1.4, oz = d.z + d.nz * 1.4, g = ground(ox, oz);
+    if (d.y - g > 0.15) out.push(rampBox({ x0: ox, y0: g, z0: oz, x1: d.x, y1: d.y, z1: d.z, width: d.w }));
+  }
+  return out;
+}
+
+/** Put `near` in the physics world: each building's walls (kept while it stays near; not `interior`'s, whose inside stands), the street's posts afresh. */
+function placeSolids(phys: Physics, near: NearSolids, interior: number): void {
   const keep = new Set<string>();
   for (const b of near.buildings) {
     const key = `b:${b.code}`;
     keep.add(key);
-    if (!phys.hasSolids(key)) phys.setSolids(key, wallBoxes(b.poly, b.y0, b.y1));
+    if (b.code !== interior && !phys.hasSolids(key)) phys.setSolids(key, wallBoxes(b.poly, b.y0, b.y1));
   }
   for (const key of [...phys.keys()]) if (key.startsWith('b:') && !keep.has(key)) phys.dropSolids(key);
   const posts: SolidPost[] = [];

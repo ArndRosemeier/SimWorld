@@ -94,3 +94,23 @@ test('player: steering puts them on the street at once, off any trip, drawn by t
   assert.equal(w.player!.at, null);
   assert.equal(playerStatus(w)!.steered, false);
 });
+
+test('player: steered into a building they are at their home there, indoors; out again on the street', () => {
+  const w = createWorld(testTown(10, 120), 10);
+  const id = cardsOf(w).find((c) => c.age >= 25 && c.age < 60)!.id;
+  becomePlayer(w, id, false);
+  const a = w.actors.cols, home = a.home[id], pl = w.graph.places[home];
+  // The test town has no buildings drawn: give their home one.
+  (pl as { building: number }).building = 777;
+  steerPlayer(w, pl.x + 3, pl.z);
+  steerPlayer(w, pl.x, pl.z, pl.building);
+  assert.equal(a.place[id], home);
+  assert.equal(a.dest[id], -1);
+  const s = playerStatus(w)!;
+  assert.ok(s.steered && !s.outdoors && s.building === pl.building, 'steered, indoors, in that building');
+  tick(w, 60);
+  assert.equal(a.place[id], home, 'the routine waits while the player has them');
+  steerPlayer(w, pl.x + 3, pl.z, -1);
+  assert.equal(w.graph.places[a.place[id]].kind, 'street');
+  assert.ok(playerStatus(w)!.outdoors);
+});

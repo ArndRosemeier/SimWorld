@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.118 — The school bus and the post stop where people live
+
+- The school bus no longer drives kilometres out along a country road every morning. Its pick-ups are now in the town, on streets where many families live, at the place where those homes are.
+- The post van stops where the homes on each street are, not at the far end of a long road.
+
+## v0.117 — Police cars and ambulances on the streets
+
+- Two police cars stand outside the police station. The day after a burglary, a theft, graffiti or a fight, one drives round to where it happened and stays a while.
+- The police patrol the town late in the morning and in the afternoon, and on weekend evenings too.
+- Now and then an ambulance comes in from the hospital town with its blue lights flashing and traffic pulling over. It stops at the home of someone who has been taken ill (the old and the frail most often), then drives away quietly.
+
+## v0.116 — Cars park in their own driveways
+
+- A household living in a house with a driveway parks its car there: it comes home, turns in from the street and stands nose to the house.
+- Setting off, it backs out into the street first, then drives away.
+- Nobody else parks in someone's driveway; visitors and other cars use the kerbside bays.
+
+## v0.115 — Play your person inside their house
+
+- Becoming someone who is at home (even asleep) puts you inside their home: they get up by their bed or chair, and the camera stays behind them in the room.
+- Walk up to any street door and walk in: the interior comes up, with its walls, furniture, floors and stairs to climb. Walk out again and the street is back.
+- On autopilot indoors the camera stays with them in the room instead of circling above the roof.
+- Stair landings no longer block the top of each flight.
+
 ## v0.114 — Bus stops with timetables
 
 - Every bus stop in town now has a post at the kerb where the bus pulls up, with a BUS flag and the stop's name.

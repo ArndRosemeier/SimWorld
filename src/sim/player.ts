@@ -29,19 +29,34 @@ export function becomePlayer(world: World, id: ActorId, autopilot = true): void 
 }
 
 /**
- * The player walks their person themselves, out of doors at (x, z): the sim has them on the nearest street, not
- * heading anywhere, until the player walks into somewhere or hands them back to their routine.
+ * The player walks their person themselves, at (x, z): out of doors (`building` -1) the sim has them on the nearest
+ * street; inside building `building` (a `Place.building` code) at the place there that is theirs (their home), else
+ * the one whose door is nearest. Not heading anywhere: the routine waits until the player hands them back.
  */
-export function steerPlayer(world: World, x: number, z: number): void {
+export function steerPlayer(world: World, x: number, z: number, building = -1): void {
   const p = world.player;
   if (!p || !isPerson(world, p.id)) return;
   p.autopilot = false;
   p.at = { x, z };
-  const a = world.actors.cols, id = p.id, street = streetPlaceNear(world, x, z);
-  if (street < 0 || (a.place[id] === street && a.dest[id] < 0)) return;
+  const a = world.actors.cols, id = p.id;
+  const place = building >= 0 ? placeIn(world, id, building, x, z) : streetPlaceNear(world, x, z);
+  if (place < 0 || (a.place[id] === place && a.dest[id] < 0)) return;
   a.dest[id] = -1;
-  a.place[id] = street;
-  go(world, id, street, A.leisure, world.clock + MINUTES_PER_DAY);
+  a.place[id] = place;
+  go(world, id, place, building >= 0 ? A.idle : A.leisure, world.clock + MINUTES_PER_DAY);
+}
+
+/** The place in building `building` that `id` walks into at (x, z): their home there, else the one with the nearest door. */
+function placeIn(world: World, id: ActorId, building: number, x: number, z: number): PlaceId {
+  const places = world.graph.places, home = world.actors.cols.home[id];
+  if (home >= 0 && places[home].building === building) return home;
+  let best = -1, bd = Infinity;
+  for (let i = 0; i < places.length; i++) {
+    if (places[i].building !== building) continue;
+    const d = Math.hypot(places[i].x - x, places[i].z - z);
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
 }
 
 /** The street place nearest (x, z) (-1 when the town has none). */
@@ -182,7 +197,7 @@ export interface PlayerStatus {
   travelling: boolean;
   /** Out of doors: (x, z) is then where they are on the street (the sim worker fills this in from their track). */
   outdoors: boolean;
-  /** Walked by the player out of doors (`steerPlayer`): (x, z) is where the player last said they are. */
+  /** Walked by the player (`steerPlayer`), out of doors or in: (x, z) is where the player last said they are. */
   steered: boolean;
   /** Indoors: the doorstep of the place and the way out (yaw, 0 facing −z), where they step out when taken over. */
   exit: { x: number; z: number; yaw: number } | null;
@@ -200,7 +215,7 @@ export function playerStatus(world: World): PlayerStatus | null {
   const pl = world.graph.places[Math.max(0, place)], at = !p.autopilot ? p.at : null;
   return {
     id, name: nameOf(world, id), alive, autopilot: p.autopilot, doing: alive ? (at ? 'out and about' : doingOf(world, id)) : 'gone',
-    place, placeName: pl.name, building: pl.building, x: at ? at.x : pl.x, z: at ? at.z : pl.z, travelling: a.dest[id] >= 0, outdoors: !!at, steered: !!at, exit: null,
+    place, placeName: pl.name, building: pl.building, x: at ? at.x : pl.x, z: at ? at.z : pl.z, travelling: a.dest[id] >= 0, outdoors: !!at && a.place[id] >= 0 && KINDS[world.graph.places[a.place[id]].kind].category === 'outdoor', steered: !!at, exit: null,
     needs: Array.from(a.needs.subarray(id * NEED_COUNT, id * NEED_COUNT + NEED_COUNT)), mood: a.mood[id],
   };
 }

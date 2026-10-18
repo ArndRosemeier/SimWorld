@@ -14,6 +14,7 @@ import { LIGHT } from '../render/tsl/common';
 import { WINDOW_LIGHT } from '../render/windowLight';
 import type { SimClient, Walker } from './SimClient';
 import type { Held, Street } from './street';
+import type { IndoorSpot } from '../interior/indoors';
 
 /** Real milliseconds between asking the sim who is in. */
 const ASK_EVERY = 3000;
@@ -23,6 +24,8 @@ export class GoingInside {
   private asked = -Infinity;
   private asking = false;
   private awake = 0;
+  /** The spot each person in was given (bed, seat, desk), by actor id. */
+  private readonly spots = new Map<number, IndoorSpot>();
 
   constructor(private readonly sim: SimClient, private readonly street: Street, private readonly view: InteriorView) {}
 
@@ -35,9 +38,15 @@ export class GoingInside {
     if (!ref || !('cell' in ref)) return null;
     this.building = building;
     this.asked = -Infinity;
+    this.spots.clear();
     const r = await this.view.enter(ref);
     if (r && this.building === building) await this.refresh();
     return r;
+  }
+
+  /** The spot `id` was given in the building shown (their bed, seat or desk), null if they are not in it. */
+  spotOf(id: number): IndoorSpot | null {
+    return this.spots.get(id) ?? null;
   }
 
   /** Back out of doors. */
@@ -66,9 +75,11 @@ export class GoingInside {
       const ps = people.map((p) => ({ ...p, unit: p.unit < 0 ? -1 : p.unit % units }));
       const given = spotsFor(ps, spots);
       const held: Held[] = [];
+      this.spots.clear();
       ps.forEach((p, i) => {
         const s = spots[given[i]];
         if (!s) return;
+        this.spots.set(p.id, s);
         const w: Walker = { id: p.id, info: p.info, keys: new Float64Array(0), rests: new Float64Array(0), hideAfter: Infinity, activity: p.activity, doing: p.doing };
         // The spot faces (sin yaw, cos yaw); a figure's face 0 looks to -z. In bed: on the mattress, head to foot.
         // On a seat: standing in front of it (seatFront), from where they sit down.

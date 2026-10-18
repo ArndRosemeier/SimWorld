@@ -805,7 +805,7 @@ function pickWeighted(weights: number[], total: number, rng: Rng): number {
 }
 
 /** How many times something with mean `mean` happens (Knuth; small means only). */
-function poisson(mean: number, rng: Rng): number {
+export function poisson(mean: number, rng: Rng): number {
   const limit = Math.exp(-mean);
   let k = 0;
   for (let p = rng.float(); p > limit; p *= rng.float()) k++;

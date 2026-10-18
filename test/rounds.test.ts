@@ -8,7 +8,7 @@ import { runsLike } from '../src/sim/calendar';
 import { MINUTES_PER_DAY, dayOf } from '../src/sim/time';
 import { transitOf } from '../src/sim/transit';
 import { BUS_KEY } from '../src/traffic/buses';
-import { SERVICE_KEY, ServiceRounds, exitTowardRegion, roundGoal } from '../src/traffic/rounds';
+import { EMERGENCY_KEY, SERVICE_KEY, ServiceRounds, exitTowardRegion, roundGoal } from '../src/traffic/rounds';
 import { agendaOn } from '../src/sim/agenda';
 import { carPlace, regionOfPlace, type CarTrip } from '../src/traffic/trips';
 import { TownTraffic } from '../src/traffic/townTraffic';
@@ -18,6 +18,7 @@ import { VISITOR_KEY, visitorsAt } from '../src/traffic/visitors';
 import { isOpen } from '../src/sim/schedule';
 import { TRAIN_CAR, Trains } from '../src/traffic/trains';
 import { closestOnPolyline, resample } from '../src/geom/geom2';
+import { homesRadius } from '../src/sim/places';
 
 // Setup at file level: making the world is the slow part, and the test times only the drive.
 const town = planTown({ seed: 1, size: 0 });
@@ -103,7 +104,7 @@ test('service rounds: the bin lorry on bin day streets, post and deliveries on w
   for (const s of tue.find((r) => r.car.kind === 'delivery' && r.car.variant === 0)!.stops) assert.ok(graph.places[s.tag].hours.length > 0);
   let sun = day;
   while (runsLike(world, sun * MINUTES_PER_DAY) !== 6) sun++;
-  assert.equal(sr.on(sun).length, 0);
+  assert.equal(sr.on(sun).filter((r) => r.car.key < EMERGENCY_KEY).length, 0, 'the emergency services work on Sundays too');
 
   // The post van drives its round: every stop, then out of town, nobody stuck.
   const post = tue.find((r) => r.car.kind === 'van')!;
@@ -115,6 +116,40 @@ test('service rounds: the bin lorry on bin day streets, post and deliveries on w
   for (let k = 0; k < 4000 && !out; k++) tr.update(2);
   assert.equal(stops, post.stops.length);
   assert.ok(out && stuck === 0);
+});
+
+test('emergency services: the police call round where a crime was reported and patrol from their station; ambulances, sirens on, to people\'s homes', () => {
+  const tr = new TownTraffic(town, graph.places, 1, world);
+  const station = graph.places.find((p) => p.kind === 'police')!;
+  // Both police cars stand outside the station.
+  for (const k of [0, 1]) assert.ok(Math.hypot(tr.parking.restAt(EMERGENCY_KEY + k)!.x - station.x, tr.parking.restAt(EMERGENCY_KEY + k)!.z - station.z) < 150);
+  // A burglary logged at midnight: the police come round that day.
+  const day = dayOf(world.clock) + 1, home = graph.places.find((p) => p.homes === 1)!;
+  world.life.events.push({ day, kind: 'burglary', who: -1, other: -1, place: home.id, fact: -1 });
+  const sr = new ServiceRounds(world, tr.net), rounds = sr.on(day);
+  world.life.events.pop();
+  const call = rounds.find((r) => r.car.key === EMERGENCY_KEY + 1)!;
+  assert.deepEqual(call.stops.map((s) => s.tag), [home.id]);
+  assert.ok(rounds.filter((r) => r.car.key === EMERGENCY_KEY).length >= 2, 'patrols');
+  // Ambulances: a few a month, urgent, to homes.
+  let calls = 0;
+  for (let d = day; d < day + 60; d++) for (const r of sr.on(d)) if (r.car.kind === 'ambulance') { calls++; assert.ok(r.stops[0].urgent && graph.places[r.stops[0].tag].homes > 0); }
+  assert.ok(calls >= 5 && calls <= 40, `${calls} ambulance calls in 60 days`);
+  // The police car drives its call from the station and parks there again; an urgent call runs with the siren until it is there.
+  let at = 0;
+  tr.traffic.onHalt = (v) => { if (v.car.key === call.car.key) at++; };
+  assert.ok(tr.traffic.depart(call.car, roundGoal(call, () => 0)));
+  const amb = rounds.find((r) => r.car.kind === 'ambulance') ?? [...Array(60).keys()].flatMap((k) => sr.on(day + k)).find((r) => r.car.kind === 'ambulance')!;
+  const av = tr.traffic.enter(amb.car, amb.enter, roundGoal(amb, () => 0))!;
+  assert.ok(av.siren, 'blue lights and siren on the way');
+  let sirenAfter = false, there = false;
+  for (let k = 0; k < 2500 && (tr.traffic.vehicles.some((v) => v.car.key === call.car.key) || av.alive); k++) {
+    tr.update(2);
+    if (av.halted >= 0) there = true;
+    else if (there && av.siren) sirenAfter = true;
+  }
+  assert.ok(at === 1 && tr.parking.has(call.car.key) && Math.hypot(tr.parking.restAt(call.car.key)!.x - station.x, tr.parking.restAt(call.car.key)!.z - station.z) < 150, 'back at the station');
+  assert.ok(there && !sirenAfter, 'at the door, then quietly away');
 });
 
 test('visitors from the region: tradespeople on working days, shoppers to open places, family more at weekends; they park, stay and leave', () => {
@@ -141,7 +176,7 @@ test('visitors from the region: tradespeople on working days, shoppers to open p
   // Loaded at noon: the visitors who came this morning stand parked; when their stay is over they drive home.
   const noon = day * MINUTES_PER_DAY + 12 * 60;
   tr.visitors(world, noon - 240, noon);
-  const guests = [...tr.parking.occupied()].filter((s) => s.car >= VISITOR_KEY);
+  const guests = [...tr.parking.occupied()].filter((s) => s.car >= VISITOR_KEY && s.car < BUS_KEY);
   assert.ok(guests.length > 3, `${guests.length} visitors parked`);
   assert.ok(guests.every((s) => tr.carOf(s.car).kind !== undefined));
   tr.anchor(noon);
@@ -149,6 +184,17 @@ test('visitors from the region: tradespeople on working days, shoppers to open p
   for (let k = 0; k < 10; k++) tr.update(1);
   assert.equal([...tr.parking.occupied()].filter((s) => guests.some((g) => g.car === s.car)).length, 0, 'gone home after their stay');
   assert.ok(tr.traffic.vehicles.some((v) => v.car.key >= VISITOR_KEY && 'exit' in v.goal), 'driving out of town');
+});
+
+test('the school bus picks up where the homes are, inside the town (never far out along a country road)', () => {
+  const T = transitOf(world), centre = graph.places.find((p) => p.kind === 'square')!, reach = homesRadius(graph, centre.x, centre.z);
+  const line = T.lines.find((l) => l.name === 'School bus')!;
+  for (const r of T.runs.filter((u) => u.line === line.id)) for (const s of r.stops) {
+    const p = graph.places[T.stops[s].place];
+    if (!p) continue;
+    assert.ok(Math.hypot(p.x - centre.x, p.z - centre.z) <= reach + 1, `${T.stops[s].name} is ${Math.hypot(p.x - centre.x, p.z - centre.z).toFixed(0)} m out`);
+    assert.ok(p.homes > 0 || p.id === centre.id, `${T.stops[s].name} is at a home`);
+  }
 });
 
 test('trains: each timetable run stands at the station on time, on the right-hand track, and closes the level crossings it passes', () => {
