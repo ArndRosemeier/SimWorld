@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.035 — Sound: coastal flag follows the weather world shape
+
+- Fixes the typecheck on main where the audio clock still used the old region shape after the weather change.
+
 ## v0.034 — Holidays away, and the weather matters
 
 - Families go away in the school holidays, most of them once in the summer, for one or two weeks. Other people take a week or two at any time, more often in summer. While they are away the house stands empty, nobody goes to work or school, and the neighbours know. A burglar might know too. When they come back, they remember where they went.
