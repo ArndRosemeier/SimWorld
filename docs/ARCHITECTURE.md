@@ -285,4 +285,5 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 
 | Question | The one way | Where |
 |---|---|---|
-| How are prices, licence plates, phone numbers, addresses, the emergency number and school grades written? Is this generated name a real place? Does this phrase bank use a banned word? | the invented world's conventions (D27, plan R7), next to the vocabulary in `src/lang/words.ts`. Never a string literal with a real currency, format or dialect word elsewhere | `src/lang/` *planned* (Town planner port) |
+| Is this generated name (town, street, city, village, river) a well-known real place? | `isRealPlace(name)`: every name generator draws again on a hit | `src/lang/places.ts` |
+| How are prices, licence plates, phone numbers, addresses, the emergency number and school grades written? Does this phrase bank use a banned word? | the invented world's conventions (D27, plan R7), next to the vocabulary in `src/lang/words.ts`. Never a string literal with a real currency, format or dialect word elsewhere | `src/lang/` *planned* (Town planner port) |
