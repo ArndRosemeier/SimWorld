@@ -125,6 +125,6 @@ export type FromSim =
   | { type: 'saved'; clock: number; bytes: Uint8Array; ms: number }
   | { type: 'skipped'; clock: number; view: SimView; ms: number }
   | { type: 'chat'; res: ChatResponse }
-  /** Everyone inside the building asked about, with their info and what they are up to. */
-  | { type: 'inside'; people: (InsidePerson & { info: ActorInfo; doing: string })[]; ms: number }
+  /** Everyone inside the building asked about, with their info and what they are up to; whether its street doors open from outside (src/street/inside.ts doorAccess). */
+  | { type: 'inside'; people: (InsidePerson & { info: ActorInfo; doing: string })[]; access: { open: boolean; resident: boolean }; ms: number }
   | { type: 'error'; message: string };

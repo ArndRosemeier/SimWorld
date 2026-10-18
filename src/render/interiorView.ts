@@ -8,7 +8,8 @@
  * New in SimWorld (Scale's interior designer streamed a storey's walls when the player walked in,
  * src/interior/Interiors.ts).
  */
-import type { Mesh } from 'three/webgpu';
+import { Group, type Mesh } from 'three/webgpu';
+import { leafWay } from '../interior/doors';
 import type { Indoors } from '../interior/indoors';
 import type { WorkerPool } from '../workers/pool';
 import type { FromTown, ToTown } from '../workers/townProtocol';
@@ -28,6 +29,8 @@ export interface Inside {
 
 export class InteriorView {
   private mesh: Mesh | null = null;
+  /** The door leaves (one mesh each, in `inside.indoors.leaves` order), turned about their hinges by `swing`. */
+  private leaves: Group | null = null;
   private inside: Inside | null = null;
   /** The building being fetched (a later `enter` wins). */
   private wanted = -1;
@@ -47,11 +50,19 @@ export class InteriorView {
     const r = await this.pool.run<Extract<FromTown, { type: 'indoors' }>>({ type: 'indoors', building }, 0);
     if (this.wanted !== building) return null;
     const mesh = r.mesh ? meshFromData(r.mesh, INTERIOR) : null;
-    if (mesh) await this.stage.add(mesh);
-    if (this.wanted !== building) { if (mesh) this.unload(mesh); return null; }
+    const leaves = new Group();
+    r.leaves.forEach((d, i) => {
+      const m = meshFromData(d, INTERIOR), l = r.indoors.leaves[i];
+      m.position.set(l.x, l.y, l.z);
+      leaves.add(m);
+    });
+    await Promise.all([mesh && this.stage.add(mesh), this.stage.add(leaves)]);
+    if (this.wanted !== building) { if (mesh) this.unload(mesh); this.unload(leaves); return null; }
     this.clear();
     this.mesh = mesh;
+    this.leaves = leaves;
     this.inside = { building, indoors: r.indoors, about: r.about };
+    r.indoors.leaves.forEach((_, i) => this.swing(i, 0));
     return this.inside;
   }
 
@@ -61,6 +72,15 @@ export class InteriorView {
     this.clear();
   }
 
+  /** Turn door leaf `i` of the building shown open by `a` (0 shut … 1 a quarter turn). */
+  swing(i: number, a: number): void {
+    const m = this.leaves?.children[i], l = this.inside?.indoors.leaves[i];
+    if (!m || !l) return;
+    const [x, z] = leafWay(l, a);
+    m.rotation.y = Math.atan2(-z, x);
+    m.updateMatrix();
+  }
+
   /** How lit the rooms are, 0 (lamps off, daylight only) … 1 (every lamp on). */
   setRoomLight(level: number): void {
     INTERIOR_LIGHT.room.value = Math.max(0, Math.min(1, level));
@@ -68,12 +88,14 @@ export class InteriorView {
 
   private clear(): void {
     if (this.mesh) this.unload(this.mesh);
+    if (this.leaves) this.unload(this.leaves);
     this.mesh = null;
+    this.leaves = null;
     this.inside = null;
   }
 
-  private unload(m: Mesh): void {
+  private unload(m: Mesh | Group): void {
     this.stage.remove(m);
-    m.geometry.dispose();
+    m.traverse((o) => (o as Mesh).geometry?.dispose());
   }
 }

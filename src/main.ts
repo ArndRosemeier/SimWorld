@@ -301,7 +301,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       const n = people.counts;
       const talk = cam.mode === 'drone' ? '' : chat.hint();
       const who = cam.mode === 'play' ? '\nW A S D to walk, Shift to hurry, drag to look around' : cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '' : '\nW A S D walk, drag to look, F follow someone, Esc up';
-      const whoTalk = who + (talk ? `\n${talk}` : '');
+      const door = cam.mode === 'play' ? goingIn.hint() : '';
+      const whoTalk = who + (talk ? `\n${talk}` : '') + (door ? `\n${door}` : '');
       hud.textContent = `${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${vehicles.counts.moving} vehicles on the road, ${vehicles.counts.parked} parked · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${whoTalk}`;
     }
   });
@@ -358,7 +359,12 @@ async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stag
   if (own) own.visible = false;
   // (The fog stays: it is part of every shader's key, and the game keeps it when you go in.)
   const { indoors: ind } = r, door = ind.doors[0], spot = q.has('spot') ? ind.spots[Number(q.get('spot'))] : undefined;
-  const [x, y, z, look] = spot ? [spot.x, spot.y, spot.z, spot.yaw] : [door.x - door.nx * 1.2, door.y, door.z - door.nz * 1.2, Math.atan2(-door.nx, -door.nz)];
+  // `leaf=<k>&open=<0…1>`: looking at door leaf k from 2.5 m on the side it opens to, swung open that far.
+  const leaf = q.has('leaf') ? ind.leaves[Number(q.get('leaf'))] : undefined;
+  if (leaf) view.swing(Number(q.get('leaf')), Number(q.get('open') ?? 0));
+  const [x, y, z, look] = leaf
+    ? [leaf.x + leaf.dx * leaf.w / 2 + leaf.nx * 2.5, leaf.y, leaf.z + leaf.dz * leaf.w / 2 + leaf.nz * 2.5, Math.atan2(-leaf.nx, -leaf.nz)]
+    : spot ? [spot.x, spot.y, spot.z, spot.yaw] : [door.x - door.nx * 1.2, door.y, door.z - door.nz * 1.2, Math.atan2(-door.nx, -door.nz)];
   const fixed = q.has('a') ? Number(q.get('a')) : null;
   document.getElementById('loading')?.remove();
   const hud = document.getElementById('hud');

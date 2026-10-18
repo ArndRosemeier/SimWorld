@@ -13,6 +13,7 @@ import { polyArea, type Poly } from '../geom/geom2';
 import type { WallWindows } from '../build/massing';
 import type { Interior, StreetDoor } from './building';
 import type { FurnKind, FurnUse } from './types';
+import { doorLeavesOf, type DoorLeaf } from './doors';
 
 /** A box: centre, half sizes along its own x (across), y and z (along), turned `yaw` about y (x = sin, z = cos). */
 export interface Box { x: number; y: number; z: number; hx: number; hy: number; hz: number; yaw: number }
@@ -45,6 +46,8 @@ export interface Indoors {
   slabs: Slab[];
   outer: OuterWall[];
   spots: IndoorSpot[];
+  /** A door leaf in every doorway, room doors and street doors (src/interior/doors.ts); the walls leave the doorways open. */
+  leaves: DoorLeaf[];
 }
 
 /** Thickness of the outer wall inside the facade (the 20 cm between facade and storey outline) and of inner walls. */
@@ -129,6 +132,7 @@ export function indoorsOf(I: Interior, base: number, windows: readonly WallWindo
     doors: I.doors.map((d) => ({ ...d, y: base })),
     colliders, ramps, slabs, outer,
     spots: I.spots.map((p) => ({ use: p.use, floor: p.floor, x: p.x, y: base + I.storeys[p.floor].y, z: p.z, yaw: p.yaw, seat: p.seat, unit: p.unit })),
+    leaves: doorLeavesOf(I, base),
   };
 }
 
