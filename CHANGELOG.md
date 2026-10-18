@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.098 — People walk round sign posts
+
+- Street-name posts, estate agents' posts, name and notice boards and the town signs now count as obstacles: people on the pavement step round them instead of walking through.
+- Street-name posts stand in the strip along the kerb with the street lamps, leaving the pavement clear for walking.
+
 ## v0.097 — Overheard talk sounds more like people
 
 - People ask about the news they hear and get answers that fit: "Boy or girl?", "Is it serious?", "Did they catch anyone?", "How long have they been together?".
