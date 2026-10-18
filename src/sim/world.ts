@@ -179,6 +179,10 @@ export const lastName = (world: World, id: ActorId): string => (world.actors.col
 
 // ---- lookups shared by the sim systems ---------------------------------------------------------------------
 
+/** What someone is doing, or going to do where they are heading (an A.* activity). */
+export const activityOf = (world: World, id: ActorId): number =>
+  world.actors.cols.dest[id] >= 0 ? world.actors.cols.planned[id] : world.actors.cols.activity[id];
+
 /** A living person (not an animal, not dead or moved away). */
 export const isPerson = (world: World, id: ActorId): boolean =>
   id >= 0 && id < world.actors.count && world.actors.cols.kind[id] === ACTOR_PERSON && world.actors.cols.alive[id] === 1;

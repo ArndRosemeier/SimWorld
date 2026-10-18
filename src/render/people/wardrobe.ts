@@ -59,6 +59,8 @@ function resolve(defId: string, v: ItemVisual): WearableSpec | null {
     case 'raincoat': return shell([...TORSO, ...ARMS(0.97)], 0.016, 3, fab('plain', { roughness: 0.3, sheen: 0.1 }), { trim: { width: 0.02, color: shade(c, 0.75) } });
     case 'blazer': return shell([...TORSO, ...ARMS(0.97)], 0.012, 3, fab('plain', { roughness: 0.7, sheen: 0.35 }), { skirt: { length: 0.22, flare: 0.05, slits: 1 }, trim: { width: 0.02, color: shade(c, 0.7) } });
     case 'coat': return shell([...TORSO, ...ARMS(0.97)], 0.02, 4, fab(pat, { roughness: 0.9, sheen: 0.4 }), { skirt: { length: 0.72, flare: 0.25, slits: 1 }, trim: { width: 0.03, color: c2 } });
+    /** A long robe to the ankles (Halloween: a ghost's sheet, a witch's gown). */
+    case 'robe': return shell([...TORSO, { region: 'neck', to: 0.4 }, ...ARMS(1)], 0.012, 3, fab('plain', { roughness: 0.92, sheen: 0.3 }), { skirt: { length: 0.98, flare: 0.3 } });
     case 'jeans': return shell(LEGS(0.97), 0.006, 1, fab('plain', { roughness: 0.92 }));
     case 'chinos': return shell(LEGS(0.98), 0.007, 1, fab(pat, { roughness: 0.8 }));
     case 'shorts': return shell(LEGS(0.4), 0.006, 1, fab(pat));
@@ -70,8 +72,22 @@ function resolve(defId: string, v: ItemVisual): WearableSpec | null {
     case 'beanie': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => beanie(fit, c) }], hideHair: true };
     /** A baseball cap: a shallow dome and a stiff peak forward. */
     case 'cap': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => cap(fit, c) }], hideHair: true };
+    /** A witch's hat: a tall dome with a wide brim. */
+    case 'witchHat': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => witchHat(fit, c, c2) }], hideHair: false };
+    /** Cat's ears on a band. */
+    case 'ears': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => ears(fit, c) }], hideHair: false };
     default: return null;
   }
+}
+
+/** A witch's hat: a wide flat brim and a tall narrow crown over it, the band in `band`. */
+function witchHat(fit: BodyFit, c: Rgb, band: Rgb): Object3D {
+  return domes(fit.headRadius, [[0, 0.55, -0.08, 1.9, 0.01, 1.9, c, 20, 1], [0, 0.6, -0.08, 1, 0.12, 1, band, 16, 0.5], [0, 0.6, -0.1, 0.95, 2.6, 0.95, c, 16, 0.5]]);
+}
+
+/** Two pointed ears up on the crown. */
+function ears(fit: BodyFit, c: Rgb): Object3D {
+  return domes(fit.headRadius, [-1, 1].map((s): DomePart => [s * 0.55, 0.75, -0.05, 0.3, 0.6, 0.14, c, 8, 0.5]));
 }
 
 /**
@@ -85,11 +101,16 @@ function beanie(fit: BodyFit, c: Rgb): Object3D {
 
 /** A cap: a shallow dome over the skull and a flat peak over the brow. */
 function cap(fit: BodyFit, c: Rgb): Object3D {
-  const r = fit.headRadius;
-  return solid((mb) => {
-    dome(mb, 0, r * 0.35, -r * 0.06, r * 1.1, r * 1.12, r * 1.18, c, 18, 0.5);
-    dome(mb, 0, r * 0.42, r * 1.1, r * 0.8, 0.006, r * 0.62, shade(c, 0.85), 16, 1);
-  });
+  return domes(fit.headRadius, [
+    [0, 0.35, -0.06, 1.1, 1.12, 1.18, c, 18, 0.5],
+    [0, 0.42, 1.1, 0.8, 0.006, 0.62, shade(c, 0.85), 16, 1],
+  ]);
+}
+
+/** A head piece of domes (`dome`'s arguments, sizes in head radii `r`). */
+type DomePart = [x: number, y: number, z: number, rx: number, ry: number, rz: number, c: Rgb, seg: number, frac: number];
+function domes(r: number, parts: DomePart[]): Object3D {
+  return solid((mb) => { for (const [x, y, z, rx, ry, rz, c, seg, frac] of parts) dome(mb, x * r, y * r, z * r, rx * r, ry * r, rz * r, c, seg, frac); });
 }
 
 /**

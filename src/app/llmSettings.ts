@@ -5,8 +5,8 @@
  * models are never defaults, but the player may choose anything.
  */
 import {
-  blendedPrice, CAPABILITIES, DEFAULT_TASK_MODELS, entryFromCatalog, fetchCatalog, OPENROUTER_KEYS_URL, qualifies, TASKS,
-  type Capability, type ModelEntry, type TaskName,
+  blendedPrice, CAPABILITIES, DEFAULT_DECISION_MODELS, DEFAULT_TASK_MODELS, entryFromCatalog, fetchCatalog, OPENROUTER_KEYS_URL, qualifies, TASKS,
+  type Capability, type DecisionName, type ModelEntry, type TaskName,
 } from '../llm';
 import type { LlmSetup } from '../game/llmSetup';
 import { button, checkbox, el, openDialog } from './dom';
@@ -42,6 +42,11 @@ const TASK_TEXT: Partial<Record<TaskName, [string, string]>> = {
   'memory.summary': ['Memories of a talk', 'What they remember of a conversation once it ends. Cheap.'],
   'npc.reflection': ['Reflections', 'Occasional conclusions from many memories. Rare.'],
   'skip.digest': ['Time-skip digest', 'What your inhabitant lived through while time was skipped. Cheap, long context.'],
+};
+
+/** The decision-model tasks the player configures (typed answers, no text; OpenRouter's Decisions API). */
+const DECISION_TEXT: Partial<Record<DecisionName, [string, string]>> = {
+  'npc.check': ['Quick checks', 'Before reading a reply: was it only small talk (then the reading is skipped), was your line rude or aimed at the AI. A decision model, about $0.00002 a check.'],
 };
 
 let styled = false;
@@ -120,6 +125,28 @@ function tasksSection(setup: LlmSetup): HTMLElement {
     row.append(reset);
     const plan = setup.llm.plan(task);
     box.append(row, el('div', 'plan', plan.length ? `Tries: ${plan.map((m) => m.label).join(' → ')}` : `No enabled model can do this (needs ${TASKS[task].routing.needs.join(', ')}).`));
+    s.append(box);
+  }
+  for (const task of Object.keys(DECISION_TEXT) as DecisionName[]) {
+    const [what, why] = DECISION_TEXT[task]!;
+    const box = el('div', 'llm-task');
+    box.append(el('div', 'what', what), el('p', '', why));
+    const row = el('div', 'llm-row');
+    const input = el('input', '');
+    input.type = 'text';
+    input.placeholder = 'Decision model ids, best first, separated by commas';
+    input.value = (setup.pins[task] ?? []).join(', ');
+    const keep = () => {
+      const ids = [...new Set(input.value.split(',').map((x) => x.trim()).filter(Boolean))];
+      const p = { ...setup.pins };
+      if (ids.length) p[task] = ids; else delete p[task];
+      setup.setPins(p);
+    };
+    input.addEventListener('change', keep);
+    const reset = button('', 'Default', () => { input.value = ''; keep(); });
+    row.append(input, reset);
+    const tries = [...new Set([...(setup.pins[task] ?? []), ...DEFAULT_DECISION_MODELS[task]])];
+    box.append(row, el('div', 'plan', `Tries: ${tries.join(' → ')}`));
     s.append(box);
   }
   return s;

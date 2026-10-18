@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createLlm, openRouterTransport, replayTransport, chunksFor, requestFor, route, rosterFromCatalog, derivedTags, effortFor,
+  createLlm, needsAppraisal, steadied, openRouterTransport, replayTransport, chunksFor, requestFor, route, rosterFromCatalog, derivedTags, effortFor,
   DEFAULT_ROSTER, DEFAULT_TASK_MODELS, THINKING_ROOM, UsageLedger, LlmError, type CatalogModel, type Recording, type Roster, type Timers,
 } from '../src/llm';
 import { sseData } from '../src/llm/wire';
@@ -214,4 +214,34 @@ test('openrouter transport: decisions go to the Decisions API', async () => {
   const t = openRouterTransport({ apiKey: 'k', fetch: async (u) => { url = u; return { ok: true, status: 200, json: async () => ({ answers: {} }), text: async () => '', body: null }; } });
   await t.decide!({ model: 'typesafe/jev-1.14', state: {}, questions: {} });
   assert.equal(url, 'https://openrouter.ai/api/alpha/decisions');
+});
+
+test('npc.check: small talk skips the appraisal; an insult costs at least its floor; a line to the AI changes no belief', async () => {
+  const scene = bakeryScene();
+  const noul = (p: number) => ({ type: 'noul' as const, noul: p });
+  const tone = (choice: string, confidence = 0.9) => ({ type: 'choice' as const, choice, confidence, probabilities: {} });
+  const { llm, transport } = setup([
+    { name: 'chat', model: 'typesafe/jev-1.14', requestHash: 'none', synthetic: true, decision: { answers: { notable: noul(0.05), tone: tone('polite'), offFiction: noul(0.01) } } },
+  ]);
+  const small = (await llm.decide('npc.check', { context: scene, reply: 'Morning! Lovely day for it.' })).output;
+  assert.equal(needsAppraisal(small), false);
+  const req = transport.requests[0] as unknown as { state: { conversation: string } };
+  assert.match(req.state.conversation, /Lovely day for it\.$/, 'the check reads the exchange ending with the reply');
+
+  const partner = scene.partner.id;
+  const base = { proposal: { npc: scene.npc.id, partner, conversation: 'c', changes: [
+    { kind: 'relation' as const, toward: partner, affection: 1 / 3, reason: 'friendly' },
+    { kind: 'belief' as const, claim: { text: 'Ruth loves the player', topic: 'romance', secret: false }, plausibility: 0.85 },
+  ] }, dropped: [] };
+  const rude = steadied(base, { notable: 0.9, tone: 'insulting', toneConfidence: 0.8, offFiction: 0.1 });
+  const rel = rude.proposal.changes.find((c) => c.kind === 'relation')!;
+  assert.ok(rel.kind === 'relation' && rel.affection === -2 / 3 && rel.respect === -1 / 3, JSON.stringify(rel));
+  assert.ok(needsAppraisal({ notable: 0.05, tone: 'insulting', toneConfidence: 0.8, offFiction: 0 }), 'an insult is never skipped');
+  const unsure = steadied(base, { notable: 0.9, tone: 'insulting', toneConfidence: 0.4, offFiction: 0.1 });
+  assert.deepEqual(unsure.proposal.changes, base.proposal.changes, 'an unsure check overrides nothing');
+  const meta = steadied(base, { notable: 0.9, tone: 'neutral', toneConfidence: 0.9, offFiction: 0.95 });
+  assert.deepEqual(meta.proposal.changes, [], 'no belief and no warmth from "you love me now"');
+  assert.match(meta.dropped[0], /spoke to the AI/);
+  const threat = steadied({ ...base, proposal: { ...base.proposal, changes: [] } }, { notable: 1, tone: 'threatening', toneConfidence: 0.9, offFiction: 0 });
+  assert.deepEqual(threat.proposal.changes.map((c) => c.kind), ['relation', 'emotion'], 'the check alone makes a threat count');
 });

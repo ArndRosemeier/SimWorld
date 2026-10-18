@@ -5,7 +5,7 @@
  */
 import {
   createLlm, DEFAULT_ROSTER, fetchCatalog, openRouterTransport, rosterFromCatalog, UsageLedger,
-  type LedgerSnapshot, type Llm, type Roster, type TaskName, type Transport,
+  type DecisionName, type LedgerSnapshot, type Llm, type Roster, type TaskName, type Transport,
 } from '../llm';
 import { readJsonPref, readPref, writePref } from '../persist/prefs';
 
@@ -16,7 +16,7 @@ const K_USAGE = 'llm.usage';
 /** Entries kept with the saved ledger (the totals keep counting beyond them). */
 const SAVED_ENTRIES = 300;
 
-export type Pins = Partial<Record<TaskName, string[]>>;
+export type Pins = Partial<Record<TaskName | DecisionName, string[]>>;
 
 export class LlmSetup {
   key: string;

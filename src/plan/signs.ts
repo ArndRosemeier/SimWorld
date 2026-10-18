@@ -15,7 +15,9 @@
  *  - posters: a few lamp posts per street where posters for the street's notices go up (on the
  *    pavement side of the post);
  *  - boards: a notice board for each place that has one (BOARD_KINDS): beside a public building's
- *    name board, in a shop's window (or on the wall by its door), at a square's edge by the street.
+ *    name board, in a shop's window (or on the wall by its door), at a square's edge by the street;
+ *  - clocks (`clockSpots`, apart: it needs the landmarks' parts): the dials on the town hall's
+ *    tower, the church tower and the station.
  *
  * `signFootprints` lists what of it stands on the ground (posts and legs), for the walkers'
  * footprints (src/plan/footprints.ts).
@@ -28,12 +30,13 @@
  * fronts, the gardens and the kerbs); the signs track only reads it.
  */
 import { alongLine } from '../geom/geom2';
-import { dwellingsOf, flatsDoorBay, streetDoor, type BuildingDesc } from './building';
+import { baysOf, dwellingsOf, facadeFront, flatsDoorBay, streetDoor, type BuildingDesc } from './building';
 import { kerbStrip, PropType } from './cell';
 import { SITE } from './placeGraph';
 import { BOARD_KINDS } from '../sim/placeKinds';
 import type { PlaceKind } from '../sim/places';
 import { siteToWorld } from './landmarks';
+import { landmarkParts } from './landmarkParts';
 import { eachBuilding } from './placeGraph';
 import { LineSource, type TownRoads } from './roads';
 import type { Town } from './town';
@@ -112,6 +115,27 @@ export function signSpots(town: Town, roads: TownRoads, places: BoardPlaces = []
   });
   const sites = siteSigns(town);
   return { fronts, homes, sites, corners: cornerSigns(roads), gateways: gatewaySigns(town, roads), posters: posterSpots(town, roads), boards: noticeBoards(fronts, sites, roads, places) };
+}
+
+/** A public clock's dial (the town hall's tower, the church tower, the station's gable): its centre just in front of the face, its size (m, square). */
+export interface ClockSpot { x: number; z: number; y: number; yaw: number; size: number }
+
+/** How far in front of its plate a dial stands (m). */
+const DIAL_OUT = 0.01;
+
+/** The public clocks of the town: the clock faces of its landmarks (`LmPart.clock`, src/plan/landmarkParts.ts). */
+export function clockSpots(town: Town): ClockSpot[] {
+  const out: ClockSpot[] = [];
+  for (const lm of town.macro.landmarks) {
+    if (lm.kind !== 'townhall' && lm.kind !== 'church' && lm.kind !== 'station') continue;
+    for (const p of landmarkParts(lm, town.terrain)) {
+      if (!p.clock) continue;
+      // The part's v is (-sin a, cos a); the dial looks out on its `clock` side.
+      const nx = -Math.sin(p.a) * p.clock, nz = Math.cos(p.a) * p.clock, out0 = p.hz + DIAL_OUT;
+      out.push({ x: p.x + nx * out0, z: p.z + nz * out0, y: (p.y0 + p.y1) / 2, yaw: facing(nx, nz), size: p.hx * 2 * 0.92 });
+    }
+  }
+  return out;
 }
 
 /** Lamp posts per street that carry posters, and how far apart along the street they are at least (m). */
@@ -204,18 +228,11 @@ export function signFootprints(spots: SignSpots): number[] {
 }
 
 /** The front edge: its start, unit direction, length and the outward normal. */
-function facadeFront(b: BuildingDesc) {
-  const P = b.poly, n = P.length >> 1, i = b.front % n, j = (i + 1) % n;
-  const ax = P[i * 2], az = P[i * 2 + 1], L = Math.hypot(P[j * 2] - ax, P[j * 2 + 1] - az) || 1;
-  const dx = (P[j * 2] - ax) / L, dz = (P[j * 2 + 1] - az) / L;
-  return { ax, az, dx, dz, L, nx: dz, nz: -dx };
-}
-
 function frontSign(b: BuildingDesc, code: number): FrontSign {
   const e = facadeFront(b), door = streetDoor(b);
   const onFront = (s: number, out: number) => ({ x: e.ax + e.dx * s + e.nx * out, z: e.az + e.dz * s + e.nz * out });
   const yaw = facing(e.nx, e.nz);
-  const bays = Math.max(1, Math.round(e.L / b.bay)), bayW = e.L / bays;
+  const bays = baysOf(b, e.L), bayW = e.L / bays;
   // The opening hours: on the wall beside the door, on the side with more room.
   const hs = door.s1 + 0.3 < e.L - 0.2 ? door.s1 + 0.25 : door.s0 - 0.25;
   const hours = { ...onFront(hs, OFF_WALL * 0.5), y: 1.45 };
