@@ -353,7 +353,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     // Asked to start straight away (`?be`, `?street`, `?follow`, `?still`): no title, the town as soon as it shows.
     if (!shown && straight && view.done > 0) startPlay();
     minimap.keepUp(shown ? mapMe() : null, mapMarks);
-    shell.setWhen(`${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(sim.clock)))} · ${describeWeather(w)}`);
+    shell.setWhen(`${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(sim.shownClock)))} · ${describeWeather(w)}`);
     if (hud) {
       const n = people.counts;
       const talk = cam.mode === 'drone' ? '' : chat.hint();
