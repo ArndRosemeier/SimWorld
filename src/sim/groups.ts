@@ -24,10 +24,10 @@ import { encounter } from './encounters';
 import { addFact, broadcast, witness, type FactTopic } from './knowledge';
 import { closeTo } from './life';
 import { remember } from './memory';
-import { T_AGREE, T_CONSC, T_EXTRA, T_NEURO, T_OPEN, V_AMBITION, V_FAITH, V_LOYAL } from './people';
+import { T_CONSC, T_EXTRA, V_AMBITION, V_FAITH } from './people';
 import { popcount, type DayMask, type PlaceId, type PlaceKind } from './places';
-import { MINUTES_PER_DAY } from './time';
-import { ageOf, isPerson, placesOf, tickRng, traitOf, valueOf, type World } from './world';
+import { dayOf, MINUTES_PER_DAY } from './time';
+import { ageOf, isPerson, placesOf, tickRng, traitOf, valueOf, weighed, type Weights, type World } from './world';
 
 export const GROUP_KINDS = [
   'football', 'choir', 'firebrigade', 'rifle', 'allotment', 'churchgroup', 'youth', 'books', 'running', 'cards', 'history',
@@ -131,9 +131,8 @@ const MON = 1, TUE = 2, WED = 4, THU = 8, FRI = 16, SAT = 32, SUN = 64;
  * Who a kind of group appeals to: `base` plus weights on traits and values, then a factor by age band (the first
  * band whose upper age is reached), by sex, and by home (people in flats have no garden).
  */
-interface Liking {
+interface Liking extends Weights {
   base?: number;
-  open?: number; consc?: number; extra?: number; agree?: number; neuro?: number; loyal?: number; ambition?: number; faith?: number;
   ages?: [number, number][];
   men?: number;
   women?: number;
@@ -142,10 +141,7 @@ interface Liking {
 }
 
 function liking(world: World, id: ActorId, age: number, l: Liking): number {
-  const tr = (k: number) => traitOf(world, id, k), va = (k: number) => valueOf(world, id, k);
-  let x = (l.base ?? 0) + (l.open ?? 0) * tr(T_OPEN) + (l.consc ?? 0) * tr(T_CONSC) + (l.extra ?? 0) * tr(T_EXTRA)
-    + (l.agree ?? 0) * tr(T_AGREE) + (l.neuro ?? 0) * tr(T_NEURO) + (l.loyal ?? 0) * va(V_LOYAL) + (l.ambition ?? 0) * va(V_AMBITION)
-    + (l.faith ?? 0) * va(V_FAITH);
+  let x = (l.base ?? 0) + weighed(world, id, l);
   if (l.ages) x *= l.ages.find(([upTo]) => age <= upTo)?.[1] ?? 1;
   x *= world.actors.cols.sex[id] === MALE ? l.men ?? 1 : l.women ?? 1;
   if (l.flat) x *= world.graph.places[world.actors.cols.home[id]]?.kind === 'apartments' ? l.flat[0] : l.flat[1];
@@ -302,7 +298,7 @@ function people(world: World): ActorId[] {
 export function foundGroups(world: World, rng: Rng): void {
   const everyone = people(world);
   const clubs = new Map<ActorId, number>();
-  const day = Math.floor(world.clock / MINUTES_PER_DAY);
+  const day = dayOf(world.clock);
   for (const kind of GROUP_KINDS) {
     if (kind === 'congregation') {
       for (const church of placesOf(world, ['church'])) {
@@ -385,6 +381,13 @@ function join(world: World, g: Group, id: ActorId, day: number, quiet = false): 
   if (!quiet) remember(world, id, { who: [], summary: `I joined ${g.name}`, importance: 0.35, emotion: 'joy' });
 }
 
+/** The council after an election (src/sim/politics.ts): exactly `ids`, changed in place; those re-elected keep their join day. */
+export function seat(world: World, g: Group, ids: readonly ActorId[]): void {
+  const day = dayOf(world.clock);
+  for (let k = g.members.length - 1; k >= 0; k--) if (!ids.includes(g.members[k])) leave(g, k);
+  for (const id of ids) join(world, g, id, day, true);
+}
+
 function leave(g: Group, k: number): void {
   const id = g.members[k];
   g.members.splice(k, 1);
@@ -439,7 +442,7 @@ const agmMonth = (world: World, g: Group) => (g.kind === 'council' ? 1 : 1 + (ha
 function churn(world: World, g: Group, everyone: ActorId[], clubs: Map<ActorId, number>, rng: Rng): void {
   const s = SPECS[g.kind];
   const a = world.actors.cols;
-  const day = Math.floor(world.clock / MINUTES_PER_DAY);
+  const day = dayOf(world.clock);
   for (let k = g.members.length - 1; k >= 0; k--) {
     const id = g.members[k];
     if (!a.alive[id]) { leave(g, k); continue; }
@@ -498,7 +501,7 @@ function syncJobs(world: World, g: Group): void {
     if (!role) continue;
     const j = world.jobs.find((x) => x.role === role && x.holder >= 0 && (x.place === g.place || g.kind === 'firebrigade'));
     const holder = j ? j.holder : -1;
-    if (holder >= 0 && !g.members.includes(holder)) join(world, g, holder, Math.floor(world.clock / MINUTES_PER_DAY), true);
+    if (holder >= 0 && !g.members.includes(holder)) join(world, g, holder, dayOf(world.clock), true);
     o.holder = holder >= 0 ? holder : o.holder;
   }
 }
@@ -511,7 +514,7 @@ function syncJobs(world: World, g: Group): void {
 function elect(world: World, g: Group, rng: Rng, agm: boolean, news = true): void {
   syncJobs(world, g);
   const jobs = SPECS[g.kind].jobs ?? {};
-  const day = Math.floor(world.clock / MINUTES_PER_DAY);
+  const day = dayOf(world.clock);
   for (const o of g.offices) {
     if (jobs[o.title]) continue; // goes with the job, never elected
     const k = g.members.indexOf(o.holder);
@@ -602,7 +605,7 @@ function found(world: World, everyone: ActorId[], clubs: Map<ActorId, number>, r
     if (w > bw) { bw = w; founder = id; }
   }
   if (founder < 0) return;
-  const day = Math.floor(world.clock / MINUTES_PER_DAY);
+  const day = dayOf(world.clock);
   const g = newGroup(world, kind, venueFor(world, kind), day);
   join(world, g, founder, day);
   g.offices[0].holder = founder;
