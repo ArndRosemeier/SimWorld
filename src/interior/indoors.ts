@@ -10,6 +10,7 @@
  * src/interior/Interiors.ts). Pure: a function of the interior and where the building stands.
  */
 import { polyArea, type Poly } from '../geom/geom2';
+import { STREET_DOOR } from '../plan/building';
 import type { WallWindows } from '../build/massing';
 import type { Interior, StreetDoor } from './building';
 import type { FloorPlan, FurnKind, FurnUse } from './types';
@@ -53,7 +54,7 @@ export interface Indoors {
 /** Thickness of the outer wall inside the facade (the 20 cm between facade and storey outline) and of inner walls. */
 const OUTER_T = 0.2, INNER_T = 0.12;
 /** Height of a street door's opening. */
-export const STREET_DOOR_H = 2.15;
+export const STREET_DOOR_H = STREET_DOOR.h;
 /** Pieces nobody walks into: on the floor flat, or on a wall. */
 export const FLAT = new Set<FurnKind>(['rug', 'painting', 'mirror', 'screen']);
 

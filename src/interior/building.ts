@@ -59,8 +59,9 @@ export interface Interior {
   work: Work | null;
   spots: Spot[];
   /**
-   * The street doors on the ground floor (on the facade): the building's (`streetDoor`) and, for
-   * homes over a workplace with their own hall, the flats' (`homes`; plan/building flatsDoor).
+   * The street doors on the ground floor (on the facade), each where the facade paints it: the building's
+   * (`streetDoor`) and, for homes over a workplace, the flats' (`homes`; plan/building flatsDoor), into their own hall
+   * to the stairs where one fits.
    */
   doors: StreetDoor[];
 }
@@ -201,8 +202,10 @@ export function planInterior(b: BuildingDesc, place?: PlaceUse): Interior {
   const spots = spotsOf(storeys);
   const kind = kindOf(b, place);
   standIn(storeys, spots, kind ? peakStaff(place?.staff ?? defaultStaff(kind)) : 0);
-  const doors = [streetDoorOf(b, door, !fd || !cores.entry ? dwellingsOf(b) > 0 : false)];
-  if (fd && cores.entry) doors.push(streetDoorOf(b, fd, true));
+  const doors = [streetDoorOf(b, door, !fd ? dwellingsOf(b) > 0 : false)];
+  // The flats' door is where the facade paints it and the homes' place is (plan/building flatsDoor), with their own
+  // hall to the stairs where it fits, else into the workplace, whose stairs go up.
+  if (fd) doors.push(streetDoorOf(b, fd, true));
   return { storeys, units: unitsOf(storeys), work: workOf(b, place?.kind), spots, doors };
 }
 
