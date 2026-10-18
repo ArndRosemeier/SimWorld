@@ -20,6 +20,7 @@ import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIE
 import { atMinute, dayOf, MINUTES_PER_DAY, minuteOfDay, weekdayOf } from './time';
 import { drawingOn } from './agenda';
 import { awayRide } from './offsite';
+import { DRIVE_IF_WALK_OVER } from './travel';
 import { isCold, isFoul, isNiceOut, isWetOut, weatherAt } from './weather';
 import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
 import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, tripOf, type World } from './world';
@@ -116,8 +117,9 @@ export function go(world: World, id: ActorId, place: PlaceId, activity: number, 
     const car = hasCar(world, id);
     // Out of town without a car: the next bus or train on the timetable (the school bus for pupils), else a lift.
     const ride = car ? null : awayRide(world, from, place, now);
-    const t = ride ? ride.minutes : world.travel.minutes(from, place, car);
-    world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode: ride ? ride.mode : world.travel.mode(from, place, car), leader: -1, run: ride ? ride.run : -1 });
+    const walkUpTo = car ? walkLimit(world, id, place, activity) : DRIVE_IF_WALK_OVER;
+    const t = ride ? ride.minutes : world.travel.minutes(from, place, car, walkUpTo);
+    world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode: ride ? ride.mode : world.travel.mode(from, place, car, walkUpTo), leader: -1, run: ride ? ride.run : -1 });
     a.dest[id] = place;
     a.arrive[id] = now + t;
     const street = world.streetOf[place];
@@ -129,6 +131,33 @@ export function go(world: World, id: ActorId, place: PlaceId, activity: number, 
   leadFollowers(world, id);
 }
 
+/** Places where people buy more than they can carry home. */
+const BIG_SHOP = new Set<PlaceKind>(['supermarket', 'hardware', 'garage', 'petrol']);
+
+/**
+ * How many minutes someone with a car will walk before they take it, for this trip. In a modern western town most
+ * trips over a kilometre or so are driven: each person has a habit (some walk 15 minutes, some drive 300 metres), and
+ * the weekly shop, rain, cold, the dark, age, small children along and a working day (the commute, the school run)
+ * all tip it towards the car. The traffic is built from these choices.
+ */
+export function walkLimit(world: World, id: ActorId, place: PlaceId, activity: number): number {
+  // The person's habit: 3 to 15 minutes, most people around 7.
+  const h = (hashCombine(hashCombine(world.seed, 0x77a1c), id) >>> 0) / 4294967296;
+  let limit = 3 + 12 * h * h;
+  if (activity === A.work) limit *= 0.7;
+  const sky = weatherAt(world);
+  if (isWetOut(sky) || isFoul(sky)) limit *= 0.4;
+  else if (isCold(sky)) limit *= 0.7;
+  else if (isNiceOut(sky)) limit *= 1.3;
+  const m = minuteOfDay(world.clock), sun = sunAt(world, world.clock);
+  if (m < sun.rise || m > sun.set) limit *= 0.7;
+  if (ageOf(world, id) >= 70) limit *= 0.6;
+  const hh = householdOf(world, id);
+  if (hh) for (const f of hh.members) if (world.actors.cols.with[f] === id && ageOf(world, f) < 8) { limit *= 0.6; break; }
+  // More shopping than one can carry home: the car, unless the shop is round the corner.
+  const kind = world.graph.places[place].kind;
+  return BIG_SHOP.has(kind) || (activity === A.shop && kind === 'grocer') ? Math.min(limit, 3) : limit;
+}
 
 /** Copy the leader's movement to everyone who goes with them, or release them when the outing is over. */
 function leadFollowers(world: World, leader: ActorId): void {

@@ -50,3 +50,11 @@ test('weather: a pure function of the minute, with seasons, snow in winter and w
   assert.equal(weatherAt(world), weatherAt(world));
   assert.deepEqual(weatherAt(world), a.weather(jan));
 });
+
+test('weather: keyed to the date, so a town started on any day sees the same Christmas', () => {
+  const a = daysOf(2026, 11, 2), b = daysOf(2026, 12, 21); // two Mondays
+  const xmas = daysOf(2026, 12, 25);
+  const wa = new WeatherModel(5, a).weather((xmas - a) * 1440 + 600), wb = new WeatherModel(5, b).weather((xmas - b) * 1440 + 600);
+  assert.equal(wa.kind, wb.kind);
+  assert.ok(Math.abs(wa.tempC - wb.tempC) < 1e-9 && Math.abs(wa.snowCm - wb.snowCm) < 1e-6 && Math.abs(wa.windDir - wb.windDir) < 1e-9);
+});

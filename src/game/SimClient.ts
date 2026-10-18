@@ -9,7 +9,7 @@
 import { WorkerPool } from '../workers/pool';
 import simWorkerUrl from '../workers/sim.worker.ts?worker&url';
 import type { ActorInfo, FromSim, HeightGrid, ToSim } from '../workers/simProtocol';
-import type { CivilDate } from '../sim/calendar';
+import { DEFAULT_LATITUDE, daysOf, epochFor, weekdayOfDays, type CivilDate } from '../sim/calendar';
 import type { SimView } from '../sim/view';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
@@ -21,15 +21,35 @@ export const STREET_RADIUS = 260;
 
 /**
  * When play begins: today (the real date; the calendar puts its week on the clock, day 0 its Monday), today's
- * weekday as the game day, at `time` ("HH:MM") or else the time of day now. The game is where the wall clock
- * enters (plan, "town realism"); the sim only ever gets these numbers.
+ * weekday as the game day, at `time` ("HH:MM") or else the time of day now. `date` ("YYYY-MM-DD") starts on
+ * another day instead, for a look at another season. The game is where the wall clock enters (plan, "town
+ * realism"); the sim only ever gets these numbers.
  */
-export function playStart(time: string | null): { start: CivilDate; startDay: number; clock: number } {
+export function playStart(time: string | null, date: string | null = null): { start: CivilDate; startDay: number; clock: number } {
   const now = new Date();
-  const startDay = (now.getDay() + 6) % 7;
+  const dm = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(date ?? '');
+  const start = dm ? { year: +dm[1], month: +dm[2], day: +dm[3] } : { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
+  const startDay = weekdayOfDays(daysOf(start.year, start.month, start.day));
   const m = time && /^\d{1,2}:\d{2}$/.test(time) ? Number(time.split(':')[0]) * 60 + Number(time.split(':')[1]) : now.getHours() * 60 + now.getMinutes();
   // The world is made at 06:00 of its first day; earlier times are the next morning.
-  return { start: { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() }, startDay, clock: startDay * 1440 + (m >= 360 ? m : m + 1440) };
+  return { start, startDay, clock: startDay * 1440 + (m >= 360 ? m : m + 1440) };
+}
+
+/**
+ * The world as the sky and the sound read it (the calendar and the weather): the sim's seed, epoch and latitude,
+ * its clock (`sim.clock`, set each frame once the sim runs), and the region once the town knows it. Before the
+ * sim is up it stands on the start of play.
+ */
+export interface ScreenWorld { readonly seed: number; epoch: number; readonly latitude: number; clock: number; region: { region: { coastal?: boolean } } | null }
+
+export function screenWorld(seed: number, play: ReturnType<typeof playStart>): ScreenWorld {
+  return { seed, epoch: epochFor(play.start, play.startDay), latitude: DEFAULT_LATITUDE, clock: play.clock, region: null };
+}
+
+/** Put `w` on the running sim: its epoch (from the view's date) and its clock now. */
+export function followSim(w: ScreenWorld, sim: SimClient): void {
+  w.epoch = sim.view.date.days - Math.floor(sim.view.clock / 1440);
+  w.clock = sim.clock;
 }
 
 /** Someone out of doors near the camera. */

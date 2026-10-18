@@ -104,8 +104,8 @@ function search(world: World, pet: ActorId, l: LostPet, day: number, days: numbe
   const pFound = 1 - Math.pow(1 - 0.02 - 0.3 * clamp(knowers / SEARCHERS, 0, 1), days);
   const pHome = 1 - Math.pow(1 - (HOME_ALONE[species] ?? 0), days);
   const home = a.home[pet];
-  if (finder >= 0 && rng.chance(pFound)) return found(world, pet, l, hh, day, finder);
-  if (rng.chance(pHome)) return found(world, pet, l, hh, day, -1);
+  if (finder >= 0 && rng.chance(pFound)) return comeHome(world, pet, l, hh, day, finder);
+  if (rng.chance(pHome)) return comeHome(world, pet, l, hh, day, -1);
   if (day - l.since < GIVE_UP) return;
   // The family gives up.
   const gone = addFact(world, { topic: 'family', text: `{object}'s ${species} {subject} never came home`, subject: pet, object: l.owner, place: world.streetOf[home], magnitude: 0.35 });
@@ -118,7 +118,7 @@ function search(world: World, pet: ActorId, l: LostPet, day: number, days: numbe
   leaveTown(world, pet, rng.fork('gone'));
 }
 
-function found(world: World, pet: ActorId, l: LostPet, hh: Household, day: number, finder: ActorId): void {
+function comeHome(world: World, pet: ActorId, l: LostPet, hh: Household, day: number, finder: ActorId): void {
   const home = hh.home;
   const text = finder >= 0 ? `{object} found {subject}, the missing ${SPECIES[world.actors.cols.species[pet]].name}, and brought it home` : '{subject} came home on its own';
   const fact = addFact(world, { topic: 'family', text, subject: pet, object: finder, place: world.streetOf[home], magnitude: 0.35 });

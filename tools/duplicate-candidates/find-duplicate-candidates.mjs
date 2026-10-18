@@ -1212,7 +1212,7 @@ function sortIgnored(pairs) {
  * `ignoreList: []` disables the filter entirely (the `--no-ignore` flag).
  *
  * @param {object[]} functions output of scanTree().functions
- * @param {{floor?:number, confirmFloor?:number, sizeRatio?:number, stats?:object, ignoreList?:string[]|null}} [opts]
+ * @param {{floor?:number, confirmFloor?:number, sizeRatio?:number, stats?:object, ignoreList?:string[]|null, nearNames?:boolean}} [opts]
  */
 export function groupCandidates(functions, opts = {}) {
   const stats = opts.stats || newPruneStats();
@@ -1265,7 +1265,11 @@ export function groupCandidates(functions, opts = {}) {
   }
   const tier2 = processTier(normalised, 2);
 
-  // Tier 3 — near name match (affix stripping + token split + edit distance).
+  // Tier 3 — near name match (affix stripping + token split + edit distance). The costly
+  // tier; `nearNames: false` skips it (the CI ratchet reads tiers 1 and 2 only).
+  if (opts.nearNames === false) {
+    return { tier1, tier2, tier3: [], ignored: sortIgnored(ignored), ignoredByName, ignoredTotal: ignored.length, ignoreList: ignoreList || [], stats };
+  }
   const byName = new Map();
   for (const fn of functions) {
     if (!byName.has(fn.name)) byName.set(fn.name, []);

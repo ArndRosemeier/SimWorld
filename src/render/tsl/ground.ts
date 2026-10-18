@@ -15,6 +15,7 @@ import {
 } from 'three/tsl';
 import { h_fbm2 as fbm2, h_noise2 as vnoise } from '@futuremagic/humanoid/three/nodes/peopleNoise';
 import { WARP_K1, WARP_K2, type ParcelParams } from '../../world/landuse';
+import { LIGHT, SNOW_ALBEDO, SLUSH_ALBEDO } from './common';
 
 /** Sets the diffuse colour without colorNode (the shadow pass would evaluate colorNode). */
 export function setDiffuse(mat: NodeMaterial, node: () => unknown): void {
@@ -138,7 +139,16 @@ export function terrainLook(mat: NodeMaterial): void {
       a.assign(mix(a, c, rural.mul(sub(1.0, wRock.mul(0.6)))));
     });
     a.assign(mix(a, sand, wSand));
-    return a.mul(mix(0.85, 1.1, n)).mul(mix(0.92, 1.06, fine));
+    a.assign(a.mul(mix(0.85, 1.1, n)).mul(mix(0.92, 1.06, fine)));
+    // Rain darkens the ground a little; snow lies on the flat and thins on slopes and under the forest canopy.
+    a.mulAssign(sub(1.0, mul(0.18, LIGHT.wet)));
+    If(LIGHT.snow.greaterThan(0.001), () => {
+      const forest = attribute('aLand', 'vec4').x;
+      const lie = smoothstep(0.55, 0.85, wN.y).mul(sub(1.0, mul(0.55, forest))).mul(sub(1.0, wSand.mul(0.7)));
+      const patchy = smoothstep(0.15, 0.6, LIGHT.snow.mul(1.3).add(n.sub(0.5).mul(0.5)).sub(fine.mul(0.15)));
+      a.assign(mix(a, vec3(...SNOW_ALBEDO).mul(mix(0.9, 1.02, fine)), lie.mul(patchy)));
+    });
+    return a;
   });
   const albedo = S().toVar('terrainAlbedo');
   setDiffuse(mat, () => albedo);
@@ -182,7 +192,28 @@ export function groundLook(mat: NodeMaterial): void {
       const g = abs(fract(p.div(s)).sub(0.5)).mul(2.0);
       alb.mulAssign(mix(1.0, 0.82, smoothstep(0.88, 0.97, max(g.x, g.y))));
     });
-    return vec4(alb, c.a);
+    const rough = c.a.toVar();
+    // Hard surfaces: asphalt, paving, curbs, plazas, cobbles, promenade, markings, quay walls.
+    const soft = layer.equal(3).or(layer.equal(6)).or(layer.equal(11));
+    const road = layer.equal(0).or(layer.equal(8)).or(layer.equal(9)).or(layer.equal(10));
+    // Rain: hard surfaces darken and turn glossy, puddles gather in the hollows (Scale's wet streets); lawns and
+    // gravel only darken.
+    If(LIGHT.wet.greaterThan(0.001), () => {
+      const dip = fbm2(p.mul(0.15).add(5.3)).add(grain.mul(0.08));
+      const pud = select(soft, 0.0, smoothstep(0.7, 0.76, dip.add(LIGHT.wet.mul(0.2)).sub(0.14)).mul(smoothstep(0.45, 0.9, LIGHT.wet)));
+      alb.mulAssign(mix(1.0, select(soft, 0.82, 0.62), LIGHT.wet).mul(sub(1.0, mul(0.35, pud))));
+      rough.assign(mix(rough, select(soft, rough.mul(0.85), rough.mul(0.38)), LIGHT.wet));
+      rough.assign(mix(rough, 0.05, pud));
+    });
+    // Snow: a white cover on lawns, yards and sidewalks (shovelled thinner), trodden slush on the roads.
+    If(LIGHT.snow.greaterThan(0.001), () => {
+      const cover = LIGHT.snow.mul(select(soft, 1.0, select(road, 0.4, 0.8)));
+      const patchy = smoothstep(0.1, 0.55, cover.mul(1.2).add(macro.sub(0.5).mul(0.5)).sub(grain.mul(0.1)));
+      const col = select(road, mix(vec3(...SLUSH_ALBEDO), vec3(...SNOW_ALBEDO), smoothstep(0.55, 0.95, macro).mul(0.6)), vec3(...SNOW_ALBEDO));
+      alb.assign(mix(alb, col.mul(mix(0.92, 1.03, grain)), patchy));
+      rough.assign(mix(rough, select(road, 0.45, 0.75), patchy));
+    });
+    return vec4(alb, rough);
   });
   const v = S().toVar('groundS');
   setDiffuse(mat, () => v.rgb);

@@ -147,7 +147,7 @@ export function duplicationFindings(root = REPO, roots = RULES.duplication.roots
     }
     if (finders.includes('names')) {
       const tree = scanTree(dir, { displayBase: dir });
-      const g = groupCandidates(tree.functions);
+      const g = groupCandidates(tree.functions, { nearNames: false }); // tiers 1 and 2 only
       for (const p of [...g.tier1, ...g.tier2]) {
         if ((p.status === 'compared' || p.status === 'confirmed') && p.sim >= DEFAULT_CONFIRM_FLOOR) out.push(`same name: ${[`${p.a.file}#${p.a.name}`, `${p.b.file}#${p.b.name}`].sort().join(' + ')}`);
       }
