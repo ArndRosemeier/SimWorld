@@ -62,6 +62,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Farms, country roads, level crossings | `RuralPlan` (`farms`, `roads`, `crossings`, `layout(farm)`, `roadEdge`) | `src/world/rural.ts` |
 | Which ground-floor uses does a town have, which sim place kind is each? | `AmenityKind`, `amenityCounts(pop, warm)`, `PLACE_KIND_OF`, `EATERY_OF`, `AMENITY_LABEL` (hours, staff and capacity are the sim's `placeKinds`) | `src/plan/amenities.ts` |
 | What is this shop front / workplace? | `b.amenity` (set by `planTown`), `b.eatery` for the terrace kind | `src/plan/town.ts`, `src/plan/eatery.ts` |
+| The country around the town (big city, larger town, villages, river, roads), as lore | `regionOf(town)` → `Region` (sim contract in `src/sim/region.ts`); `planRegion(hints)` without planning a town | `src/plan/region.ts` |
 | The town as the sim sees it (places, addresses, road network) | `placeGraphOf(town)` → `PlaceGraph`; `buildingRef(place.building)` back to the cell building, site or farm | `src/plan/placeGraph.ts` |
 | 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |
 | Polygon union, difference, intersection, offset | `src/geom/clip.ts` (clipper) | `src/geom/clip.ts` |
@@ -101,6 +102,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Move an actor or change what they do | `go(world, id, place, activity, until)` (travel, followers); decisions come from `decideAll` | `src/sim/schedule.ts` |
 | Who meets whom right now? | `encounters(world)` (last tick's conversations, with what was told); `presentAt(world, place)` | `src/sim/encounters.ts` |
 | What does this person believe, and from whom? | `beliefsOf(world, id)`; facts are created with `addFact` and spread with `witness` / `tell` / `broadcast`; `reach` for rumour metrics | `src/sim/knowledge.ts` |
+| What does this person just know (region lore, where someone grew up), without it being news? | standing knowledge: `addStanding(world, fact, { share, minAge, holders })`, `knowsStanding`, `standingOf(world, id)` (source `SOURCE_COMMON`, never fades, never gossiped). Region lore and people's ties to it come from `createWorld(graph, seed, { region })` via `settleRegion` → `world.region` | `src/sim/knowledge.ts`, `src/sim/region.ts` |
 | What does this person remember? Which memories matter for this conversation? | `remember`, `memoriesOf`, `recall(world, id, query)` | `src/sim/memory.ts` |
 | How do two actors feel about each other? | `relation(world, a, b)`; `bond`, `meet` to change it | `src/sim/relations.ts` |
 | What is this person about to do, and why? | the intention stack: `intentionsOf`, `intend`; carried out by `performIntention` | `src/sim/intentions.ts`, `src/sim/actions.ts` |

@@ -19,6 +19,7 @@ import { PLACE_KINDS, type PlaceKind } from './places';
 import { KINDS, type Service } from './placeKinds';
 import { ACTOR_PERSON } from './actors';
 import type { Relations } from './relations';
+import type { RegionKnowledge } from './region';
 import { Travel } from './travel';
 import { MINUTES_PER_DAY } from './time';
 import { updateNeeds, updateMoods } from './needs';
@@ -54,6 +55,8 @@ export interface World {
   readonly mind: MindLedger;
   /** Life events so far, pregnancies, couples (src/sim/life.ts). */
   readonly life: Life;
+  /** The country around the town and people's ties to it; null when the world was made without one. */
+  region: RegionKnowledge | null;
 }
 
 /** The fixed parts of a world for a place graph (the population comes from `synthesize`, src/sim/synth.ts). */

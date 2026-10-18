@@ -11,6 +11,7 @@ import { ACTOR_ANIMAL, ACTOR_PERSON, FEMALE, MALE, newActorTable, type ActorId }
 import { AnimalTable, TRAINED_LEASH, TRAINED_RECALL } from './animals';
 import { newKnowledge, addFact, witness } from './knowledge';
 import { newMemories } from './memory';
+import { settleRegion, type Region } from './region';
 import { newMindLedger } from './mind/apply';
 import { newLife } from './life';
 import { FEMALE_NAMES, MALE_NAMES, PET_NAMES, SURNAMES } from './names';
@@ -35,6 +36,8 @@ interface Spec { age: number; sex: number; role: 'head' | 'partner' | 'child' | 
 export interface WorldOptions {
   /** Game day the world starts on (default 0, a Monday). */
   startDay?: number;
+  /** The country around the town (the planner's `regionOf(town)`): lore everyone knows, people's ties to it. */
+  region?: Region;
 }
 
 /** Make a world for a place graph: places indexed, population synthesised, relationships seeded, clock at 06:00. */
@@ -44,7 +47,7 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
-    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(),
+    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(), region: null,
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);
@@ -225,6 +228,7 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
   }
 
   seedNews(world, rng.fork('news'));
+  if (opts.region) world.region = settleRegion(world, opts.region, rng.fork('region'));
   return world;
 }
 

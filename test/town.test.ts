@@ -14,6 +14,7 @@ import { RAIL_HW } from '../src/plan/rail';
 import { placeGraphOf, buildingRef } from '../src/plan/placeGraph';
 import { PLACE_KINDS } from '../src/sim/places';
 import { createWorld } from '../src/sim/synth';
+import { regionOf } from '../src/plan/region';
 
 // One small town shared by the file (planning it is the expensive part).
 const town = planTown({ seed: 1, size: 0 });
@@ -124,4 +125,16 @@ test('the place graph: every home, workplace and street on one connected road ne
   assert.ok(people > town.dwellings * 1.6 && people < town.dwellings * 3.2, `${people} people in ${town.dwellings} homes`);
   assert.ok(w.jobs.filter((j) => j.holder >= 0).length / w.jobs.length > 0.9, 'jobs filled');
   for (const p of g.places) assert.ok(w.travel.minutes(0, p.id) < 180, `${p.name} reachable`);
+});
+
+test('the region follows the town: the big city lies along the railway, nothing out there lies in the sea', () => {
+  const region = regionOf(town);
+  assert.deepEqual(regionOf(town), region);
+  assert.equal(region.places[0].kind, 'city');
+  const c0 = macro.centres[0], rail = macro.rail!;
+  const east = rail.pts[0] - c0.x, north = -(rail.pts[1] - c0.z);
+  const railBearing = ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360;
+  const cityBearing = { north: 0, 'north-east': 45, east: 90, 'south-east': 135, south: 180, 'south-west': 225, west: 270, 'north-west': 315 }[region.places[0].dir];
+  const off = Math.abs(((cityBearing - railBearing + 540) % 360) - 180);
+  assert.ok(off <= 45, `city ${region.places[0].dir}, rail at ${railBearing.toFixed(0)}°`);
 });

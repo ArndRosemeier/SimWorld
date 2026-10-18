@@ -12,7 +12,7 @@
     "reason": "The sweep over every living actor that each data-oriented sim system starts with (needs, decisions, life events). A shared iterator would cost a call per actor in the per-minute hot loops."
   },
   {
-    "key": "idiom: [.actors .cols .people .row] in simworld/sim/actions.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
+    "key": "idiom: [.cols .people .row] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
