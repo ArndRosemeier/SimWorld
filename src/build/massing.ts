@@ -149,9 +149,12 @@ export function buildingTiers(b: BuildingDesc): { fromFloor: number; poly: Poly 
 
 // ------------------------------------------------------------------------------- buildings
 
-/** Every building of a cell (or a farm's buildings). */
-export function buildBuildings(mb: MeshBuilder, buildings: readonly BuildingDesc[], terrain: Terrain): void {
-  for (const b of buildings) buildShell(mb, b, terrain);
+/**
+ * Every building of a cell (or a farm's buildings). `chimneys`, when given, gets the top of every chimney
+ * (x, y, z, world metres), for the smoke (src/render/smoke.ts).
+ */
+export function buildBuildings(mb: MeshBuilder, buildings: readonly BuildingDesc[], terrain: Terrain, chimneys?: number[]): void {
+  for (const b of buildings) buildShell(mb, b, terrain, chimneys);
 }
 
 /** The building's tint (Scale's: a pastel or siding colour for tintable walls, else a slight grey variation). */
@@ -175,7 +178,7 @@ function styleFlags(b: BuildingDesc, r: Rng): number {
   return flags;
 }
 
-function buildShell(mb: MeshBuilder, b: BuildingDesc, terrain: Terrain): void {
+function buildShell(mb: MeshBuilder, b: BuildingDesc, terrain: Terrain, chimneys?: number[]): void {
   if (b.floors <= 0) return;
   const r = new Rng(b.seed);
   const { base, low } = buildingBase(b, terrain);
@@ -216,7 +219,7 @@ function buildShell(mb: MeshBuilder, b: BuildingDesc, terrain: Terrain): void {
   }
 
   // ---- roof
-  roofOf(mb, b, top, topY, r, tint);
+  roofOf(mb, b, top, topY, r, tint, chimneys);
 }
 
 /** Facade flags for one edge of a tier polygon (the footprint's: party walls, shop front, front door). */
@@ -346,7 +349,7 @@ function parapetRing(mb: MeshBuilder, poly: Poly, y: number, h: number): void {
 
 // ------------------------------------------------------------------------------- roofs
 
-function roofOf(mb: MeshBuilder, b: BuildingDesc, top: Poly, y: number, r: Rng, tint: RGB): void {
+function roofOf(mb: MeshBuilder, b: BuildingDesc, top: Poly, y: number, r: Rng, tint: RGB, chimneys?: number[]): void {
   const roofLayer = 16 + b.roofMat;
   top = ensureCCW(top);
   const F = roofFrameOf(b, top, y);
@@ -423,6 +426,7 @@ function roofOf(mb: MeshBuilder, b: BuildingDesc, top: Poly, y: number, r: Rng, 
       const p = framePoint(F, r.range(-hu * 0.6, hu * 0.6), r.range(-hv * 0.4, hv * 0.4));
       if (!pointInPoly(top, p[0], p[1]) || distPointPolyEdge(top, p[0], p[1]) < 0.8) continue;
       mb.box(p[0], y + rise * 0.6 + 0.8, p[1], 0.35, rise * 0.6 + 1.0, 0.45, Math.atan2(ux, uz));
+      chimneys?.push(p[0], y + rise * 1.2 + 1.8, p[1]);
       break;
     }
   }
@@ -430,7 +434,11 @@ function roofOf(mb: MeshBuilder, b: BuildingDesc, top: Poly, y: number, r: Rng, 
     paint(mb, 0, chimney);
     const ridge = Math.max(0, hu - hv);
     const p = framePoint(F, r.range(-ridge, ridge), 0);
-    if (pointInPoly(top, p[0], p[1]) && distPointPolyEdge(top, p[0], p[1]) > 0.8) mb.box(p[0], facetHeight(facets, p[0], p[1]) + 0.4, p[1], 0.35, 1.0, 0.45, Math.atan2(ux, uz));
+    if (pointInPoly(top, p[0], p[1]) && distPointPolyEdge(top, p[0], p[1]) > 0.8) {
+      const cy = facetHeight(facets, p[0], p[1]) + 0.4;
+      mb.box(p[0], cy, p[1], 0.35, 1.0, 0.45, Math.atan2(ux, uz));
+      chimneys?.push(p[0], cy + 1.0, p[1]);
+    }
   }
 }
 

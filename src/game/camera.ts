@@ -2,7 +2,9 @@
  * The camera: the drone circling the town from above (the start), down on the street walking about
  * (W A S D or the arrow keys, drag to look, Shift to hurry), or following an inhabitant from behind.
  * Keys: Enter goes down to the street (at the town's centre, or where the drone looks), F follows the
- * nearest person (F again: the next one), Esc goes back up a level.
+ * nearest person (F again: the next one), Esc goes back up a level. Playing as an inhabitant (`play`), the
+ * camera eases to them from wherever it was (from the drone: the flight down) and stays with them: behind them
+ * out of doors, circling their building while they are inside; drag turns it around them.
  *
  * `?at=x,z&r=…&h=…&a=…` fixes the drone; `?street=x,z&yaw=…` starts on the street there; `?follow=<id>`
  * starts behind that inhabitant (screenshots and checks).
@@ -10,13 +12,19 @@
 import type { PerspectiveCamera } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
 
-export type CameraMode = 'drone' | 'street' | 'follow';
+export type CameraMode = 'drone' | 'street' | 'follow' | 'play';
 
 /** Eye height when walking (m). */
 const EYE = 1.65;
 const WALK = 1.6, HURRY = 6;
 
 export interface Followed { x: number; y: number; z: number; vx: number; vz: number }
+
+/** Where the player's person is: out of doors (`outside`, walking at vx, vz) or in the building at (x, y, z). */
+export interface PlayTarget extends Followed { outside: boolean }
+
+/** How fast the play camera closes in (1/s); slower while shaders still compile, so the flight hides them. */
+const EASE = 1.4, EASE_COMPILING = 0.45;
 
 export class CameraControl {
   mode: CameraMode = 'drone';
@@ -31,6 +39,11 @@ export class CameraControl {
   private drag: { x: number; y: number } | null = null;
   private fy = 0;
   private fyaw = 0;
+  /** The play camera's smoothed eye and look-at point. */
+  private readonly eye = { x: 0, y: 0, z: 0 };
+  private readonly at = { x: 0, y: 0, z: 0 };
+  /** Turn around the player's person, from dragging. */
+  private orbit = 0;
   /** Asks the game for someone to follow near (x, z), someone else each time (-1: none found). */
   pickNear: (x: number, z: number) => number = () => -1;
 
@@ -42,6 +55,7 @@ export class CameraControl {
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLElement && /input|textarea/i.test(e.target.tagName)) return;
       this.keys.add(e.code);
+      if (this.mode === 'play') return;
       if (e.code === 'Enter' && this.mode === 'drone') this.toStreet(this.drone.cx, this.drone.cz);
       else if (e.code === 'KeyF') this.follow(this.pickNear(this.x, this.z));
       else if (e.code === 'Escape') this.goUp();
@@ -52,6 +66,7 @@ export class CameraControl {
     window.addEventListener('pointerup', () => { this.drag = null; });
     window.addEventListener('pointermove', (e) => {
       if (!this.drag || this.mode === 'drone') return;
+      if (this.mode === 'play') { this.orbit -= (e.clientX - this.drag.x) * 0.005; this.drag = { x: e.clientX, y: e.clientY }; return; }
       this.yaw -= (e.clientX - this.drag.x) * 0.004;
       this.pitch = clamp(this.pitch - (e.clientY - this.drag.y) * 0.004, -1.2, 1.0);
       this.drag = { x: e.clientX, y: e.clientY };
@@ -71,15 +86,66 @@ export class CameraControl {
     this.following = id;
   }
 
+  /** Start playing as someone: the camera leaves wherever it is and eases to them (see `updatePlay`). */
+  play(): void {
+    if (this.mode !== 'play') {
+      const p = this.camera.position;
+      this.eye.x = p.x; this.eye.y = p.y; this.eye.z = p.z;
+      const e = this.camera.matrixWorld.elements;
+      this.at.x = p.x - e[8] * 50; this.at.y = p.y - e[9] * 50; this.at.z = p.z - e[10] * 50;
+      this.orbit = 0;
+    }
+    this.mode = 'play';
+    this.following = -1;
+  }
+
+  /** Stop playing: back to the drone over the town (the picker). */
+  stopPlay(): void {
+    if (this.mode === 'play') this.mode = 'drone';
+  }
+
   goUp(): void {
     if (this.mode === 'follow') this.mode = 'street';
     else this.mode = 'drone';
     this.following = -1;
   }
 
+  /**
+   * Place the camera for this frame while playing. Out of doors: behind the person and a little above, turning
+   * after them; indoors: circling their building from rooftop height. The eye and the look-at point ease toward
+   * that, so a change (they step out, the first frame after the drone) is a flight rather than a cut; while
+   * shaders still compile (`compiling`) the flight is slower, so it hides them.
+   */
+  updatePlay(dt: number, t: number, target: PlayTarget, compiling: boolean): void {
+    let ex: number, ey: number, ez: number, ay: number;
+    if (target.outside) {
+      const speed = Math.hypot(target.vx, target.vz);
+      if (speed > 0.3) this.fyaw = turn(this.fyaw, Math.atan2(-target.vx, -target.vz), dt * 1.5);
+      const look = this.fyaw + this.orbit, back = 5, up = 2.4;
+      ex = target.x + Math.sin(look) * back; ez = target.z + Math.cos(look) * back;
+      ey = Math.max(target.y + up, this.ground(ex, ez) + 0.6);
+      ay = target.y + 1.4;
+    } else {
+      const a = this.orbit + t * 0.00004, r = 38;
+      ex = target.x + Math.cos(a) * r; ez = target.z + Math.sin(a) * r;
+      ey = target.y + 26;
+      ay = target.y + 4;
+    }
+    const k = 1 - Math.exp(-dt * (compiling ? EASE_COMPILING : EASE));
+    const e = this.eye, l = this.at;
+    e.x += (ex - e.x) * k; e.y += (ey - e.y) * k; e.z += (ez - e.z) * k;
+    // The look-at point leads, so the camera turns toward them first and then flies in.
+    const kl = Math.min(1, k * 2.5);
+    l.x += (target.x - l.x) * kl; l.y += (ay - l.y) * kl; l.z += (target.z - l.z) * kl;
+    this.camera.position.set(e.x, Math.max(e.y, this.ground(e.x, e.z) + 0.6), e.z);
+    this.camera.lookAt(l.x, l.y, l.z);
+    this.x = target.x; this.z = target.z;
+  }
+
   /** Place the camera for this frame. `target`: where the followed person is (null: lost them). `t`: ms. */
   update(dt: number, t: number, target: Followed | null): void {
     const cam = this.camera;
+    if (this.mode === 'play') return;
     if (this.mode === 'follow' && !target) this.mode = 'street';
     if (this.mode === 'drone') {
       const d = this.drone, a = d.fixed ?? t * 0.00002;

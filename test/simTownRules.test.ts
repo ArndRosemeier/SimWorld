@@ -85,6 +85,7 @@ test('town rules: the view carries the town as it is now, once a day', () => {
   const face = viewOf(w, true).town!;
   assert.equal(face.kind.length, w.graph.places.length);
   assert.equal(face.name.length, w.graph.places.length);
+  assert.deepEqual(face.hours[placesOf(w, ['bakery'])[0]], w.graph.places[placesOf(w, ['bakery'])[0]].hours);
   for (const p of w.graph.places) assert.equal(PLACE_KINDS[face.kind[p.id]], p.kind);
   for (const p of w.graph.places) if (p.kind === 'vacant') assert.ok(face.looks.flags[p.id] & LOOK_TO_LET, `${p.name} has no to-let board`);
   assert.equal(face.rules.poolClosed, false);

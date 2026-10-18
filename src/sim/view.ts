@@ -11,6 +11,8 @@
 import type { ActorId } from './actors';
 import { agendaOn, type OccasionKind } from './agenda';
 import { dateOf, type GameDate } from './calendar';
+import { mediaView, type MediaView } from './media';
+import type { Hours } from './places';
 import { MINUTES_PER_DAY } from './time';
 import type { Mode, Trip } from './travel';
 import { townLooks, type TownLooks } from './economy';
@@ -58,6 +60,8 @@ export interface SimView {
   trips: TripRows;
   /** Today's agenda at a place (bin day and trick-or-treating, which happen on every street, are left out). */
   occasions: ViewOccasion[];
+  /** The town's media: the newest weekly paper and the notices up on boards, lamp posts and windows (src/sim/media.ts). */
+  media: MediaView;
   /** The town's face, in the first view of each game day (and the first view of all); null in the others. */
   town: TownFace | null;
 }
@@ -75,6 +79,8 @@ export interface TownFace {
   kind: Uint8Array;
   /** Per place: its name now ('' for none). */
   name: string[];
+  /** Per place: its opening hours now (empty: no hours, always open), the shape `hoursLines` formats. */
+  hours: Hours[][];
   /** Per place: LOOK_* flags (to let, for sale, new, struggling), upkeep and wealth 0..1. */
   looks: TownLooks;
   rules: TownRules;
@@ -96,6 +102,7 @@ export function viewOf(world: World, face = false): SimView {
     morning: weatherAt(world, Math.floor(world.clock / MINUTES_PER_DAY) * MINUTES_PER_DAY + 7 * 60),
     place: a.place.slice(0, n), dest: a.dest.slice(0, n), activity: a.activity.slice(0, n), trips,
     occasions: occasionsOf(world),
+    media: mediaView(world),
     town: face ? townFace(world) : null,
   };
 }
@@ -105,6 +112,7 @@ export function townFace(world: World): TownFace {
   const rules = rulesOf(world);
   return {
     day: Math.floor(world.clock / MINUTES_PER_DAY), kind: world.kindOf.slice(), name: world.graph.places.map((p) => p.name),
+    hours: world.graph.places.map((p) => p.hours.map((h) => ({ ...h }))),
     looks: townLooks(world), rules: { ...rules, works: rules.works.map((w) => ({ ...w })) },
   };
 }

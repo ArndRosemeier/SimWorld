@@ -6,6 +6,9 @@ import { VEHICLE_SPECS } from '../src/build/vehicles';
 import { FURNITURE_KINDS, FURNITURE_SPECS, buildFurniture, furnitureModel } from '../src/build/furniture';
 import { LAMP_STRIDE, PROP_STRIDE, lampsOf, propFar, propInstances, propModel } from '../src/build/streetProps';
 import { PICTURES, TEXT_SLOTS, pictureRect, textRects, type AtlasRect } from '../src/build/textAtlasLayout';
+import { BAY_LENGTH, SETBACK } from '../src/plan/cell';
+import { footprintsOf } from '../src/plan/footprints';
+import { distSqPointSeg, pointInPoly } from '../src/geom/geom2';
 import { box, cylinder, lathe, sphere, torus, icosphere, tube, CatmullRom, xform, M, type Prim } from '../src/build/prims';
 
 /** Indices in range, finite positions, unit normals, the kind's attributes in full. */
@@ -125,3 +128,67 @@ test('the text atlas: pictures in the top half, text slots below, none overlappi
   }
   assert.throws(() => textRects([...runs, runs[0]]));
 });
+
+test('parked cars stand in kerbside bays, on the carriageway, clear of the cross streets', () => {
+  const { cells } = planTown({ seed: 2, size: 0 });
+  let cars = 0, bays = 0;
+  for (const p of cells) {
+    const inBay = new Set(p.parking.filter((b) => b.car).map((b) => `${b.x},${b.z}`));
+    for (const b of p.parking) {
+      bays++;
+      for (let k = 0; k < p.streets.length; k++) {
+        if (k === b.street) continue;
+        const o = p.streets[k], clear = o.width / 2 + SETBACK + BAY_LENGTH / 2;
+        for (let i = 0; i + 3 < o.pts.length; i += 2) {
+          const d = Math.sqrt(distSqPointSeg(b.x, b.z, o.pts[i], o.pts[i + 1], o.pts[i + 2], o.pts[i + 3]));
+          if (d < clear) assert.fail(`cell ${p.id}: a bay ${d.toFixed(1)} m from street ${k}'s centre line (${clear.toFixed(1)} needed)`);
+        }
+      }
+      assert.ok(onCarriageway(p, b.x, b.z), `cell ${p.id}: bay off the carriageway`);
+    }
+    for (let i = 0; i < p.props.length; i += 6) {
+      if (p.props[i] !== 6) continue; // PropType.ParkedCar
+      // (Cars in the car parks of the supermarket and the sports grounds stand off the streets.)
+      if (!onCarriageway(p, p.props[i + 1], p.props[i + 2])) continue;
+      cars++;
+      assert.ok(inBay.has(`${p.props[i + 1]},${p.props[i + 2]}`), `cell ${p.id}: a parked car outside the bays`);
+    }
+  }
+  assert.ok(cars > 30 && bays > cars, `${cars} cars in ${bays} bays`);
+});
+
+test('the walk along a sidewalk stays clear of the street furniture, and the footprints say where things stand', () => {
+  const { cells } = planTown({ seed: 2, size: 0 });
+  let probes = 0;
+  for (const p of cells) {
+    const fp = footprintsOf([p]), C = fp.circles, near: number[] = [];
+    for (const v of C) assert.ok(Number.isFinite(v));
+    // Walking line: 1.5 m in from the kerb (past the furniture strip), every 2 m along both sides.
+    for (const st of p.streets) {
+      if (st.sidewalk < 1.6 + 1.5 || st.cls === 4) continue; // RoadClass.Path
+      // (Not round the corners at its ends, where another street's furniture strip begins.)
+      let total = 0, acc = 0;
+      for (let i = 0; i + 3 < st.pts.length; i += 2) total += Math.hypot(st.pts[i + 2] - st.pts[i], st.pts[i + 3] - st.pts[i + 1]);
+      for (let i = 0; i + 3 < st.pts.length; i += 2, acc += Math.hypot(st.pts[i] - st.pts[i - 2], st.pts[i + 1] - st.pts[i - 1])) {
+        const ax = st.pts[i], az = st.pts[i + 1], dx = st.pts[i + 2] - ax, dz = st.pts[i + 3] - az, L = Math.hypot(dx, dz);
+        for (let s = 1; s < L; s += 2) for (const side of [-1, 1]) {
+          if (acc + s < st.width + 4 || acc + s > total - st.width - 4) continue;
+          const off = st.width / 2 + 1.5, x = ax + (dx / L) * s - (dz / L) * off * side, z = az + (dz / L) * s + (dx / L) * off * side;
+          for (const c of fp.circlesNear(x, z, 0.1, near)) {
+            if (Math.hypot(C[c * 3] - x, C[c * 3 + 1] - z) >= C[c * 3 + 2] + 0.1) continue;
+            const t = fp.kinds[c];
+            if (STREET_FURNITURE.has(t)) assert.fail(`cell ${p.id}: prop type ${t} stands in the walk at ${x.toFixed(1)}, ${z.toFixed(1)}`);
+          }
+          probes++;
+        }
+      }
+    }
+  }
+  assert.ok(probes > 1000, `${probes} probes`);
+});
+
+/** Types the street furniture pass puts along the kerb: lamps, trees, benches, bins, hydrants, mailboxes, planters. */
+const STREET_FURNITURE = new Set([0, 1, 2, 3, 4, 13, 19]);
+function onCarriageway(p: { carriageway: { outer: number[]; holes: number[][] }[] }, x: number, z: number): boolean {
+  return p.carriageway.some((c) => pointInPoly(c.outer, x, z) && !c.holes.some((h) => pointInPoly(h, x, z)));
+}
