@@ -60,6 +60,14 @@ export class Playing {
   /** Who the player is, null while choosing. */
   get playing(): boolean { return this.panel !== null; }
 
+  /** The building the player's person is in now (`Place.building` code), -1 out of doors or while nobody is played. */
+  get building(): number {
+    const s = this.sim.player;
+    if (!this.panel || !s) return -1;
+    if (this.avatar) return this.told.building;
+    return indoorsNow(s, this.sim) ? s.building : -1;
+  }
+
   /**
    * Once the town shows: play as `be` (an inhabitant's id, from `?be=`), else as whoever the loaded save was being
    * played as, else bring up the picker.

@@ -456,7 +456,7 @@
     "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
   {
-    "key": "idiom: [.known .to] in simworld/sim/life.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
+    "key": "idiom: [.known .to] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
     "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
   {
@@ -536,7 +536,7 @@
     "reason": "Finding a landmark of a kind in the town's list is one Array.find; the town plan, the walkers' map and the signs (the sports ground's works board) each look up the one they need, and a helper would only rename find."
   },
   {
-    "key": "idiom: [.beginPath .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "key": "idiom: [.beginPath .save] in simworld/app/minimap.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the map, the signs' painters (a clock's dial) and the atlas pictures each paint their own shapes; a wrapper would only rename the canvas API."
   },
   {
@@ -634,5 +634,13 @@
   {
     "key": "same name: simworld/game/inside.ts#update + simworld/traffic/traffic.ts#update",
     "reason": "Unrelated per-frame updates: the building you are in (people, light, doors), and the traffic."
+  },
+  {
+    "key": "idiom: [.PI .stroke Math] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar for rings and dots (arc to Math.PI * 2, stroke): the map's marks, the signs' dials and the atlas pictures each draw their own shapes; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.cols .relations .t] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/schedule.ts",
+    "reason": "Reads of the relations table's columns that every sim system makes for its own question (the player's ties for the minimap here); the shared part is the table API itself."
   }
 ]

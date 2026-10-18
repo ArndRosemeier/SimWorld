@@ -204,6 +204,30 @@ export interface PlayerStatus {
   /** Needs 0..1 (food, rest, social, hygiene, fun: NEEDS order), and mood -1..1. */
   needs: number[];
   mood: number;
+  /** Their home: its building (`Place.building` code, -1 none) and entrance; null when they have none. */
+  home: { building: number; x: number; z: number } | null;
+  /** The people they know by name, alive and in town (the minimap marks those out near you): family, then the others, closest first. */
+  kin: ActorId[];
+  known: ActorId[];
+}
+
+/** How well someone without a bond (friend, colleague, neighbour, …) must be known to count as known by name (`Relations` familiarity). */
+const KNOWN_BY_NAME = 0.1;
+/** At most this many non-family people are listed (closest first). */
+const KNOWN_MAX = 80;
+
+/** The people `id` knows by name: family, and the others they have a bond with or know at least `KNOWN_BY_NAME` well (closest first). */
+export function tiesOf(world: World, id: ActorId): { kin: ActorId[]; known: ActorId[] } {
+  const rel = world.relations, c = rel.t.cols, a = world.actors.cols;
+  const kin: ActorId[] = [], known: number[] = [];
+  for (const r of rel.known(id)) {
+    const o = c.to[r];
+    if (!a.alive[o] || !isPerson(world, o)) continue;
+    if (c.bonds[r] & FAMILY_MASK) kin.push(o);
+    else if (c.bonds[r] || c.familiarity[r] >= KNOWN_BY_NAME) known.push(r);
+  }
+  known.sort((x, y) => c.familiarity[y] - c.familiarity[x]);
+  return { kin, known: known.slice(0, KNOWN_MAX).map((r) => c.to[r]) };
 }
 
 /** The player's person now, null while nobody is picked. */
@@ -213,9 +237,12 @@ export function playerStatus(world: World): PlayerStatus | null {
   const id = p.id, a = world.actors.cols, alive = isPerson(world, id);
   const place = a.dest[id] >= 0 ? a.dest[id] : placeNow(world, id);
   const pl = world.graph.places[Math.max(0, place)], at = !p.autopilot ? p.at : null;
+  const home = a.home[id] >= 0 ? world.graph.places[a.home[id]] : null;
   return {
     id, name: nameOf(world, id), alive, autopilot: p.autopilot, doing: alive ? (at ? 'out and about' : doingOf(world, id)) : 'gone',
     place, placeName: pl.name, building: pl.building, x: at ? at.x : pl.x, z: at ? at.z : pl.z, travelling: a.dest[id] >= 0, outdoors: !!at && a.place[id] >= 0 && KINDS[world.graph.places[a.place[id]].kind].category === 'outdoor', steered: !!at, exit: null,
     needs: Array.from(a.needs.subarray(id * NEED_COUNT, id * NEED_COUNT + NEED_COUNT)), mood: a.mood[id],
+    home: home ? { building: home.building, x: home.x, z: home.z } : null,
+    ...tiesOf(world, id),
   };
 }

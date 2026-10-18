@@ -7,7 +7,7 @@ import { loadWorld, saveWorld } from '../src/sim/save';
 import { isPerson, tick } from '../src/sim/world';
 import { A } from '../src/sim/actors';
 import { cardsOf, profileOf, TAG_GRIEVING, TAG_PARENT } from '../src/sim/profile';
-import { becomePlayer, playerActions, playerGo, playerStatus, setAutopilot, steerPlayer } from '../src/sim/player';
+import { becomePlayer, playerActions, playerGo, playerStatus, setAutopilot, steerPlayer, tiesOf } from '../src/sim/player';
 
 const planned = testTown(7, 220);
 const world = createWorld(planned, 7, { history: 1 });
@@ -113,4 +113,18 @@ test('player: steered into a building they are at their home there, indoors; out
   steerPlayer(w, pl.x + 3, pl.z, -1);
   assert.equal(w.graph.places[a.place[id]].kind, 'street');
   assert.ok(playerStatus(w)!.outdoors);
+});
+
+test('player status for the minimap: their home, and the people they know by name (family first)', () => {
+  const id = cardsOf(world).find((c) => c.age >= 25 && c.age < 60)!.id;
+  becomePlayer(world, id, true);
+  const s = playerStatus(world)!;
+  const home = world.graph.places[world.actors.cols.home[id]];
+  assert.deepEqual(s.home, { building: home.building, x: home.x, z: home.z });
+  const { kin, known } = tiesOf(world, id);
+  assert.deepEqual(s.kin, kin);
+  assert.ok(kin.length + known.length > 0, 'a year in town: they know someone');
+  for (const o of [...kin, ...known]) assert.ok(isPerson(world, o) && o !== id);
+  assert.ok(known.every((o) => !kin.includes(o)));
+  world.player = null;
 });
