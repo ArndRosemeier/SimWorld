@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.101 — Names, jobs and holidays fit the invented world
+
+- People now have English-sounding names: the German-sounding given names and surnames are gone (Lena, Jonas, Schmidt, Becker and the like).
+- Job titles no longer point to one country: the principal, the school maintenance worker, the pub owner, a dental assistant, the postal worker, newspaper delivery, care workers, the supermarket manager and stock workers.
+- School breaks are called breaks (the winter, Easter, May, summer, October and Christmas breaks), and 26 December is "the day after Christmas".
+- Families go "away on a trip" instead of "on holiday", and people say they live in "an apartment" on a street.
+
+## v0.100 — Steer the person you play
+
+- When you pick someone, you take over their body straight away: W A S D to walk, Shift to hurry, drag the mouse to look around. The camera stays close behind them.
+- You walk on the real ground and step up kerbs. Buildings, posts, trees and parked cars stop you, and you slide along walls.
+- Someone at home steps out of their front door when you take over. Walking into houses comes with the interiors.
+- Their routine pauses while you steer. "Autopilot on" hands them back, and pressing a walking key on autopilot takes over again on the spot.
+- Skipping time hands your person to their routine for the skipped days, then gives them back to you.
+
 ## v0.099 — Interiors you can go into
 
 - A whole building's interior can now be loaded and drawn while you are inside it: every storey furnished, with the outer walls, the street door open, floors, ceilings and stairs.

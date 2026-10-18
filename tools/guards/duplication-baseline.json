@@ -513,7 +513,7 @@
   },
   {
     "key": "idiom: [.ax .az .bx .bz] in simworld/build/interior.ts + simworld/interior/indoors.ts + simworld/interior/storey.ts",
-    "reason": "A wall is a segment a\u2192b with its own fields (Wall); reading its ends is the data shape, not a copied computation."
+    "reason": "A wall is a segment a→b with its own fields (Wall); reading its ends is the data shape, not a copied computation."
   },
   {
     "key": "idiom: [.pool .run] in simworld/game/SimClient.ts + simworld/render/interiorView.ts + simworld/render/people/bodies.ts",
@@ -533,7 +533,7 @@
   },
   {
     "key": "idiom: [.actors .count .row] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts",
-    "reason": "A pass over every actor reading their person row: the World's own column layout (actors \u2192 people rows), each pass doing its own work."
+    "reason": "A pass over every actor reading their person row: the World's own column layout (actors → people rows), each pass doing its own work."
   },
   {
     "key": "same name: simworld/app/chatPanel.ts#describe + simworld/game/street.ts#describe",

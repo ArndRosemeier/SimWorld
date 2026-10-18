@@ -273,7 +273,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     if (hud) {
       const n = people.counts;
       const talk = cam.mode === 'drone' ? '' : chat.hint();
-      const who = cam.mode === 'play' ? '\nDrag to look around' : cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '' : '\nW A S D walk, drag to look, F follow someone, Esc up';
+      const who = cam.mode === 'play' ? '\nW A S D to walk, Shift to hurry, drag to look around' : cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '' : '\nW A S D walk, drag to look, F follow someone, Esc up';
       const whoTalk = who + (talk ? `\n${talk}` : '');
       hud.textContent = `${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${vehicles.counts.moving} vehicles on the road, ${vehicles.counts.parked} parked · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${whoTalk}`;
     }
