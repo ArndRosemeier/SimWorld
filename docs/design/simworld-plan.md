@@ -25,6 +25,9 @@ Grounded in a read of `Scale` (commit `eee2b85`, 17 Oct 2026), `Dunfinity`, `Ass
 | D14 | Approved: WebGPURenderer on its WebGL2 backend, switching inhabitants mid-game, shared packages from AssetGenerator plus Scale code copied in, repo skeleton and society sim in parallel. Repo: github.com/ArndRosemeier/SimWorld. |
 | D15 | **CI stays lean and capped from day one** (docs/CI.md): a time budget enforced by the test reporter, one job with a hard timeout, slow tests only by hand. |
 | D16 | Work is split across threads; this design doc in the repo (`docs/design/simworld-plan.md`) is the canonical copy. |
+| D17 | **PRs merge to main automatically** once CI is green (Arnd does not use Git); CLAUDE.md rule 11. |
+| D18 | **Version +0.001 per merge**, a What's new panel, and main deployed to GitHub Pages after each merge (PRs #10, #11). The What's new button moves onto the selector/loading screen (R2) once that exists. |
+| D19 | **The surroundings are lore only:** a big city, a larger nearby town with the hospital, a handful of villages, river, hills, woods and highway exist as things people know and mention, never as simulated places (PR #13, `regionOf`). |
 
 ## Round 2: what these decisions change
 
@@ -68,7 +71,8 @@ Choosing who to be is a natural, unhurried screen, so it can hide most of the co
    terms with her brother"). Filters: age, job, "has a secret", "in love", "new in town".
 3. Meanwhile `warmLater` compiles everything else under the cap (one at a time, 200 ms gaps). At ~10 ms per shader and
    a few hundred kinds, the cap (not the compile) is the limit: 150 kinds ≈ 30 s, which is about how long people browse.
-4. When a person is picked, the camera flies down to them. If anything is still compiling, the fly-down simply takes
+4. The version label and the What's new button live on this screen (D18).
+5. When a person is picked, the camera flies down to them. If anything is still compiling, the fly-down simply takes
    a little longer. No progress box ever appears.
 
 ### R3. One actor contract (D9)
@@ -182,7 +186,7 @@ Scale resolves "school" or "lunch" to "any suitable building nearby" (`b:-1`, pi
 addresses**: every household has a dwelling, every amenity a building with opening hours, staff slots, capacity and
 services. Knowledge like "the pharmacy on Mühlweg closed early" only works if there is *one* pharmacy on Mühlweg.
 
-Place graph (L0's world model): places (dwellings, amenities, street segments, parks) + travel times between them.
+Place graph (L0's world model; `placeGraphOf(plan)`, with each place kind's hours, staff and services from the one table in `src/sim/placeKinds.ts`): places (dwellings, amenities, street segments, parks) + travel times between them.
 L0 never needs geometry; it uses the plan data, which Scale already produces as pure data in workers.
 
 ### 1.3 What "a realistic life" means (proposed scope, needs Q3)
@@ -225,6 +229,12 @@ real lives, yes.
   variant}`. People can hold false variants.
 - **Witnessing** creates beliefs at full confidence. **Being told** creates them at
   `teller's confidence × trust in teller × plausibility`.
+
+**Standing knowledge** (`addStanding`, `knowsStanding`, `standingOf` in `src/sim/knowledge.ts`): facts people simply
+know, like the region's geography, where someone grew up, kin in a village, that the hospital is in the next town. It is
+held by a hashed share of the population plus explicit holders, never fades and is never gossiped, and reaches prompts as
+"common knowledge". Beliefs are what the town is talking about; standing knowledge is the shared background they talk
+against.
 
 ### 2.2 Spread
 
