@@ -172,6 +172,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     shadowMode = cam.mode;
     view.vegetation?.update(camera);
     view.props?.update(camera);
+    view.signs?.update(camera);
     sky.update(dt, time, time.clock, w, camera, rate);
     precip.fall(dt, camera, w, w.windDir, sky.day, sky.flash);
     renderer.render(scene, camera);

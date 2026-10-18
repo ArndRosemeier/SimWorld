@@ -188,20 +188,12 @@
     "reason": "Local closures inside the two box generators (one face each), not shared helpers."
   },
   {
-    "key": "same name: simworld/build/meshBuilder.ts#put + simworld/build/streetProps.ts#put",
-    "reason": "Growable float buffer's put versus streetProps' local closure that appends one prop instance to its model's list."
-  },
-  {
     "key": "same name: simworld/build/meshBuilder.ts#quad + simworld/build/vehicles.ts#quad",
     "reason": "MeshBuilder.quad joins four vertex indices; the vehicle Geo's quad (ported from Scale) adds two raw triangles with uv and part before welding. Different data."
   },
   {
     "key": "same name: simworld/build/streetProps.ts#put + simworld/plan/cell.ts#put",
     "reason": "Local closures appending to different records (a prop instance per model here, a planned prop in cell.ts)."
-  },
-  {
-    "key": "same name: simworld/build/streetProps.ts#put + simworld/world/rural.ts#put",
-    "reason": "Local closures appending to different records (a prop instance per model here, rural.ts its own)."
   },
   {
     "key": "same name: simworld/build/vehicles.ts#quad + simworld/plan/kit.ts#quad",
@@ -434,5 +426,13 @@
   {
     "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.add .prepare] in simworld/render/propsView.ts + simworld/render/signsView.ts + simworld/render/townView.ts",
+    "reason": "The Stage's contract for adding to your own group (stage.prepare, then group.add; docs/SHADERS.md): each view says it once where it places its meshes."
+  },
+  {
+    "key": "same name: simworld/render/propsView.ts#update + simworld/render/signsView.ts#update",
+    "reason": "The town views' once-a-frame camera hook (PropsShown.update, SignsShown.update, VegetationShown.update): the same name on purpose, so the main loop calls them alike."
   }
 ]
