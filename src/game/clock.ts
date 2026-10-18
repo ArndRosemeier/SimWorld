@@ -2,7 +2,8 @@
  * The game clock on screen until the sim worker drives it: game time = real time (D3), on today's real date and
  * time of day, so the town shows the season and the light outside the player's window. `?date=2026-12-24`,
  * `?time=18:30` and `?speed=60` (game minutes per real minute) pick another moment, for looking and screenshots.
- * It is a `Dated` world for the calendar (src/sim/calendar.ts): seed, epoch, latitude.
+ * It is the world the calendar, the weather and the sound read (src/sim/calendar.ts, src/sim/weather.ts,
+ * src/audio/env.ts): seed, epoch, latitude, clock, region.
  */
 import { DEFAULT_LATITUDE, daysOf, epochFor } from '../sim/calendar';
 import { MINUTES_PER_DAY } from '../sim/time';
@@ -15,6 +16,8 @@ export class GameClock {
   clock: number;
   /** Game minutes per real minute. */
   speed: number;
+  /** The region as the weather reads it (coastal: milder and foggier), once the town workers know it. */
+  region: { region: { coastal?: boolean } } | null = null;
 
   constructor(readonly seed: number, q: URLSearchParams = new URLSearchParams(), now: Date = new Date()) {
     const dm = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(q.get('date') ?? '');

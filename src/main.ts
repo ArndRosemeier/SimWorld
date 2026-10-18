@@ -7,7 +7,8 @@
  * `?seed=…&size=…` (0 … 1) pick the town; `?tex=…` the texture size in texels (256 default, 512 sharper and slower); `?at=x,z&r=…&h=…&a=…` fix the drone's centre, distance,
  * height and angle (radians) instead of circling, for screenshots. `?inside=<cell>/<building>&floor=…`
  * shows one storey of a building as a cutaway instead (showInside). `?date=2026-12-24&time=18:30&speed=60` pick
- * the moment and how fast time runs (src/game/clock.ts); `?wx=rain` (any weather state) overrides the sky.
+ * the moment and how fast time runs (src/game/clock.ts), for the sky and the sound alike; `?wx=rain` (any weather
+ * state) overrides the sky, `?rain=0…1`, `?wind=0…1` what the soundscape hears (src/audio/env.ts); `?mute` keeps it silent.
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
@@ -15,8 +16,7 @@ import { createRenderer, GraphicsUnavailable } from './render/renderer';
 import { Stage } from './render/stage';
 import { fitSunShadow, makeLights } from './render/lights';
 import { DaySky } from './render/sky';
-import { GameClock } from './game/clock';
-import { WEATHER_KINDS, WeatherModel, describeWeather, forceWeather, type WeatherKind } from './sim/weather';
+import { WEATHER_KINDS, describeWeather, forceWeather, weatherAt, type WeatherKind } from './sim/weather';
 import { dateOf, formatDate } from './sim/calendar';
 import { hhmm, minuteOfDay } from './sim/time';
 import { setParcels } from './render/tsl/ground';
@@ -27,10 +27,14 @@ import townWorkerUrl from './workers/town.worker.ts?worker&url';
 import texWorkerUrl from './workers/tex.worker.ts?worker&url';
 import type { FromTex, ToTex } from './workers/texProtocol';
 import { loadTextures } from './render/textures';
-import { VERTEX_COLOR_SOLID, useTextures } from './render/materials';
+import { INTERIOR, useTextures } from './render/materials';
 import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
+import { TownAudio } from './audio/townAudio';
+import { soundEnvOf, soundOverrides } from './audio/env';
+import { GameClock } from './game/clock';
+import { soundButton } from './app/soundPanel';
 
 const HAZE = 0xa9c8e4;
 
@@ -48,7 +52,7 @@ function step(text: string, frac?: number): void {
   if (bar && frac !== undefined) bar.style.width = `${Math.round(frac * 100)}%`;
 }
 
-async function start(): Promise<void> {
+async function start(audio: TownAudio, time: GameClock, ears: ReturnType<typeof soundOverrides>): Promise<void> {
   const settings = settingsFromUrl();
   const cores = Math.max(1, (navigator.hardwareConcurrency || 4) - 1);
   // The town workers start planning at once; the texture workers generate the facade textures
@@ -59,7 +63,9 @@ async function start(): Promise<void> {
   await texPool.start(() => ({ type: 'init' }));
   const texSize = Number(new URLSearchParams(location.search).get('tex')) === 512 ? 512 : 256;
   step('Making the materials', 0.02);
-  const facade = loadTextures(texPool, 'facade', (done, total) => step('Making the materials', 0.02 + (0.1 * done) / total), texSize);
+  // Facades first, then the interiors' finishes (queued behind them in the same pool).
+  const facade = loadTextures(texPool, 'facade', (done, total) => step('Making the materials', 0.02 + (0.08 * done) / total), texSize);
+  const interior = loadTextures(texPool, 'interior', (done, total) => step('Making the materials', 0.1 + (0.02 * done) / total), texSize, 100);
 
   const canvas = document.createElement('canvas');
   document.body.prepend(canvas);
@@ -75,14 +81,12 @@ async function start(): Promise<void> {
   const lights = makeLights(scene);
   const stage = new Stage(renderer, scene, camera);
   stage.shadowCamera = lights.sun.shadow.camera;
-  const time = new GameClock(settings.seed, new URLSearchParams(location.search));
-  const weather = new WeatherModel(settings.seed, time.epoch);
   const wxq = new URLSearchParams(location.search).get('wx') as WeatherKind | null;
   const wx = wxq && WEATHER_KINDS.includes(wxq) ? wxq : null;
-  const weatherNow = () => { const w = weather.weather(Math.floor(time.clock)); return wx ? forceWeather(w, wx) : w; };
+  const weatherNow = () => { const w = weatherAt(time); return wx ? forceWeather(w, wx) : w; };
   const sky = new DaySky(renderer, scene, lights, settings.seed);
   sky.update(0, time, time.clock, weatherNow(), camera, time.speed);
-  useTextures({ facade: await facade });
+  useTextures({ facade: await facade, interior: await interior });
   texPool.dispose();
   step('Preparing the shaders', 0.12);
   await stage.warmUp();
@@ -96,6 +100,8 @@ async function start(): Promise<void> {
   const inside = new URLSearchParams(location.search).get('inside');
   if (inside) return showInside(inside, pool, stage, lights, renderer, camera, scene);
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
+  // What the town sounds like where: one worker works it out alongside the meshes.
+  void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { time.region = { region: { coastal: r.map.coastal } }; audio.setTown(r.map); });
   const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total));
 
   // The drone drift: a slow circle around the town, high enough to see it whole.
@@ -104,11 +110,12 @@ async function start(): Promise<void> {
   const [cx, cz] = (q.get('at') ?? `${town.x},${town.z}`).split(',').map(Number);
   const R = num('r', town.radius * 1.35), H = town.y + num('h', town.radius * 0.55), fixed = q.has('a') ? num('a', 0) : null;
   const hud = document.getElementById('hud');
-  let shown = false, last = -1;
+  let shown = false, lastT = 0;
+  const fwd = { x: 0, y: 0, z: 0 };
   renderer.setAnimationLoop((t: number) => {
+    const dt = lastT ? Math.min(0.25, (t - lastT) / 1000) : 0;
+    lastT = t;
     stage.frame();
-    const dt = last < 0 ? 0 : Math.min(0.25, (t - last) / 1000);
-    last = t;
     time.advance(dt);
     const w = weatherNow();
     const a = fixed ?? t * 0.00002;
@@ -116,7 +123,10 @@ async function start(): Promise<void> {
     camera.lookAt(cx, town.y, cz);
     sky.update(dt, time, time.clock, w, camera, time.speed);
     renderer.render(scene, camera);
-    if (!shown && view.done > 0) { shown = true; document.getElementById('loading')?.remove(); }
+    const e = camera.matrixWorld.elements;
+    fwd.x = -e[8]; fwd.y = -e[9]; fwd.z = -e[10];
+    audio.frame(dt, { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: fwd.x, fy: fwd.y, fz: fwd.z, ux: e[4], uy: e[5], uz: e[6] }, soundEnvOf(time, time.clock, ears));
+    if (!shown && view.done > 0) { shown = true; document.getElementById('loading')?.remove(); audio.startTown(); }
     if (hud) hud.textContent = `${formatDate(dateOf(time, time.clock))} ${hhmm(Math.floor(minuteOfDay(time.clock)))} · ${describeWeather(w)} · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}`;
   });
   await view.ready;
@@ -132,7 +142,7 @@ async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage
   step('Planning the rooms', 0.5);
   const r = await pool.run({ type: 'interior', cell, building, floor: Number(q.get('floor') ?? 0) }, 0);
   if (r.type !== 'interior') throw new Error(r.type === 'error' ? r.message : 'no interior');
-  if (r.mesh) await stage.add(meshFromData(r.mesh, VERTEX_COLOR_SOLID));
+  if (r.mesh) await stage.add(meshFromData(r.mesh, INTERIOR));
   scene.fog = null;
   const [x, y, z] = r.at, R = Math.max(8, r.radius * 1.5), fixed = q.has('a') ? Number(q.get('a')) : null;
   fitSunShadow(lights, x, y, z, r.radius * 1.5);
@@ -150,8 +160,20 @@ async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage
 
 // The version and What's new sit on the start screen and stay in the corner once the town is up.
 document.body.append(whatsNewButton());
+// Sound starts with the first click or key (browsers allow nothing earlier): the title music on the
+// start screen, then the town.
+const audio = new TownAudio(settingsFromUrl().seed);
+const time = new GameClock(settingsFromUrl().seed, new URLSearchParams(location.search));
+const ears = soundOverrides(new URLSearchParams(location.search));
+document.body.append(soundButton(audio.engine));
+void audio.init();
+// The title music runs while the start screen is up; the render loop takes over once it starts.
+const startScreen = setInterval(() => {
+  if (document.getElementById('loading')) audio.tickMusic(0.1, soundEnvOf(time, time.clock, ears));
+  else clearInterval(startScreen);
+}, 100);
 
-start().catch((err) => {
+start(audio, time, ears).catch((err) => {
   const el = document.querySelector('#loading .step');
   if (el) el.textContent = err instanceof GraphicsUnavailable ? 'This browser cannot draw 3D graphics (WebGL 2 needed).' : `Start failed: ${err instanceof Error ? err.message : String(err)}`;
   throw err;

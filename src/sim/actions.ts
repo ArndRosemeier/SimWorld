@@ -34,6 +34,13 @@ export function performIntention(world: World, id: ActorId, i: Intention): boole
       if (place < 0 || here === place) { dropIntention(world, id, i); return false; }
       return stay(place, i.kind === 'eat' ? A.eat : i.kind === 'visit' ? A.visit : A.errand, Math.min(90, Math.max(20, i.until - now)));
     }
+    case 'holiday': {
+      // Off out of town until the day they come back.
+      dropIntention(world, id, i);
+      if (i.place < 0 || i.until <= now) return false;
+      go(world, id, i.place, A.leisure, i.until);
+      return true;
+    }
     case 'attend': {
       // A wedding, a funeral, a meeting: be there until it ends, doing what it is for.
       const occ = world.agenda.once.find((o) => o.id === i.fact);

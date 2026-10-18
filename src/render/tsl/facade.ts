@@ -147,7 +147,9 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
       If(done.not(), () => {
         // Entrance door on the front facade.
         const doorBi = float(flags.shiftRight(9).bitAnd(3));
-        If(front.and(f.equal(0.0)).and(bi.equal(doorBi)).and(curtain.not()), () => {
+        // The flats' own door (FF.FlatsDoor: bay 0 or bay 1), beside the shop's.
+        const flatsBi = select(flags.bitAnd(8192).notEqual(0), 0.0, select(flags.bitAnd(16384).notEqual(0), 1.0, -1.0));
+        If(front.and(f.equal(0.0)).and(bi.equal(doorBi).or(bi.equal(flatsBi))).and(curtain.not()), () => {
           isDoor.assign(true);
           ww.assign(min(1.3, bay.mul(0.62)));
           wh.assign(min(2.45, fh.sub(0.35)));

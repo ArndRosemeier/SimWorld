@@ -115,6 +115,16 @@ export function shapeArea(s: Shape): number {
   return a / (S * S);
 }
 
+/** The outer ring of the biggest of `shapes` (by the area its outer ring encloses), or null for none. */
+export function largest(shapes: Shape[]): Poly | null {
+  let best: Poly | null = null, ba = -1;
+  for (const s of shapes) {
+    const a = Math.abs(ClipperLib.Clipper.Area(toPath(s.outer)));
+    if (a > ba) { ba = a; best = s.outer; }
+  }
+  return best;
+}
+
 /** Simplify a polygon (removes self-intersections). */
 export function cleanShapes(polys: Poly[]): Shape[] {
   return run(ClipperLib.ClipType.ctUnion, polys, [], ClipperLib.PolyFillType.pftNonZero);

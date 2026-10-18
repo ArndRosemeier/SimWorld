@@ -22,6 +22,8 @@
     { "from": "src/traffic", "deny": ["three", "src/render", "src/app", "src/game", "src/llm"], "why": "the traffic is pure data: the road network, the cars and their parking run in headless tests (src/render draws them)" },
     { "from": "src/talk", "deny": ["three", "src/render", "src/app", "src/game"], "why": "the procedural text engine is pure: workers, tests and tools use it" },
     { "from": "src/llm", "deny": ["three", "src/render", "src/app", "src/game"], "why": "the LLM layer knows prompts and contracts, not the screen" },
+    { "from": "src/audio", "deny": ["three", "src/render", "src/app", "src/game", "src/llm"], "why": "sound decisions are pure (the sound map is made in a town worker, the soundscape runs in headless tests); the engine talks to Web Audio with plain numbers, not three.js" },
+    { "from": "src/persist", "deny": ["three", "src/render", "src/app", "src/game", "src/llm", "src/audio"], "why": "persistence is a leaf: everything may save and load through it" },
     { "from": "src/render", "deny": ["src/app", "src/game", "src/llm"], "why": "the renderer does not know about the game, the UI or the LLM" }
   ],
   "duplication": {
