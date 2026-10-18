@@ -716,7 +716,9 @@ export class Terrain {
     // Small-scale undulation everywhere (keeps streets from being perfectly flat).
     h += this.noise.fbm2(x / 260, z / 260, 2) * (0.6 + 2.2 * p.hilliness);
 
-    // River channel and banks (exact, near the water only).
+    // River channel and banks (exact, near the water only). `chan`: their height, kept so the
+    // sea's shore blend below cannot lift a riverbed above its water (NaN: not in the channel).
+    let chan = NaN;
     if (dFar < NEAR_RANGE + 200) {
       const w = this.water(x, z);
       if (w.river >= 0) {
@@ -738,6 +740,7 @@ export class Terrain {
           const q = w.d / hw;
           h = w.level - 0.4 - depth * (1 - q * q);
         }
+        if (w.d < hw + bankW) chan = h;
       }
     }
     // Sea.
@@ -747,6 +750,7 @@ export class Terrain {
       const land = smoothstep(-10, 900, c);
       h = lerp(shore + Math.max(0, c) * 0.004, h, land);
       if (c < 0) h = Math.min(h, shore - Math.min(28, -c * 0.06 + 1.5));
+      if (chan === chan) h = Math.min(h, chan);
     }
     // Lakes: a shelving bowl below the level, the shore band easing the land down to it.
     if (this.lakes.length) {

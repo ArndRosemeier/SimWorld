@@ -1,26 +1,24 @@
 /**
- * Mesh data (plain arrays, usually from a worker) into a three.js mesh of a material kind.
- * The one way: the attribute layout must match the kind (docs/SHADERS.md), so it is written once.
+ * Mesh data (typed arrays from the build layer, usually made in a worker) into a three.js mesh of a
+ * material kind. The one way: the attributes must be the kind's (docs/SHADERS.md), so it is
+ * checked here, once.
  */
-import { BufferGeometry, Float32BufferAttribute, Mesh, Uint32BufferAttribute } from 'three/webgpu';
+import { BufferAttribute, BufferGeometry, Mesh } from 'three/webgpu';
+import type { MeshData } from '../build/meshBuilder';
 import type { MaterialKind } from './materials';
 
-export interface IndexedData {
-  positions: Float32Array;
-  normals: Float32Array;
-  colors: Float32Array;
-  indices: Uint32Array;
-}
-
-/** A static mesh (no per-frame matrix update) of `kind` from position, normal, colour and index arrays. */
-export function meshFromData(d: IndexedData, kind: MaterialKind): Mesh {
+/** A static mesh (no per-frame matrix update) of `kind`, placed at the data's origin. */
+export function meshFromData(d: MeshData, kind: MaterialKind): Mesh {
+  const want = ['position', 'normal', ...kind.attributes.map((a) => a.name)].sort().join(',');
+  const have = Object.keys(d.attrs).sort().join(',');
+  if (want !== have) throw new Error(`mesh for kind "${kind.name}" has attributes ${have}, the kind wants ${want}`);
   const g = new BufferGeometry();
-  g.setAttribute('position', new Float32BufferAttribute(d.positions, 3));
-  g.setAttribute('normal', new Float32BufferAttribute(d.normals, 3));
-  g.setAttribute('color', new Float32BufferAttribute(d.colors, 3));
-  g.setIndex(new Uint32BufferAttribute(d.indices, 1));
+  for (const [name, a] of Object.entries(d.attrs)) g.setAttribute(name, new BufferAttribute(a.array, a.size, a.normalized));
+  g.setIndex(new BufferAttribute(d.index, 1));
   g.computeBoundingSphere();
   const m = new Mesh(g, kind.make());
+  m.position.set(d.origin[0], d.origin[1], d.origin[2]);
+  m.updateMatrix();
   m.matrixAutoUpdate = false;
   return wear(m, kind);
 }

@@ -86,5 +86,33 @@
   {
     "key": "same name: simworld/plan/macro.ts#add + simworld/sim/table.ts#add",
     "reason": "Unrelated jobs under a common verb: the sim's component table adds a row; the planner's local closures add a building, a part, an arterial edge."
+  },
+  {
+    "key": "clone: simworld/build/meshBuilder.ts#ensureIdx + simworld/build/meshBuilder.ts#reserve",
+    "reason": "Growable typed arrays: the index buffer (Uint32) and an attribute store (any typed array) grow the same way; one generic helper would cost a type parameter on the hot path."
+  },
+  {
+    "key": "clone: simworld/build/meshBuilder.ts#quad + simworld/build/meshBuilder.ts#tri",
+    "reason": "tri and quad push 3 and 6 indices: the same shape, two primitives."
+  },
+  {
+    "key": "same name: simworld/build/meshBuilder.ts#build + simworld/llm/tasks.ts#build",
+    "reason": "MeshBuilder.build() (the mesh data) and an LLM task's build() (its prompt): conventional method names, different things."
+  },
+  {
+    "key": "same name: simworld/build/meshBuilder.ts#put + simworld/plan/landmarkParts.ts#put",
+    "reason": "MeshBuilder's attribute store put(v) vs a local put closure: conventional names."
+  },
+  {
+    "key": "same name: simworld/build/meshBuilder.ts#put + simworld/world/rural.ts#put",
+    "reason": "MeshBuilder's attribute store put(v) vs a local put closure: conventional names."
+  },
+  {
+    "key": "same name: simworld/build/meshBuilder.ts#quad + simworld/plan/kit.ts#quad",
+    "reason": "MeshBuilder.quad (indices of four vertices) vs the kit's quad part (a landmark primitive): different layers, the usual name."
+  },
+  {
+    "key": "same name: simworld/plan/cell.ts#run + simworld/workers/pool.ts#run",
+    "reason": "WorkerPool.run(job) vs a local run in the cell planner: conventional names."
   }
 ]
