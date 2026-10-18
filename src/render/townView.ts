@@ -11,6 +11,8 @@ import type { FromTown, ToTown, TownSummary } from '../workers/townProtocol';
 import { FACADE, GROUND, TERRAIN, WATER, type MaterialKind } from './materials';
 import { meshFromData } from './meshes';
 import type { Stage } from './stage';
+import { showProps, type PropsShown } from './propsView';
+import { showVegetation, type VegetationShown } from './vegetationView';
 
 export interface TownView {
   root: Group;
@@ -19,6 +21,10 @@ export interface TownView {
   total: number;
   /** Resolves when every piece is in. */
   ready: Promise<void>;
+  /** The street props (src/render/propsView.ts), once placed. */
+  props?: PropsShown;
+  /** The trees and shrubs of the town and the countryside (src/render/vegetationView.ts), once placed. */
+  vegetation?: VegetationShown;
 }
 
 export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town: TownSummary, onProgress: (done: number, total: number) => void = () => {}): TownView {
@@ -42,7 +48,13 @@ export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town:
     await stage.prepare(m);
     root.add(m);
   };
-  view.ready = Promise.all(jobs.map(async ({ msg, priority }) => {
+  // The street props after the cells: their instance lists, then a model each.
+  view.total++;
+  const props = showProps(stage, pool, root, 40 + town.cells).then((p) => { view.props = p; onProgress(++view.done, view.total); });
+  // The trees after the cells too: the town's, then the countryside's.
+  view.total++;
+  const trees = showVegetation(stage, pool, root, town, 60 + town.cells).then((v) => { view.vegetation = v; onProgress(++view.done, view.total); });
+  view.ready = Promise.all([props, trees, ...jobs.map(async ({ msg, priority }) => {
     const r = await pool.run(msg, priority);
     switch (r.type) {
       case 'terrain': await place(r.mesh, TERRAIN); break;
@@ -51,6 +63,6 @@ export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town:
       case 'landmark': await place(r.mesh, FACADE); break;
     }
     onProgress(++view.done, view.total);
-  })).then(() => undefined);
+  })]).then(() => undefined);
   return view;
 }
