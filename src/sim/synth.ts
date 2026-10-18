@@ -19,6 +19,7 @@ import { foundGroups, newGroups } from './groups';
 import { foundPolitics, newPolitics } from './politics';
 import { history, historyDays } from './chronicle';
 import { newAgenda, townAgenda } from './agenda';
+import { newMedia } from './media';
 import { withLocalHours } from './hours';
 import { withOffsite } from './offsite';
 import { DEFAULT_LATITUDE, epochFor, type CivilDate } from './calendar';
@@ -77,7 +78,7 @@ export function createWorld(planned: PlaceGraph, seed: number, opts: WorldOption
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
     intentions: [], encounters: [], trips: [], agenda: newAgenda(), mind: newMindLedger(), life: newLife(), region: null,
-    economy: newEconomy(graph.places.length), groups: newGroups(), politics: newPolitics(),
+    economy: newEconomy(graph.places.length), groups: newGroups(), politics: newPolitics(), media: newMedia(),
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);

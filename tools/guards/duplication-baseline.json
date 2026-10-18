@@ -340,10 +340,6 @@
     "reason": "Per-frame update methods of two different views (vegetation LOD re-split, traffic stepping); the conventional name of a frame hook."
   },
   {
-    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
     "key": "idiom: [.filter .households .length .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
     "reason": "Different questions over the household list (who lives alone, which care-home rooms are taken, which households still have members; emptied households stay as records): each is a one-line Array.filter with its own predicate, and the shared part is Array.filter itself."
   },
@@ -384,22 +380,6 @@
     "reason": "Different questions about a list of members (a household's grown-up at home, a club member who holds an office, a councillor who agrees with an issue): each is one Array.some with its own predicate; the shared part is Array.some itself."
   },
   {
-    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts + simworld/street/tracks.ts + simworld/workers/sim.worker.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/economy.ts + simworld/sim/encounters.ts + simworld/street/tracks.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/phone.ts + simworld/sim/schedule.ts + simworld/street/tracks.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
     "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
@@ -430,5 +410,9 @@
   {
     "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/media.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   }
 ]

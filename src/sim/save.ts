@@ -18,6 +18,7 @@ import { AnimalTable } from './animals';
 import { Relations } from './relations';
 import type { PlaceGraph } from './places';
 import { placeIndex, type World } from './world';
+import { newMedia } from './media';
 
 const VERSION = 1;
 const MAGIC = [0x53, 0x57, 0x53]; // "SWS"
@@ -206,7 +207,9 @@ export function loadWorld(planned: PlaceGraph, bytes: Uint8Array): World {
   const graph: PlaceGraph = { ...planned, places };
   delete state.version;
   delete state.places;
-  return { ...(state as unknown as World), graph, ...placeIndex(graph) };
+  // Saves from before the town's media (src/sim/media.ts) start with an empty paper.
+  const world = state as unknown as World;
+  return { ...world, media: world.media ?? newMedia(), graph, ...placeIndex(graph) };
 }
 
 /** Typed-array kind per buffer index, from the header. */
