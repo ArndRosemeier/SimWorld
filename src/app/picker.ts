@@ -3,7 +3,8 @@
  * inhabitant's card (src/sim/profile.ts) with a search, the filters (in love, has a secret, new in town, …), an age
  * band and a sort. Picking someone shows their whole card (secrets marked as known only to you); "Be …" plays as
  * them. A slider starts play later (up to a day ahead, Arnd): the town lives on to then, and you take over wherever
- * they are at that time. The loading screen hands over to it once the town is up; it comes back when the player wants to be
+ * they are at that time. Someone in a car, on a bus or out of town is not offered (Arnd, 21:20: "Hide them"): they
+ * are never put where the sim does not have them. The loading screen hands over to it once the town is up; it comes back when the player wants to be
  * someone else.
  */
 import { deriveSeed, Rng } from '@futuremagic/core';
@@ -32,6 +33,9 @@ const story = (c: InhabitantCard): number => c.situations.reduce((s, x) => s + x
 /** Cards listed at once; "Show more" adds as many again. */
 const PAGE = 120;
 
+/** Someone who cannot be taken over now: why ("driving to the bakery"), and about when they are back (clock, null: not known). */
+export interface Wait { id: number; why: string; back: number | null }
+
 export interface PickerOptions {
   seed: number;
   /** Who the player is now, if anyone (offered as "Stay as …"). */
@@ -40,6 +44,8 @@ export interface PickerOptions {
   clock: () => number;
   /** Play as `card`, `ahead` minutes from now (0: now); resolves once play has begun. */
   onPick: (card: InhabitantCard, ahead: number) => void | Promise<void>;
+  /** Who cannot be taken over now (in a car, on a bus, out of town): their cards are left out. */
+  waits?: () => Promise<readonly Wait[]>;
   /** Called when the player closes the picker without picking (only offered while they are someone). */
   onClose?: () => void;
 }
@@ -59,6 +65,8 @@ export class Picker {
   private ahead = 0;
   private readonly when = el('span', 'pk-when');
   private picking = false;
+  /** Who cannot be taken over now (asked again every half minute while the picker is up). */
+  private waits = new Map<number, Wait>();
 
   constructor(private readonly cards: readonly InhabitantCard[], private readonly opts: PickerOptions) {
     this.root.setAttribute('aria-label', 'Choose who to be');
@@ -94,6 +102,21 @@ export class Picker {
     row.append(surprise);
     this.root.append(head, this.startRow(), this.search, chips, row, this.list);
     this.render();
+    this.askWaits();
+  }
+
+  /** Ask who is away now, and again every 30 s while the picker is up (people leave and come back). */
+  private askWaits(): void {
+    const ask = this.opts.waits;
+    if (!ask) return;
+    const once = (): void => void ask().then((w) => {
+      const next = new Map(w.map((x) => [x.id, x]));
+      const same = next.size === this.waits.size && [...next.keys()].every((id) => this.waits.has(id));
+      this.waits = next;
+      if (!same && (this.root.isConnected || !this.shownOnce)) this.render();
+    }).catch(() => {});
+    once();
+    const t = setInterval(() => { if (this.root.isConnected) once(); else if (this.shownOnce) clearInterval(t); }, 30_000);
   }
 
   /** The start-time slider: now, or up to a day on; the day and time it lands on beside it. */
@@ -127,15 +150,17 @@ export class Picker {
     const [, from, to] = AGES[this.age];
     let tagMask = 0;
     for (const t of this.tags) tagMask |= t;
+    const now = this.ahead ? null : this.waits;
     return this.cards
-      .filter((c) => c.age >= from && c.age < to && (c.tags & tagMask) === tagMask
+      .filter((c) => !now?.has(c.id) && c.age >= from && c.age < to && (c.tags & tagMask) === tagMask
         && (!q || `${c.name} ${c.line} ${c.household}`.toLowerCase().includes(q)))
       .sort(SORTS[this.sort][1]);
   }
 
   private render(): void {
     const all = this.matching();
-    this.count.textContent = `${all.length} of ${this.cards.length}`;
+    const gone = this.ahead ? 0 : this.waits.size;
+    this.count.textContent = `${all.length} of ${this.cards.length}${gone ? ` · ${gone} out of town or on the road now` : ''}`;
     this.list.replaceChildren();
     for (const c of all.slice(0, this.shown)) this.list.append(this.cardEl(c));
     if (all.length > this.shown) {
@@ -149,6 +174,7 @@ export class Picker {
 
   private cardEl(c: InhabitantCard): HTMLElement {
     const open = this.open === c.id;
+    const first = c.name.split(' ')[0];
     const card = el('article', open ? 'pk-card pk-open' : 'pk-card');
     card.tabIndex = 0;
     const name = el('h3', '');
@@ -163,7 +189,6 @@ export class Picker {
         ul.append(li);
       }
       if (c.situations.length) card.append(ul);
-      const first = c.name.split(' ')[0];
       const be = el('button', 'pk-be', this.ahead ? `Be ${first} from ${hhmm(Math.floor(minuteOfDay(this.opts.clock() + this.ahead)))}` : `Be ${first}`);
       be.type = 'button';
       be.addEventListener('click', (e) => {

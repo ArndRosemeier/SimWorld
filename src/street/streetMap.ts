@@ -15,7 +15,8 @@ import type { HeightGrid } from '../workers/simProtocol';
 import { footprintsOf, type Footprints } from '../plan/footprints';
 import { townRoads, type TownRoads } from '../plan/roads';
 import { signFootprints, signSpots } from '../plan/signs';
-import { buildingRef, eachBuilding } from '../plan/placeGraph';
+import { buildingRef, eachBuilding, SITE } from '../plan/placeGraph';
+import { landmarkBody } from '../interior/landmark';
 import { buildingBase, buildingHeight } from '../build/massing';
 import { BODY } from './clearance';
 import type { PlaceGraph, PlaceId, PlaceKind } from '../sim/places';
@@ -44,10 +45,16 @@ export interface NearSolids {
   /** `doors`: the doors of its places (x, z pairs, on the facade). */
   buildings: { code: number; poly: number[]; y0: number; y1: number; doors: number[] }[];
   circles: number[];
+  /** The ground round the point (a little further than `r`), for the physics world: the body walks anywhere the world is drawn. */
+  ground: HeightGrid;
 }
 
 /** A town building as the player's body meets it: outline, bounds, from `y0` up to `y1`. */
 interface Solid { code: number; poly: Poly; y0: number; y1: number; b: [number, number, number, number] }
+
+/** The ground grid's step (m), and how much further than the solids round a point its ground reaches (m). */
+export const GROUND_STEP = 4;
+const GROUND_MORE = 25;
 
 /** Default walking-line offset (m) for a road without one (a footpath the graph added). */
 const SIDE = 0;
@@ -107,13 +114,15 @@ export class StreetMap {
 
   /**
    * What the player's body walks on (src/physics/solids.ts `heightOnGrid`): the ground at sidewalk level as a grid
-   * of heights, `half` metres from the centre either way, every `step` metres, and the bridge decks over it (a
-   * deck in the grid would smear into a slope down to the water).
+   * of heights every `step` metres, at least `half` metres round (cx, cz) either way, its points on whole multiples
+   * of `step` (two grids agree where they overlap), and the bridge decks over it (a deck in the grid would smear into
+   * a slope down to the water).
    */
-  heightGrid(half: number, step: number): HeightGrid {
-    const n = Math.ceil((half * 2) / step) + 1, x0 = -half, z0 = -half;
-    const h = new Float32Array(n * n);
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) h[j * n + i] = this.town.terrain.height(x0 + i * step, z0 + j * step) + CURB_H;
+  heightGrid(cx: number, cz: number, half: number, step: number): HeightGrid {
+    const x0 = Math.floor((cx - half) / step) * step, z0 = Math.floor((cz - half) / step) * step;
+    const n = Math.ceil((Math.max(cx + half - x0, cz + half - z0)) / step) + 1;
+    const h = new Float32Array(n * n), t = this.town.terrain;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) h[j * n + i] = t.height(x0 + i * step, z0 + j * step) + CURB_H;
     return { x0, z0, step, n, h, decks: this.decks };
   }
 
@@ -248,6 +257,11 @@ export class StreetMap {
         const { base, low } = buildingBase(b, t);
         list.push({ code, poly: b.poly, y0: low - 1, y1: base + buildingHeight(b) + 1, b: polyBounds(b.poly) });
       });
+      // The public buildings people go into (school, church, library, …): their walk-in body (src/interior/landmark.ts).
+      for (const lm of this.town.macro.landmarks) {
+        const body = landmarkBody(lm, t)?.b;
+        if (body) list.push({ code: SITE + lm.id, poly: body.poly, y0: lm.base - 1, y1: lm.base + buildingHeight(body) + 1, b: polyBounds(body.poly) });
+      }
       this.solids = list;
       this.graph.places.forEach((pl, id) => {
         if (pl.building < 0) return;
@@ -269,7 +283,7 @@ export class StreetMap {
         circles.push(cx, cz, f.circles[i * 3 + 2], this.groundY(cx, cz));
       }
     }
-    return { buildings, circles };
+    return { buildings, circles, ground: this.heightGrid(x, z, r + GROUND_MORE, GROUND_STEP) };
   }
 }
 

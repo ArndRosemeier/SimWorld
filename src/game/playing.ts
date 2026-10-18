@@ -27,7 +27,7 @@ import type { Indoors } from '../interior/indoors';
 import { reachOf } from '../interior/reach';
 import type { GoingInside } from './inside';
 import { Avatar } from './avatar';
-import { BODY_H, BODY_R, GROUND_EDGE, landOutdoors, placeSolids } from './standing';
+import { BODY_H, BODY_R, landOutdoors, placeSolids } from './standing';
 import { EYE_BALL, type CameraControl, type PlayTarget } from './camera';
 import type { SimClient } from './SimClient';
 import type { Street } from './street';
@@ -72,7 +72,7 @@ export class Playing {
     const s = this.sim.player;
     if (!this.panel || !s) return -1;
     if (this.avatar) return this.told.building;
-    return indoorsNow(s, this.sim) ? s.building : -1;
+    return indoorsNow(s, this.sim);
   }
 
   /**
@@ -124,7 +124,7 @@ export class Playing {
     }
     if (inside < 0) this.goOut();
     await this.fetchSolids(phys, at?.x ?? x, at?.z ?? z);
-    at ??= { ...landOutdoors(phys, this.sim.ground, this.lastNear, x, z), yaw: av.yaw };
+    at ??= { ...landOutdoors(phys, this.lastNear, x, z, this.sim.world), yaw: av.yaw };
     if (this.avatar !== av) return false;
     av.putAt(at.x, at.y, at.z, at.yaw);
     this.safe = { x: at.x, y: at.y, z: at.z };
@@ -152,6 +152,7 @@ export class Playing {
       seed: this.seed, current,
       clock: () => this.sim.clock,
       onPick: (c, ahead) => this.becomeLater(c, ahead),
+      waits: async () => (await this.sim.ask({ op: 'waits' })).waits,
       onClose: current ? () => this.closePicker() : undefined,
     });
     document.body.append(this.picker.root);
@@ -169,11 +170,19 @@ export class Playing {
    * you were goes back to their routine for it), then you take over wherever they are.
    */
   private async becomeLater(card: InhabitantCard, ahead: number): Promise<void> {
-    if (ahead > 0) {
+    const away = async () => (await this.sim.ask({ op: 'waits' })).waits.find((w) => w.id === card.id);
+    let wait = await away();
+    if (ahead > 0 || wait) {
       this.dropAvatar();
       this.goOut();
       if (this.sim.player?.alive && !this.sim.player.autopilot) await this.sim.ask({ op: 'autopilot', on: true });
-      await this.sim.skip(ahead);
+      if (ahead > 0) { await this.sim.skip(ahead); wait = await away(); }
+      // In a car, on a bus or out of town then (the picker leaves them out only for now): on until they are on foot in town again (a day at most).
+      for (let gone = 0; wait && gone < WAIT_MAX; wait = await away()) {
+        const step = Math.max(1, Math.min(WAIT_STEP, wait.back !== null ? Math.ceil(wait.back - this.sim.clock) + 1 : WAIT_STEP));
+        await this.sim.skip(step);
+        gone += step;
+      }
     }
     await this.become(card);
   }
@@ -216,8 +225,9 @@ export class Playing {
    */
   async takeWheel(): Promise<void> {
     if (this.taking || this.avatar) return;
-    const s = this.sim.player;
-    if (!s || !s.alive) return;
+    const s = this.sim.player, take = s?.take;
+    // In a car, on a bus or out of town: not yet (the picker offers to start when they are back).
+    if (!s || !s.alive || !take || (take.kind === 'wait' && this.placeAt?.id !== s.id)) return;
     this.taking = true;
     try {
       const phys = await this.physics();
@@ -230,16 +240,16 @@ export class Playing {
         if (st.building >= 0 && !(await this.goIn(phys, st.building))) console.warn(`repro: building ${st.building} has no interior to stand in`);
         else building = st.building;
         at = { x: st.x, y: st.y, z: st.z, yaw: st.yaw };
-      } else if (indoorsNow(s, this.sim) && (await this.goIn(phys, s.building)) && this.sim.player?.id === s.id) {
+      } else if (take.kind === 'inside' && (await this.goIn(phys, take.building)) && this.sim.player?.id === s.id) {
         at = this.standUp(phys, s.id);
-        if (at) building = s.building;
+        if (at) building = take.building;
       }
       if (!at) {
-        // Their figure where it walks, else the doorstep of where they are (someone out of town: where their road leaves it).
-        const f = this.sim.walkers.has(s.id) ? this.street.where(s.id) : null;
-        const p = f && this.sim.onGround(f.x, f.z, GROUND_EDGE) ? { x: f.x, z: f.z, yaw: Math.atan2(-f.vx, -f.vz) || (f.face ?? 0) } : s.exit ?? { x: s.x, z: s.z, yaw: 0 };
+        // Their figure where it walks (as drawn, else as the sim has it), else the doorstep of the building they are in.
+        const f = take.kind === 'street' && this.sim.walkers.has(s.id) ? this.street.where(s.id) : null;
+        const p = f && this.sim.inWorld(f.x, f.z) ? { x: f.x, z: f.z, yaw: Math.atan2(-f.vx, -f.vz) || (f.face ?? 0) } : take.kind !== 'wait' ? take : { x: s.x, z: s.z, yaw: 0 };
         await this.fetchSolids(phys, p.x, p.z);
-        at = { ...landOutdoors(phys, this.sim.ground, this.lastNear, p.x, p.z), yaw: p.yaw };
+        at = { ...landOutdoors(phys, this.lastNear, p.x, p.z, this.sim.world), yaw: p.yaw };
       } else await this.fetchSolids(phys, at.x, at.z);
       if (this.sim.player?.id !== s.id) return;
       this.avatar = new Avatar(phys, at.x, at.y, at.z, at.yaw);
@@ -340,7 +350,7 @@ export class Playing {
     this.solidsAt = { x, z };
     try {
       const r = await this.sim.ask({ op: 'near', x, z, r: SOLIDS_R });
-      if (r.near) { this.lastNear = r.near; placeSolids(phys, r.near, this.interior); }
+      if (r.near) { this.lastNear = r.near; this.sim.groundNear = r.near.ground; placeSolids(phys, r.near, this.interior); }
     } finally {
       this.fetching = false;
     }
@@ -370,11 +380,12 @@ export class Playing {
     const av = this.avatar;
     if (av) return this.steer(av, dt, w, compiling);
     // On autopilot in a building: its interior, the camera in there with them (asleep: by their bed).
-    if (indoorsNow(s, this.sim) && this.physNow) {
+    const inside = indoorsNow(s, this.sim);
+    if (inside >= 0 && this.physNow) {
       const phys = this.physNow;
-      void this.goIn(phys, s.building);
+      void this.goIn(phys, inside);
       const ins = this.goingIn.inside;
-      if (this.interior === s.building && ins) {
+      if (this.interior === inside && ins) {
         const f = this.street.where(s.id), spot = this.goingIn.spotOf(s.id);
         const p = f ?? spot ?? { x: ins.indoors.doors[0]?.x ?? s.x, y: ins.indoors.base, z: ins.indoors.doors[0]?.z ?? s.z };
         const head = { x: p.x, y: p.y + (f || !spot || spot.use !== 'sleep' ? 1.55 : 0.6), z: p.z };
@@ -384,7 +395,7 @@ export class Playing {
       }
     } else if (this.interior >= 0 || this.goingIn.inside) this.goOut();
     // Off the ground (on the road to the city): the camera waits where their road leaves the town (the sim's x, z).
-    const f = this.street.where(s.id), onGround = f ? this.sim.onGround(f.x, f.z, GROUND_EDGE) : false;
+    const f = this.street.where(s.id), onGround = f ? this.sim.inWorld(f.x, f.z) : false;
     const tg = this.target;
     if (f && onGround) Object.assign(tg, { x: f.x, y: f.y, z: f.z, vx: f.vx, vz: f.vz, outside: true });
     // Indoors: their building. Out of doors but not near the camera yet: where the worker says they are on the street.
@@ -418,8 +429,8 @@ export class Playing {
     const ins = this.interior >= 0 ? this.goingIn.inside : null;
     let floor = this.sim.standHeight(av.x, av.z);
     if (ins) for (const st of ins.indoors.storeys) floor = Math.min(floor, st.y);
-    if (av.y < floor - FELL || !this.sim.onGround(av.x, av.z)) {
-      const back = this.safe ?? landOutdoors(av.phys, this.sim.ground, this.lastNear, av.x, av.z);
+    if (av.y < floor - FELL || !this.sim.inWorld(av.x, av.z)) {
+      const back = this.safe ?? landOutdoors(av.phys, this.lastNear, av.x, av.z, this.sim.world);
       av.putAt(back.x, back.y, back.z);
     } else if (av.grounded && av.y > floor - 0.2) this.safe = { x: av.x, y: av.y, z: av.z };
   }
@@ -448,6 +459,9 @@ export class Playing {
   }
 }
 
+/** Starting when someone is back: the clock moves on at most this far (minutes), this much at a time. */
+const WAIT_MAX = 26 * 60, WAIT_STEP = 60;
+
 /** Where to stand the body: feet at (x, y, z), facing `yaw`, in building `building` (-1 out of doors). */
 export interface Stand { x: number; y: number; z: number; yaw: number; building: number }
 
@@ -475,9 +489,9 @@ function openWay(phys: Physics, x: number, y: number, z: number, prefer: number)
   return best;
 }
 
-/** In a building as the sim has it (not walking anywhere, not out of doors): their interior is where they are. */
-function indoorsNow(s: NonNullable<SimClient['player']>, sim: SimClient): boolean {
-  return s.building >= 0 && !s.outdoors && !s.travelling && !sim.walkers.has(s.id);
+/** The building they are in as the sim has it (src/street/takeover.ts: not on the way, not out of doors), -1 none: their interior is where they are. */
+function indoorsNow(s: NonNullable<SimClient['player']>, sim: SimClient): number {
+  return s.take?.kind === 'inside' && !sim.walkers.has(s.id) ? s.take.building : -1;
 }
 
 /** Is (x, z) inside `poly` or within `r` of it (its bounds, grown)? */

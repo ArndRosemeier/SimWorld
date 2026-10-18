@@ -488,8 +488,8 @@
     "reason": "Different words for different readers: the profile card names the relation plainly (mother, housemate); talk says it in the speaker's voice (mum, little girl, flatmate)."
   },
   {
-    "key": "idiom: [.actors .cols .graph .places] in simworld/chat/card.ts + simworld/chat/context.ts + simworld/sim/media.ts + simworld/sim/player.ts",
-    "reason": "Reading an actor's columns and the place graph at the top of a function that describes someone or picks a place in words; each describes a different thing (NPC card, prompt context, paper, the player's options)."
+    "key": "idiom: [.actors .cols .graph .places] in simworld/chat/card.ts + simworld/chat/context.ts + simworld/sim/media.ts + simworld/sim/player.ts + simworld/street/takeover.ts",
+    "reason": "Reading an actor's columns and the place graph at the top of a function that describes someone or picks a place in words; each describes a different thing (NPC card, prompt context, paper, the player's options, where the player takes someone over)."
   },
   {
     "key": "idiom: [.actors .cols .sex] in simworld/chat/card.ts + simworld/sim/life.ts + simworld/sim/profile.ts",
