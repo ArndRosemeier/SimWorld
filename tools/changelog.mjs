@@ -19,11 +19,21 @@ export function parseNote(name, md) {
   return { title: head[1].trim(), body };
 }
 
+/** Merge number n as a version: 0.001 per merge, so merge 9 is v0.009 and merge 1000 is v1.000. */
+export function versionName(n) {
+  return `v${Math.floor(n / 1000)}.${String(n % 1000).padStart(3, '0')}`;
+}
+
+/** The merge number of the newest version in CHANGELOG.md (v0.009 → 9), 0 when it has none yet. */
+export function lastMerge(changelog) {
+  const top = /^## v(\d+)\.(\d{3})\b/m.exec(changelog);
+  return top ? Number(top[1]) * 1000 + Number(top[2]) : 0;
+}
+
 /** CHANGELOG.md with `notes` (oldest merged first) added on top as the next versions. */
 export function fold(changelog, notes) {
-  const top = /^## v0\.(\d+)/m.exec(changelog);
-  let n = top ? Number(top[1]) : 0;
-  const entries = notes.map((note) => `## v0.${String(++n).padStart(3, '0')} — ${note.title}\n\n${note.body}\n\n`);
+  let n = lastMerge(changelog);
+  const entries = notes.map((note) => `## ${versionName(++n)} — ${note.title}\n\n${note.body}\n\n`);
   const at = changelog.indexOf('## ');
   return at < 0 ? `${changelog.trimEnd()}\n\n${entries.reverse().join('')}` : changelog.slice(0, at) + entries.reverse().join('') + changelog.slice(at);
 }

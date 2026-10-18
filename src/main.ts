@@ -16,6 +16,7 @@ import { setParcels } from './render/tsl/ground';
 import { showTown } from './render/townView';
 import { WorkerPool } from './workers/pool';
 import townWorkerUrl from './workers/town.worker.ts?worker&url';
+import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
 
@@ -84,6 +85,9 @@ async function start(): Promise<void> {
   });
   await view.ready;
 }
+
+// The version and What's new sit on the start screen and stay in the corner once the town is up.
+document.body.append(whatsNewButton());
 
 start().catch((err) => {
   const el = document.querySelector('#loading .step');

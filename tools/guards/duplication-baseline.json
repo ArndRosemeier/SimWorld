@@ -8,18 +8,6 @@
     "reason": "2D and 3D variants of the same noise in one file; merging them would cost the hot path a dimension branch."
   },
   {
-    "key": "idiom: [.actors .alive .cols .count] in simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
-    "reason": "The sweep over every living actor that each data-oriented sim system starts with (needs, decisions, life events). A shared iterator would cost a call per actor in the per-minute hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols .people .row] in simworld/sim/actions.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "same name: simworld/llm/openrouter.ts#stream + simworld/llm/recorded.ts#stream",
-    "reason": "Both implement Transport.stream (the real OpenRouter connection and the recorded/recording test transports); one interface method, different jobs."
-  },
-  {
     "key": "clone: simworld/plan/kit.ts#beam + simworld/plan/kit.ts#strut",
     "reason": "Ported from Scale's landmark Kit: two part primitives with the same argument shape that emit different part kinds (PK.Beam, PK.Strut) read by different mesh builders."
   },
@@ -40,6 +28,14 @@
     "reason": "One designer per public building (the Designer contract from Scale): the same closure shape, each with its own sizes and parameters for its parts; a table would hide the drawing rules."
   },
   {
+    "key": "idiom: [.actors .cols .people .row] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/synth.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
     "key": "idiom: [.angle .cos .sin Math] in simworld/geom/geom2.ts + simworld/plan/cell.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
     "reason": "Axis vectors of a frame (cos, sin of its angle) computed once for a loop; the point transforms go through geom2 frameToWorld / worldToFrame."
   },
@@ -56,8 +52,16 @@
     "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
   },
   {
+    "key": "same name: simworld/llm/openrouter.ts#stream + simworld/llm/recorded.ts#stream",
+    "reason": "Both implement Transport.stream (the real OpenRouter connection and the recorded/recording test transports); one interface method, different jobs."
+  },
+  {
     "key": "same name: simworld/plan/cell.ts#add + simworld/plan/macro.ts#add",
     "reason": "Local closures ported from Scale's planner (cell.ts adds a building, macro.ts an arterial edge); unrelated jobs."
+  },
+  {
+    "key": "same name: simworld/plan/cell.ts#add + simworld/sim/table.ts#add",
+    "reason": "Unrelated jobs under a common verb: the sim's component table adds a row; the planner's local closures add a building, a part, an arterial edge."
   },
   {
     "key": "same name: simworld/plan/cell.ts#at + simworld/plan/terrace.ts#at",
@@ -72,16 +76,12 @@
     "reason": "Both use the Kit's one material helper `mat` (defined in kit.ts)."
   },
   {
-    "key": "same name: simworld/plan/kit.ts#mat + simworld/plan/landmarkParts.ts#mat",
-    "reason": "landmarkParts uses the Kit's one material helper `mat` (defined in kit.ts)."
-  },
-  {
-    "key": "same name: simworld/plan/cell.ts#add + simworld/sim/table.ts#add",
-    "reason": "Unrelated jobs under a common verb: the sim's component table adds a row; the planner's local closures add a building, a part, an arterial edge."
-  },
-  {
     "key": "same name: simworld/plan/kit.ts#add + simworld/sim/table.ts#add",
     "reason": "Unrelated jobs under a common verb: the sim's component table adds a row; the planner's local closures add a building, a part, an arterial edge."
+  },
+  {
+    "key": "same name: simworld/plan/kit.ts#mat + simworld/plan/landmarkParts.ts#mat",
+    "reason": "landmarkParts uses the Kit's one material helper `mat` (defined in kit.ts)."
   },
   {
     "key": "same name: simworld/plan/macro.ts#add + simworld/sim/table.ts#add",

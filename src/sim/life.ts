@@ -18,9 +18,10 @@ import { PET_NAMES } from './names';
 import { T_AGREE, T_CONSC, T_EXTRA, T_NEURO, T_OPEN, V_HONEST, V_LOYAL, type Household, type Job } from './people';
 import type { PlaceId, PlaceKind } from './places';
 import { isHome } from './placeKinds';
-import { bond, bondBit, FAMILY_MASK, unbond } from './relations';
+import { bond, bondBit, FAMILY_MASK, liking, unbond } from './relations';
 import { SPECIES, speciesId } from './species';
 import { addHousehold, adoptPet, fitRoutine, newAnimal, newPerson, settle, type HouseholdType } from './synth';
+import { regionDestination, type RegionPlace } from './region';
 import { DAYS_PER_YEAR, MINUTES_PER_DAY } from './time';
 import { ageOf, commute, householdOf, isPerson, jobOf, nameOf, placesOf, tickRng, traitOf, valueOf, type World } from './world';
 
@@ -59,7 +60,8 @@ export interface Life {
 export const newLife = (): Life => ({ events: [], pregnant: new Map(), together: new Map() });
 
 /** Who moves to a small town: mostly young people and families (work, a cheaper house, a garden). */
-const NEWCOMERS: [HouseholdType, number][] = [['singleYoung', 0.22], ['coupleYoung', 0.28], ['family', 0.32], ['singleParent', 0.05], ['singleMid', 0.06], ['coupleMid', 0.05], ['coupleOld', 0.02]];
+const NEWCOMERS_HOUSE: [HouseholdType, number][] = [['coupleYoung', 0.25], ['family', 0.55], ['singleParent', 0.05], ['coupleMid', 0.1], ['multiGen', 0.05]];
+const NEWCOMERS_FLAT: [HouseholdType, number][] = [['singleYoung', 0.4], ['coupleYoung', 0.3], ['family', 0.1], ['singleParent', 0.05], ['singleMid', 0.1], ['flatshare', 0.05]];
 
 const PARTNERS = bondBit('partner') | bondBit('spouse');
 const SPOUSE = bondBit('spouse');
@@ -166,10 +168,6 @@ function closeTo(world: World, ...ids: ActorId[]): ActorId[] {
   return [...out];
 }
 
-const liking = (world: World, a: ActorId, b: ActorId) => {
-  const r = world.relations.row(a, b);
-  return r >= 0 ? world.relations.t.cols.affection[r] : 0;
-};
 
 function shiftAffection(world: World, a: ActorId, b: ActorId, to: number): void {
   const c = world.relations.t.cols;
@@ -215,7 +213,9 @@ export function leaveTown(world: World, id: ActorId, rng: Rng): void {
   if (!a.alive[id]) return;
   a.alive[id] = 0; a.place[id] = -1; a.dest[id] = -1; a.with[id] = -1; a.activity[id] = A.idle;
   world.intentions[id] = [];
-  for (let f = 0; f < world.actors.count; f++) if (a.with[f] === id) { a.with[f] = -1; a.until[f] = world.clock; }
+  // Followers (children, the dog) are always from the same household.
+  const own = householdOf(world, id);
+  for (const f of own ? [...own.members, ...own.animals] : []) if (a.with[f] === id) { a.with[f] = -1; a.until[f] = world.clock; }
   if (a.kind[id] === ACTOR_ANIMAL) {
     const h = world.animals.cols.household[a.row[id]];
     if (h >= 0) { const l = world.households[h].animals; const k = l.indexOf(id); if (k >= 0) l.splice(k, 1); }
@@ -259,7 +259,7 @@ function birthdays(world: World, day: number, rng: Rng): void {
       if (age === 18) log(world, day, 'schoolEnd', id, -1, -1);
     }
     if (age === 67) retire(world, day, id, rng);
-    if (age >= 4) remember(world, id, { who: householdOf(world, id)?.members.filter((m) => m !== id) ?? [], summary: `I turned ${age}`, importance: age % 10 === 0 ? 0.6 : 0.3, emotion: 'joy' });
+    if (age % 10 === 0 || age === 16 || age === 18 || age === 21) remember(world, id, { who: householdOf(world, id)?.members.filter((m) => m !== id) ?? [], summary: `I turned ${age}`, importance: 0.5, emotion: 'joy' });
   }
 }
 
@@ -274,7 +274,7 @@ function health(world: World, rng: Rng): void {
       a.health[id] = Math.min(1, before + Math.max(0.03, 0.09 - age * 0.0007) * step);
       if (a.health[id] >= 0.97) {
         a.health[id] = 1;
-        if (before < 0.4) log(world, Math.floor(world.clock / MINUTES_PER_DAY), 'recovery', id, -1, -1);
+        if (before < 0.2) log(world, Math.floor(world.clock / MINUTES_PER_DAY), 'recovery', id, -1, -1);
       }
       continue;
     }
@@ -288,6 +288,7 @@ function health(world: World, rng: Rng): void {
     if (severity > 0.9) {
       const day = Math.floor(world.clock / MINUTES_PER_DAY);
       const fact = news(world, closeTo(world, id), { topic: 'health', text: '{subject} is seriously ill', subject: id, magnitude: 0.7 });
+      remember(world, id, { who: [], summary: 'I was seriously ill', importance: 0.8, emotion: 'fear', fact });
       log(world, day, 'illness', id, -1, -1, fact);
       feel(world, id, 'fear', 0.5);
     }
@@ -314,7 +315,7 @@ function personDies(world: World, day: number, id: ActorId, rng: Rng): void {
   const fact = news(world, mourners, { topic: 'family', text: '{subject} died', subject: id, magnitude: age >= 75 ? 0.6 : 0.85 });
   broadcast(world, fact, 0.04); // the notice in the paper
   for (const m of mourners) {
-    const close = Math.max(0.2, liking(world, m, id));
+    const close = Math.max(0.2, liking(world.relations, m, id));
     feel(world, m, 'sadness', 0.4 + close * 0.6);
     remember(world, m, { who: [id], summary: `${nameOf(world, id)} died`, importance: 0.6 + close * 0.4, emotion: 'sadness', fact });
   }
@@ -335,7 +336,7 @@ function animalDies(world: World, day: number, id: ActorId, rng: Rng): void {
     const owner = ac.keeper[r] >= 0 ? ac.keeper[r] : hh.members[0] ?? -1;
     fact = news(world, hh.members, { topic: 'family', text: `{object}'s ${species} {subject} died`, subject: id, object: owner, magnitude: 0.3 });
     for (const m of hh.members) {
-      feel(world, m, 'sadness', 0.3 + Math.max(0, liking(world, m, id)) * 0.5);
+      feel(world, m, 'sadness', 0.3 + Math.max(0, liking(world.relations, m, id)) * 0.5);
       remember(world, m, { who: [id], summary: `our ${species} ${nameOf(world, id)} died`, importance: 0.5, emotion: 'sadness', fact });
     }
   }
@@ -373,8 +374,13 @@ function romance(world: World, day: number, rng: Rng): void {
       for (const r of rel.known(id)) {
         const o = c.to[r];
         if (!isPerson(world, o) || c.bonds[r] & NO_ROMANCE || c.familiarity[r] < 0.15 || !attracted(world, id, o) || !attracted(world, o, id)) continue;
-        const score = c.affection[r] + liking(world, o, id) + rng.float() * 0.3;
+        const score = c.affection[r] + liking(world.relations, o, id) + rng.float() * 0.3;
         if (score > bestScore) { bestScore = score; best = o; }
+      }
+      // Or someone new: introduced by friends, met at a party, online.
+      for (let k = 0; best < 0 && k < 6; k++) {
+        const o = rng.int(0, world.actors.count - 1);
+        if (o !== id && isPerson(world, o) && !world.relations.isFamily(id, o) && attracted(world, id, o) && attracted(world, o, id) && rng.chance(0.4)) best = o;
       }
       if (best >= 0) startDating(world, day, id, best);
       continue;
@@ -388,7 +394,7 @@ function romance(world: World, day: number, rng: Rng): void {
 
 function startDating(world: World, day: number, x: ActorId, y: ActorId): void {
   bond(world.relations, x, y, 'partner', { familiarity: 0.7, trust: 0.6 });
-  for (const [p, q] of [[x, y], [y, x]]) world.relations.t.cols.affection[world.relations.row(p, q)] = clamp(liking(world, p, q) + 0.3, 0, 1);
+  for (const [p, q] of [[x, y], [y, x]]) world.relations.t.cols.affection[world.relations.row(p, q)] = clamp(liking(world.relations, p, q) + 0.3, 0, 1);
   world.life.together.set(coupleKey(x, y), day);
   setPartners(world, x, y, true);
   const fact = news(world, [x, y], { topic: 'romance', text: '{subject} is going out with {object}', subject: x, object: y, magnitude: 0.55 });
@@ -407,7 +413,7 @@ function couple(world: World, day: number, x: ActorId, y: ActorId, rng: Rng): vo
   const hx = householdOf(world, x), hy = householdOf(world, y);
   const together = hx !== null && hx === hy;
   // Break-ups: neuroticism, low agreeableness and cooling affection; marriages last far longer.
-  const strain = clamp(1 + traitOf(world, x, T_NEURO) + traitOf(world, y, T_NEURO) - traitOf(world, x, T_AGREE) - traitOf(world, y, T_AGREE) - liking(world, x, y) - liking(world, y, x), 0.2, 3);
+  const strain = clamp(1 + traitOf(world, x, T_NEURO) + traitOf(world, y, T_NEURO) - traitOf(world, x, T_AGREE) - traitOf(world, y, T_AGREE) - liking(world.relations, x, y) - liking(world.relations, y, x), 0.2, 3);
   if (rng.chance(happens((married ? 0.02 : day - since < 365 ? 0.35 : 0.12) * strain))) { breakUp(world, day, x, y, married, together, rng); return; }
   if (!together && day - since > 120 && rng.chance(happens(0.5))) moveIn(world, day, x, y, rng);
   else if (together && !married && day - since > 365 && Math.min(ageOf(world, x), ageOf(world, y)) >= 20 && rng.chance(happens(0.08))) marry(world, day, x, y);
@@ -429,6 +435,7 @@ function moveIn(world: World, day: number, x: ActorId, y: ActorId, rng: Rng): vo
   }
   for (const m of movers) moveInto(world, m, into, rng.fork('move', m));
   const fact = news(world, closeTo(world, x, y), { topic: 'romance', text: '{subject} moved in with {object}', subject: movers[0] ?? x, object: movers[0] === x ? y : x, place: into.home, magnitude: 0.4 });
+  for (const [p, q] of [[x, y], [y, x]]) remember(world, p, { who: [q], summary: `${nameOf(world, q)} and I moved in together`, importance: 0.8, emotion: 'joy', fact });
   log(world, day, 'moveIn', x, y, into.home, fact);
 }
 
@@ -500,6 +507,7 @@ function births(world: World, day: number, rng: Rng): void {
     if (!rng.chance(happens(f * [1.1, 0.9, 0.35, 0.12, 0.05][Math.min(4, kids.length)]))) continue;
     world.life.pregnant.set(id, { father: partner, due: day + rng.int(260, 285), announced: false });
     const fact = news(world, [id, partner], { topic: 'family', text: '{subject} is pregnant', subject: id, magnitude: 0.5, secret: true });
+    for (const p of [id, partner]) remember(world, p, { who: [p === id ? partner : id], summary: p === id ? 'I found out I am pregnant' : `${nameOf(world, id)} is pregnant`, importance: 0.9, emotion: 'joy', fact });
     log(world, day, 'pregnancy', id, partner, -1, fact);
   }
 }
@@ -603,10 +611,14 @@ function work(world: World, day: number, rng: Rng): void {
     const p = a.row[id], age = ageOf(world, id);
     if (pc.job[p] < 0 && age >= 17 && age < 67 && pc.school[p] < 0 && !world.life.pregnant.has(id)) seekers.push(id);
   }
+  rng.shuffle(seekers);
   for (const job of open) {
     let best = -1, bestScore = -Infinity;
-    for (const id of seekers) {
+    // Whoever applies: the first few dozen suitable people in a shuffled list.
+    for (let k = 0, tries = 0; k < seekers.length && tries < 30; k++) {
+      const id = seekers[k];
       if (pc.job[a.row[id]] >= 0 || ageOf(world, id) < job.minAge) continue;
+      tries++;
       const score = -commute(world, id, job.place) * 0.3 + traitOf(world, id, T_CONSC) * 5 + rng.float() * 5;
       if (score > bestScore) { bestScore = score; best = id; }
     }
@@ -637,9 +649,28 @@ function homes(world: World, day: number, rng: Rng): void {
     if (home >= 0) {
       newHome(world, partner >= 0 ? [id, partner] : [id], home, rng.fork('home', id));
       const fact = news(world, closeTo(world, id), { topic: 'family', text: '{subject} moved out of their parents\' place', subject: id, place: home, magnitude: 0.3 });
+      remember(world, id, { who: [], summary: `I moved out of my parents' place into ${world.graph.places[home].name}`, importance: 0.8, emotion: 'joy', fact });
       log(world, day, 'leftHome', id, -1, home, fact);
     } else {
-      const fact = news(world, old.members, { topic: 'family', text: '{subject} moved away to the city', subject: id, magnitude: 0.4 });
+      const fact = news(world, old.members, { topic: 'family', text: `{subject} moved away to ${regionDestination(world, rng.fork('dest', id), ageOf(world, id) < 23 ? 'university' : undefined)?.name ?? 'the city'}`, subject: id, magnitude: 0.4 });
+      log(world, day, 'departed', id, -1, -1, fact);
+      leaveTown(world, id, rng.fork('leave', id));
+    }
+  }
+  // Old people living alone move in with their children, or into a care home out of town, and free the house.
+  for (const hh of world.households) {
+    if (hh.members.length !== 1 || world.graph.places[hh.home].kind === 'farmhouse') continue;
+    const id = hh.members[0], age = ageOf(world, id);
+    if (age < 78 || !rng.chance(happens(0.04 + (age - 78) * 0.012))) continue;
+    const kids = bonded(world, id, CHILD).filter((k) => world.actors.cols.kind[k] === ACTOR_PERSON && ageOf(world, k) >= 25 && householdOf(world, k) !== null);
+    if (kids.length > 0 && rng.chance(0.4)) {
+      const to = householdOf(world, kids[0])!;
+      for (const an of hh.animals.slice()) leaveTown(world, an, rng.fork('leave', an));
+      moveInto(world, id, to, rng.fork('move', id));
+      const fact = news(world, closeTo(world, id), { topic: 'family', text: '{subject} moved in with {object}', subject: id, object: kids[0], place: to.home, magnitude: 0.3 });
+      log(world, day, 'moveIn', id, kids[0], to.home, fact);
+    } else {
+      const fact = news(world, closeTo(world, id), { topic: 'family', text: `{subject} moved into a care home${where(regionDestination(world, rng.fork('dest', id), 'hospital'))}`, subject: id, magnitude: 0.4 });
       log(world, day, 'departed', id, -1, -1, fact);
       leaveTown(world, id, rng.fork('leave', id));
     }
@@ -650,7 +681,7 @@ function homes(world: World, day: number, rng: Rng): void {
     const head = hh.members[0];
     const street = world.streetOf[hh.home];
     const neighbours = world.households.filter((o) => o !== hh && o.members.length && world.streetOf[o.home] === street).flatMap((o) => o.members.slice(0, 1));
-    const fact = news(world, [...closeTo(world, head), ...neighbours], { topic: 'family', text: '{subject} and family are moving away', subject: head, place: hh.home, magnitude: 0.45 });
+    const fact = news(world, [...closeTo(world, head), ...neighbours], { topic: 'family', text: `{subject} and family are moving away${where(regionDestination(world, rng.fork('dest', head)), ' to ')}`, subject: head, place: hh.home, magnitude: 0.45 });
     for (const m of hh.members.slice()) { log(world, day, 'departed', m, head, hh.home, fact); leaveTown(world, m, rng.fork('leave', m)); }
     for (const an of hh.animals.slice()) leaveTown(world, an, rng.fork('leave', an));
   }
@@ -658,7 +689,7 @@ function homes(world: World, day: number, rng: Rng): void {
   free = vacantHomes(world);
   for (const home of free) {
     if (!rng.chance(happens(12))) continue;
-    const hh = addHousehold(world, home, rng.fork('newcomers', home, day), rng.weighted(NEWCOMERS, (t) => t[1])[0]);
+    const hh = addHousehold(world, home, rng.fork('newcomers', home, day), rng.weighted(world.graph.places[home].kind === 'apartments' ? NEWCOMERS_FLAT : NEWCOMERS_HOUSE, (t) => t[1])[0]);
     for (const m of hh.members) {
       settle(world, m, rng.fork('settle', m));
       world.people.cols.money[personRow(world, m)] = rng.range(200, 3000);
@@ -666,10 +697,19 @@ function homes(world: World, day: number, rng: Rng): void {
     if (rng.chance(0.3)) newPet(world, day, hh, rng.fork('pet', hh.id), false);
     const street = world.streetOf[home];
     const neighbours = world.households.filter((o) => o !== hh && o.members.length && world.streetOf[o.home] === street).flatMap((o) => o.members.slice(0, 1));
-    const fact = news(world, neighbours, { topic: 'place', text: 'new people moved into {place}: {subject} and family', subject: hh.members[0], place: home, magnitude: 0.35 });
-    for (const m of hh.members) log(world, day, 'arrived', m, hh.members[0], home, fact);
+    // Where they come from: the villages and towns around, or further away.
+    const from = rng.chance(0.6) ? regionDestination(world, rng.fork('from', home, day)) : null;
+    if (world.region) for (const m of hh.members) if (ageOf(world, m) >= 18) world.region.origin.set(m, from?.name ?? '');
+    const fact = news(world, neighbours, { topic: 'place', text: `new people moved into {place}: {subject} and family${where(from, ' from ')}`, subject: hh.members[0], place: home, magnitude: 0.35 });
+    for (const m of hh.members) {
+      remember(world, m, { who: hh.members.filter((o) => o !== m), summary: `we moved to town, into ${world.graph.places[home].name}`, importance: 0.8, emotion: 'joy', fact });
+      log(world, day, 'arrived', m, hh.members[0], home, fact);
+    }
   }
 }
+
+/** " in Marwick" (or " to ", " from "), or nothing without a region. */
+const where = (p: RegionPlace | null, word = ' in ') => (p ? word + p.name : '');
 
 // ---- pets ------------------------------------------------------------------------------------------------
 
@@ -678,6 +718,7 @@ function newPet(world: World, day: number, hh: Household, rng: Rng, tell = true)
   const species = rng.chance(flat ? 0.3 : 0.55) ? 'dog' : 'cat';
   const pet = adoptPet(world, hh, species, rng, day - rng.int(60, 700));
   const fact = tell ? news(world, hh.members, { topic: 'family', text: `{subject} got a ${species}`, subject: hh.members[0], magnitude: 0.2 }) : -1;
+  for (const m of hh.members) remember(world, m, { who: [pet], summary: `we got a ${species}, ${nameOf(world, pet)}`, importance: 0.5, emotion: 'joy', fact });
   log(world, day, 'petAdopted', pet, hh.members[0], hh.home, fact);
 }
 
@@ -698,38 +739,65 @@ const CRIME_RATES = { theft: 10, burglary: 3, vandalism: 5, fight: 4 } as const;
 function crime(world: World, day: number, rng: Rng): void {
   let people = 0;
   for (let id = 0; id < world.actors.count; id++) if (isPerson(world, id)) people++;
+  let suspects: Suspects | null = null;
   for (const kind of Object.keys(CRIME_RATES) as (keyof typeof CRIME_RATES)[]) {
-    if (!rng.chance(happens(CRIME_RATES[kind] * people / 1000))) continue;
-    const r = rng.fork(kind);
-    const offender = culprit(world, r);
-    if (offender < 0) continue;
-    if (kind === 'fight') fight(world, day, offender, r);
-    else if (kind === 'burglary') burglary(world, day, offender, r);
-    else {
-      const kinds: PlaceKind[] = kind === 'theft' ? ['supermarket', 'shop', 'grocer', 'pharmacy', 'bakery'] : ['station', 'park', 'school', 'square', 'sports'];
-      const places = placesOf(world, kinds);
-      if (places.length === 0) continue;
-      const place = places[r.int(0, places.length - 1)];
-      const staff = colleaguesOf(world, place, -1);
-      const text = kind === 'theft' ? 'someone stole from {place}' : 'someone sprayed graffiti at {place}';
-      const fact = news(world, staff, { topic: 'crime', text, place, magnitude: 0.5 });
-      if (kind === 'vandalism') broadcast(world, fact, 0.03);
-      news(world, [offender], { topic: 'crime', text: kind === 'theft' ? '{subject} stole from {place}' : '{subject} sprayed graffiti at {place}', subject: offender, place, magnitude: 0.8, secret: true });
-      log(world, day, kind, -1, offender, place, fact);
+    // Several can happen within one coarse step.
+    for (let i = poisson(CRIME_RATES[kind] * people / 1000 * step / DAYS_PER_YEAR, rng); i > 0; i--) {
+      suspects ??= likelyCulprits(world);
+      const r = rng.fork(kind, i);
+      if (suspects.ids.length > 0) commit(world, day, kind, suspects.ids[pickWeighted(suspects.weights, suspects.total, r)], r);
     }
   }
 }
 
+interface Suspects { ids: ActorId[]; weights: number[]; total: number }
+
 /** Who might do it: young, careless of honesty and of others; men more often. */
-function culprit(world: World, rng: Rng): ActorId {
-  const pool: ActorId[] = [];
-  for (let id = 0; id < world.actors.count; id++) if (isPerson(world, id) && ageOf(world, id) >= 14 && ageOf(world, id) <= 65) pool.push(id);
-  if (pool.length === 0) return -1;
-  return rng.weighted(pool, (id) => {
+function likelyCulprits(world: World): Suspects {
+  const ids: ActorId[] = [], weights: number[] = [];
+  let total = 0;
+  for (let id = 0; id < world.actors.count; id++) {
+    if (!isPerson(world, id)) continue;
     const age = ageOf(world, id);
-    return Math.pow(1 - valueOf(world, id, V_HONEST), 3) * Math.pow(1 - traitOf(world, id, T_AGREE), 2) * (world.actors.cols.sex[id] === MALE ? 1.6 : 1) * (age <= 30 ? 2 : 1);
-  });
+    if (age < 14 || age > 65) continue;
+    const w = Math.pow(1 - valueOf(world, id, V_HONEST), 3) * Math.pow(1 - traitOf(world, id, T_AGREE), 2) * (world.actors.cols.sex[id] === MALE ? 1.6 : 1) * (age <= 30 ? 2 : 1);
+    ids.push(id); weights.push(w); total += w;
+  }
+  return { ids, weights, total };
 }
+
+function pickWeighted(weights: number[], total: number, rng: Rng): number {
+  let x = rng.float() * total;
+  for (let i = 0; i < weights.length; i++) if ((x -= weights[i]) < 0) return i;
+  return weights.length - 1;
+}
+
+/** How many times something with mean `mean` happens (Knuth; small means only). */
+function poisson(mean: number, rng: Rng): number {
+  const limit = Math.exp(-mean);
+  let k = 0;
+  for (let p = rng.float(); p > limit; p *= rng.float()) k++;
+  return k;
+}
+
+function commit(world: World, day: number, kind: keyof typeof CRIME_RATES, offender: ActorId, r: Rng): void {
+  if (kind === 'fight') fight(world, day, offender, r);
+  else if (kind === 'burglary') burglary(world, day, offender, r);
+  else {
+    const kinds: PlaceKind[] = kind === 'theft' ? ['supermarket', 'shop', 'grocer', 'pharmacy', 'bakery'] : ['station', 'park', 'school', 'square', 'sports'];
+    const places = placesOf(world, kinds);
+    if (places.length === 0) return;
+    const place = places[r.int(0, places.length - 1)];
+    const staff = colleaguesOf(world, place, -1);
+    const text = kind === 'theft' ? 'someone stole from {place}' : 'someone sprayed graffiti at {place}';
+    const fact = news(world, staff, { topic: 'crime', text, place, magnitude: 0.5 });
+    if (kind === 'vandalism') broadcast(world, fact, 0.03);
+    const secret = news(world, [offender], { topic: 'crime', text: kind === 'theft' ? '{subject} stole from {place}' : '{subject} sprayed graffiti at {place}', subject: offender, place, magnitude: 0.8, secret: true });
+    remember(world, offender, { who: [], summary: kind === 'theft' ? `I stole something from ${world.graph.places[place].name}` : `I sprayed graffiti at ${world.graph.places[place].name}`, importance: 0.6, emotion: 'fear', fact: secret });
+    log(world, day, kind, -1, offender, place, fact);
+  }
+}
+
 
 function burglary(world: World, day: number, offender: ActorId, rng: Rng): void {
   const victims = world.households.filter((h) => h.members.length > 0 && !h.members.includes(offender));
@@ -737,16 +805,18 @@ function burglary(world: World, day: number, offender: ActorId, rng: Rng): void 
   const hh = victims[rng.int(0, victims.length - 1)];
   const head = hh.members[0];
   const fact = news(world, hh.members, { topic: 'crime', text: 'someone broke into {object}\'s house', object: head, place: hh.home, magnitude: 0.75 });
-  news(world, [offender], { topic: 'crime', text: '{subject} broke into {object}\'s house', subject: offender, object: head, place: hh.home, magnitude: 0.9, secret: true });
+  const secret = news(world, [offender], { topic: 'crime', text: '{subject} broke into {object}\'s house', subject: offender, object: head, place: hh.home, magnitude: 0.9, secret: true });
   for (const m of hh.members) { feel(world, m, 'fear', 0.5); feel(world, m, 'anger', 0.5); }
   intend(world, head, { kind: 'callPolice', at: world.clock + 420, priority: 70, fact, reason: 'our house was broken into' });
+  for (const m of hh.members) remember(world, m, { who: [], summary: 'our house was broken into', importance: 0.8, emotion: 'fear', fact });
+  remember(world, offender, { who: [head], summary: `I broke into ${nameOf(world, head)}'s house`, importance: 0.7, emotion: 'fear', fact: secret });
   log(world, day, 'burglary', -1, head, hh.home, fact);
 }
 
 function fight(world: World, day: number, x: ActorId, rng: Rng): void {
   const known = world.relations.known(x).map((r) => world.relations.t.cols.to[r]).filter((o) => isPerson(world, o) && ageOf(world, o) >= 16 && !world.relations.isFamily(x, o));
   if (known.length === 0) return;
-  const y = rng.weighted(known, (o) => 1 + Math.max(0, -liking(world, x, o)) * 5);
+  const y = rng.weighted(known, (o) => 1 + Math.max(0, -liking(world.relations, x, o)) * 5);
   const pubs = placesOf(world, ['pub']);
   const place = pubs.length ? pubs[rng.int(0, pubs.length - 1)] : world.actors.cols.home[x];
   shiftAffection(world, x, y, -0.7);

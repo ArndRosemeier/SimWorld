@@ -19,6 +19,7 @@ import { PLACE_KINDS, type PlaceKind } from './places';
 import { KINDS, type Service } from './placeKinds';
 import { ACTOR_PERSON } from './actors';
 import type { Relations } from './relations';
+import type { RegionKnowledge } from './region';
 import { Travel } from './travel';
 import { MINUTES_PER_DAY } from './time';
 import { updateNeeds, updateMoods } from './needs';
@@ -54,6 +55,8 @@ export interface World {
   readonly mind: MindLedger;
   /** Life events so far, pregnancies, couples (src/sim/life.ts). */
   readonly life: Life;
+  /** The country around the town and people's ties to it; null when the world was made without one. */
+  region: RegionKnowledge | null;
 }
 
 /** The fixed parts of a world for a place graph (the population comes from `synthesize`, src/sim/synth.ts). */
@@ -79,7 +82,7 @@ export function tickRng(world: World, ...parts: (string | number)[]): Rng {
 export function tick(world: World, minutes = 1): void {
   for (let m = 0; m < minutes; m++) {
     world.clock++;
-    if (world.clock % MINUTES_PER_DAY === 0) daily(world);
+    if (world.clock % MINUTES_PER_DAY === 0) passDays(world, 1);
     updateNeeds(world, 1);
     if (world.clock % 60 === 0) updateMoods(world);
     arrive(world);
@@ -88,12 +91,16 @@ export function tick(world: World, minutes = 1): void {
   }
 }
 
-/** Once per game day at midnight: life events, forgetting, relationship drift; weekly, forgotten faces. */
-function daily(world: World): void {
-  lifeDay(world);
-  forget(world);
-  fadeRelations(world.relations, world.clock);
-  if ((world.clock / MINUTES_PER_DAY) % 7 === 0) world.relations.prune(world.clock);
+/**
+ * The slow processes over `days` ending now (at midnight): life events, forgetting, relationship drift, and the
+ * weekly clear-out of forgotten faces. Once a day in live play; in coarse steps from the chronicle.
+ */
+export function passDays(world: World, days: number): void {
+  lifeDay(world, days);
+  forget(world, days);
+  fadeRelations(world.relations, world.clock, days);
+  const day = world.clock / MINUTES_PER_DAY;
+  if (Math.floor(day / 7) !== Math.floor((day - days) / 7)) world.relations.prune(world.clock);
 }
 
 /** Age in whole years. */

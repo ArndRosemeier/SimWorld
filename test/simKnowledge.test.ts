@@ -59,7 +59,7 @@ test('knowledge: secrets only go to people the teller trusts', () => {
   witness(w, f, [teller]);
   setTrust(w, teller, far, 0.2);
   setTrust(w, teller, near, 0.95);
-  const always = () => 0; // every roll succeeds
+  const always = { float: () => 0 }; // every roll succeeds
   assert.equal(exchange(w, teller, far, 2, always), -1);
   assert.ok(exchange(w, teller, near, 2, always) >= 0);
   assert.ok(beliefsOf(w, near)[0].promised, 'told under "don\'t tell anyone"');

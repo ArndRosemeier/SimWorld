@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.015 — Moving to and from real places
+
+- People who leave town now go somewhere real in the region: students to the university city, the elderly to a care home in the hospital town, families to a nearby town or village.
+- Newcomers arrive from the villages and towns around (or from far away), and their neighbours hear where they came from.
+
+## v0.014 — Plan catches up
+
+- The design plan now records automatic merging, versioning with What's new, the surroundings as lore only, and standing knowledge.
+
+## v0.013 — The country around the town
+
+- Every town now has surroundings its people know about: the nearest big city and how to get there, a larger town nearby with the hospital, four to seven villages with their own character (farms, a lake, vineyards, a harbour, a ruined castle), the river, the hills and woods, the highway, and a few things people like to say about the neighbours.
+- It follows the town's own geography: the city lies where the railway leads, nothing sits in the sea, and the river flows on the way it flows through town.
+- Not everyone is from town any more: many grew up in a village, the larger town or the city, some have family living out there, some studied at the university in the city. Their household and close family know it too.
+- Everyone knows the basics; the details about a village are known by some people, and always by those who grew up there. This knowledge never fades the way gossip does.
+
+## v0.012 — Skipping time, and a town with a past
+
+- Time can be skipped by days or months: life goes on (births, deaths, romances, jobs, moves) and news keeps spreading from person to person, faster for juicy stories.
+- After a skip, any inhabitant can tell what happened to them and what they heard, and only what they would know.
+- A new town can be given decades of history before play starts, so families, exes, grudges and secrets come from things that happened.
+- Old people living alone now move in with their children or into a care home, so family houses free up for newcomers and the town's population stays steady.
+
+## v0.011 — The game on the web
+
+- Every merge is now published on GitHub Pages, so the newest build can be opened in a browser without installing anything.
+
+## v0.010 — Version number and What's new
+
+- The game shows its version (v0.001 at the start, one step of 0.001 per update) in the corner of the start screen, and it stays there in town.
+- Clicking it opens What's new: every version with what changed in it, newest first.
+
+## v0.009 — The town comes alive as places
+
+- Every home, shop, workplace, public building, farm, park, square and named street of the planned town is now a place the townsfolk can live, work and meet in, with an address ("14 Mill Lane", "Hazel Offices").
+- The roads, lanes and farm tracks form one walkable network, so everyone can get everywhere.
+- Opening hours, jobs and capacity come from the same table the society simulation uses, scaled to the town; factory and office jobs fit the town's size.
+- Numbered avenues now get the right ending ("21st", not "21th").
+
 ## v0.008 — The town lives its life
 
 - Every day people fall ill and recover, fall in love, move in together, marry, split up, have babies and die of old age, at real-world rates.

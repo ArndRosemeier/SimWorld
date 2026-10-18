@@ -128,6 +128,12 @@ export function relation(world: { relations: Relations }, a: ActorId, b: ActorId
   };
 }
 
+/** How much A likes B (-1..1; 0 for strangers). */
+export function liking(rel: Relations, a: ActorId, b: ActorId): number {
+  const r = rel.row(a, b);
+  return r >= 0 ? rel.t.cols.affection[r] : 0;
+}
+
 /**
  * Record that B is A's `ab` (B is A's child: `bond(rel, a, b, 'child')`) and give B→A the reciprocal
  * (A is B's parent); symmetric bonds mirror. (parent ↔ child, owner ↔ pet; symmetric bonds mirror).
@@ -179,12 +185,13 @@ export function notice(rel: Relations, a: ActorId, b: ActorId, clock: number): v
   c.lastMet[r] = clock;
 }
 
-/** Daily drift: acquaintances fade when unmet; family and strong ties barely do. */
-export function fadeRelations(rel: Relations, clock: number): void {
+/** Drift over `days` (daily in live play): acquaintances fade when unmet; family and strong ties barely do. */
+export function fadeRelations(rel: Relations, clock: number, days = 1): void {
   const c = rel.t.cols;
+  const fade = Math.pow(0.995, days);
   for (let r = 0; r < rel.t.count; r++) {
     if (c.from[r] < 0 || c.bonds[r] & FAMILY_MASK) continue;
     const since = c.lastMet[r] < 0 ? Infinity : clock - c.lastMet[r];
-    if (since > 7 * 1440) c.familiarity[r] *= 0.995;
+    if (since > 7 * 1440) c.familiarity[r] *= fade;
   }
 }
