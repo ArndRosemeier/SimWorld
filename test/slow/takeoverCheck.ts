@@ -1,22 +1,22 @@
 /**
  * Take over people wherever they are on a weekday (on the street, at a doorstep, on the road to the city) as the
  * game does (src/game/standing.ts, src/sim/player.ts `onTheGround`) and list every body that does not stand on the
- * ground with room round it, or cannot walk off. Used by test/takeover.test.ts (a sample, in CI) and
- * test/slow/takeover.slow.test.ts (whole towns, by hand).
+ * ground with room round it, or cannot walk off. For test/slow/takeover.slow.test.ts (whole towns, by hand; CI
+ * checks the pieces in test/takeover.test.ts).
  */
-import { planTown } from '../src/plan/town';
-import { placeGraphOf } from '../src/plan/placeGraph';
-import { regionOf } from '../src/plan/region';
-import { createWorld } from '../src/sim/synth';
-import { isPerson, tick } from '../src/sim/world';
-import { onTheGround } from '../src/sim/player';
-import { StreetMap, OUTDOOR } from '../src/street/streetMap';
-import { sample, trackOf } from '../src/street/tracks';
-import { Physics } from '../src/physics/physics';
-import { heightOnGrid, onGrid } from '../src/physics/solids';
-import { pointInPoly } from '../src/geom/geom2';
-import { Avatar } from '../src/game/avatar';
-import { GROUND_EDGE, landOutdoors, placeSolids } from '../src/game/standing';
+import { planTown } from '../../src/plan/town';
+import { placeGraphOf } from '../../src/plan/placeGraph';
+import { regionOf } from '../../src/plan/region';
+import { createWorld } from '../../src/sim/synth';
+import { isPerson, tick } from '../../src/sim/world';
+import { onTheGround } from '../../src/sim/player';
+import { StreetMap, OUTDOOR } from '../../src/street/streetMap';
+import { sample, trackOf } from '../../src/street/tracks';
+import { Physics } from '../../src/physics/physics';
+import { heightOnGrid, onGrid } from '../../src/physics/solids';
+import { pointInPoly } from '../../src/geom/geom2';
+import { Avatar } from '../../src/game/avatar';
+import { GROUND_EDGE, landOutdoors, placeSolids } from '../../src/game/standing';
 
 export interface TakeoverRun { checked: number; outOfTown: number; problems: string[] }
 

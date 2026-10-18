@@ -1,12 +1,12 @@
 /**
- * Taking over anyone out of doors, in four towns at four times of a Monday (slow tier, by hand only). CI checks a
- * sample of one town (test/takeover.test.ts).
+ * Taking over anyone out of doors, in four towns at four times of a Monday (slow tier, by hand only, about a
+ * minute). CI checks the pieces (test/takeover.test.ts).
  *
  *   npm run test:slow -- test/slow/takeover.slow.test.ts
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkTakeovers } from '../takeoverCheck';
+import { checkTakeovers } from './takeoverCheck';
 
 test('takeover: everyone out of doors in four towns stands on the ground and can walk off', async () => {
   const r = await checkTakeovers([1, 2, 3, 4], [[7, 40], [8, 20], [12, 40], [17, 50]], 1);
