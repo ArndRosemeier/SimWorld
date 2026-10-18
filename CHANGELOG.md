@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.038 — Steadier checks
+
+- The automatic checks run the test files one at a time, so a slow-looking test is really slow and checks no longer fail at random.
+
 ## v0.037 — Trees in the streets and forests in the country
 
 - Street trees, park trees, yews, bushes and hedges now grow where the town plan puts them: plane, linden, maple, oak, birch, chestnut, ginkgo, pine, cypress and palm, picked by street, park and climate like in Scale.
