@@ -204,6 +204,26 @@
     "reason": "The leaf atlas's species table (ported from Scale's props/vegetation.ts): each entry's leaf is one call to the shared leaf painter with that species' shape numbers; data, not code."
   },
   {
+    "key": "idiom: [.P] in simworld/interior/cores.ts + simworld/interior/fill/split.ts + simworld/plan/landmarkParts.ts",
+    "reason": "Each reads its own record's point list `P`; a field name, not a copied step (tipped over the threshold by the traffic sounds' new files)."
+  },
+  {
+    "key": "idiom: [.fillRect] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D fills for three different drawings (map, sign faces, text atlas); the canvas API used, not copied."
+  },
+  {
+    "key": "idiom: [.overlap] in simworld/build/decorProps.ts + simworld/street/clearance.ts + simworld/street/streetMap.ts",
+    "reason": "Each calls the one footprint overlap test (Footprints.overlap); used, not copied."
+  },
+  {
+    "key": "idiom: [.ridged] in simworld/build/texgen/facade.ts + simworld/build/texgen/masonry.ts + simworld/build/texgen/roof.ts",
+    "reason": "Each texture calls the one ridged-noise helper for its own pattern; used, not copied."
+  },
+  {
+    "key": "idiom: [.profile .seed] in simworld/plan/cell.ts + simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/rail.ts + simworld/world/terrain.ts",
+    "reason": "Each derives its own named stream from the terrain profile's seed (deriveSeed(profile.seed, name)); the one way is deriveSeed, used, not copied."
+  },
+  {
     "key": "idiom: [.coastDistance .coastal .profile] in simworld/build/forest.ts + simworld/plan/landmarks.ts + simworld/world/rural.ts",
     "reason": "Each reads the terrain profile's coast to keep its own things (forest, landmarks, farms) off the shore; the one way is terrain.profile, used, not copied."
   },

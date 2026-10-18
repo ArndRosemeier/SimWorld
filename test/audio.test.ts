@@ -6,6 +6,9 @@ import { moodOf, nextPiece, parseTracks } from '../src/audio/music';
 import { soundEnvOf, soundOverrides } from '../src/audio/env';
 import { DEFAULT_LATITUDE, daysOf, epochFor } from '../src/sim/calendar';
 import { strikesIn } from '../src/sim/weather';
+import { StreetSounds, type StreetAudio } from '../src/traffic/sounds';
+import type { TrafficMsg } from '../src/traffic/feed';
+import { VEHICLE_KINDS } from '../src/build/vehicles';
 
 /** A 1 km square town: built in the middle, a river along the east edge, gardens, a church, a school, a farm. */
 function testMap(): SoundMap {
@@ -188,4 +191,33 @@ test('the agenda fills the square: the market crowd while it runs, the match wit
   for (const m of whistles) assert.ok(minuteShots(new Soundscape(map, 5), m, { occasions: [match] }).some((x) => x.id === 'ref_whistle'), `whistle at ${m}`);
   assert.ok(!minuteShots(new Soundscape(map, 5), at(5, 15, 20), { occasions: [match] }).some((x) => x.id === 'ref_whistle'));
   assert.ok(minuteShots(new Soundscape(map, 5), at(5, 15, 20), { occasions: [match] }).some((x) => x.id === 'ball_kick'));
+});
+
+test('street sounds: a car rushes past once, a bus hisses as it stands, a siren loops while it is on, a horn at its moment', () => {
+  const kind = (k: string) => VEHICLE_KINDS.indexOf(k as never);
+  // Three vehicles over six seconds: a car along z = 5 through the listener's street, an ambulance on a call, a bus standing.
+  const msg = (siren: boolean): TrafficMsg => ({
+    times: Float64Array.from([10, 10.1]),
+    cars: Int32Array.from([1, kind('sedan'), 0, 2, kind('ambulance'), 0, 3, kind('bus'), 0]),
+    poses: Float32Array.from([-100, 0, 5, 0, 100, 0, 5, 0, 300, 0, 0, 0, 300, 0, 50, 0, 20, 0, 20, 0, 20, 0, 20, 0]),
+    state: Float32Array.from([1, 0, 0, 1, 1, 0, siren ? 3 : -3, 1, 1, 0, 2, 1]),
+    paint: new Float32Array(9), parked: null, parkedCars: null, posts: null, closed: new Uint8Array(0),
+    horns: Float64Array.from([10.05, 10, 1, 10, 1]),
+  });
+  const heard: string[] = [];
+  const loops = new Map<string, number>();
+  const audio: StreetAudio = {
+    play: (id) => { heard.push(id); },
+    loop: (id) => { loops.set(id, (loops.get(id) ?? 0) + 1); return { set: () => {}, stop: () => loops.set(id, loops.get(id)! - 1) }; },
+  };
+  const s = new StreetSounds(), m = msg(true);
+  for (let c = 10; c <= 10.1; c += 0.1 / 60) s.listen(0.1, 0, 1.7, 0, c, m, audio);
+  assert.deepEqual(heard.filter((h) => h === 'car_passby').length, 1);
+  assert.deepEqual(heard.filter((h) => h === 'bus_airbrake').length, 1);
+  assert.deepEqual(heard.filter((h) => h.startsWith('car_horn')), ['car_horn_long']);
+  assert.equal(loops.get('ambulance_siren'), 1, 'one siren, kept going');
+  assert.equal(loops.get('car_idle'), undefined, 'no engine standing near the listener');
+  // At the scene the blue lights stay on, the siren stops.
+  s.listen(0.1, 0, 1.7, 0, 10.1, msg(false), audio);
+  assert.equal(loops.get('ambulance_siren'), 0);
 });
