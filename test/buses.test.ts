@@ -10,12 +10,13 @@ import { transitOf } from '../src/sim/transit';
 import { BUS_KEY } from '../src/traffic/buses';
 import { TownTraffic } from '../src/traffic/townTraffic';
 
+// Setup at file level: making the world is the slow part, and the test times only the drive.
 const town = planTown({ seed: 1, size: 0 });
+const graph = placeGraphOf(town);
+const world = createWorld(graph, 1, { region: regionOf(town) });
+const tt = new TownTraffic(town, graph.places, 1);
 test('the timetable\'s buses: in from the region, a lay-by stop at every town stop until departure time, out again', () => {
-  const graph = placeGraphOf(town);
-  const world = createWorld(graph, 1, { region: regionOf(town) });
   const T = transitOf(world);
-  const tt = new TownTraffic(town, graph.places, 1);
   let day = dayOf(world.clock);
   while (runsLike(world, day * MINUTES_PER_DAY) !== 0) day++;
   let clock = day * MINUTES_PER_DAY + 6 * 60;
