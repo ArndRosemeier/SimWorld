@@ -10,7 +10,7 @@ import { regionOf } from '../plan/region';
 import { createWorld } from '../sim/synth';
 import { chronicle, digest, historyDays } from '../sim/chronicle';
 import { loadWorld, saveWorld } from '../sim/save';
-import { MINUTES_PER_DAY } from '../sim/time';
+import { dayOf, MINUTES_PER_DAY } from '../sim/time';
 import { tick, nameOf, jobOf, householdOf, type World } from '../sim/world';
 import { becomePlayer, doingOf, playerActions, playerGo, playerStatus, setAutopilot } from '../sim/player';
 import { cardsOf } from '../sim/profile';
@@ -59,7 +59,7 @@ function simJob(m: ToSim): FromSim {
     if (!resumed) runTo(Math.max(m.clock + historyDays(HISTORY_YEARS) * MINUTES_PER_DAY, world.clock));
     traffic = new TrafficFeed((roads = town), world);
     sentAt = world.clock;
-    return { type: 'ready', resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), ms: took() };
+    return { type: 'ready', resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world, true), ms: took() };
   }
   if (!world || !map || !traffic) throw new Error('sim worker: not initialised');
   if (m.type === 'save') return { type: 'saved', clock: world.clock, bytes: saveWorld(world), ms: took() };
@@ -69,12 +69,12 @@ function simJob(m: ToSim): FromSim {
     // The days skipped: the cars stand where the world now says, the traffic starts afresh.
     traffic = new TrafficFeed(roads!, world);
     sentAt = world.clock;
-    return { type: 'skipped', clock: world.clock, view: viewOf(world), ms: took() };
+    return { type: 'skipped', clock: world.clock, view: viewOf(world, true), ms: took() };
   }
   if (m.type === 'player') return playerJob(world, m.op, took);
   runTo(m.clock);
   traffic.run(m.clock);
-  const view = world.clock !== sentAt ? viewOf(world) : null;
+  const view = world.clock !== sentAt ? viewOf(world, dayOf(world.clock) !== dayOf(sentAt)) : null;
   sentAt = world.clock;
   return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), player: playerOut(world, map, m.clock), traffic: traffic.message(), ms: took() };
 }
