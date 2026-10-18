@@ -111,7 +111,7 @@ export function trackOf(world: World, map: StreetMap, id: ActorId, clock: number
   // Someone going along (a toddler, the dog) keeps beside who they are with.
   if (lead >= 0 && outside(world, lead) && a.dest[lead] === a.dest[id] && a.place[lead] === a.place[id]) {
     const t = trackOf(world, map, lead, clock);
-    if (t) return { ...t, id, keys: beside(map.fp, t.keys, besideGap(world, id, lead)), sig, rests: [] };
+    if (t) return { ...t, id, keys: grounded(map, beside(map.fp, t.keys, besideGap(world, id, lead))), sig, rests: [] };
   }
   if (a.dest[id] >= 0) {
     const keys = tripKeys(world, map, id);
@@ -231,12 +231,60 @@ function laneOf(world: World, id: ActorId): number {
 function timed(map: StreetMap, path: number[], t0: number, t1: number): number[] {
   const pts = polylineLength(path) > STEP ? resampleKeepEnds(path) : path;
   const L = polylineLength(pts), keys: number[] = [];
-  let s = 0;
+  const key = (s: number, x: number, y: number, z: number) => keys.push(t0 + (L > 0 ? (s / L) * (t1 - t0) : 0), x, y, z);
+  let s = 0, py = 0;
   for (let i = 0; i < pts.length; i += 2) {
-    if (i > 0) s += Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]);
-    keys.push(t0 + (L > 0 ? (s / L) * (t1 - t0) : 0), pts[i], map.groundY(pts[i], pts[i + 1]), pts[i + 1]);
+    const y = map.groundY(pts[i], pts[i + 1]);
+    if (i > 0) {
+      const d = Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]);
+      onGround(map, pts[i - 2], pts[i - 1], py, pts[i], pts[i + 1], y, s, d, 0, key);
+      s += d;
+    }
+    key(s, pts[i], y, pts[i + 1]);
+    py = y;
   }
   return keys;
+}
+
+/** The same keys (moved off the path they were made for) put back on the drawn ground, keys between where it steps. */
+function grounded(map: StreetMap, keys: number[]): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < keys.length; i += 4) {
+    const t = keys[i], x = keys[i + 1], z = keys[i + 3], y = map.groundY(x, z);
+    if (i > 0) {
+      const lt = keys[i - 4], lx = keys[i - 3], lz = keys[i - 1], ly = out[out.length - 2];
+      const d = Math.hypot(x - lx, z - lz);
+      onGround(map, lx, lz, ly, x, z, y, 0, d, 0, (s, kx, ky, kz) => out.push(lt + (d > 0 ? s / d : 0) * (t - lt), kx, ky, kz));
+    }
+    out.push(t, x, y, z);
+  }
+  return out;
+}
+
+/** How far a straight line between two keys may stray from the ground under it (m) before a key goes in between. */
+const GROUND_TOL = 0.02;
+/** How far apart the ground is looked at along a straight line between keys (m): narrower than a path or a kerb's ramp. */
+const GROUND_LOOK = 0.4;
+
+/**
+ * Keys between (ax, az) and (bx, bz) (heights ay, by; `s` along the path to a, `d` long) so that walking straight
+ * from one to the next keeps the feet on the drawn ground: halves where the middle is off the line, down to a few
+ * centimetres, which puts a key either side of a kerb.
+ */
+function onGround(map: StreetMap, ax: number, az: number, ay: number, bx: number, bz: number, by: number, s: number, d: number, depth: number, key: (s: number, x: number, y: number, z: number) => void): void {
+  if (d < 0.06 || depth > 8) return;
+  const mx = (ax + bx) / 2, mz = (az + bz) / 2, my = map.groundY(mx, mz);
+  // (Points every GROUND_LOOK too, at least the quarters: a kerb near one end, or a narrow strip, hides from the middle.)
+  let off = Math.abs(my - (ay + by) / 2);
+  const n = Math.max(4, Math.ceil(d / GROUND_LOOK));
+  for (let i = 1; i < n && off <= GROUND_TOL; i++) {
+    const f = i / n;
+    off = Math.max(off, Math.abs(map.groundY(ax + (bx - ax) * f, az + (bz - az) * f) - (ay + (by - ay) * f)));
+  }
+  if (off <= GROUND_TOL) return;
+  onGround(map, ax, az, ay, mx, mz, my, s, d / 2, depth + 1, key);
+  key(s + d / 2, mx, my, mz);
+  onGround(map, mx, mz, my, bx, bz, by, s + d / 2, d / 2, depth + 1, key);
 }
 
 /** Resample each straight run to STEP spacing, keeping the corners (a plain resample would cut them). */

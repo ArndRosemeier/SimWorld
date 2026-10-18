@@ -84,7 +84,8 @@ export class DrawnGround {
     if (!B) this.blocks.set(key, (B = new Float32Array(TB * TB).fill(NaN)));
     const k = (i - bi * TB) * TB + (j - bj * TB);
     let y = B[k];
-    if (y !== y) y = B[k] = this.town.terrain.height(i * TSTEP, j * TSTEP);
+    // (Read back from the array: the first answer is then the same as every later one.)
+    if (y !== y) { B[k] = this.town.terrain.height(i * TSTEP, j * TSTEP); y = B[k]; }
     return y;
   }
 }
