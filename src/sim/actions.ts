@@ -9,7 +9,7 @@ import { dropIntention, type Intention } from './intentions';
 import { addFact, beliefAbout, factText, tell, witness } from './knowledge';
 import { remember } from './memory';
 import type { PlaceId } from './places';
-import { go, nearestWith } from './schedule';
+import { go, nearestWith, placeNow } from './schedule';
 import { atMinute, minuteOfDay } from './time';
 import { firstName, jobOf, nameOf, type World } from './world';
 
@@ -21,7 +21,7 @@ import { firstName, jobOf, nameOf, type World } from './world';
 export function performIntention(world: World, id: ActorId, i: Intention): boolean {
   const a = world.actors.cols, pc = world.people.cols, p = a.row[id];
   const now = world.clock;
-  const here = a.place[id] >= 0 ? a.place[id] : a.home[id];
+  const here = placeNow(world, id);
   const stay = (place: PlaceId, activity: number, minutes: number) => {
     go(world, id, place, activity, now + world.travel.minutes(here, place) + minutes);
     return true;

@@ -8,7 +8,8 @@ import { LAMP_STRIDE, PROP_STRIDE, lampsOf, propFar, propInstances, propModel } 
 import { PICTURES, SLOT_SIZES, SlotPacker, pictureRect, slotRect, type AtlasRect, type Slot, type SlotSize } from '../src/build/textAtlasLayout';
 import { townRoads } from '../src/plan/roads';
 import { placeGraphOf } from '../src/plan/placeGraph';
-import { signSpots } from '../src/plan/signs';
+import { signFootprints, signSpots } from '../src/plan/signs';
+import { BOARD_KINDS } from '../src/sim/placeKinds';
 import { SIGN_STRIDE, signInstances } from '../src/build/signs';
 import { distSqPointSeg, pointInPoly } from '../src/geom/geom2';
 import { BAY_LENGTH, SETBACK } from '../src/plan/cell';
@@ -170,6 +171,18 @@ test('signs: every workplace has its sign on its front, every home a board spot,
   for (const c of spots.corners) assert.notEqual(c.blades[0].street, c.blades[1].street);
   assert.ok(spots.gateways.length >= 1, 'a town sign on a road into town');
   assert.equal(spots.sites.length, town.macro.landmarks.length);
+  // Street-name posts stand in the kerb strip, with the lamps: within a metre of a kerb.
+  for (const c of spots.corners) {
+    const hit = roads.nearest(c.x, c.z, 30)!, L = roads.lines[hit.li];
+    assert.ok(hit.d - L.width / 2 < 1.0, `corner post ${(hit.d - L.width / 2).toFixed(2)} m in from the kerb`);
+  }
+  // Posters on lamp posts: a few per street, on the pavement side of a post.
+  assert.ok(spots.posters.length >= 10, `${spots.posters.length} lamp posters`);
+  for (const p of spots.posters) {
+    const hit = roads.nearest(p.x, p.z, 30)!;
+    assert.ok(hit.d > roads.lines[hit.li].width / 2, `poster at ${p.x.toFixed(1)}, ${p.z.toFixed(1)} over the carriageway`);
+    assert.ok(p.k < 3);
+  }
 });
 
 test('signs: instance lists tie every sign to what it says, on the ground or the wall', () => {
@@ -189,6 +202,14 @@ test('signs: instance lists tie every sign to what it says, on the ground or the
   const shops = graph.places.filter((p) => p.kind !== 'house' && p.kind !== 'apartments' && p.building >= 0 && p.building < 0x40000000).length;
   assert.ok(data.what.filter((w) => w.t === 'front').length >= shops * 0.95, 'nearly every workplace has its sign');
   assert.ok(data.what.some((w) => w.t === 'street') && data.what.some((w) => w.t === 'town' && w.back));
+  // A notice board at (nearly) every board place, its pins tied to that place.
+  const boardPlaces = graph.places.filter((p) => BOARD_KINDS.includes(p.kind));
+  // The notice boards' and other signs' legs and posts are footprints for the walkers.
+  const spots = signSpots(town, roads, graph.places), fp = signFootprints(spots);
+  assert.ok(spots.boards.length >= boardPlaces.length * 0.8 && fp.length / 3 >= spots.corners.length + spots.sites.length * 2, `${fp.length / 3} sign footprints`);
+  const pinned = new Set(data.what.flatMap((w) => (w.t === 'notice' && !w.every && w.k === 5 ? [w.place] : [])));
+  assert.ok(pinned.size >= boardPlaces.length * 0.8, `${pinned.size} boards for ${boardPlaces.length} board places`);
+  assert.ok(data.what.some((w) => w.t === 'notice' && w.every), 'posters on the lamp posts');
 });
 
 test('parked cars stand in kerbside bays, on the carriageway, clear of the cross streets', () => {

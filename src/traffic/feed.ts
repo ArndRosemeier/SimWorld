@@ -27,6 +27,8 @@ export const POSE_STRIDE = 4;
 export const CAR_STRIDE = 3;
 /** Floats per vehicle in `TrafficMsg.state`: headlights, brake, indicator (−1 left, +1 right, ±2 hazards, ±3 siren), engine running. */
 export const STATE_STRIDE = 4;
+/** Floats per barrier post in `TrafficMsg.posts` (src/traffic/trains.ts `CrossingPost`, then its crossing). */
+export const POST_STRIDE = 6;
 /** Floats per parked car in `TrafficMsg.parked`: x, y, z, yaw, then its paint (sRGB). */
 export const PARKED_STRIDE = 7;
 
@@ -45,6 +47,10 @@ export interface TrafficMsg {
   /** Parked cars, when they changed since the last message (else null): PARKED_STRIDE each, and their cars. */
   parked: Float32Array | null;
   parkedCars: Int32Array | null;
+  /** The level crossings' barrier posts (POST_STRIDE each: x, y, z, yaw, arm length, crossing), in the first message only (else null) … */
+  posts: Float32Array | null;
+  /** … and which crossings are closed now (1), by crossing. */
+  closed: Uint8Array;
 }
 
 /** Moments recorded per update (the stretch the cars are run ahead is cut into this many steps). */
@@ -72,6 +78,7 @@ export class TrafficFeed {
   /** Recorded moments: game clock minutes and every vehicle's pose then (by vehicle id). */
   private readonly hist: { t: number; poses: Map<number, [number, number, number, number]> }[] = [];
   private parkedSig = -1;
+  private postsSent = false;
   /** The train cars last seen, by their ids in `hist`. */
   private readonly trainCars = new Map<number, TrainCar>();
   /**
@@ -187,13 +194,21 @@ export class TrafficFeed {
         parkedCars!.set([car.key, VEHICLE_KINDS.indexOf(car.kind), car.variant], i * CAR_STRIDE);
       });
     }
-    return { times, cars, poses, state, paint, parked, parkedCars };
+    const tr = this.town.trains;
+    let posts: Float32Array | null = null;
+    if (!this.postsSent) {
+      this.postsSent = true;
+      const all = tr?.crossings.flatMap((c, i) => c.posts.map((p) => [p.x, p.y, p.z, p.yaw, p.arm, i])) ?? [];
+      posts = Float32Array.from(all.flat());
+    }
+    const closed = Uint8Array.from(tr?.closed(this.last) ?? [], (b) => (b ? 1 : 0));
+    return { times, cars, poses, state, paint, parked, parkedCars, posts, closed };
   }
 }
 
 /** The buffers of a message, to transfer. */
 export const trafficTransfers = (m: TrafficMsg): ArrayBuffer[] =>
-  [m.times, m.cars, m.poses, m.state, m.paint, ...(m.parked ? [m.parked, m.parkedCars!] : [])].map((a) => a.buffer as ArrayBuffer);
+  [m.times, m.cars, m.poses, m.state, m.paint, m.closed, ...(m.parked ? [m.parked, m.parkedCars!] : []), ...(m.posts ? [m.posts] : [])].map((a) => a.buffer as ArrayBuffer);
 
 /** Moving vehicle `i`'s pose at game clock `clock`, between the recorded moments (held at the ends), into `out` (x, y, z, yaw). */
 export function vehiclePose(m: TrafficMsg, i: number, clock: number, out: Float32Array | number[], o = 0): void {

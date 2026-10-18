@@ -88,6 +88,12 @@ export interface Knowledge {
   byHolder: number[][];
   /** Standing knowledge (region lore, life ties): known without belief rows, never fades, never gossiped. */
   standing: Standing[];
+  /**
+   * How much each story (by root) has been told around town lately: +1 a telling, halved every night. A story
+   * everyone is telling is told less by the next person (the novelty budget; the street should not hear one
+   * story all day). Optional: saves from before it start empty.
+   */
+  buzz?: Map<number, number>;
 }
 
 /**
@@ -104,7 +110,10 @@ export interface Standing {
   salience: number;
 }
 
-export const newKnowledge = (): Knowledge => ({ facts: [], beliefs: new Columns(BELIEF_COLUMNS, 4096), free: [], byStory: new Map(), byHolder: [], standing: [] });
+export const newKnowledge = (): Knowledge => ({ facts: [], beliefs: new Columns(BELIEF_COLUMNS, 4096), free: [], byStory: new Map(), byHolder: [], standing: [], buzz: new Map() });
+
+/** Tellings at which a story's appeal to the next teller is halved. */
+const BUZZ_HALF = 4;
 
 /** What a caller supplies for a new fact; `topic` outside FACT_TOPICS becomes 'other'. */
 export type NewFact = { topic: string; text: string } & Partial<Pick<Fact, 'subject' | 'object' | 'place' | 'time' | 'magnitude' | 'secret' | 'originator' | 'truth'>>;
@@ -268,9 +277,10 @@ function maybeDistort(world: World, teller: ActorId, fact: Fact, roll: Roll): Fa
     const row = world.relations.anyKnown(teller, roll);
     if (row < 0) return fact;
     const other = world.relations.t.cols.to[row];
-    if (other === fact.subject || !isPerson(world, other)) return fact;
+    if (other === fact.subject || other === fact.object || !isPerson(world, other)) return fact;
     v.subject = other;
-  } else if (fact.place >= 0 && fact.text.includes('{place}')) {
+  } else if (fact.place >= 0 && fact.text.includes('{place}') && world.graph.places[fact.place].kind !== 'away') {
+    // (Not a place out of town: "the city" never becomes "on holiday".)
     const same = world.graph.places.filter((p) => p.kind === world.graph.places[fact.place].kind && p.id !== fact.place);
     if (same.length === 0) return fact;
     v.place = same[Math.floor(roll.float() * same.length)].id;
@@ -293,9 +303,23 @@ export function tell(world: World, teller: ActorId, listener: ActorId, fact: num
   const told = maybeDistort(world, teller, held, rng);
   hear(world, teller, listener, told, c.confidence[r], held.secret);
   c.told[r] = Math.min(65535, c.told[r] + 1);
-  c.salience[r] *= 0.92; // old news to the teller, a little more each time
+  c.salience[r] *= 0.8; // old news to the teller, more so each time they tell it
+  const buzz = (world.knowledge.buzz ??= new Map());
+  buzz.set(held.root, (buzz.get(held.root) ?? 0) + 1);
   return told.id;
 }
+
+/** Age from which a child passes stories on to anyone (younger ones tell their family). */
+const CHILD_TELLS = 10;
+/** Stories not for children outside the family: crimes, affairs, illness, fights. */
+const ADULT_TOPICS: ReadonlySet<FactTopic> = new Set(['crime', 'romance', 'health']);
+/** Below this magnitude a story is small news (see `exchange`). */
+const SMALL_NEWS = 0.15;
+const knowsOf = (world: World, who: ActorId, of: ActorId): boolean => {
+  const r = world.relations.row(who, of);
+  return r >= 0 && world.relations.t.cols.familiarity[r] >= 0.15;
+};
+const isAdultStory = (f: Fact): boolean => ADULT_TOPICS.has(f.topic) || /\bfight\b|came to blows/.test(f.text);
 
 /**
  * One side of a conversation may share news (plan §2.2): the most salient story the listener has not heard, if the
@@ -303,29 +327,42 @@ export function tell(world: World, teller: ActorId, listener: ActorId, fact: num
  * trust, and a promised secret needs more (and a less agreeable, less conscientious teller). Returns the fact told
  * or -1.
  */
-/** Age from which a child passes stories on to anyone (younger ones tell their family). */
-const CHILD_TELLS = 10;
-
 export function exchange(world: World, teller: ActorId, listener: ActorId, hub: number, roll: Roll): number {
   const k = world.knowledge;
   const list = k.byHolder[teller];
   if (!list || list.length === 0) return -1;
   // Toddlers pass on no stories and nobody tells them one; a young child tells only family.
   const age = ageOf(world, teller);
-  if (age < 4 || ageOf(world, listener) < 4 || (age < CHILD_TELLS && !world.relations.isFamily(teller, listener))) return -1;
+  // (Nor does a grown-up tell a young child outside the family who went where.)
+  if (age < 4 || ageOf(world, listener) < 4 || ((age < CHILD_TELLS || ageOf(world, listener) < CHILD_TELLS) && !world.relations.isFamily(teller, listener))) return -1;
   const c = k.beliefs.cols;
   const rel = world.relations;
+  // Children neither hear nor pass on someone else's adult business outside the family.
+  const young = (ageOf(world, listener) < 13 || age < 13) && !rel.isFamily(teller, listener);
+  const little = ageOf(world, listener) < 8;
+  const grownUpKin = ageOf(world, listener) >= 13 && rel.isFamily(teller, listener);
   const rr = rel.row(teller, listener);
   const home = householdOf(world, listener);
   const familiarity = rr >= 0 ? rel.t.cols.familiarity[rr] : 0;
   const trust = rr >= 0 ? rel.t.cols.trust[rr] : 0.3;
+  const buzz = k.buzz;
   let best = -1, bestScore = 0;
   for (const r of list) {
-    const s = c.salience[r] * c.confidence[r] * (0.75 + 0.5 * roll.float());
+    let s = c.salience[r] * c.confidence[r] * (0.75 + 0.5 * roll.float());
+    if (buzz?.size) { const b = buzz.get(k.facts[c.fact[r]].root); if (b) s /= 1 + b / BUZZ_HALF; }
     if (s <= bestScore) continue; // cheap test first: most stories lose here
     const f = k.facts[c.fact[r]];
     if (f.subject === listener) continue; // you don't gossip to someone about themselves
+    if (young && isAdultStory(f)) continue; // nor tell a child someone else's adult business
+    if (little && isAdultStory(f)) continue; // and a small child is kept out of it even at home
+    if (f.subject === teller && f.topic === 'crime') continue; // nobody spreads their own misdeeds
+    // Children pass on children's news, and tell their family what they saw themselves.
+    if (age < 13 && (isAdultStory(f) || f.topic === 'job' || f.topic === 'politics') && !(grownUpKin && c.source[r] === SOURCE_WITNESSED)) continue;
+    if (f.text.startsWith("{subject}'s family are away") && householdOf(world, f.subject) === householdOf(world, teller)) continue; // one's own family's trip is no news
     if (f.subject >= 0 && home !== null && householdOf(world, f.subject) === home) continue; // nor about their own household
+    // Small news (a holiday, a new job) is only worth telling to someone who knows the people, or about one's own.
+    // (Nor to their own family, who know: "your daughter's family went camping".)
+    if (f.magnitude < SMALL_NEWS && f.subject >= 0 && (rel.isFamily(listener, f.subject) || (householdOf(world, f.subject) === householdOf(world, teller) ? familiarity < 0.6 : f.subject !== teller && !knowsOf(world, listener, f.subject)))) continue;
     if (f.secret) {
       const need = c.flags[r] & F_PROMISED ? 0.85 + 0.15 * (traitOf(world, teller, T_AGREE) + traitOf(world, teller, T_CONSC)) / 2 : 0.7;
       if (trust < need) continue;
@@ -355,6 +392,9 @@ export function forget(world: World, days = 1): void {
     c.salience[r] *= personal ? keep : fade;
     if (c.salience[r] < FORGET_BELOW && f.subject !== holder) dropBelief(world, r);
   }
+  // The town's buzz dies down overnight.
+  const half = Math.pow(0.5, days);
+  for (const [root, b] of k.buzz ?? []) { const n = b * half; if (n < 0.5) k.buzz!.delete(root); else k.buzz!.set(root, n); }
 }
 
 export interface BeliefView {

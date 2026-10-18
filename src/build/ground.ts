@@ -16,6 +16,7 @@ import { CURB_H } from '../world/ground';
 import { MeshBuilder, type AttrSpec } from './meshBuilder';
 import { resample, polylineLength } from '../geom/geom2';
 import { crossingsOf, markedEnds } from '../plan/crossings';
+import { DriveSurface } from '../plan/drives';
 
 export const enum GroundLayer {
   Asphalt = 0,
@@ -177,6 +178,10 @@ export function groundSurfaces(plan: CellPlan): GroundSurface[] {
   // Highest first: each lies where none above it does.
   const S: GroundSurface[] = [
     { shapes: plan.cemPaths, dy: CURB_H + 0.01, layer: GroundLayer.Gravel },
+    // Houses' driveways (by what they are laid with) and front paths.
+    ...([[DriveSurface.Asphalt, GroundLayer.Asphalt], [DriveSurface.Paving, GroundLayer.PlazaStone], [DriveSurface.Gravel, GroundLayer.Gravel]] as const).map(([k, layer]) =>
+      ({ shapes: plan.driveways.filter((d) => d.surface === k).map((d) => d.shape), dy: CURB_H + 0.01, layer })),
+    { shapes: plan.paths, dy: CURB_H + 0.01, layer: GroundLayer.Paving },
     { shapes: plan.yards, dy: CURB_H + 0.01, layer: industrial ? GroundLayer.Gravel : GroundLayer.Grass },
     { shapes: plan.sidewalks, dy: CURB_H, layer: oldTown ? GroundLayer.PlazaStone : GroundLayer.Paving },
     { shapes: plan.promenade, dy: CURB_H, layer: GroundLayer.Promenade },

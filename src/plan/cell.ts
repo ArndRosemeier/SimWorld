@@ -23,6 +23,7 @@ import { ROAD_SPEC } from './macro';
 import { STYLES, asLockUp, isSliver, pickStyle, streetDoor, type BuildingDesc, type StyleId } from './building';
 import type { EateryPlan } from './terrace';
 import { crossingsOf } from './crossings';
+import { planDrives, DRIVE_W, type Driveway } from './drives';
 import { landmarksOfCell, siteRect, siteToWorld, siteZones, worldToSite, SITE_STREET_CLEAR, type Landmark, type ZoneKind } from './landmarks';
 import { landmarkParts, solidFootprints } from './landmarkParts';
 
@@ -66,6 +67,9 @@ export interface Lot {
   corner: boolean;
   kind: 'perimeter' | 'free' | 'tower';
 }
+
+/** How far in from the kerb the street furniture stands (lamps, bins, sign posts), on a sidewalk `sidewalk` m wide (m). */
+export const kerbStrip = (sidewalk: number): number => Math.min(0.5, sidewalk * 0.25);
 
 export const enum PropType {
   Tree = 0,
@@ -140,6 +144,10 @@ export interface CellPlan {
   eateries: EateryPlan[];
   /** Landmarks standing in this cell (their sites are kept clear of streets and lots). */
   landmarks: number[];
+  /** Driveways of the detached houses (plan/drives.ts), with a car spot each. */
+  driveways: Driveway[];
+  /** Paved front paths from the lot front to a house door. */
+  paths: Shape[];
 }
 
 interface Grammar {
@@ -182,7 +190,7 @@ export function planCell(macro: MacroPlan, cell: CellInfo, terrain: Terrain): Ce
   const plan: CellPlan = {
     id: cell.id, district: cell.district, streets: [], carriageway: [], sidewalks: [], blocks: [], promenade: [],
     plazas: [], approaches: [], parks: [], cemeteries: [], cemPaths: [], yards: [], paved: [], lots: [], buildings: [], props: [], parking: [], junctions: [], bounds: polyBounds(cell.poly), eateries: [],
-    landmarks: [],
+    landmarks: [], driveways: [], paths: [],
   };
   const sites = landmarksOfCell(macro, cell.id);
   plan.landmarks = sites.map((l) => l.id);
@@ -313,6 +321,7 @@ export function planCell(macro: MacroPlan, cell: CellInfo, terrain: Terrain): Ce
     if (bd) plan.buildings.push(bd);
   });
   frontsOutdoors(plan.buildings);
+  planDrives(plan, rng.fork('drives'));
 
   // Junctions (for traffic lights/stop signs and crossings).
   plan.junctions = findJunctions(plan.streets);
@@ -1035,6 +1044,12 @@ function placeProps(plan: CellPlan, cell: CellInfo, macro: MacroPlan, g: Grammar
     return true;
   };
   const bayOk = parkingCheck(plan);
+  // Kerbside furniture and parked cars keep a driveway's mouth clear; garden trees keep off the drives and paths.
+  const mouthClear = (x: number, z: number, dx: number, dz: number, clear: number) => plan.driveways.every((d) =>
+    Math.abs((x - d.mx) * dx + (z - d.mz) * dz) >= DRIVE_W / 2 + clear || Math.abs((x - d.mx) * dz - (z - d.mz) * dx) > 12);
+  const grounds = [...plan.driveways.map((d) => d.shape), ...plan.paths];
+  const offDrives = (x: number, z: number, rad: number) => !grounds.some((g) =>
+    [[0, 0], [rad, 0], [-rad, 0], [0, rad], [0, -rad]].some(([a, b]) => pointInPoly(g.outer, x + a, z + b)));
   // Along streets: trees, lamps, hydrants, bins, benches, parked cars — on both sides.
   plan.streets.forEach((s, si) => {
     if (s.cls === RoadClass.Path) return;
@@ -1062,24 +1077,24 @@ function placeProps(plan: CellPlan, cell: CellInfo, macro: MacroPlan, g: Grammar
         const curb = s.width / 2;
         // The furniture strip along the kerb (lamps, bins, tree pits); the rest of the sidewalk stays
         // clear for walking (WALK_CLEAR at least, where people walk: mid-sidewalk).
-        const strip = Math.min(0.5, s.sidewalk * 0.25);
+        const strip = kerbStrip(s.sidewalk);
         // (Never in the roadway or the sidewalk of a cross street, round a corner.)
         const kerbOk = (x: number, z: number) => !nearOtherStreet(plan, si, x, z, (o) => o.width / 2 + o.sidewalk + 0.5);
         if (acc >= nextLamp) {
           nextLamp += lampStep;
           const x = x1 + nx * (curb + strip), z = z1 + nz * (curb + strip);
-          if (inCell(x, z) && kerbOk(x, z) && !terrain.isWater(x, z) && free(x, z, 1.2)) push(PropType.Lamp, x, z, Math.atan2(-nx, -nz), 1, s.cls <= RoadClass.Avenue ? 1 : 0);
+          if (inCell(x, z) && kerbOk(x, z) && mouthClear(x, z, dx, dz, 0.6) && !terrain.isWater(x, z) && free(x, z, 1.2)) push(PropType.Lamp, x, z, Math.atan2(-nx, -nz), 1, s.cls <= RoadClass.Avenue ? 1 : 0);
         }
         if (treesHere && acc >= nextTree) {
           nextTree += treeStep * sr.range(0.85, 1.2);
           const x = x1 + nx * (curb + TREE_PIT), z = z1 + nz * (curb + TREE_PIT);
-          if (inCell(x, z) && kerbOk(x, z) && !terrain.isWater(x, z) && free(x, z, 2.5)) push(PropType.Tree, x, z, sr.range(0, 6.28), sr.range(0.75, 1.15), sr.int(0, 5));
+          if (inCell(x, z) && kerbOk(x, z) && mouthClear(x, z, dx, dz, 1.2) && !terrain.isWater(x, z) && free(x, z, 2.5)) push(PropType.Tree, x, z, sr.range(0, 6.28), sr.range(0.75, 1.15), sr.int(0, 5));
         }
         if (parking && acc >= nextCar) {
           nextCar += BAY_LENGTH;
           const lane = curb - BAY_DEPTH / 2 - 0.05;
           const x = x1 + nx * lane, z = z1 + nz * lane, cyaw = side > 0 ? yaw : yaw + Math.PI;
-          if (inCell(x, z) && bayOk(si, x, z, dx, dz, nx, nz)) {
+          if (inCell(x, z) && bayOk(si, x, z, dx, dz, nx, nz) && mouthClear(x, z, dx, dz, BAY_LENGTH / 2 + 0.5)) {
             const car = sr.chance(parking) && free(x, z, 2.2);
             plan.parking.push({ x, z, yaw: cyaw, street: si, side, car });
             if (car) push(PropType.KerbCar, x, z, cyaw, 1, sr.int(0, 1 << 20));
@@ -1092,7 +1107,7 @@ function placeProps(plan: CellPlan, cell: CellInfo, macro: MacroPlan, g: Grammar
           const kind = sr.weighted([PropType.Hydrant, PropType.Bin, PropType.Bench, PropType.Mailbox, PropType.Planter], (k) => k === PropType.Bench ? (wide ? (plan.district === 'suburban' ? 0.1 : 1) : 0) : k === PropType.Planter ? (wide ? 0.3 : 0) : 1);
           const off = kind === PropType.Bench ? 0.8 : kind === PropType.Planter ? 0.65 : strip;
           const x = x1 + nx * (curb + off), z = z1 + nz * (curb + off);
-          if (inCell(x, z) && kerbOk(x, z) && !terrain.isWater(x, z) && free(x, z, 1.5)) push(kind, x, z, kind === PropType.Bench ? Math.atan2(-nx, -nz) : yaw, 1, sr.int(0, 3));
+          if (inCell(x, z) && kerbOk(x, z) && mouthClear(x, z, dx, dz, 0.6) && !terrain.isWater(x, z) && free(x, z, 1.5)) push(kind, x, z, kind === PropType.Bench ? Math.atan2(-nx, -nz) : yaw, 1, sr.int(0, 3));
         }
       }
     }
@@ -1179,7 +1194,7 @@ function placeProps(plan: CellPlan, cell: CellInfo, macro: MacroPlan, g: Grammar
       const c = polyCentroid(lot.poly);
       const t = r.range(0.15, 0.3);
       const x = fx + (c[0] - fx) * t + r.range(-3, 3), z = fz + (c[1] - fz) * t + r.range(-3, 3);
-      if (pointInPoly(lot.poly, x, z) && free(x, z, 3) && !plan.buildings.some((b) => pointInPoly(b.poly, x, z))) push(r.chance(0.6) ? PropType.Tree : PropType.Bush, x, z, r.range(0, 6.28), r.range(0.7, 1.1), r.int(0, 5));
+      if (pointInPoly(lot.poly, x, z) && free(x, z, 3) && offDrives(x, z, 1.5) && !plan.buildings.some((b) => pointInPoly(b.poly, x, z))) push(r.chance(0.6) ? PropType.Tree : PropType.Bush, x, z, r.range(0, 6.28), r.range(0.7, 1.1), r.int(0, 5));
     }
   }
   void clamp; void lerp;

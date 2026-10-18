@@ -12,7 +12,7 @@ import { SERVICE_KEY, ServiceRounds, exitTowardRegion, roundGoal } from '../src/
 import { agendaOn } from '../src/sim/agenda';
 import { carPlace, regionOfPlace, type CarTrip } from '../src/traffic/trips';
 import { TownTraffic } from '../src/traffic/townTraffic';
-import { CAR_STRIDE, PARKED_STRIDE, POSE_STRIDE, TrafficFeed, vehiclePose } from '../src/traffic/feed';
+import { CAR_STRIDE, PARKED_STRIDE, POSE_STRIDE, POST_STRIDE, TrafficFeed, vehiclePose } from '../src/traffic/feed';
 import { tick } from '../src/sim/world';
 import { VISITOR_KEY, visitorsAt } from '../src/traffic/visitors';
 import { isOpen } from '../src/sim/schedule';
@@ -182,12 +182,23 @@ test('trains: each timetable run stands at the station on time, on the right-han
     if (on && !shut) reopened = true;
   }
   assert.ok(on > 0 && closedOn === on && reopened, `${on} s on it, ${closedOn} closed; reopened ${reopened}`);
+  // A barrier post at each road's right kerb, either side, its arm reaching to the road's middle.
+  for (const c of tr.crossings) {
+    assert.equal(c.posts.length, c.stops.length, 'a post at each stop line');
+    for (const q of c.posts) {
+      const d = Math.hypot(q.x - c.x, q.z - c.z);
+      assert.ok(d > 3 && d < 25 && q.arm > 2 && q.arm < 8, `post ${d.toFixed(1)} m off, arm ${q.arm.toFixed(1)} m`);
+    }
+  }
 });
 
 test('the feed: the world drives the traffic; moving cars between recorded moments, parked ones in their bays, never both', () => {
   // (Last in the file: it runs the world on.)
   const feed = new TrafficFeed(town, world, 1);
   const first = feed.message();
+  // The crossings' posts once, which crossings are closed every time.
+  assert.ok(first.posts && first.posts.length % POST_STRIDE === 0 && first.posts.length > 0, 'the barrier posts');
+  assert.equal(Math.max(...Array.from({ length: first.posts.length / POST_STRIDE }, (_, i) => first.posts![i * POST_STRIDE + 5])) + 1, first.closed.length);
   assert.ok(first.parked && first.parked.length / PARKED_STRIDE > 50, 'household cars stand in the bays');
   assert.equal(feed.standing.circles.length / 3, (first.parked.length / PARKED_STRIDE) * 3, 'each parked car is three circles to keep clear of');
   let parked = new Set(Array.from({ length: first.parkedCars!.length / CAR_STRIDE }, (_, i) => first.parkedCars![i * CAR_STRIDE]));
@@ -198,6 +209,7 @@ test('the feed: the world drives the traffic; moving cars between recorded momen
     if (Math.floor(clock) > world.clock) tick(world, Math.floor(clock) - world.clock);
     feed.run(clock);
     const m = feed.message();
+    assert.equal(m.posts, null, "the posts only in the first message");
     if (m.parkedCars) parked = new Set(Array.from({ length: m.parkedCars.length / CAR_STRIDE }, (_, i) => m.parkedCars![i * CAR_STRIDE]));
     const T = m.times, n = m.cars.length / CAR_STRIDE;
     assert.ok(T[0] <= clock && T[T.length - 1] > clock, 'the moments reach past the clock');

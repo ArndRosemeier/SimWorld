@@ -174,6 +174,9 @@ export function nameOf(world: World, id: ActorId): string {
 export const firstName = (world: World, id: ActorId): string =>
   world.actors.cols.kind[id] === 0 ? world.people.first[world.actors.cols.row[id]] : nameOf(world, id);
 
+/** A person's surname ("Keller"); '' for an animal. */
+export const lastName = (world: World, id: ActorId): string => (world.actors.cols.kind[id] === 0 ? world.people.last[world.actors.cols.row[id]] : '');
+
 // ---- lookups shared by the sim systems ---------------------------------------------------------------------
 
 /** A living person (not an animal, not dead or moved away). */

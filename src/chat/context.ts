@@ -14,6 +14,7 @@ import { memoriesOf, recall, words, type Memory as SimMemory } from '../sim/memo
 import { HABIT_COUNT } from '../sim/people';
 import type { PlaceId } from '../sim/places';
 import { relation } from '../sim/relations';
+import { placeNow } from '../sim/schedule';
 import { hhmm, MINUTES_PER_DAY, minuteOfDay } from '../sim/time';
 import { describeWeather, weatherAt } from '../sim/weather';
 import { firstName, isPerson, jobOf, nameOf, type World } from '../sim/world';
@@ -84,7 +85,7 @@ function mentioned(world: World, text: string, candidates: Iterable<ActorId>): A
 export function chatContext(world: World, npc: ActorId, partner: ActorId, conversation: string, turns: Turn[]): ChatContext {
   const a = world.actors.cols, places = world.graph.places;
   const last = [...turns].reverse().find((t) => t.speaker === 'partner')?.text ?? '';
-  const here: PlaceId = a.place[npc] >= 0 ? a.place[npc] : a.home[npc];
+  const here: PlaceId = placeNow(world, npc);
   const scenePlace = places[here];
 
   // --- beliefs: the most salient, those about the partner, those the newest line touches; standing knowledge too.

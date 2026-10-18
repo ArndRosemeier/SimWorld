@@ -7,6 +7,7 @@
  * another model cannot fix (no key, bad key, no credits, the caller cancelled) end the run at once,
  * and the caller falls back to the procedural text engine.
  */
+import { DECISIONS, DEFAULT_DECISION_MODELS, type DecisionIO, type DecisionName } from './decide';
 import { LlmError, type Transport } from './openrouter';
 import { DEFAULT_TASK_MODELS, effortFor, type Effort, type ModelEntry, type Roster } from './roster';
 import { route } from './router';
@@ -37,7 +38,7 @@ export interface LlmConfig {
   /** Labels the ledger's per-session totals. */
   session: string;
   /** Per-task model pins from the settings; a task without any uses `DEFAULT_TASK_MODELS`. */
-  overrides?: () => Partial<Record<TaskName, string[]>>;
+  overrides?: () => Partial<Record<TaskName | DecisionName, string[]>>;
   now?: () => number;
   timers?: Timers;
 }
@@ -46,6 +47,8 @@ export interface Llm {
   run<K extends TaskName>(task: K, input: TaskIO[K]['input'], opts?: RunOptions): Promise<RunResult<TaskIO[K]['output']>>;
   /** The models `run` would try for a task, in order (for the settings screen). */
   plan(task: TaskName): ModelEntry[];
+  /** A decision task (src/llm/decide.ts) on a decision model: typed answers, falling back down the model list. */
+  decide<K extends DecisionName>(task: K, input: DecisionIO[K]['input'], opts?: { signal?: AbortSignal }): Promise<RunResult<DecisionIO[K]['output']>>;
 }
 
 const realTimers: Timers = { set: (fn, ms) => { const h = setTimeout(fn, ms); return () => clearTimeout(h); } };
@@ -141,8 +144,59 @@ export function createLlm(cfg: LlmConfig): Llm {
     }
   }
 
+  async function decideOnce<K extends DecisionName>(task: K, model: string, input: DecisionIO[K]['input'], signal?: AbortSignal): Promise<DecisionIO[K]['output']> {
+    const spec = DECISIONS[task];
+    const ctl = new AbortController();
+    let timedOut = false;
+    const onAbort = () => ctl.abort();
+    signal?.addEventListener('abort', onAbort);
+    const cancelTimer = timers.set(() => { timedOut = true; ctl.abort(); }, spec.timeoutMs);
+    const t0 = now();
+    let error: LlmError | undefined;
+    let res: Awaited<ReturnType<NonNullable<Transport['decide']>>> | undefined;
+    try {
+      if (!cfg.transport.decide) throw new LlmError('no_model', 'this transport has no decision models');
+      if (signal?.aborted) throw new LlmError('aborted', 'cancelled');
+      res = await cfg.transport.decide({ model, ...spec.build(input) }, ctl.signal);
+      if (ctl.signal.aborted) throw new LlmError(timedOut ? 'timeout' : 'aborted', timedOut ? `no answer within ${spec.timeoutMs} ms` : 'cancelled');
+      try {
+        return spec.parse(res.answers ?? {}, input);
+      } catch (e) {
+        throw new LlmError('invalid_output', e instanceof Error ? e.message : String(e));
+      }
+    } catch (e) {
+      if (timedOut) error = new LlmError('timeout', `no answer within ${spec.timeoutMs} ms`);
+      else error = e instanceof LlmError ? e : new LlmError(signal?.aborted ? 'aborted' : 'network', e instanceof Error ? e.message : String(e));
+      throw error;
+    } finally {
+      cancelTimer();
+      signal?.removeEventListener('abort', onAbort);
+      const u = res?.usage;
+      cfg.ledger.record({
+        at: t0, task, model, ...(res?.model && res.model !== model ? { servedBy: res.model } : {}), session: cfg.session,
+        promptTokens: u?.input_tokens ?? 0, completionTokens: u?.output_tokens ?? 0, cachedTokens: 0, reasoningTokens: 0,
+        cost: u?.cost ?? 0, estimated: false, ok: !error, ...(error ? { error: `${error.kind}: ${error.message}` } : {}), latencyMs: now() - t0,
+      });
+    }
+  }
+
   return {
     plan,
+    async decide(task, input, opts = {}) {
+      const models = [...new Set([...(cfg.overrides?.()[task] ?? []), ...DEFAULT_DECISION_MODELS[task]])];
+      const failures: string[] = [];
+      let last: LlmError | undefined;
+      for (const m of models) {
+        try {
+          return { output: await decideOnce(task, m, input, opts.signal), model: m, failures };
+        } catch (e) {
+          last = e as LlmError;
+          failures.push(`${m}: ${last.kind}: ${last.message}`);
+          if (!last.retryable) break;
+        }
+      }
+      throw Object.assign(last ?? new LlmError('no_model', 'no model tried'), { failures });
+    },
     async run(task, input, opts = {}) {
       const models = plan(task);
       if (!models.length) throw new LlmError('no_model', `no enabled roster model has what ${task} needs (${TASKS[task].routing.needs.join(', ')})`);
