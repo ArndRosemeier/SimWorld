@@ -11,6 +11,7 @@ import { createWorld } from '../sim/synth';
 import { tick, nameOf, jobOf, householdOf, type World } from '../sim/world';
 import { ACTIVITIES, ACTOR_PERSON } from '../sim/actors';
 import { viewOf, viewTransfers } from '../sim/view';
+import { dayOf } from '../sim/time';
 import { StreetMap } from '../street/streetMap';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, ToSim, TrackMsg } from './simProtocol';
@@ -39,11 +40,11 @@ function simJob(m: ToSim): FromSim {
     map = new StreetMap(town, world.graph);
     runTo(Math.max(m.clock, world.clock));
     sentAt = world.clock;
-    return { type: 'ready', clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), ms: took() };
+    return { type: 'ready', clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world, true), ms: took() };
   }
   if (!world || !map) throw new Error('sim worker: not initialised');
   runTo(m.clock);
-  const view = world.clock !== sentAt ? viewOf(world) : null;
+  const view = world.clock !== sentAt ? viewOf(world, dayOf(world.clock) !== dayOf(sentAt)) : null;
   sentAt = world.clock;
   return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), ms: took() };
 }

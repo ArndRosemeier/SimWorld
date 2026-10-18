@@ -5,13 +5,16 @@
  * transfers them instead of copying.
  *
  * What it holds so far: the date and the weather, where everyone is and what they do, and the journeys under
- * way. A view that needs a fact it lacks adds it here (docs/ARCHITECTURE.md).
+ * way; once a game day, the town's face (`TownFace`: what each place is now, its name, its looks, the council's
+ * rules). A view that needs a fact it lacks adds it here (docs/ARCHITECTURE.md).
  */
 import type { ActorId } from './actors';
 import { agendaOn, type OccasionKind } from './agenda';
 import { dateOf, type GameDate } from './calendar';
 import { MINUTES_PER_DAY } from './time';
 import type { Mode, Trip } from './travel';
+import { townLooks, type TownLooks } from './economy';
+import { rulesOf, type TownRules } from './politics';
 import { weatherAt, type Weather } from './weather';
 import { householdOf, type World } from './world';
 
@@ -55,10 +58,30 @@ export interface SimView {
   trips: TripRows;
   /** Today's agenda at a place (bin day and trick-or-treating, which happen on every street, are left out). */
   occasions: ViewOccasion[];
+  /** The town's face, in the first view of each game day (and the first view of all); null in the others. */
+  town: TownFace | null;
 }
 
-/** The view of `world` now. */
-export function viewOf(world: World): SimView {
+/**
+ * How the town looks today, per place (index = PlaceId of the planner's graph): what the sim has made of it since
+ * it was planned. A shop that closed is 'vacant' with a to-let board; a new one has its own name; houses show their
+ * owners' money in upkeep and wealth; the council's decisions show in the street (lamps off at midnight, 30 signs,
+ * parking meters, a closed pool, building sites).
+ */
+export interface TownFace {
+  /** Game day it was taken. */
+  day: number;
+  /** Per place: its kind now, an index into PLACE_KINDS. */
+  kind: Uint8Array;
+  /** Per place: its name now ('' for none). */
+  name: string[];
+  /** Per place: LOOK_* flags (to let, for sale, new, struggling), upkeep and wealth 0..1. */
+  looks: TownLooks;
+  rules: TownRules;
+}
+
+/** The view of `world` now, with the town's face when `face` is set (the worker sends it once a game day). */
+export function viewOf(world: World, face = false): SimView {
   const a = world.actors.cols, n = world.actors.count, t = world.trips, m = t.length;
   const trips: TripRows = {
     who: new Int32Array(m), from: new Int32Array(m), to: new Int32Array(m), depart: new Float64Array(m), arrive: new Float64Array(m),
@@ -73,6 +96,16 @@ export function viewOf(world: World): SimView {
     morning: weatherAt(world, Math.floor(world.clock / MINUTES_PER_DAY) * MINUTES_PER_DAY + 7 * 60),
     place: a.place.slice(0, n), dest: a.dest.slice(0, n), activity: a.activity.slice(0, n), trips,
     occasions: occasionsOf(world),
+    town: face ? townFace(world) : null,
+  };
+}
+
+/** The town's face now. */
+export function townFace(world: World): TownFace {
+  const rules = rulesOf(world);
+  return {
+    day: Math.floor(world.clock / MINUTES_PER_DAY), kind: world.kindOf.slice(), name: world.graph.places.map((p) => p.name),
+    looks: townLooks(world), rules: { ...rules, works: rules.works.map((w) => ({ ...w })) },
   };
 }
 
@@ -88,7 +121,8 @@ function occasionsOf(world: World): ViewOccasion[] {
 
 /** The buffers of a view, for postMessage's transfer list. */
 export function viewTransfers(v: SimView): Transferable[] {
-  return [v.place.buffer, v.dest.buffer, v.activity.buffer, ...Object.values(v.trips).map((c: Int32Array) => c.buffer)];
+  const face = v.town ? [v.town.kind.buffer, v.town.looks.flags.buffer, v.town.looks.upkeep.buffer, v.town.looks.wealth.buffer] : [];
+  return [v.place.buffer, v.dest.buffer, v.activity.buffer, ...Object.values(v.trips).map((c: Int32Array) => c.buffer), ...face];
 }
 
 /** Row i of a view's trips as a `Trip` (with its household). */

@@ -10,7 +10,7 @@ import { WorkerPool } from '../workers/pool';
 import simWorkerUrl from '../workers/sim.worker.ts?worker&url';
 import type { ActorInfo, FromSim, HeightGrid, ToSim } from '../workers/simProtocol';
 import type { CivilDate } from '../sim/calendar';
-import type { SimView } from '../sim/view';
+import type { SimView, TownFace } from '../sim/view';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
 
@@ -54,10 +54,13 @@ export class SimClient {
 
   private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView) {
     this.view = view;
+    this.town = view.town!;
   }
 
   /** The sim's latest view snapshot (src/sim/view.ts): every view reads the sim from here. */
   view: SimView;
+  /** The town's face as of today (the latest `view.town`): what each place is now, its looks, the council's rules. */
+  town: TownFace;
 
   /**
    * Start the worker: it plans the town, makes the world (play beginning on the real date `start`, game day
@@ -99,7 +102,7 @@ export class SimClient {
     this.busy = true;
     this.last = now;
     this.pool.run<Extract<FromSim, { type: 'street' }>>({ type: 'update', clock: this.clock, x, z, r: STREET_RADIUS }, 0).then((m) => {
-      if (m.view) this.view = m.view;
+      if (m.view) { this.view = m.view; if (m.view.town) this.town = m.view.town; }
       for (const i of m.info) this.infos.set(i.id, i);
       for (const id of m.gone) this.walkers.delete(id);
       for (const t of m.tracks) {
