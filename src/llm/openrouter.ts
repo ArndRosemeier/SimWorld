@@ -102,7 +102,7 @@ export function openRouterTransport(opts: OpenRouterOptions): Transport {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${opts.apiKey}`,
     'HTTP-Referer': opts.appUrl ?? 'https://github.com/ArndRosemeier/SimWorld',
-    'X-Title': opts.appTitle ?? 'SimWorld',
+    'X-Title': opts.appTitle ?? 'Total Town',
   };
   return {
     async *stream(req, signal) {

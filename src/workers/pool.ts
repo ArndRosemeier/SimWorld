@@ -34,7 +34,7 @@ async function startError(url: string, e: Event): Promise<WorkerStartError> {
     status = r.status;
     html = (r.headers.get('content-type') ?? '').includes('text/html'); // a host that answers a missing file with its page
   } catch { /* offline: say so below */ }
-  if (status === 404 || (status === 200 && html)) return new WorkerStartError(`${name} is not on the server any more: this page is from an older version of SimWorld`, true);
+  if (status === 404 || (status === 200 && html)) return new WorkerStartError(`${name} is not on the server any more: this page is from an older version of Total Town`, true);
   return new WorkerStartError(`${name} did not load (${status ? `server answered ${status}` : 'no answer from the server'})`, false);
 }
 
