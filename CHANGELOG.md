@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.006 — NPC consequences use the simulation's own contract
+
+- What an NPC takes away from a conversation (feelings, news, promises, memories) now reaches the town simulation in exactly the form it checks and applies, including what kind of news it was (job, romance, family, ...) and whether it is a secret.
+
 ## v0.005 — NPCs can lie to you
 
 - When a character tells you something they know is false, it becomes a rumour that traces back to them and can travel through town.
