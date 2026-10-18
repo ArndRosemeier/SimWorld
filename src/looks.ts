@@ -79,8 +79,7 @@ async function run(): Promise<void> {
   useTextures({ facade: await facade, interior: await interior, vegetation: await vegetation });
   texPool.dispose();
   status('warming up the shaders');
-  // Everything is drawn into the swatch target, so the shaders are built for it once, in the warm-up. (A second build
-  // of the terrain's for another target fails to compile: its parcel function loses its uniforms, three r186.)
+  // Everything is drawn into the swatch target, so the shaders are built for it in the warm-up, not again later.
   const rt = new RenderTarget(S, S, { type: HalfFloatType });
   renderer.setRenderTarget(rt);
   await stage.warmUp();
