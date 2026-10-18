@@ -62,3 +62,23 @@ test('day: the same seed gives the same day', () => {
   assert.deepEqual(w2.actors.cols.place, w1.actors.cols.place);
   assert.deepEqual(w2.actors.cols.needs, w1.actors.cols.needs);
 });
+
+test('trips: everyone travelling has a trip, cars carry families, and arrivals drop out', () => {
+  const w = createWorld(testTown(12, 1500), 12);
+  w.clock = 7 * 60;
+  const c = w.actors.cols;
+  let cars = 0, companions = 0;
+  for (let m = 0; m < 180; m++) {
+    tick(w, 1);
+    for (const t of w.trips) {
+      assert.equal(c.dest[t.who], t.to);
+      assert.ok(t.arrive >= w.clock && t.depart <= w.clock);
+      if (t.mode === 'car') cars++;
+      if (t.leader >= 0) { companions++; assert.equal(c.dest[t.leader], t.to); }
+    }
+    let travelling = 0;
+    for (let id = 0; id < w.actors.count; id++) if (c.dest[id] >= 0) travelling++;
+    assert.equal(w.trips.length, travelling);
+  }
+  assert.ok(cars > 0 && companions > 0, `cars ${cars}, companions ${companions}`);
+});

@@ -14,7 +14,10 @@ import { newMemories } from './memory';
 import { settleRegion, type Region } from './region';
 import { newMindLedger } from './mind/apply';
 import { newLife } from './life';
-import { history } from './chronicle';
+import { history, historyDays } from './chronicle';
+import { DEFAULT_LATITUDE, epochFor, type CivilDate } from './calendar';
+
+const DEFAULT_DATE: CivilDate = { year: 2026, month: 10, day: 19 };
 import { FEMALE_NAMES, MALE_NAMES, PET_NAMES, SURNAMES } from './names';
 import { HABIT_COUNT, PersonTable, T_CONSC, T_EXTRA, T_OPEN, V_FAITH, type Habit, HABITS, type Household } from './people';
 import { KINDS, isHome } from './placeKinds';
@@ -22,7 +25,6 @@ import type { PlaceGraph, PlaceId, PlaceKind } from './places';
 import { bond, bondBit, FAMILY_MASK, Relations, type Bond } from './relations';
 import { HUMAN, SPECIES, speciesId } from './species';
 import { DAYS_PER_YEAR } from './time';
-import { DEFAULT_EPOCH } from './calendar';
 import { ageOf, jobOf, placeIndex, placesOf, type World } from './world';
 
 const CHILD = bondBit('child');
@@ -38,6 +40,13 @@ interface Spec { age: number; sex: number; role: 'head' | 'partner' | 'child' | 
 export interface WorldOptions {
   /** Game day the world starts on (default 0, a Monday). With `history`, the day the history starts. */
   startDay?: number;
+  /**
+   * The real date of the first day of play (default 19 October 2026). The calendar puts that week on the clock:
+   * play starts on the Monday of it plus `startDay`'s weekday. The app passes today's date.
+   */
+  start?: CivilDate;
+  /** The town's latitude in degrees (default 51). */
+  latitude?: number;
   /** The country around the town (the planner's `regionOf(town)`): lore everyone knows, people's ties to it. */
   region?: Region;
   /**
@@ -46,21 +55,18 @@ export interface WorldOptions {
    * Default 0: the synthesised town as is, with a few current stories.
    */
   history?: number;
-  /**
-   * The civil day of game day 0, a Monday (src/sim/calendar.ts `epochFor`): the date, season and weather follow the
-   * real calendar from it. Default `DEFAULT_EPOCH`.
-   */
-  epoch?: number;
 }
 
 /** Make a world for a place graph: places indexed, population synthesised, relationships seeded (and optionally a history lived), clock at 06:00. */
 export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions = {}): World {
   const idx = placeIndex(graph);
   const world: World = {
-    seed, clock: (opts.startDay ?? 0) * 1440 + 360, epoch: opts.epoch ?? DEFAULT_EPOCH, graph, ...idx,
+    seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
+    epoch: epochFor(opts.start ?? DEFAULT_DATE, (opts.startDay ?? 0) + historyDays(opts.history ?? 0)),
+    latitude: opts.latitude ?? DEFAULT_LATITUDE,
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
-    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(), region: null,
+    intentions: [], encounters: [], trips: [], mind: newMindLedger(), life: newLife(), region: null,
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);

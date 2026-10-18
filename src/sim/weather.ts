@@ -125,7 +125,7 @@ export class WeatherModel {
   }
 
   /** The season's warmth 0 … 1 at absolute game hour h. */
-  warmth(h: number): number { return warmthOf(yearPhase(this.epoch, h * 60)); }
+  warmth(h: number): number { return warmthOf(yearPhase(this, h * 60)); }
 
   /** Unsettled spells 0 (high pressure, settled) … 1 (fronts coming through), over days. */
   unsettled(h: number): number {
@@ -216,7 +216,7 @@ export class WeatherModel {
   /** Air temperature at hour h for a sky: the season, warm and cold spells, the day's swing (less under clouds), rain. */
   temperature(h: number, p: SkyParams): number {
     const c = this.climate;
-    const phase = yearPhase(this.epoch, h * 60);
+    const phase = yearPhase(this, h * 60);
     const mean = c.meanC + c.swingC * Math.cos(2 * Math.PI * (phase - 0.55));
     const spell = (vnoise(this.nSeed ^ 0x7e3f, h, 5 * 24) - 0.5) * 10 + (vnoise(this.nSeed ^ 0x3c1d, h, 17 * 24) - 0.5) * 5;
     const daySwing = (3 + 2 * warmthOf(phase)) * (1 - 0.65 * p.cover);
