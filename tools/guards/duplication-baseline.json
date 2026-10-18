@@ -28,10 +28,6 @@
     "reason": "One designer per public building (the Designer contract from Scale): the same closure shape, each with its own sizes and parameters for its parts; a table would hide the drawing rules."
   },
   {
-    "key": "idiom: [.actors .alive .cols .count] in simworld/sim/chronicle.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
-    "reason": "The sweep over every living actor that each data-oriented sim system starts with (needs, decisions, life events). A shared iterator would cost a call per actor in the per-minute hot loops."
-  },
-  {
     "key": "idiom: [.actors .cols .people .row] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },

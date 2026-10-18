@@ -11,6 +11,7 @@ import { ACTOR_ANIMAL, ACTOR_PERSON, FEMALE, MALE, newActorTable, type ActorId }
 import { AnimalTable, TRAINED_LEASH, TRAINED_RECALL } from './animals';
 import { newKnowledge, addFact, witness } from './knowledge';
 import { newMemories } from './memory';
+import { settleRegion, type Region } from './region';
 import { newMindLedger } from './mind/apply';
 import { newLife } from './life';
 import { history } from './chronicle';
@@ -36,6 +37,8 @@ interface Spec { age: number; sex: number; role: 'head' | 'partner' | 'child' | 
 export interface WorldOptions {
   /** Game day the world starts on (default 0, a Monday). With `history`, the day the history starts. */
   startDay?: number;
+  /** The country around the town (the planner's `regionOf(town)`): lore everyone knows, people's ties to it. */
+  region?: Region;
   /**
    * Years of town history to run before play (plan §2.4; whole weeks, so the weekday is kept): the population is
    * synthesised that long ago and lives its life up to now, so kin, exes, grudges, secrets and gossip have a past.
@@ -51,7 +54,7 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
-    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(),
+    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(), region: null,
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);
@@ -237,6 +240,8 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     world.clock += 360;
     for (let id = 0; id < world.actors.count; id++) world.actors.cols.until[id] = world.clock;
   } else seedNews(world, rng.fork('news'));
+  // The country around and people's ties to it, for the population as it is now.
+  if (opts.region) world.region = settleRegion(world, opts.region, rng.fork('region'));
   return world;
 }
 

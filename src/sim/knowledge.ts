@@ -8,12 +8,12 @@
  *
  * The LLM may only speak from a person's beliefs (plan §2.3), so this table is also the epistemic firewall.
  */
-import { clamp } from '@futuremagic/core';
+import { clamp, hash3i, hashToFloat } from '@futuremagic/core';
 import type { ActorId } from './actors';
 import { T_AGREE, T_CONSC, T_EXTRA, T_OPEN } from './people';
 import type { PlaceId } from './places';
 import { Columns, f32, i32, u8, u16 } from './table';
-import { isPerson, nameOf, tickRng, traitOf, type World } from './world';
+import { ageOf, isPerson, nameOf, tickRng, traitOf, type World } from './world';
 
 /** Fact topics (closed set) and how newsworthy each is by default. */
 export const FACT_TOPICS = ['job', 'romance', 'family', 'health', 'crime', 'politics', 'business', 'place', 'opinion', 'event', 'other'] as const;
@@ -53,6 +53,8 @@ export interface Fact {
 /** Where a belief came from: an actor id, or one of these. */
 export const SOURCE_WITNESSED = -1;
 export const SOURCE_BROADCAST = -2;
+/** Standing knowledge: what people know about their own region and their own lives, not news (`standingOf`). */
+export const SOURCE_COMMON = -3;
 
 const F_PROMISED = 1; // told under "don't tell anyone"
 
@@ -84,9 +86,25 @@ export interface Knowledge {
   byStory: Map<number, number>;
   /** Belief rows per holder. */
   byHolder: number[][];
+  /** Standing knowledge (region lore, life ties): known without belief rows, never fades, never gossiped. */
+  standing: Standing[];
 }
 
-export const newKnowledge = (): Knowledge => ({ facts: [], beliefs: new Columns(BELIEF_COLUMNS, 4096), free: [], byStory: new Map(), byHolder: [] });
+/**
+ * A fact people simply know, like the name of the nearest city or where someone grew up. A belief row per person
+ * would be wrong for this: thousands of rows, eaten by the belief cap and the nightly forgetting within days.
+ * Who knows it: everyone in `holders`, plus a stable `share` of the people of at least `minAge`.
+ */
+export interface Standing {
+  fact: number;
+  share: number;
+  minAge: number;
+  holders: Set<ActorId>;
+  /** How much it tends to matter in a conversation (0..1), for prompt selection. */
+  salience: number;
+}
+
+export const newKnowledge = (): Knowledge => ({ facts: [], beliefs: new Columns(BELIEF_COLUMNS, 4096), free: [], byStory: new Map(), byHolder: [], standing: [] });
 
 /** What a caller supplies for a new fact; `topic` outside FACT_TOPICS becomes 'other'. */
 export type NewFact = { topic: string; text: string } & Partial<Pick<Fact, 'subject' | 'object' | 'place' | 'time' | 'magnitude' | 'secret' | 'originator' | 'truth'>>;
@@ -339,6 +357,29 @@ export function beliefsOf(world: World, id: ActorId): BeliefView[] {
       fact: k.facts[c.fact[r]], text: factText(world, k.facts[c.fact[r]]), confidence: c.confidence[r], source: c.source[r],
       heardAt: c.heardAt[r], salience: c.salience[r], promised: (c.flags[r] & F_PROMISED) !== 0,
     }))
+    .sort((a, b) => b.salience - a.salience);
+}
+
+/** Make `fact` standing knowledge. `share` 1 means everyone of at least `minAge` (default 0). */
+export function addStanding(world: World, fact: number, who: { share?: number; minAge?: number; holders?: readonly ActorId[]; salience?: number }): Standing {
+  const s: Standing = { fact, share: clamp(who.share ?? 0, 0, 1), minAge: who.minAge ?? 0, holders: new Set(who.holders ?? []), salience: clamp(who.salience ?? 0.2, 0, 1) };
+  world.knowledge.standing.push(s);
+  return s;
+}
+
+/** Does `id` know this standing fact? Deterministic per (seed, person, fact): no state, no rows. */
+export function knowsStanding(world: World, id: ActorId, s: Standing): boolean {
+  if (s.holders.has(id)) return true;
+  if (s.share <= 0 || !isPerson(world, id) || ageOf(world, id) < s.minAge) return false;
+  return s.share >= 1 || hashToFloat(hash3i(world.seed, id, s.fact, 0x57a9)) < s.share;
+}
+
+/** The standing knowledge `id` has (source SOURCE_COMMON), most salient first. Goes into prompts as common knowledge. */
+export function standingOf(world: World, id: ActorId): BeliefView[] {
+  const k = world.knowledge;
+  return k.standing
+    .filter((s) => knowsStanding(world, id, s))
+    .map((s) => ({ fact: k.facts[s.fact], text: factText(world, k.facts[s.fact]), confidence: 1, source: SOURCE_COMMON, heardAt: 0, salience: s.salience, promised: false }))
     .sort((a, b) => b.salience - a.salience);
 }
 
