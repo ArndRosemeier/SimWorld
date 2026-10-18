@@ -116,10 +116,13 @@ export class SimClient {
   /** Save when the tab is hidden (closing, switching away) and every `AUTOSAVE_MS` of play. */
   keepSaved(): void {
     let last = performance.now();
-    const save = (): void => { last = performance.now(); void this.saveNow(); };
+    const save = (): void => { last = performance.now(); if (this.autosave) void this.saveNow(); };
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') save(); });
     setInterval(() => { if (performance.now() - last >= AUTOSAVE_MS) save(); }, AUTOSAVE_MS / 4);
   }
+
+  /** False stops `keepSaved` (e.g. while the page reloads to play on from the save: leaving must not replace it). */
+  autosave = true;
 
   /** The time skip: `days` whole days on, the same time of day. Everyone out of doors is drawn afresh. */
   async skip(days: number): Promise<void> {

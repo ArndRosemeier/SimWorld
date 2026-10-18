@@ -2,8 +2,8 @@
  * Playing as an inhabitant (plan R5, R4): the panel that says who you are and what you are doing, with the
  * controls of a life lived in real time. Autopilot hands you back to your routine (you walk to work, do your shift)
  * and takes you off it again; "What now?" lists what you could do (here, at home, at work, visiting the people
- * closest to you, the town's places); the time skip moves days on and then shows what you would know of them;
- * save; and be someone else. The game (src/game/playing.ts) wires it to the sim.
+ * closest to you, the town's places); the time skip moves days on and then shows what you would know of them; and
+ * be someone else. Saving and loading are in the menu (src/app/shell.ts). The game (src/game/playing.ts) wires it to the sim.
  */
 import type { DigestItem } from '../sim/chronicle';
 import type { PlayerAction, PlayerStatus } from '../sim/player';
@@ -16,7 +16,6 @@ export interface PlayHandlers {
   actions: () => Promise<PlayerAction[]>;
   go: (a: PlayerAction) => void;
   skipDays: (days: number) => Promise<void>;
-  save: () => Promise<boolean>;
   switchPerson: () => void;
 }
 
@@ -56,7 +55,6 @@ export class PlayPanel {
       this.auto,
       button('What now?', () => void this.openActions()),
       button('Skip time', () => this.openSkip()),
-      button('Save', (b) => { b.disabled = true; void h.save().then((ok) => { b.textContent = ok ? 'Saved' : 'Not saved'; setTimeout(() => { b.textContent = 'Save'; b.disabled = false; }, 1500); }); }),
       button('Someone else', () => h.switchPerson()),
     );
     this.root.append(name, el('p', 'pl-occ', card.occupation), this.doing, needs, buttons);

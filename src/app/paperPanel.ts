@@ -1,5 +1,5 @@
 /**
- * The town's weekly paper, to read in play: a small "Paper" button beside Sound opens the newest edition as the sim
+ * The town's weekly paper, to read in play: the menu's "Paper" entry opens the newest edition as the sim
  * printed it (src/sim/media.ts, through `SimView.media`): the masthead, the front page, the town's news by section,
  * What's on, and the notices up on the boards (lost pets, funerals, coming events). Nothing here is made up on the
  * main thread; before the first edition the panel says the paper is not out yet.
@@ -63,16 +63,9 @@ function page(view: SimView): HTMLElement {
   return body;
 }
 
-/** The "Paper" button; `view` is the sim's latest view, or null while the town is still loading. */
-export function paperButton(view: () => SimView | null): HTMLButtonElement {
-  const b = el('button', 'pp-button', 'Paper');
-  b.type = 'button';
-  b.addEventListener('click', () => {
-    const v = view();
-    if (!v) return;
-    const close = el('button', 'pp-close', 'Close');
-    close.type = 'button';
-    openDialog('pp', v.media.paper, close)?.append(close, page(v));
-  });
-  return b;
+/** Open the paper (from the menu, src/app/shell.ts) with today's edition from the sim's latest view. */
+export function openPaper(v: SimView): void {
+  const close = el('button', 'pp-close', 'Close');
+  close.type = 'button';
+  openDialog('pp', v.media.paper, close)?.append(close, page(v));
 }

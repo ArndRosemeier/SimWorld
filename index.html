@@ -29,16 +29,14 @@
       .wn-release ul { margin: 0; padding-left: 18px; color: #cfd6dc; }
       .wn-release li { margin: 3px 0; }
       /* The sound control (src/app/soundPanel.ts), above What's new. */
-      .snd-button { position: fixed; right: 12px; bottom: 44px; z-index: 25; padding: 5px 10px; border: 1px solid #4f4232aa; border-radius: 3px; background: #050607cc; color: #b9ad96; font: 12px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.06em; cursor: pointer; }
-      .snd-button:hover, .snd-button:focus-visible { color: #ece3d0; border-color: #e9b85c; outline: none; }
-      .snd-panel { position: fixed; right: 12px; bottom: 78px; z-index: 30; width: min(300px, calc(100vw - 24px)); padding: 12px 16px 14px; background: #0d0f11f2; border: 1px solid #4f4232; box-shadow: 0 8px 40px #000a; color: #cfd6dc; font: 13px/1.3 'Alegreya Sans', system-ui, sans-serif; }
+      .snd-panel { position: fixed; right: calc(var(--right) + 12px); top: 44px; z-index: 30; width: min(300px, calc(100vw - 24px)); padding: 12px 16px 14px; background: #0d0f11f2; border: 1px solid #4f4232; box-shadow: 0 8px 40px #000a; color: #cfd6dc; font: 13px/1.3 'Alegreya Sans', system-ui, sans-serif; }
       .snd-panel h2 { margin: 0 0 8px; font: 400 18px/1 'IM Fell English', Georgia, serif; letter-spacing: 0.08em; color: #ece3d0; }
       .snd-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0; }
       .snd-row span { flex: 1; }
       .snd-row input[type=range] { flex: none; width: 130px; accent-color: #e9b85c; }
       .snd-mute input { accent-color: #e9b85c; }
       /* The character picker (src/app/picker.ts): who will you be, over the town from above. */
-      .pk-panel { position: fixed; right: 12px; top: 12px; bottom: 80px; z-index: 22; display: flex; flex-direction: column; gap: 8px; width: min(400px, calc(100vw - 24px)); padding: 14px 14px 10px; box-sizing: border-box; background: #0d0f11e6; border: 1px solid #4f4232; box-shadow: 0 8px 40px #000a; }
+      .pk-panel { position: fixed; right: calc(var(--right) + 12px); top: 44px; bottom: 12px; z-index: 22; display: flex; flex-direction: column; gap: 8px; width: min(400px, calc(100vw - 24px)); padding: 14px 14px 10px; box-sizing: border-box; background: #0d0f11e6; border: 1px solid #4f4232; box-shadow: 0 8px 40px #000a; }
       .pk-head { display: flex; align-items: baseline; gap: 10px; }
       .pk-head h2 { margin: 0; flex: 1; font: 400 22px/1 'IM Fell English', Georgia, serif; letter-spacing: 0.08em; color: #ece3d0; }
       .pk-count { color: #7a6f5e; font-size: 12px; }
@@ -95,8 +93,6 @@
       .pl-heard { color: #b9ad96; font-style: italic; }
       @media (max-width: 760px) { .pk-panel { left: 12px; bottom: 12px; width: auto; } }
       /* The town's weekly paper (src/app/paperPanel.ts), beside Sound in play. */
-      .pp-button { position: fixed; right: 84px; bottom: 44px; z-index: 25; padding: 5px 10px; border: 1px solid #4f4232aa; border-radius: 3px; background: #050607cc; color: #b9ad96; font: 12px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.06em; cursor: pointer; }
-      .pp-button:hover, .pp-button:focus-visible { color: #ece3d0; border-color: #e9b85c; outline: none; }
       .pp-backdrop { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: #050607b3; }
       .pp-panel { position: relative; width: min(640px, 100%); max-height: min(86vh, 860px); overflow-y: auto; background: #efe8d8; color: #1d1b17; box-shadow: 0 8px 40px #000c; font: 15px/1.4 Georgia, 'Times New Roman', serif; }
       .pp-close { position: absolute; right: 10px; top: 10px; padding: 3px 9px; border: 1px solid #1d1b1766; border-radius: 3px; background: none; color: #1d1b17; font: 12px/1.3 'Alegreya Sans', system-ui, sans-serif; cursor: pointer; }
@@ -112,14 +108,25 @@
       .pp-story p { margin: 0; }
       .pp-empty { font-style: italic; text-align: center; }
       /* The town map (src/app/mapPanel.ts), beside the paper in play. */
-      .map-button { position: fixed; right: 150px; bottom: 44px; z-index: 25; padding: 5px 10px; border: 1px solid #4f4232aa; border-radius: 3px; background: #050607cc; color: #b9ad96; font: 12px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.06em; cursor: pointer; }
-      .map-button:hover, .map-button:focus-visible { color: #ece3d0; border-color: #e9b85c; outline: none; }
       .map-backdrop { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: #050607b3; }
       .map-panel { position: relative; width: min(1000px, 100%); height: min(86vh, 900px); background: #efe8d8; box-shadow: 0 8px 40px #000c; }
       .map-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
       .map-tools { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
       .map-tools button { padding: 3px 9px; border: 1px solid #1d1b1766; border-radius: 3px; background: #efe8d8e6; color: #1d1b17; font: 13px/1.3 'Alegreya Sans', system-ui, sans-serif; cursor: pointer; }
-      #hud { position: fixed; left: 12px; top: 10px; pointer-events: none; white-space: pre; text-shadow: 0 1px 2px #000; }
+      #hud { position: fixed; left: 14px; top: 40px; pointer-events: none; white-space: pre; font-size: 12px; opacity: 0.75; text-shadow: 0 1px 2px #000; }
+      /* The screen's frame (src/app/shell.ts): the top bar and the one menu. Chat keeps the right-hand side while open. */
+      :root { --right: 0px; }
+      body.chat-open { --right: var(--chat-w, 0px); }
+      .sh-bar { position: fixed; left: 0; right: var(--right); top: 0; z-index: 24; display: flex; align-items: center; gap: 18px; height: 36px; padding: 0 100px 0 14px; box-sizing: border-box; background: linear-gradient(#050607d9, #05060700); color: #ece3d0; font: 15px/1 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.04em; text-shadow: 0 1px 2px #000; pointer-events: none; }
+      .sh-bar.sh-empty { display: none; }
+      .sh-said { color: #e9b85c; }
+      .sh-menu-button { position: fixed; top: 6px; right: calc(var(--right) + 12px); z-index: 26; padding: 4px 14px; border: 1px solid #4f4232aa; border-radius: 3px; background: #050607cc; color: #cfd6dc; font: 13px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.08em; cursor: pointer; }
+      .sh-menu-button:hover, .sh-menu-button:focus-visible, .sh-menu-button[aria-expanded=true] { color: #ece3d0; border-color: #e9b85c; outline: none; }
+      .sh-menu { position: fixed; top: 40px; right: calc(var(--right) + 12px); z-index: 30; width: min(240px, calc(100vw - 24px)); max-height: calc(100vh - 52px); overflow-y: auto; padding: 6px 0 8px; box-sizing: border-box; background: #0d0f11f2; border: 1px solid #4f4232; box-shadow: 0 8px 40px #000a; font: 14px/1.3 'Alegreya Sans', system-ui, sans-serif; }
+      .sh-menu h3 { margin: 8px 14px 3px; font: 600 11px/1 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: #7a6f5e; }
+      .sh-item { display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 5px 14px; border: 0; background: none; color: #cfd6dc; font: inherit; text-align: left; cursor: pointer; }
+      .sh-item:hover, .sh-item:focus-visible { background: #e9b85c1a; color: #ece3d0; outline: none; }
+      .sh-note { color: #7a6f5e; font-size: 12px; }
     </style>
   </head>
   <body>
