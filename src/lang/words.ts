@@ -32,15 +32,50 @@ const OWNED: Readonly<Record<string, string>> = {
 const LANDMARK = {
   church: ["St {saint}'s Church", "St {saint}'s Church", "St {saint}'s Church", "St {saint}'s Church", 'Holy Trinity Church', 'Christ Church', 'All Saints Church'],
   school: ['{root} School', '{city} School', '{root} Road School', '{root} Lane School'],
-  kindergarten: ['{root} Kindergarten', 'Little Acorns Kindergarten', 'Rainbow Kindergarten', 'Busy Bees Kindergarten', "{root} Children's House"],
+  kindergarten: ['{root} Kindergarten', 'Little Acorns Kindergarten', 'Rainbow Kindergarten', 'Little Wrens Kindergarten', "{root} Children's House"],
   clinic: ['{city} Medical Practice', '{root} Medical Practice', '{root} Clinic', '{city} Clinic'],
   sports: ['{root} Park', '{root} Field', '{city} Sports Park', '{root} Fields', '{city} Sports Field'],
   carehome: ['{root} House', '{root} Court', '{root} Lodge', '{root} Manor', 'The Willows', 'Evergreen House'],
   petrol: ['{root} Fuel Station', '{city} Fuel', 'QuickFuel', 'Roadside Fuel', '{root} Fuel Station'],
+  supermarket: ['Harvest Market', 'DailyFare', 'Corner Basket', 'Pantry Lane', 'Brightcart', 'Fieldgate Foods'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type SignKind = keyof typeof SIGN;
 export type LandmarkNameKind = keyof typeof LANDMARK;
+
+/**
+ * Clubs and groups: the name, the office titles (the first is the founder's), the big day of the year, and what
+ * people say about its outcome (`prize`: {subject} is the winner; `result`: one line per possible outcome).
+ */
+const CLUB: Record<string, { name: string; offices: readonly string[]; big?: string; prize?: string; result?: readonly string[]; of?: string }> = {
+  football: { name: 'the football club', offices: ['chair', 'treasurer', 'secretary', 'coach'], big: 'last home match of the season',
+    result: ['finished top of the league and won promotion', 'finished second in the league', 'finished mid-table in the league', 'finished mid-table in the league', 'only just avoided relegation', 'were relegated'] },
+  choir: { name: 'the town choir', offices: ['chair', 'treasurer', 'conductor'], big: 'Christmas concert' },
+  firebrigade: { name: 'the volunteer fire brigade', offices: ['chief', 'deputy chief', 'treasurer'], big: 'open day' },
+  rifle: { name: 'the rifle club', offices: ['chair', 'treasurer', 'range officer'], big: 'summer shoot and barbecue',
+    prize: '{subject} won the rifle club\'s summer shoot' },
+  allotment: { name: 'the community garden club', offices: ['chair', 'treasurer', 'secretary'], big: 'produce show',
+    prize: '{subject} won best in show at the community garden club\'s produce show' },
+  churchgroup: { name: 'the church coffee circle', offices: ['organiser'], big: 'second-hand sale' },
+  youth: { name: 'the youth club', offices: ['youth leader'], big: 'disco' },
+  books: { name: 'the book club', offices: ['organiser'] },
+  running: { name: 'the running club', offices: ['organiser'], big: 'fun run',
+    prize: '{subject} won the fun run' },
+  cards: { name: 'the card club', offices: ['organiser'], big: 'winter tournament',
+    prize: '{subject} won the card club\'s winter tournament' },
+  history: { name: 'the local history society', offices: ['chair', 'secretary'], big: 'exhibition on the town\'s past' },
+  congregation: { name: 'the congregation', of: 'the congregation of {place}', offices: ['priest', 'church elder', 'treasurer'], big: 'church fair' },
+  council: { name: 'the town council', offices: ['mayor', 'deputy mayor'] },
+};
+
+/** A kind of group's words (src/sim/groups.ts). */
+export const clubWords = (kind: string): (typeof CLUB)[string] => CLUB[kind];
+
+/** Small offices in former shop units, named after the street ("Elm Insurance", "Mill Law Office"). */
+const OFFICES = ['Insurance', 'Tax Advisers', 'Law Office', 'Accountants', 'Architects', 'Travel', 'Rentals', 'Opticians'] as const;
+
+/** The kinds of small office a former shop unit may hold. */
+export const officeWords = (): readonly string[] => OFFICES;
 
 /** A business's sign label ("Pharmacy", "Mini Market"). */
 export const signWord = (kind: SignKind): string => SIGN[kind];

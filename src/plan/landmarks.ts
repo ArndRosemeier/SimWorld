@@ -387,7 +387,6 @@ function landmarkName(kind: LandmarkKind, r: Rng, city: string, american: boolea
     case 'townhall': return american ? 'City Hall' : r.chance(0.5) ? 'Town Hall' : `${city} Town Hall`;
     case 'fire': return `${city} Fire Station`;
     case 'station': return `${city}`;
-    case 'supermarket': return r.pick(['FreshMart', 'ValueFoods', 'Greenway', 'Harvest Market', 'DailyFare', 'Corner Basket']);
     default: return name(kind);
   }
 }
