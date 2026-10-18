@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.088 — Faster checks, and each change shows what its tests cost
+
+- The automatic checks run all test files in one process, so they take about half as long.
+- The repo-wide code checks run once before the tests, with their own time limit.
+- Every change now reports how much it added to or saved from the test time.
+
 ## v0.087 — Lit windows follow who is home
 
 - At night a home's windows are lit when people there are in and awake, and go dark when they sleep or go out.
