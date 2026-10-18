@@ -43,17 +43,18 @@ export function stopToTalk(world: World, npc: ActorId, minutes: number): void {
 
 /**
  * The NPC's reply passed on news: every belief from `offered` (the facts the NPC's prompt held) whose wording the
- * reply echoes is told to `partner`, through the knowledge network's own `tell` (trust, distortion, secrets).
- * Returns the facts the partner now holds a version of.
+ * reply echoes is told to `partner`, through the knowledge network's own `tell` (trust, distortion, secrets); the
+ * facts in `voiced` were told for sure (the procedural engine put them into words itself). Returns the facts the
+ * partner now holds a version of.
  */
-export function shareInChat(world: World, npc: ActorId, partner: ActorId, reply: string, offered: readonly number[]): number[] {
+export function shareInChat(world: World, npc: ActorId, partner: ActorId, reply: string, offered: readonly number[], voiced: readonly number[] = []): number[] {
   const told: number[] = [];
   if (!isPerson(world, partner)) return told;
   const facts = world.knowledge.facts;
   for (const f of offered) {
     if (f < 0 || f >= facts.length || beliefAbout(world, npc, f) < 0) continue;
     const text = facts[f].text.replace(/\{\w+\}/g, '');
-    if (wordOverlap(reply, text) < SHARED_OVERLAP && !mentionsAll(world, reply, facts[f].subject, facts[f].object, text)) continue;
+    if (!voiced.includes(f) && wordOverlap(reply, text) < SHARED_OVERLAP && !mentionsAll(world, reply, facts[f].subject, facts[f].object, text)) continue;
     const t = tell(world, npc, partner, f);
     if (t >= 0) told.push(t);
   }

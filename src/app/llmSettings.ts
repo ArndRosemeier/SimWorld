@@ -35,7 +35,8 @@ const CSS = `
 .llm-msg { color: #d9a15c; font-size: 12.5px; min-height: 1.2em; }
 `;
 
-const TASK_TEXT: Record<TaskName, [string, string]> = {
+/** The tasks the player configures (a task without text here, like the tests' chatter judge, is not shown). */
+const TASK_TEXT: Partial<Record<TaskName, [string, string]>> = {
   'npc.speech': ['Chat replies', 'What people say to you. Natural, in-character writing matters most; some of the smartest models are poor role-players.'],
   'npc.appraisal': ['Reading the replies', 'After each reply: how it changed their feelings, beliefs and plans, as strict JSON. A fast, cheap model that keeps to a schema.'],
   'memory.summary': ['Memories of a talk', 'What they remember of a conversation once it ends. Cheap.'],
@@ -95,7 +96,9 @@ function tasksSection(setup: LlmSetup): HTMLElement {
   const s = el('section', '');
   s.append(el('h3', '', 'Which model does what'), el('p', '', 'Pick up to three models per task, best first. The rest of the roster that can do the task fills in behind them if a model fails.'));
   for (const task of Object.keys(TASKS) as TaskName[]) {
-    const [what, why] = TASK_TEXT[task];
+    const text = TASK_TEXT[task];
+    if (!text) continue;
+    const [what, why] = text;
     const box = el('div', 'llm-task');
     box.append(el('div', 'what', what), el('p', '', why));
     const able = setup.roster.models.filter((m) => qualifies(m, TASKS[task].routing));

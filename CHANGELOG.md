@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.069 — Townsfolk talk to each other
+
+- When two people meet, what they say is now written out: the news that really passes between them, told in their own voice ("Have you heard? My sister lost her job at the bakery. Marta told me."), and answered in the listener's.
+- Each reply answers what was just said: "How are you?" gets how they are, news gets sympathy, glee or doubt, a doubter hears who it came from, a story raises a question ("Do you know when the wedding is?") that is answered from what is really on in town, and someone who heard a different version says so ("That's not what I heard") until one of them gives way.
+- Your own news is announced, not passed on as hearsay ("Did I tell you? We're off to the seaside"), and bad news about someone's family gets sympathy, not gossip.
+- With no news to share, people talk about the weather, the season, the weekend, what is on in town, what the other one is up to, local lore, work, the family, being tired or hungry, and the place they are in. They talk to their dogs and to toddlers too.
+- Two people who meet again the same day don't go over the same ground, and phrases are not repeated all day long.
+- Toddlers don't gossip any more, young children only tell their family, and nobody tells you news about your own household.
+- Children, teenagers and old people sound different, the chatty say more, and some people have a pet phrase. American towns say "mom" and "fall".
+- The street view and the chat panel can now show these lines (speech bubbles and the "Nearby" channel come next).
+
+## v0.068 — Council decisions change the town
+
+- When the council passes something, it happens about a month later and the town hears of it: the pool closes, the 30 km/h limit is in force, parking in the centre costs money, the street lights go off at midnight.
+- Sunday trading: the supermarket and the bigger shops open on Sunday afternoons, with new Sunday shifts that locals take.
+- Cutting the library's hours really shuts it on Tuesdays and Thursdays and at five, and the librarians work less.
+- Higher local rates and parking charges come out of households' budgets.
+- Building projects (the bypass, the new estate, wind turbines, a skate park) start months after the vote, take their time, and are news when they open.
+- A passed issue is settled and does not come up again.
+- The game now gets the town's face from the sim once a day: what each shop is now and its name, to-let and for-sale boards, upkeep and wealth, and the council's rules, ready for signs, boards and street lights to show.
+
+## v0.067 — Trees follow the seasons
+
+- Deciduous trees drop their leaves through November and stand bare over the winter; they leaf again in April. Conifers keep their needles.
+- Distant trees thin to a twiggy crown in winter too.
+- In spring some trees (about one in seven) blossom white and pink for a few weeks.
+
+## v0.066 — Cars on the streets
+
+- The town's traffic is now on screen: household cars drive their owners' real trips and park near where they are going. Buses keep to their timetable, and the bin lorry, the post van and the delivery vans make their rounds.
+- Each household's car stands in a bay near home or wherever its driver went, always the same model and colour. When someone drives off, their car leaves its bay, so no car is ever shown twice.
+- Cars light up as they should: headlights after dark, brake lights, indicators at turns, and hazard lights when a bus or van stops.
+- The cars in car parks stay as they were.
+
+## v0.065 — Shop signs, street names and the town sign
+
+- Every shop, café, pub, office and works now has its real name on the front: a painted fascia over the shop window in its own colours and type, a hanging sign by a café's or pub's door, a brass plate by an office door, big letters on a works' wall.
+- The opening hours hang by each shop's door, day by day.
+- Street-name signs stand at the corners of junctions, and public buildings have their name boards out front.
+- "Welcome to" signs with the town's name stand beside the roads into town, with a thank-you on the back.
+- An empty shop unit shows the estate agent's TO LET board on its fascia instead of a name.
+
 ## v0.064 — Choose who to be, and live their life
 
 - When the town has loaded, a picker opens over it: "Who will you be?" Every inhabitant has a card with their work, who they live with and what is going on in their life (recently widowed, new in town, engaged, not speaking to a brother, out of work…). Search by name, job or street, filter by "in love", "has a secret", "grieving" and more, sort by "most going on", or press "Surprise me".

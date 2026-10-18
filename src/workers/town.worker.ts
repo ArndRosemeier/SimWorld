@@ -22,6 +22,12 @@ import { soundMapOf, soundMapTransferables } from '../audio/soundMap';
 import { townMapOf, townMapTransferables } from '../plan/townMap';
 import type { FromTown, ToTown } from './townProtocol';
 import { serve } from './serve';
+import { signInstances } from '../build/signs';
+import { placeGraphOf } from '../plan/placeGraph';
+import { townRoads } from '../plan/roads';
+import { cityName } from '../plan/names';
+import { PLACE_KINDS } from '../sim/places';
+import type { SignFacts } from '../render/signFacts';
 
 let town: Town | null = null;
 let water: WaterSources | null = null;
@@ -83,12 +89,20 @@ function handle(m: ToTown): FromTown {
       const b = buildBridges(macro.bridges, terrain, macro.edges);
       return { type: 'bridges', ground: out(b.deck), buildings: out(b.structure), ms: ms() };
     }
-    case 'props': { const groups = propInstances(cells, terrain); return { type: 'props', groups, lamps: lampsOf(groups), ms: ms() }; }
+    case 'props': { const groups = propInstances(cells, terrain, { kerbCars: m.kerbCars }); return { type: 'props', groups, lamps: lampsOf(groups), ms: ms() }; }
     case 'propModel': return { type: 'propModel', mesh: propModel(m.model), far: propFar(m.model), ms: ms() };
     case 'trees': return { type: 'trees', recs: townTrees(cells, terrain), ms: ms() };
     case 'forest': return { type: 'forest', recs: (forest ??= new ForestGen(land, macro)).tile(m.x0, m.z0, m.size), ms: ms() };
     case 'vegModel': return { type: 'vegModel', model: buildVegModel(m.index), ms: ms() };
     case 'sound': return { type: 'sound', map: soundMapOf(town), ms: ms() };
+    case 'signs': {
+      const graph = placeGraphOf(town), roads = townRoads(town);
+      const facts: SignFacts = {
+        kind: Uint8Array.from(graph.places, (p) => PLACE_KINDS.indexOf(p.kind)), name: graph.places.map((p) => p.name),
+        flags: new Uint8Array(graph.places.length), hours: graph.places.map((p) => p.hours),
+      };
+      return { type: 'signs', signs: signInstances(town, roads, graph.places, cityName(town.settings.seed)), facts, ms: ms() };
+    }
     case 'map': return { type: 'map', map: townMapOf(town), ms: ms() };
     case 'interior': {
       const b = cells[m.cell]?.buildings.find((q) => q.id === m.building);

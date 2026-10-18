@@ -3,15 +3,15 @@
  * The vehicle look (the `VEHICLE` kind; meshes from src/build/vehicles.ts): the per vertex part
  * id (aPart) picks paint / glass / chrome / tyres / lights; per instance (geometry-instanced) the
  * place (iPose / iSize, `poseByInstance`) and the paint (iPaint, sRGB). The state (x headlights, y brake, z indicator −1 left / +1
- * right / ±2 hazards / ±3 emergency, w engine running: daytime running lights) is all zero for
- * parked cars: moving traffic will feed it per instance (an instance attribute more).
+ * right / ±2 hazards / ±3 emergency, w engine running: daytime running lights) per instance too
+ * (iState; all zero for a parked car, the moving traffic's from src/traffic/feed.ts).
  * Ported from Scale (src/render/webgpu/vehicles.ts), kept close to it; Scale's damage (scratches,
  * cracked glass, dents), military paint and the mirrored-instance correction stay behind.
  */
 import type { MeshPhysicalNodeMaterial } from 'three/webgpu';
 import {
   Fn, float, int, vec2, vec3, mix, min, max, abs, fract, floor, smoothstep, sub, add, mul, dot, step, pow, clamp, select,
-  If, struct, attribute, varying, positionGeometry, time, vec4,
+  If, struct, attribute, varying, positionGeometry, time,
 } from 'three/tsl';
 import { h_hash13 as vhHash, h_noise3 as vhNoise } from '@futuremagic/humanoid/three/nodes/peopleNoise';
 import { LIGHT, poseByInstance } from './common';
@@ -28,7 +28,7 @@ export function vehicleLook(mat: MeshPhysicalNodeMaterial): void {
   const vVUv = attribute('uv', 'vec2');
   poseByInstance(mat);
   const vPaint = varying(vhToLinear(clamp(attribute('iPaint', 'vec3'), 0.0, 1.0)), 'vPaint');
-  const vState = vec4(0.0);
+  const vState = varying(attribute('iState', 'vec4'), 'vState');
   const LUM = vec3(0.2126, 0.7152, 0.0722);
 
   const surface = Fn(() => {

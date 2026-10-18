@@ -149,6 +149,7 @@ export const DEFAULT_TASK_MODELS: Record<TaskName, string[]> = {
   'memory.summary': ['~openai/gpt-luna-latest', '~anthropic/claude-haiku-latest', '~z-ai/glm-flash-latest'],
   'npc.reflection': ['~anthropic/claude-haiku-latest', '~google/gemini-flash-latest', '~z-ai/glm-latest'],
   'skip.digest': ['~anthropic/claude-haiku-latest', '~z-ai/glm-flash-latest', '~deepseek/deepseek-flash-latest'],
+  'talk.judge': ['~anthropic/claude-haiku-latest', '~openai/gpt-luna-latest', '~z-ai/glm-flash-latest'],
 };
 
 /**

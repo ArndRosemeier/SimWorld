@@ -47,7 +47,7 @@ export type ChatRequest =
   /** No language model: the procedural engine answers from the same input. */
   | { op: 'procedural'; npc: ActorId; player: ActorId; conversation: string; turns: Turn[] }
   /** The NPC said `reply` (to the facts `offered` in its prompt): news in it reaches the player's inhabitant. */
-  | { op: 'said'; npc: ActorId; player: ActorId; reply: string; offered: number[] }
+  | { op: 'said'; npc: ActorId; player: ActorId; reply: string; offered: number[]; voiced?: number[] }
   /** What the appraisal proposed for the NPC. */
   | { op: 'apply'; npc: ActorId; proposal: Proposal }
   /** The conversation is over (`npcMemory`: the NPC's own summary, from `memory.summary`, if any). */
@@ -56,7 +56,7 @@ export type ChatRequest =
 export type ChatResponse =
   | { op: 'start'; header: ChatHeader | null }
   | { op: 'turn'; input: NpcPromptInput; offered: number[] }
-  | { op: 'procedural'; reply: string; input: NpcPromptInput; offered: number[] }
+  | { op: 'procedural'; reply: string; input: NpcPromptInput; offered: number[]; voiced: number[] }
   | { op: 'said'; told: string[] }
   | { op: 'apply'; applied: AppliedChange[]; end: boolean }
   | { op: 'end' };
@@ -109,10 +109,12 @@ export function chatOp(world: World, req: ChatRequest): ChatResponse {
     case 'procedural': {
       stopToTalk(world, req.npc, HOLD_MINUTES);
       const c = chatContext(world, req.npc, req.player, req.conversation, req.turns);
-      return { op: 'procedural', reply: proceduralReply(c.input), input: c.input, offered: c.offered };
+      const w = { world, npc: req.npc, partner: req.player, offered: c.offered, told: [] as number[] };
+      const reply = proceduralReply(c.input, w);
+      return { op: 'procedural', reply, input: c.input, offered: c.offered, voiced: w.told };
     }
     case 'said': {
-      const told = shareInChat(world, req.npc, req.player, req.reply, req.offered);
+      const told = shareInChat(world, req.npc, req.player, req.reply, req.offered, req.voiced);
       return { op: 'said', told: told.map((f) => factText(world, world.knowledge.facts[f])) };
     }
     case 'apply': {

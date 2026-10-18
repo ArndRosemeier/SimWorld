@@ -9,6 +9,7 @@
  */
 import { Rng, deriveSeed } from '@futuremagic/core';
 import type { Hours, Place, PlaceGraph, PlaceKind } from './places';
+import { weekdayName } from './calendar';
 
 const MON = 0, WED = 2, THU = 3, SAT = 5;
 const bit = (d: number) => 1 << d;
@@ -52,4 +53,28 @@ export function withLocalHours(graph: PlaceGraph, seed: number): PlaceGraph {
     return { ...p, hours: businessHours(p.kind, p.hours, new Rng(deriveSeed(seed, 'hours', p.id))) };
   });
   return { ...graph, places };
+}
+
+const SHORT_DAYS = [0, 1, 2, 3, 4, 5, 6].map((d) => weekdayName(d).slice(0, 3));
+
+/** A day minute as a sign writes it ("9:00", "17:30"; past midnight wraps: "1:00"). */
+const clockText = (m: number): string => `${Math.floor(m / 60) % 24}:${String(m % 60).padStart(2, '0')}`;
+
+/**
+ * Opening hours as a door sign lists them, one line per run of days that keep the same hours
+ * ("Mon–Fri  9:00–17:30", "Wed  9:00–13:00", "Sat  9:15–12:30 14:00–16:00", "Sun  Closed"), every
+ * day of the week accounted for. The one way to put hours into words (signs, NPCs naming them).
+ */
+export function hoursLines(hours: readonly Hours[]): string[] {
+  const day = (d: number) => hours.filter((h) => h.days & bit(d)).sort((a, b) => a.open - b.open)
+    .map((h) => `${clockText(h.open)}–${clockText(h.close)}`).join(' ') || 'Closed';
+  const days = SHORT_DAYS.map((_, d) => day(d));
+  const out: string[] = [];
+  for (let d = 0; d < 7;) {
+    let e = d;
+    while (e + 1 < 7 && days[e + 1] === days[d]) e++;
+    out.push(`${e > d ? `${SHORT_DAYS[d]}–${SHORT_DAYS[e]}` : SHORT_DAYS[d]}  ${days[d]}`);
+    d = e + 1;
+  }
+  return out;
 }

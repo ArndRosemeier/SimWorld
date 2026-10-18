@@ -55,7 +55,7 @@ export class Chat {
 
   constructor(private readonly sim: SimClient, private readonly street: Street, private readonly cam: CameraControl, private readonly setup: LlmSetup) {
     this.panel = new ChatPanel({
-      send: (t) => void this.say(t),
+      send: (t) => void this.send(t),
       close: () => void this.close(),
       settings: () => openLlmSettings(setup),
       nameOf: (id) => this.names.get(id) ?? `#${id}`,
@@ -133,7 +133,7 @@ export class Chat {
     this.panel.begin(header, this.mode());
   }
 
-  private async say(text: string): Promise<void> {
+  private async send(text: string): Promise<void> {
     const c = this.talk;
     if (!c || c.busy || c.over) return;
     c.busy = true;
@@ -144,7 +144,7 @@ export class Chat {
       await c.pending;
       const turns = c.turns.slice(-TURNS_KEPT);
       const base = { npc: c.header.npc, player: c.header.player, conversation: c.id, turns };
-      let reply = '', input: NpcPromptInput, offered: number[];
+      let reply = '', input: NpcPromptInput, offered: number[], voiced: number[] = [];
       const out = this.panel.streamReply(c.header.name);
       if (!c.procedural) {
         const t = await this.sim.chat({ op: 'turn', ...base });
@@ -164,14 +164,14 @@ export class Chat {
       }
       if (!reply) {
         const p = await this.sim.chat({ op: 'procedural', ...base });
-        reply = p.reply; input = p.input; offered = p.offered;
+        reply = p.reply; input = p.input; offered = p.offered; voiced = p.voiced;
         out.set(reply);
       }
       this.panel.stopTyping();
       if (this.talk !== c) return;
       c.turns.push({ speaker: 'npc', text: reply });
       c.last = { ...input!, turns: [...turns, { speaker: 'npc', text: reply }] };
-      const said = await this.sim.chat({ op: 'said', npc: c.header.npc, player: c.header.player, reply, offered: offered! });
+      const said = await this.sim.chat({ op: 'said', npc: c.header.npc, player: c.header.player, reply, offered: offered!, voiced });
       for (const t of said.told) if (!c.told.includes(t)) { c.told.push(t); this.panel.note(`You heard: ${t}`, 'told'); }
       // What the reply changed in their mind: read by the appraisal model, applied by the sim before the next turn.
       if (!c.procedural) c.pending = this.appraise(c, input!, reply);

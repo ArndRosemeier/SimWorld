@@ -49,8 +49,9 @@ export class TownTraffic {
   private buses: Buses | null = null;
   private services: ServiceRounds | null = null;
   private world: World | null = null;
-  /** Game clock (s) minus Traffic time (s), set at every game minute. */
+  /** Game clock (s) minus Traffic time (s): set at every game minute, or once for good by `anchor`. */
   private clockOffset = 0;
+  private anchored = false;
   /** Stats for the HUD and tests. */
   readonly stats = { trips: 0, walked: 0, parked: 0, through: 0, buses: 0, services: 0, stops: 0 };
 
@@ -73,9 +74,15 @@ export class TownTraffic {
     }
   }
 
+  /** Tie Traffic time to the game clock for good: the cars run on their own clock, ahead of the world's minutes (src/traffic/feed.ts). */
+  anchor(clock: number): void {
+    this.clockOffset = clock * 60 - this.traffic.time;
+    this.anchored = true;
+  }
+
   /** New car trips from the sim (call once per game minute with what `carTripsSince` returned). */
   trips(trips: readonly CarTrip[], clock: number): void {
-    this.clockOffset = clock * 60 - this.traffic.time;
+    if (!this.anchored) this.clockOffset = clock * 60 - this.traffic.time;
     for (const trip of trips) {
       const car = householdCar(this.seed, trip.household);
       // Home from the city: the car comes in on the road from there (it was never parked in town).

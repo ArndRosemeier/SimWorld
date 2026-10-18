@@ -13,7 +13,7 @@ import type { WorkerPool } from '../workers/pool';
 import type { FromTown, ToTown } from '../workers/townProtocol';
 import { isVehicleModel, PROP_STRIDE, type PropGroup } from '../build/streetProps';
 import { FURNITURE, VEHICLE } from './materials';
-import { instancedFromData, showInstances, splitByDistance } from './meshes';
+import { instancedFromData, radiusOf, showInstances, splitByDistance } from './meshes';
 import type { Stage } from './stage';
 
 /** Detailed parked cars up to this far from the camera (m, 3D), their stand-ins beyond, up to FAR_CAR. */
@@ -52,7 +52,8 @@ interface ModelProps {
 
 /** Ask the town workers for the props and their models, then put them into `root`. */
 export async function showProps(stage: Stage, pool: WorkerPool<ToTown, FromTown>, root: Group, priority = 35): Promise<PropsShown> {
-  const r = await pool.run({ type: 'props' }, priority);
+  // The kerbside bays are the traffic's: its household cars stand there (src/render/vehiclesView.ts), so the plan's kerb cars stay out.
+  const r = await pool.run({ type: 'props', kerbCars: false }, priority);
   if (r.type !== 'props') throw new Error(`town worker: props answered ${r.type}`);
   const group = new Group();
   group.name = 'props';
@@ -91,8 +92,6 @@ export async function showProps(stage: Stage, pool: WorkerPool<ToTown, FromTown>
 
 const same = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, i) => v === b[i]);
 
-/** A model's radius round its origin, from its geometry's bounding sphere. */
-const radiusOf = (m: Mesh) => { const s = m.geometry.boundingSphere!; return s.center.length() + s.radius; };
 
 /** A model's instance attributes from its group (PROP_STRIDE: x, y, z, yaw, scale, c0..c3) and its meshes (empty until split). */
 function modelProps(g: PropGroup, data: Parameters<typeof instancedFromData>[0], farData: Parameters<typeof instancedFromData>[0] | null): ModelProps {

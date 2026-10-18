@@ -12,7 +12,8 @@ import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim } fro
 import type { PlayerStatus } from '../sim/player';
 import type { ChatRequest, ChatResponse } from '../chat/ops';
 import { DEFAULT_LATITUDE, daysOf, epochFor, weekdayOfDays, type CivilDate } from '../sim/calendar';
-import type { SimView } from '../sim/view';
+import type { SimView, TownFace } from '../sim/view';
+import type { TrafficMsg } from '../traffic/feed';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
 import { dropSave, readSave, storeSave } from '../persist/saves';
@@ -84,10 +85,18 @@ export class SimClient {
 
   private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView, private readonly key: string) {
     this.view = view;
+    this.town = view.town!;
   }
+
+  /** The vehicles from the latest street update (src/traffic/feed.ts): the moving ones, and the parked ones as last sent. */
+  traffic: TrafficMsg | null = null;
+  /** The parked cars as last sent (they come only when they changed; poses PARKED_STRIDE each). */
+  parked: { poses: Float32Array; cars: Int32Array } | null = null;
 
   /** The sim's latest view snapshot (src/sim/view.ts): every view reads the sim from here. */
   view: SimView;
+  /** The town's face as of today (the latest `view.town`): what each place is now, its looks, the council's rules. */
+  town: TownFace;
 
   /**
    * Start the worker: it plans the town, makes the world (play beginning on the real date `start`, game day
@@ -129,6 +138,7 @@ export class SimClient {
     try {
       const m = await this.pool.run<Extract<FromSim, { type: 'skipped' }>>({ type: 'skip', days }, 0);
       this.view = m.view;
+      if (m.view.town) this.town = m.view.town;
       this.walkers.clear();
       this.restart(m.clock);
     } finally {
@@ -184,8 +194,10 @@ export class SimClient {
     this.busy = true;
     this.last = now;
     this.inflight = this.pool.run<Extract<FromSim, { type: 'street' }>>({ type: 'update', clock: this.clock, x, z, r: STREET_RADIUS }, 0).then((m) => {
-      if (m.view) this.view = m.view;
+      if (m.view) { this.view = m.view; if (m.view.town) this.town = m.view.town; }
       this.player = m.player;
+      this.traffic = m.traffic;
+      if (m.traffic.parked) this.parked = { poses: m.traffic.parked, cars: m.traffic.parkedCars! };
       for (const i of m.info) this.infos.set(i.id, i);
       for (const id of m.gone) this.walkers.delete(id);
       for (const t of m.tracks) {
