@@ -66,6 +66,12 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |
 | Polygon union, difference, intersection, offset | `src/geom/clip.ts` (clipper) | `src/geom/clip.ts` |
 
+### The app (`src/app`)
+
+| Question | The one way | Where |
+|---|---|---|
+| Which version is this build, what changed? | `VERSION` and `whatsNewButton()` / `openWhatsNew()` (read CHANGELOG.md at build time via `parseChangelog`); versions are given only by the changelog fold after each merge (`changes/README.md`) | `src/app/whatsNew.ts`, `src/app/changelog.ts`, `tools/changelog.mjs` |
+
 ### Workers and persistence
 
 | Question | The one way | Where |

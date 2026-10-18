@@ -19,6 +19,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 2
+      # Every merge is a version (changes/README.md), so every PR brings its change note.
+      - name: The PR adds a change note
+        if: github.event_name == 'pull_request'
+        run: |
+          git diff --name-only --diff-filter=A HEAD^1 HEAD -- changes/ | grep -v '/README.md$' | grep -q '\.md$' \
+            || { echo "::error::Add a change note: changes/<slug>.md (see changes/README.md). Each merge becomes the next version."; exit 1; }
       - uses: actions/setup-node@v4
         with:
           node-version: 22

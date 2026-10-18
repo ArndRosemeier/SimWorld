@@ -10,6 +10,7 @@ import { makeLights } from './render/lights';
 import { VERTEX_COLOR_SOLID } from './render/materials';
 import { meshFromData } from './render/meshes';
 import { placeholderBlocks } from './app/placeholder';
+import { whatsNewButton } from './app/whatsNew';
 
 async function start(): Promise<void> {
   const canvas = document.createElement('canvas');
@@ -39,6 +40,9 @@ async function start(): Promise<void> {
     if (hud) hud.textContent = stage.hudLine();
   });
 }
+
+// The version and What's new sit on the start screen and stay in the corner once the town is up.
+document.body.append(whatsNewButton());
 
 start().catch((err) => {
   const el = document.querySelector('#loading .step');
