@@ -11,6 +11,7 @@
 import { VEHICLE_KINDS } from '../build/vehicles';
 import { CAR_STRIDE, HORN_STRIDE, STATE_STRIDE, vehiclePose, type TrafficMsg } from './feed';
 import { isTrainKey } from './trains';
+import { isBikeKey } from './townTraffic';
 
 /** What the street sounds play through (`TownAudio`). */
 export interface StreetAudio {
@@ -74,7 +75,8 @@ export class StreetSounds {
     let idle: { d: number; x: number; y: number; z: number } | null = null;
     for (let i = 0; i < n; i++) {
       const key = m!.cars[i * CAR_STRIDE];
-      if (isTrainKey(key)) continue;
+      // (Bicycles go by quietly; the trains are the rail view's.)
+      if (isTrainKey(key) || isBikeKey(key)) continue;
       here.add(key);
       vehiclePose(m!, i, clock, p);
       vehiclePose(m!, i, clock - SPEED_SPAN, q);

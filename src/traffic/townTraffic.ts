@@ -15,7 +15,7 @@ import { MINUTES_PER_DAY } from '../sim/time';
 import { Parking } from './parking';
 import { RoadNet } from './roadNet';
 import { Traffic, regionCar, type Car, type Goal, type VKind } from './traffic';
-import type { CarTrip } from './trips';
+import type { BikeTrip, CarTrip } from './trips';
 import { Buses } from './buses';
 import { EMERGENCY_KEY, POLICE_CARS, ServiceRounds, exitTowardRegion, roundGoal } from './rounds';
 import type { World } from '../sim/world';
@@ -29,6 +29,10 @@ const HOUSEHOLD: VKind[] = ['sedan', 'suv', 'hatch', 'wagon', 'pickup', 'suv', '
 const THROUGH: VKind[] = ['sedan', 'suv', 'hatch', 'van', 'pickup', 'truck', 'delivery', 'wagon', 'flatbed'];
 /** Keys of cars that belong to nobody in town (through traffic) start here. */
 const THROUGH_KEY = 1 << 24;
+/** Keys of bicycles: this plus the rider's actor id (the view draws the rider on it). */
+export const BIKE_KEY = 1 << 30;
+/** Is this vehicle key a bicycle's? */
+export const isBikeKey = (key: number): boolean => key >= BIKE_KEY;
 /** A trip whose car is farther than this from where the driver sets off is walked (or someone gave them a lift). */
 const CAR_REACH = 450;
 /** Seconds a departure that found no room to pull out keeps trying. */
@@ -67,7 +71,7 @@ export class TownTraffic {
   /** Visitors from the region in town: their cars, the road they came in by, when they leave (game clock). */
   private readonly guests = new Map<number, { car: Car; exit: number; leave: number }>();
   /** Stats for the HUD and tests. */
-  readonly stats = { trips: 0, walked: 0, parked: 0, through: 0, buses: 0, services: 0, emergencies: 0, stops: 0, visitors: 0 };
+  readonly stats = { trips: 0, bikes: 0, walked: 0, parked: 0, through: 0, buses: 0, services: 0, emergencies: 0, stops: 0, visitors: 0 };
 
   /** `world` (optional until the view has one) tells the roads to the region towns apart. */
   constructor(town: Town, private readonly places: readonly Place[], private readonly seed: number, world?: World) {
@@ -128,6 +132,24 @@ export class TownTraffic {
       this.launch(() => this.start(trip, car));
     }
     this.through(clock);
+  }
+
+  /**
+   * New bike rides from the sim (once per game minute, with what `bikeTripsSince` returned): out of the door onto the
+   * street, to the kerb at the place they are going, where they get off. The bike is the rider's own (its look from
+   * the rider), never parked on the street.
+   */
+  bikes(trips: readonly BikeTrip[]): void {
+    for (const t of trips) {
+      const from = this.places[t.from], to = this.places[t.to];
+      const ne = from && to ? this.net.nearestEdge(from.x, from.z, 200) : null;
+      if (!ne) continue;
+      const h = hash32(deriveSeed(this.seed, 'bike', t.rider));
+      const car: Car = { key: BIKE_KEY + t.rider, kind: 'bicycle', variant: t.child ? 2 : [0, 1, 3][h % 3] };
+      const e = this.net.edges[ne.e], s = Math.max(2, Math.min(e.len - 2, ne.s));
+      this.stats.bikes++;
+      this.launch(() => !!this.traffic.place(car, ne.e, ne.side > 0, s, { ride: true, x: to.x, z: to.z }) || !!this.traffic.place(car, ne.e, ne.side <= 0, s, { ride: true, x: to.x, z: to.z }));
+    }
   }
 
   /**

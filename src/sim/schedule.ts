@@ -20,7 +20,7 @@ import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIE
 import { atMinute, dayOf, MINUTES_PER_DAY, minuteOfDay, weekdayOf } from './time';
 import { drawingOn } from './agenda';
 import { awayRide } from './offsite';
-import { DRIVE_IF_WALK_OVER } from './travel';
+import { DRIVE_IF_WALK_OVER, WALK_M_PER_MIN } from './travel';
 import { isCold, isFoul, isNiceOut, isWetOut, weatherAt } from './weather';
 import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
 import { activityOf, ageOf, commute, hasCar, householdOf, isPerson, jobOf, placesOf, placesWith, playerDrives, tickRng, tripOf, type World } from './world';
@@ -130,8 +130,9 @@ export function go(world: World, id: ActorId, place: PlaceId, activity: number, 
     // Out of town without a car: the next bus or train on the timetable (the school bus for pupils), else a lift.
     const ride = car || outside ? null : awayRide(world, from, place, now);
     const walkUpTo = car ? walkLimit(world, id, place, activity) : DRIVE_IF_WALK_OVER;
-    const t = outside ? STEP_OUT : ride ? ride.minutes : world.travel.minutes(from, place, car, walkUpTo);
-    const mode = outside ? 'foot' : ride ? ride.mode : world.travel.mode(from, place, car, walkUpTo);
+    const bike = !outside && !ride && cycles(world, id, from, place, activity);
+    const t = outside ? STEP_OUT : ride ? ride.minutes : bike ? world.travel.bikeMinutes(from, place) : world.travel.minutes(from, place, car, walkUpTo);
+    const mode = outside ? 'foot' : ride ? ride.mode : bike ? 'bike' : world.travel.mode(from, place, car, walkUpTo);
     world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode, leader: -1, run: ride ? ride.run : -1 });
     a.dest[id] = place;
     a.arrive[id] = now + t;
@@ -170,6 +171,40 @@ export function walkLimit(world: World, id: ActorId, place: PlaceId, activity: n
   // More shopping than one can carry home: the car, unless the shop is round the corner.
   const kind = world.graph.places[place].kind;
   return BIG_SHOP.has(kind) || (activity === A.shop && kind === 'grocer') ? Math.min(limit, 3) : limit;
+}
+
+/** Longest ride in town (m): further than this they drive, or walk to the bus. */
+const BIKE_UP_TO = 6000;
+
+/** Whether someone has a bike of their own: most children from nine, half the grown-ups, fewer of the old. */
+export function hasBike(world: World, id: ActorId): boolean {
+  if (world.actors.cols.kind[id] !== ACTOR_PERSON) return false;
+  const age = ageOf(world, id);
+  if (age < 9 || age >= 80) return false;
+  const h = (hashCombine(hashCombine(world.seed, 0xb1c7e), id) >>> 0) / 4294967296;
+  return h < (age < 18 ? 0.75 : age < 65 ? 0.5 : 0.3);
+}
+
+/**
+ * Whether someone cycles from `from` to `place` (in town) rather than walking or driving. Those with a bike ride
+ * when the walk is longer than they would walk, in dry weather, without the weekly shop or small children or the
+ * dog along. Of those with a car, only the keen ones ride (some 4 in 10), and they ride in the cold and the dark too.
+ */
+export function cycles(world: World, id: ActorId, from: PlaceId, place: PlaceId, activity: number): boolean {
+  if (!hasBike(world, id) || world.travel.mode(from, place) !== 'foot') return false;
+  const sky = weatherAt(world);
+  if (isWetOut(sky) || isFoul(sky) || BIG_SHOP.has(world.graph.places[place].kind)) return false;
+  const a = world.actors.cols, hh = householdOf(world, id);
+  if (hh) for (const list of [hh.members, hh.animals]) for (const f of list) if (a.with[f] === id) return false;
+  const m = world.travel.metres(from, place);
+  if (m > BIKE_UP_TO) return false;
+  const keen = (hashCombine(hashCombine(world.seed, 0xb1c7f), id) >>> 0) / 4294967296 < 0.4;
+  if (!keen) {
+    if (hasCar(world, id) || isCold(sky)) return false;
+    const mm = minuteOfDay(world.clock), sun = sunAt(world, world.clock);
+    if (mm < sun.rise || mm > sun.set) return false;
+  }
+  return m / WALK_M_PER_MIN > Math.max(4, walkLimit(world, id, place, activity) * (keen ? 0.6 : 1));
 }
 
 /** Copy the leader's movement to everyone who goes with them, or release them when the outing is over. */

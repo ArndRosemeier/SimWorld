@@ -9,7 +9,7 @@
  */
 import type { ActorId } from '../sim/actors';
 import type { PlaceId } from '../sim/places';
-import { hasCar, householdOf, type World } from '../sim/world';
+import { ageOf, hasCar, householdOf, type World } from '../sim/world';
 import { walkLimit } from '../sim/schedule';
 
 export interface CarTrip {
@@ -37,6 +37,16 @@ export function carTripsSince(world: World, since: number): CarTrip[] {
     const hh = householdOf(world, t.who);
     if (hh) out.push({ driver: t.who, household: hh.id, from: t.from, to: t.to, depart: t.depart, arrive: t.arrive, fromRegion: regionOfPlace(world, t.from), toRegion: regionOfPlace(world, t.to) });
   }
+  return out;
+}
+
+/** A ride in town by bike (`world.trips`, mode 'bike'): who, from where to where, when. */
+export interface BikeTrip { rider: ActorId; from: PlaceId; to: PlaceId; depart: number; arrive: number; /** Under 14: a child's bike. */ child: boolean }
+
+/** Bike trips that set off after clock minute `since` (as `carTripsSince`). */
+export function bikeTripsSince(world: World, since: number): BikeTrip[] {
+  const out: BikeTrip[] = [];
+  for (const t of world.trips) if (t.mode === 'bike' && t.leader < 0 && t.depart > since) out.push({ rider: t.who, from: t.from, to: t.to, depart: t.depart, arrive: t.arrive, child: ageOf(world, t.who) < 14 });
   return out;
 }
 

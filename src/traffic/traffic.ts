@@ -31,7 +31,7 @@ export type VKind = VehicleKind;
 export const DIMS: Record<VKind, [number, number]> = {
   sedan: [4.7, 1.85], hatch: [4.1, 1.78], wagon: [4.8, 1.85], suv: [4.8, 1.95], van: [5.2, 2.0], pickup: [5.4, 2.0],
   taxi: [4.8, 1.85], police: [4.9, 1.9], sports: [4.4, 1.9], bus: [12, 2.55], truck: [8, 2.5], delivery: [6, 2.2], shuttle: [5.0, 2.06],
-  ambulance: [6, 2.2], firetruck: [8.2, 2.5], flatbed: [8.2, 2.5], train: [20.5, 2.9],
+  ambulance: [6, 2.2], firetruck: [8.2, 2.5], flatbed: [8.2, 2.5], train: [20.5, 2.9], bicycle: [1.8, 0.6],
 };
 
 /** A car from the region (through traffic, visitors): one of `kinds`, any variant. */
@@ -52,11 +52,18 @@ export type Goal =
   | { park: true; x: number; z: number }
   /** Drive off the map at an exit node (to the region). */
   | { exit: number }
+  /** Ride to the kerb by (x, z) and get off there (a bicycle: put away at the door; no bay). */
+  | { ride: true; x: number; z: number }
   /**
    * Stop in the kerb lane by (x, z) with the hazards on for `dwell` seconds (a bus stop, the bin
    * lorry at a row of houses, the post van), then drive on to `then`.
    */
   | { halt: true; x: number; z: number; dwell: number; then: Goal; /** Not before this (`Traffic.time`): a bus early for its timetable. */ leave?: number; /** Pull into a lay-by off the lane (a bus stop), so traffic goes past. */ bay?: boolean; tag?: number; /** An emergency: blue lights and siren on the way, the lights while there. */ urgent?: boolean };
+
+/** Is this a bicycle (rides at the kerb, at its own pace; cars overtake it)? */
+export const isBike = (v: { car: Car }): boolean => v.car.kind === 'bicycle';
+/** A cyclist's cruising speed (m/s, 18 km/h; each rider's pace about it), and how far (m) they keep towards the kerb from the lane's middle. */
+const BIKE_SPEED = 5, BIKE_KERB = 1.1;
 
 /** Is this goal an emergency call (blue lights and siren)? */
 export const urgent = (g: Goal): boolean => 'halt' in g && !!g.urgent;
@@ -153,8 +160,8 @@ export class Traffic {
   barriers: { x: number; z: number; r: number; fx: number; fz: number }[] = [];
   /** A car parked (journey done). */
   onPark?: (v: Vehicle, spot: Spot | null) => void;
-  /** A car drove off the map, or gave up. */
-  onGone?: (v: Vehicle, reason: 'exit' | 'stuck') => void;
+  /** A car drove off the map, or gave up; a cyclist got off at their door ('there'). */
+  onGone?: (v: Vehicle, reason: 'exit' | 'stuck' | 'there') => void;
   /** A vehicle has pulled up at a halt (a bus at its stop). */
   onHalt?: (v: Vehicle, halt: Extract<Goal, { halt: true }>) => void;
   onHorn?: (v: Vehicle) => void;
@@ -241,8 +248,8 @@ export class Traffic {
     }
     // The last edge and direction: past the reserved spot with the kerb on the right, or past
     // the goal on the nearest street.
-    const halt = 'halt' in goal;
-    const spot = halt ? null : this.parking.reserve(key, goal.x, goal.z);
+    const halt = 'halt' in goal, ride = 'ride' in goal;
+    const spot = halt || ride ? null : this.parking.reserve(key, goal.x, goal.z);
     let le: number, lf: boolean, stopAt: number;
     if (spot) { le = spot.edge; lf = spot.side > 0; stopAt = spot.s; }
     else {
@@ -250,7 +257,7 @@ export class Traffic {
       if (!ne) return null;
       le = ne.e; lf = ne.side > 0; stopAt = ne.s;
       // A stop has a kerb on both sides of the road: halt in whichever direction comes first.
-      if (halt) lf = this.quickerWay(from, edge, fwd, s, le, stopAt);
+      if (halt || ride) lf = this.quickerWay(from, edge, fwd, s, le, stopAt);
     }
     const L = this.net.edges[le];
     // (A halt stands clear of the junctions, where cars can queue behind it.)
@@ -279,7 +286,7 @@ export class Traffic {
     const [L, W] = DIMS[car.kind];
     const v: Vehicle = {
       id: this.nextId++, car, length: L, width: W, edge, fwd, lane: 0, s,
-      route: { edges: [edge], fwd: [fwd] }, ri: 0, speed: 0, pace: r.range(0.9, 1.08),
+      route: { edges: [edge], fwd: [fwd] }, ri: 0, speed: 0, pace: car.kind === 'bicycle' ? r.range(0.7, 1.3) : r.range(0.9, 1.08),
       x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, turn: null, brake: 0, indicator: 0, headlights: 0, wait: 0, jam: 0,
       goal, spot: null, stopAt: NaN, halted: -1, siren: urgent(goal), pull: 0, drive: null, alive: true,
     };
@@ -375,7 +382,7 @@ export class Traffic {
     } else {
       const e = this.net.edges[v.edge];
       const off = this.net.laneOffset(e, v.fwd, v.lane);
-      this.net.lanePoint(e, v.s, off + Math.sign(off) * v.pull * 1.7, this.tmp);
+      this.net.lanePoint(e, v.s, off + Math.sign(off) * (v.pull * 1.7 + (isBike(v) ? BIKE_KERB : 0)), this.tmp);
       v.x = this.tmp.x; v.z = this.tmp.z;
       const dx = v.fwd ? this.tmp.dx : -this.tmp.dx, dz = v.fwd ? this.tmp.dz : -this.tmp.dz;
       v.yaw = Math.atan2(-dx, -dz);
@@ -398,7 +405,7 @@ export class Traffic {
     const remaining = e.len - along;
     const last = v.ri + 1 >= v.route.edges.length;
     // ---- leader: the next car on this lane, cars from it still in the box, anything else in the way
-    let gap = Infinity, leadV = 0, passing = false, bayQueue = false;
+    let gap = Infinity, leadV = 0, passing = false, bayQueue = false, overtake = false;
     const lk = laneKey(v.edge, v.fwd, v.lane);
     const lane = this.laneIndex.get(lk);
     if (lane) for (const o of lane) {
@@ -406,6 +413,8 @@ export class Traffic {
       const oa = v.fwd ? o.s : e.len - o.s;
       if (oa > along || (oa === along && o.id < v.id)) {
         if (v.siren && o.pull > 0.5) { if (oa - along < 30) passing = true; continue; }
+        // A cyclist ahead is overtaken (out towards the centre line), not followed.
+        if (isBike(o) && !isBike(v)) { if (oa - along < 25) overtake = true; continue; }
         // A vehicle pulled in at the kerb is off the carriageway (one that wants the same kerb queues behind it).
         if (o.halted >= 0 && o.pull > 0.9) {
           if (!(last && 'bay' in v.goal && v.goal.bay && Math.abs(o.s - v.stopAt) < (o.length + v.length) / 2 + 2)) continue;
@@ -457,6 +466,7 @@ export class Traffic {
         if (dStop + S0 - 0.2 < gap) { gap = Math.max(0, dStop + S0 - 0.2); leadV = 0; }
         if ((dStop < 0.8 || (bayQueue && gap < 1.2)) && v.speed < 1.5) {
           if ('halt' in v.goal) { this.haltNow(v, dt); return; }
+          if ('ride' in v.goal) { v.alive = false; this.onGone?.(v, 'there'); return; }
           if (v.spot?.drive) { v.drive = this.drivePath(v, v.spot, false); v.indicator = v.fwd ? 1 : -1; return; }
           this.parkNow(v);
           return;
@@ -471,11 +481,13 @@ export class Traffic {
       const sa = v.fwd ? sv.s : e.len - sv.s;
       if (sa < along && along - sa < 55) { yieldTo = true; break; }
     }
-    const pullTo = yieldTo ? 1 : v.siren && passing ? -1 : 0;
+    const pullTo = yieldTo ? 1 : v.siren && passing ? -1 : overtake ? -0.6 : 0;
     v.pull += (pullTo - v.pull) * Math.min(1, dt * 1.6);
     // ---- IDM
-    const a0 = v.siren ? 2.6 : 1.8, b0 = 3.5, T = 1.3, s0 = S0;
-    const vmax = this.net.limit(e) * v.pace * (v.siren ? 1.5 : this.weatherK) * (remaining < 25 && hasNext ? 0.7 : 1) * (yieldTo ? 0.3 : 1);
+    const bike = isBike(v);
+    const a0 = v.siren ? 2.6 : bike ? 0.9 : 1.8, b0 = 3.5, T = 1.3, s0 = bike ? 1 : S0;
+    const top = bike ? Math.min(this.net.limit(e), BIKE_SPEED * v.pace) : this.net.limit(e) * v.pace * (v.siren ? 1.5 : this.weatherK);
+    const vmax = top * (remaining < 25 && hasNext ? 0.7 : 1) * (yieldTo ? 0.3 : 1);
     const sStar = s0 + Math.max(0, v.speed * T + (v.speed * (v.speed - leadV)) / (2 * Math.sqrt(a0 * b0)));
     let acc = a0 * (1 - Math.pow(v.speed / Math.max(0.1, vmax), 4) - (gap < Infinity ? (sStar / Math.max(0.1, gap)) ** 2 : 0));
     acc = Math.max(-9, Math.min(a0, acc));
@@ -483,7 +495,7 @@ export class Traffic {
     v.speed = Math.max(0, v.speed + acc * dt);
     if (v.speed < 0.1) {
       v.wait += dt;
-      if (v.wait > 25 && og === Infinity && Math.floor(v.wait / 25) !== Math.floor((v.wait - dt) / 25)) this.onHorn?.(v);
+      if (v.wait > 25 && og === Infinity && !bike && Math.floor(v.wait / 25) !== Math.floor((v.wait - dt) / 25)) this.onHorn?.(v);
     } else v.wait = 0;
     // ---- advance
     const ds = v.speed * dt;
@@ -504,7 +516,7 @@ export class Traffic {
 
   private stepTurn(v: Vehicle, dt: number): void {
     const T = v.turn!;
-    let target = Math.min(this.net.limit(this.net.edges[v.edge]) * v.pace, 7);
+    let target = isBike(v) ? Math.min(BIKE_SPEED * v.pace, 4.5) : Math.min(this.net.limit(this.net.edges[v.edge]) * v.pace, 7);
     const og = Math.min(this.obstacleAhead(v, 10), this.obstacleAhead(v, 10, this.barriers), this.boxGap(v));
     if (og < Infinity) target = Math.min(target, Math.sqrt(12 * Math.max(0, og - 0.3)));
     if (og <= 0.3) { v.speed = 0; v.brake = 1; }
@@ -637,6 +649,8 @@ export class Traffic {
       if (l) for (const o of l) {
         if (o === v || (o.turn ? o.turn.from === lk : o.edge === v.edge && o.fwd === v.fwd && o.lane === v.lane)) continue;
         if (Math.cos(o.yaw - v.yaw) < -0.3) continue;
+        // (A cyclist going the same way is overtaken.)
+        if (isBike(o) && !isBike(v) && Math.cos(o.yaw - v.yaw) > 0.8) continue;
         const g = pathGap(v, o);
         if (g >= best || (v.id < o.id && pathGap(o, v) < Infinity)) continue;
         best = g;

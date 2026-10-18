@@ -17,7 +17,7 @@ import type { World } from '../sim/world';
 import { rulesOf } from '../sim/politics';
 import { dayOf } from '../sim/time';
 import { TownTraffic } from './townTraffic';
-import { carPlace, carTripsSince } from './trips';
+import { bikeTripsSince, carPlace, carTripsSince } from './trips';
 import { TRAIN_KEY, type TrainCar } from './trains';
 import { urgent, type Car } from './traffic';
 
@@ -109,6 +109,7 @@ export class TrafficFeed {
     this.fed = this.last = world.clock;
     this.town.anchor(world.clock);
     this.town.trips(under, world.clock);
+    this.town.bikes(bikeTripsSince(world, -Infinity));
     // The rounds that came on to the map in the last half hour too (the buses and vans already in town).
     this.town.rounds(world, world.clock - LATE, world.clock);
     // The visitors in town now (the longest stay is four hours): parked, or on their way in.
@@ -125,6 +126,7 @@ export class TrafficFeed {
     if (w.clock > this.fed) {
       this.town.obey(rulesOf(w), dayOf(w.clock));
       this.town.trips(carTripsSince(w, this.fed), w.clock);
+      this.town.bikes(bikeTripsSince(w, this.fed));
       this.town.rounds(w, this.fed, w.clock);
       this.town.visitors(w, this.fed, w.clock);
       this.fed = w.clock;
