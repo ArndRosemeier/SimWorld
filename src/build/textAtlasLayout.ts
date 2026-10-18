@@ -25,9 +25,10 @@ export type AtlasRect = [number, number, number, number];
  * Lettering slot sizes in pixels: `wide` a shop fascia or a name board (8:1), `strip` a street-name
  * blade, a door plate or a brass plate (8:1, half the size), `card` a square panel (a hanging
  * sign, an estate board, a notice, opening hours in full), `board` a 2:1 panel (the town sign, a
- * public building's name board, a timetable).
+ * public building's name board, a timetable, a notice board's cork), `sheet` a portrait page (a
+ * notice or a poster, about A4).
  */
-export const SLOT_SIZES = { wide: [512, 64], strip: [256, 32], card: [256, 256], board: [512, 256] } as const;
+export const SLOT_SIZES = { wide: [512, 64], strip: [256, 32], card: [256, 256], board: [512, 256], sheet: [256, 352] } as const;
 export type SlotSize = keyof typeof SLOT_SIZES;
 
 /** A pixel rectangle (x, y from the top left, w, h) as uvs, inset by `inset` px against bleeding. */
@@ -67,7 +68,7 @@ const BANDS: readonly { x0: number; x1: number; y0: number; y1: number }[] = [
  * (the caller frees a slot it values less, or shows the sign blank).
  */
 export class SlotPacker {
-  private readonly free: Record<SlotSize, Slot[]> = { wide: [], strip: [], card: [], board: [] };
+  private readonly free: Record<SlotSize, Slot[]> = { wide: [], strip: [], card: [], board: [], sheet: [] };
   private readonly shelves: { size: SlotSize; band: number; y: number; next: number }[] = [];
   /** How far down each band's shelves reach. */
   private readonly used = BANDS.map((b) => b.y0);

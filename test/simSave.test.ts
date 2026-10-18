@@ -8,7 +8,7 @@ import { loadWorld, saveWorld } from '../src/sim/save';
 import { tick } from '../src/sim/world';
 
 const region = planRegion({
-  seed: 3, town: 'Saveham', coastal: false, seaBearing: 0, hilliness: 0.3, warmth: 0.5, american: false, oldWorld: 0.7,
+  seed: 3, town: 'Saveham', coastal: false, seaBearing: 0, hilliness: 0.3, warmth: 0.5, oldWorld: 0.7,
   railBearing: 90, railTerminus: false, downstreamBearing: 200,
 });
 

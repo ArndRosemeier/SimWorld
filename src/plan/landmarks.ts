@@ -381,13 +381,12 @@ function stationDesign(terrain: Terrain): Designer {
 
 const SAINTS = ['Mary', 'Peter', 'Paul', 'Stephen', 'James', 'John', 'Mark', 'Nicholas', 'Michael', 'Catherine', 'Andrew', 'Lawrence', 'Bartholomew', 'Clement'];
 
-function landmarkName(kind: LandmarkKind, r: Rng, city: string, american: boolean): string {
+function landmarkName(kind: LandmarkKind, r: Rng, city: string): string {
   const name = (k: LandmarkNameKind) => fillName(r.pick(landmarkPatterns(k)), { root: r.pick(ROOTS), city, saint: r.pick(SAINTS) });
   switch (kind) {
-    case 'townhall': return american ? 'City Hall' : r.chance(0.5) ? 'Town Hall' : `${city} Town Hall`;
+    case 'townhall': return r.chance(0.5) ? 'Town Hall' : `${city} Town Hall`;
     case 'fire': return `${city} Fire Station`;
     case 'station': return `${city}`;
-    case 'supermarket': return r.pick(['FreshMart', 'ValueFoods', 'Greenway', 'Harvest Market', 'DailyFare', 'Corner Basket']);
     default: return name(kind);
   }
 }
@@ -399,7 +398,6 @@ export function planLandmarks(plan: MacroPlan, field: CityField, terrain: Terrai
   const pr = terrain.profile;
   const rng = new Rng(deriveSeed(pr.seed, 'landmarks'));
   const city = cityName(pr.seed);
-  const american = pr.arch.american > pr.arch.oldWorld;
   const out: Landmark[] = [];
   const fitter = new SiteFitter(plan, terrain, out);
   const c0 = plan.centres[0];
@@ -415,7 +413,7 @@ export function planLandmarks(plan: MacroPlan, field: CityField, terrain: Terrai
       const f = fitter.fit(cells, d.hu, d.hv, { maxRange: d.maxRange, target, accept, front: fronted.has(kind) });
       if (!f) continue;
       const lm: Landmark = {
-        id: out.length, kind, name: landmarkName(kind, r.fork('name'), city, american), cell: f.cell.id,
+        id: out.length, kind, name: landmarkName(kind, r.fork('name'), city), cell: f.cell.id,
         x: f.x, z: f.z, angle: f.angle, hu: d.hu, hv: d.hv, site: [], base: f.base, low: f.low,
         seed: r.nextU32(), style: d.style, p: d.p,
       };
@@ -433,7 +431,7 @@ export function planLandmarks(plan: MacroPlan, field: CityField, terrain: Terrai
       .sort((a, b) => dist(a, cx, cz) - dist(b, cx, cz)).slice(0, 30);
     place('townhall', townhallDesign(terrain), cells, () => [cx, cz]);
   }
-  const outside = (kind: LandmarkKind, des: Designer) => addOutside(kind, des, plan, terrain, out, rng.fork(kind, 'outside'), (k, r) => landmarkName(k, r, city, american));
+  const outside = (kind: LandmarkKind, des: Designer) => addOutside(kind, des, plan, terrain, out, rng.fork(kind, 'outside'), (k, r) => landmarkName(k, r, city));
   // --- The railway station: outside the town where the line passes closest.
   const rail = plan.rail;
   if (rail) {
@@ -442,7 +440,7 @@ export function planLandmarks(plan: MacroPlan, field: CityField, terrain: Terrai
     const nx = Math.cos(rail.side), nz = Math.sin(rail.side);
     const off = d.hv + RAIL_HW + 1.5;
     const lm: Landmark = {
-      id: out.length, kind: 'station', name: landmarkName('station', r.fork('name'), city, american), cell: -1,
+      id: out.length, kind: 'station', name: landmarkName('station', r.fork('name'), city), cell: -1,
       x: rail.sx - nx * off, z: rail.sz - nz * off, angle: rail.angle + Math.PI, hu: d.hu, hv: d.hv, site: [], base: 0, low: 0,
       seed: r.nextU32(), style: d.style, p: d.p,
     };

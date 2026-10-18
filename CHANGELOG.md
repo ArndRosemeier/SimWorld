@@ -1,5 +1,99 @@
 # Changelog
 
+## v0.096 — Level crossing barriers, lamps and train sounds
+
+- The level crossings on the country roads have barrier posts on both sides: when a train comes the red lamps flash in turn, the bells ring, and the striped arms come down across the road; they rise again once the train has gone.
+- Trains sound their horn as they near a crossing, and rush past with a roar when you stand close to the line.
+
+## v0.095 — Sign words that fit the invented town
+
+- Every word on the town's boards and street furniture now comes from the town's shared word list: estate boards say FOR RENT and FOR SALE with "Call to view", door cards say OPENING HOURS, notice boards say NOTICES.
+- Street-name signs have the town's own look, cream letters on slate, instead of a real country's colours.
+- The kiosk says NEWS, and the traffic-light masts carry a "Town Hall →" sign instead of a stock street name.
+
+## v0.094 — Chimney smoke follows who is home
+
+- A house whose people are all out or asleep has its heating turned down, so its chimney smokes less often. Houses with someone up and about smoke the most.
+
+## v0.093 — Lamps on under storm clouds; street lights off after midnight by vote
+
+- On a dark, rainy or stormy day, people who are at home switch their lights on, so the windows glow by day too. On a normal day only a few rooms are lit.
+- If the council votes to switch the street lights off at midnight, the lamps go dark from midnight until dawn. That covers both the lamp heads and the light they throw on the street.
+
+## v0.092 — Notice boards, posters and window notices
+
+- The town hall, library, church, post office, supermarket, newsagent and square each have a notice board (a cork board by the entrance, or cards in the shop window) with the town's real notices pinned on it: events, funerals, lost pets, openings and closings.
+- Posters for a street's notices go up on a few of its lamp posts, and a shop's own opening or closing notice hangs in its window.
+- Notices change as the town does: a lost cat's poster turns to "Found", old notices come down.
+- Small signs such as door plates now only get their lettering when you are close enough to read them, so busy streets no longer run out of lettering space.
+- Shop signs now follow the town's economy day by day: a shop that closes shows a to-let board on its fascia and loses its hours, a new business has its own name and hours, and homes for sale or rent get an estate agent's board.
+
+## v0.091 — Driveways and front paths
+
+- Detached houses have a driveway beside them, laid with asphalt, block paving or gravel, from the street to just past the house front.
+- Their front doors have a paved path out to the sidewalk.
+- No car is parked at the kerb across a driveway, and no lamp, bin or street tree stands in front of one.
+
+## v0.090 — One menu and a top bar
+
+- The date, time and weather now sit in a thin bar along the top of the screen.
+- One Menu button at the top right holds everything: who to be, the paper, the map, save, load, What's new, sound, and chat's past conversations, usage and models. The separate buttons in the corner are gone.
+- The Chat button sits next to Menu, and the bar and menu move aside while the chat panel is open.
+- Save now and Load last save are in the menu. Loading a save plays on as the person you were playing.
+- The play panel keeps the controls of your life: autopilot, What now?, skip time and someone else.
+- The right-hand side is kept free for the chat panel.
+
+## v0.089 — One last British word in the LLM test filler
+
+- The slow LLM model test says "church fair" instead of "church fete" (D27 region audit).
+
+## v0.088 — Faster checks, and each change shows what its tests cost
+
+- The automatic checks run all test files in one process, so they take about half as long.
+- The repo-wide code checks run once before the tests, with their own time limit.
+- Every change now reports how much it added to or saved from the test time.
+
+## v0.087 — Lit windows follow who is home
+
+- At night a home's windows are lit when people there are in and awake, and go dark when they sleep or go out.
+- Blocks of flats light up as people come home in the evening, and at 3 a.m. the town is nearly dark.
+
+## v0.086 — Trains on the railway
+
+- Trains now run on the railway past the town to the timetable: two to four railcars in an invented regional livery, coming along the line, standing at the station for a minute, and going on towards the town their line serves. They keep to the right-hand track, with their lamps lit.
+- At a level crossing, cars now stop while a train is coming or passing, and drive on once it is past.
+
+## v0.085 — Neutral names for the country around the town
+
+- The region's city, towns, villages and river no longer use real place names, and the town is in "the … district" instead of a county.
+- The country around the town no longer switches between British and American naming. The town hall is always the Town Hall, and the lore talks of the main road, a fuel station and an old inn.
+
+## v0.084 — Chat: no toddlers, no lost lines, plainer words
+
+- You can no longer start a full conversation with a toddler (nobody under four answers T).
+- A line you send while someone is still answering is no longer ignored: it goes out as soon as they finish.
+- People in chats talk plainly, without British or American turns of phrase (the town is in no real country).
+
+## v0.083 — One invented post box and phone booth
+
+- Post boxes are one invented design everywhere: a deep teal box with a cream band on a short post. There is no British red pillar box or American blue mailbox any more.
+- The red British-style phone kiosk is replaced by a modern glass booth with a grey frame.
+
+## v0.082 — Club words from the town's word list
+
+- The church coffee circle's yearly sale is now a second-hand sale.
+- Club names, office titles, big days and their results now come from the town's one word list, so a word changes everywhere at once.
+
+## v0.081 — Invented town and street names
+
+- Street, park and town names no longer use real people or famous streets (no Lincoln, Madison, Hudson, Bowery or Tesla), and there are no more boulevards or numbered avenues. The new roots are plain nature, trade and landscape words such as Hawthorn, Heron, Flint and Weaver.
+- The town's name is never a well-known real place (no Springfield, Ashford or Riverdale). A new deny list catches them and the name is drawn again.
+- Supermarkets have invented names, and "Busy Bees" (a real nursery chain) is gone.
+
+## v0.080 — NPCs stay in the invented world
+
+- Townspeople in chats and the time-skip summary no longer mention real cities, brands, institutions or currencies, avoid strongly British or American words, and say prices as plain numbers.
+
 ## v0.079 — Neutral words for clubs, offices and council issues
 
 - Small offices in former shops are called "Law Office" and "Rentals" now, no longer "Solicitors" and "Lettings".

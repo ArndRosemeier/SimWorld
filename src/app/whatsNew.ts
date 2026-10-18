@@ -1,7 +1,7 @@
 /**
- * The version label and the What's new panel. `whatsNewButton()` is a self-contained control: the
- * start screen shows it now, and the loading screen / character selector takes it over when it
- * comes (docs/design/simworld-plan.md R2). The text is CHANGELOG.md, bundled at build time.
+ * The version label and the What's new panel. `whatsNewButton()` sits on the loading screen (plan R2); once the town
+ * is up, the menu's "What's new" entry opens the same panel (src/app/shell.ts). The text is CHANGELOG.md, bundled at
+ * build time.
  */
 import changelogMd from '../../CHANGELOG.md?raw';
 import { parseChangelog, type Release } from './changelog';

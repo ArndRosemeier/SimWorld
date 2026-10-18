@@ -6,6 +6,9 @@
 import type { Hours, PlaceKind, StaffSlot } from './places';
 import { EVERY_DAY, WEEKDAYS } from './places';
 
+/** Places with a public notice board at the door (src/sim/media.ts puts notices up there; the signs view draws the boards). */
+export const BOARD_KINDS: readonly PlaceKind[] = ['townhall', 'library', 'church', 'supermarket', 'post', 'newsagent', 'square'];
+
 export type Category = 'home' | 'food' | 'service' | 'institution' | 'work' | 'outdoor' | 'vacant' | 'away';
 
 /** Activities a visitor (not staff) can do at a place. */

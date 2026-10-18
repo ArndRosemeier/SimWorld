@@ -9,6 +9,7 @@ import { PICTURES, SLOT_SIZES, SlotPacker, pictureRect, slotRect, type AtlasRect
 import { townRoads } from '../src/plan/roads';
 import { placeGraphOf } from '../src/plan/placeGraph';
 import { signSpots } from '../src/plan/signs';
+import { BOARD_KINDS } from '../src/sim/placeKinds';
 import { SIGN_STRIDE, signInstances } from '../src/build/signs';
 import { distSqPointSeg, pointInPoly } from '../src/geom/geom2';
 import { BAY_LENGTH, SETBACK } from '../src/plan/cell';
@@ -170,11 +171,18 @@ test('signs: every workplace has its sign on its front, every home a board spot,
   for (const c of spots.corners) assert.notEqual(c.blades[0].street, c.blades[1].street);
   assert.ok(spots.gateways.length >= 1, 'a town sign on a road into town');
   assert.equal(spots.sites.length, town.macro.landmarks.length);
+  // Posters on lamp posts: a few per street, on the pavement side of a post.
+  assert.ok(spots.posters.length >= 10, `${spots.posters.length} lamp posters`);
+  for (const p of spots.posters) {
+    const hit = roads.nearest(p.x, p.z, 30)!;
+    assert.ok(hit.d > roads.lines[hit.li].width / 2, `poster at ${p.x.toFixed(1)}, ${p.z.toFixed(1)} over the carriageway`);
+    assert.ok(p.k < 3);
+  }
 });
 
 test('signs: instance lists tie every sign to what it says, on the ground or the wall', () => {
   const graph = placeGraphOf(town);
-  const data = signInstances(town, roads, graph.places, 'Testford');
+  const data = signInstances(town, roads, graph.places.map((p) => ({ ...p, board: BOARD_KINDS.includes(p.kind) })), 'Testford');
   let n = 0;
   for (const g of data.groups) {
     assert.equal(g.inst.length % SIGN_STRIDE, 0, g.model);
@@ -189,6 +197,11 @@ test('signs: instance lists tie every sign to what it says, on the ground or the
   const shops = graph.places.filter((p) => p.kind !== 'house' && p.kind !== 'apartments' && p.building >= 0 && p.building < 0x40000000).length;
   assert.ok(data.what.filter((w) => w.t === 'front').length >= shops * 0.95, 'nearly every workplace has its sign');
   assert.ok(data.what.some((w) => w.t === 'street') && data.what.some((w) => w.t === 'town' && w.back));
+  // A notice board at (nearly) every board place, its pins tied to that place.
+  const boardPlaces = graph.places.filter((p) => BOARD_KINDS.includes(p.kind));
+  const pinned = new Set(data.what.flatMap((w) => (w.t === 'notice' && !w.every && w.k === 5 ? [w.place] : [])));
+  assert.ok(pinned.size >= boardPlaces.length * 0.8, `${pinned.size} boards for ${boardPlaces.length} board places`);
+  assert.ok(data.what.some((w) => w.t === 'notice' && w.every), 'posters on the lamp posts');
 });
 
 test('parked cars stand in kerbside bays, on the carriageway, clear of the cross streets', () => {

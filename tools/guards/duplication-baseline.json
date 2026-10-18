@@ -44,6 +44,18 @@
     "reason": "Both implement Transport.stream (the real OpenRouter connection and the recorded/recording test transports); one interface method, different jobs."
   },
   {
+    "key": "same name: simworld/llm/decide.ts#build + simworld/llm/tasks.ts#build",
+    "reason": "Each is the request builder of its own task kind (DecisionSpec.build makes typed decision questions, TaskSpec.build makes chat messages); the same contract shape on purpose."
+  },
+  {
+    "key": "same name: simworld/llm/llm.ts#decide + simworld/llm/openrouter.ts#decide",
+    "reason": "Llm.decide (the task API: model fallback, usage ledger) and Transport.decide (one HTTP call), like run and stream."
+  },
+  {
+    "key": "same name: simworld/llm/openrouter.ts#decide + simworld/llm/recorded.ts#decide",
+    "reason": "Both implement Transport.decide (the real OpenRouter decisions endpoint and the recorded/recording test transports); one interface method, different jobs."
+  },
+  {
     "key": "same name: simworld/plan/cell.ts#add + simworld/plan/macro.ts#add",
     "reason": "Local closures ported from Scale's planner (cell.ts adds a building, macro.ts an arterial edge); unrelated jobs."
   },
@@ -344,7 +356,7 @@
     "reason": "Texture generators round a feature size to a whole count per tile (Math.round(W / size)) so the pattern wraps, then loop Tex.each; the tiling contract, not a copy."
   },
   {
-    "key": "idiom: [.fromEntries .map Object] in simworld/audio/engine.ts + simworld/audio/soundMap.ts + simworld/llm/appraisal.ts",
+    "key": "idiom: [.fromEntries .map Object] in simworld/audio/engine.ts + simworld/audio/soundMap.ts + simworld/sim/groups.ts",
     "reason": "Building a record keyed by a fixed list of ids (sound categories, sound-map channels, LLM appraisal fields): one line of plain JavaScript each, with a different list and value per place."
   },
   {
@@ -408,10 +420,6 @@
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
-    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
-    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
-  },
-  {
     "key": "idiom: [.beginPath .lineTo .lineWidth .moveTo] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
@@ -430,14 +438,6 @@
   {
     "key": "idiom: [.vertexNode] in simworld/render/tsl/precip.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/smoke.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
-  },
-  {
-    "key": "idiom: [.cornerGap] in simworld/interior/fill/home.ts + simworld/interior/fill/place.ts + simworld/interior/fill/work.ts",
-    "reason": "Furnishing rules scoring a candidate spot by the filler's own cornerGap (one seam, Filler.cornerGap); each room's rule weighs it differently, nothing to fold."
-  },
-  {
-    "key": "idiom: [.addEventListener .type] in simworld/app/paperPanel.ts + simworld/app/picker.ts + simworld/app/whatsNew.ts",
-    "reason": "Regrouped by the finder after unrelated changes."
   },
   {
     "key": "idiom: [.filter .known] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/synth.ts",
@@ -500,10 +500,6 @@
     "reason": "A person's sex for their pronouns or kin words (she/he, wife/husband) in three describers of different things: the NPC card, life events, the picker's card."
   },
   {
-    "key": "idiom: [.actors .cols .sex] in simworld/chat/card.ts + simworld/sim/profile.ts + simworld/talk/chatter.ts",
-    "reason": "A person's sex for their pronouns or kin words (she/he, wife/husband) in three describers of different things: the NPC card, life events, the picker's card."
-  },
-  {
     "key": "idiom: [.addEventListener .key] in simworld/app/chatPanel.ts + simworld/app/llmSettings.ts + simworld/app/picker.ts",
     "reason": "One-line key checks in different panels (Enter sends a chat line, Enter saves the key, Escape closes the picker); each with its own action."
   },
@@ -522,5 +518,13 @@
   {
     "key": "idiom: [.atan2 .x .z Math] in simworld/build/streetProps.ts + simworld/game/street.ts + simworld/plan/terrace.ts",
     "reason": "A heading from one point to another (atan2 of the x/z difference) in three unrelated places: prop rotation, a person turning to face you, a terrace's orientation."
+  },
+  {
+    "key": "idiom: [.fillRect .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.lineWidth .strokeStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar (set the line colour and width, stroke): the map, the signs' painters and the atlas pictures each draw their own outlines; a wrapper would only rename the canvas API."
   }
 ]

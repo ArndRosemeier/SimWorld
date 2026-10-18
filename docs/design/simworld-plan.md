@@ -161,13 +161,14 @@ these rules:
   with a decimal point ("12.50", said "twelve fifty"); Arnd may choose an invented name instead.
 - **Formats.** Licence plates, phone numbers, addresses and the emergency number use invented formats chosen once in
   `src/lang`. Never a real one: not 911, 999, 112, 000 or 111.
-- **Schools.** Years are grades, used everywhere: the town's primary school has grades 1 to 6, the secondary school in
-  the nearby town grades 7 to 12 (D25); younger children go to the kindergarten.
+- **Schools.** Years are grades, used everywhere: the town's school has grades 1 to 5 (ages 6 to 10), the secondary
+  school in the nearby town grades 6 to 12 (D25); younger children go to the kindergarten.
 - **Institutions and brands.** Generic or invented: the health centre, the town council, the district (the level above
   the town), the railway. No NHS, DMV, real chains or real products.
 
 All of this lives in one place, `src/lang/`: the vocabulary in `words.ts`, plus the money and number formats, school
-grades, the real-place deny list and a test that scans the phrase banks and labels for banned words (planned). Every
+grades, the real-place deny list (`isRealPlace` in `places.ts`) and a test that scans the phrase banks and labels for
+banned words (planned). Every
 layer may import it. Owner: the Town planner port thread.
 
 ### R8. Town realism (D20–D26)

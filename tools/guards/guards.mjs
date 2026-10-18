@@ -180,8 +180,16 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (process.argv.includes('--keys')) {
     console.log(JSON.stringify(duplicationFindings().map((key) => ({ key, reason: '' })), null, 2));
   } else {
+    // The repo check, run first by `npm test`: banned patterns, layers and the duplication ratchet in one scan,
+    // under its own time cap (tools/ci/budget.json `guardsMs`; it grows with the code, not with the tests).
+    const t0 = performance.now();
     const files = listFiles(REPO, 'src');
-    const all = [...checkBanned(REPO, files), ...checkLayers(REPO, files), ...checkDuplication(duplicationFindings(), readBaseline())];
-    console.log(all.length ? all.join('\n') : 'guards: all green');
+    const stray = readBaseline().filter((b) => !/^(clone|idiom|same name):/.test(b.key)).map((b) => `STRAY baseline line (no finder makes such keys): ${b.key}`);
+    const all = [...checkBanned(REPO, files), ...checkLayers(REPO, files), ...checkDuplication(duplicationFindings(), readBaseline()), ...stray];
+    const ms = performance.now() - t0;
+    const cap = JSON.parse(fs.readFileSync(path.join(HERE, '../ci/budget.json'), 'utf8')).guardsMs * Number(process.env.CI_BUDGET_SCALE || 1);
+    if (ms > cap) all.push(`guards over ${cap} ms: ${ms.toFixed(0)} ms (docs/CI.md)`);
+    console.log(all.length ? all.join('\n') : `guards: all green (${(ms / 1000).toFixed(1)} s of ${(cap / 1000).toFixed(0)} s)`);
+    if (all.length) process.exitCode = 1;
   }
 }

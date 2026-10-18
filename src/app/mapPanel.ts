@@ -1,5 +1,5 @@
 /**
- * The town map (town-realism track H): a "Map" button opens a printed-style map of the town, made from the plan in a
+ * The town map (town-realism track H): the menu's "Map" entry opens a printed-style map of the town, made from the plan in a
  * town worker (`townMapOf`, src/plan/townMap.ts): water and woods, parks, every building's footprint, the roads by
  * class, the railway, the landmarks by name and the street names along their streets, and where you are now. Drag
  * to move, the wheel or the + and − buttons to zoom; street names show once there is room for them.
@@ -125,20 +125,14 @@ function groundImage(m: TownMap): HTMLCanvasElement {
 }
 
 /**
- * The "Map" button. `map` fetches the town map (once; it is kept), `me` says where the viewer is now (null when
- * there is no one to place, e.g. high above the town).
+ * What the menu's "Map" entry runs (src/app/shell.ts). `map` fetches the town map (once; it is kept), `me` says where
+ * the viewer is now (null when there is no one to place, e.g. high above the town).
  */
-export function mapButton(map: () => Promise<TownMap>, me: () => MapViewer | null): HTMLButtonElement {
-  const b = el('button', 'map-button', 'Map');
-  b.type = 'button';
+export function mapOpener(map: () => Promise<TownMap>, me: () => MapViewer | null): () => Promise<void> {
   let got: Promise<TownMap> | null = null;
-  b.addEventListener('click', async () => {
-    if (!got) {
-      b.textContent = 'Map…';
-      got = map();
-    }
+  return async () => {
+    got ??= map();
     const m = await got;
-    b.textContent = 'Map';
     const close = el('button', 'map-close', 'Close');
     close.type = 'button';
     const panel = openDialog('map', 'Town map', close);
@@ -177,6 +171,5 @@ export function mapButton(map: () => Promise<TownMap>, me: () => MapViewer | nul
       drag = { x: e.clientX, y: e.clientY };
     });
     canvas.addEventListener('pointerup', () => { drag = null; });
-  });
-  return b;
+  };
 }

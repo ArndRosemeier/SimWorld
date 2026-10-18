@@ -11,7 +11,8 @@ import { Rng, deriveSeed, clamp } from '@futuremagic/core';
 import { alongLine, polyArea, polyCentroid, pointInPoly, slicePolyline, upperBound, type Poly } from '../geom/geom2';
 import type { Place, PlaceGraph, PlaceKind, RoadEdge, RoadNode } from '../sim/places';
 import { CARE_ROOMS_PER_PERSON, KINDS, defaultHours, defaultStaff } from '../sim/placeKinds';
-import { dwellingsOf, flatsDoor } from './building';
+import { dwellingsOf, flatsDoor, type BuildingDesc } from './building';
+import type { CellPlan } from './cell';
 import { eateryName, type Eatery } from './eatery';
 import { PLACE_KIND_OF } from './amenities';
 import { signWord } from '../lang/words';
@@ -26,6 +27,11 @@ import { PEOPLE_PER_HOME, type Town } from './town';
  * building's site is SITE + landmark id; a farm is FARM + farm id.
  */
 export const SITE = 0x40000000, FARM = 0x50000000;
+
+/** Every building of the town's cells with its `Place.building` code (and its cell and index in it). */
+export function eachBuilding(cells: readonly CellPlan[], fn: (b: BuildingDesc, code: number, cell: number, index: number) => void): void {
+  cells.forEach((plan, ci) => plan.buildings.forEach((b, bi) => fn(b, ci * 65536 + bi, ci, bi)));
+}
 
 /** Decode `Place.building` (null for -1). */
 export function buildingRef(code: number): { cell: number; index: number } | { site: number } | { farm: number } | null {
@@ -168,17 +174,16 @@ export function placeGraphOf(town: Town): PlaceGraph {
   };
 
   // Homes and ground-floor uses in the town's buildings.
-  cells.forEach((plan, ci) => plan.buildings.forEach((b, bi) => {
+  eachBuilding(cells, (b, code, ci, bi) => {
     const homes = dwellingsOf(b);
     const kind = b.amenity ? PLACE_KIND_OF[b.amenity] : null;
     if (!homes && !kind) return;
     const door = frontDoor(b);
     const at = attach(door.x, door.z);
-    const code = ci * 65536 + bi;
     if (kind && b.amenity) {
       const scale = kind in JOBS ? workScale(kind, floorArea(b)) : BY_TOWN.has(kind) ? townScale : 1;
       const name = b.eatery ? eateryName(seed, ci, bi, b.eatery as Eatery)
-        : kind === 'shop' ? shopName(seed, ci * 65536 + bi).name
+        : kind === 'shop' ? shopName(seed, code).name
         : kind === 'police' ? `${city} Police`
         : `${street(at.street).split(' ')[0]} ${signWord(b.amenity)}`.replace(/^\d+\w* /, `${city} `);
       placeOf(kind, name, at.street, door.x, door.z, at.node, code, 0, scale);
@@ -189,7 +194,7 @@ export function placeGraphOf(town: Town): PlaceGraph {
       const n = houseNumber(at.street, at.s, at.side);
       placeOf(homes > 1 ? 'apartments' : 'house', `${n} ${street(at.street)}`, at.street, hd.x, hd.z, at.node, code, homes);
     }
-  }));
+  });
   // Farms: the farmhouse, the farm (work) and its fields.
   const fr = new Rng(deriveSeed(seed, 'farm-names'));
   for (const f of rural.farms) {
