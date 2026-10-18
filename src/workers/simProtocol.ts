@@ -92,7 +92,8 @@ export interface HeightGrid {
 }
 
 export type FromSim =
-  | { type: 'ready'; clock: number; people: number; ground: HeightGrid; view: SimView; ms: number }
+  /** `resumed`: the world is the save sent with init (false when there was none or it no longer fits). */
+  | { type: 'ready'; resumed: boolean; clock: number; people: number; ground: HeightGrid; view: SimView; ms: number }
   /** `view`: the snapshot, when the game minute has moved on since the last one sent (else null). */
   | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; player: PlayerStatus | null; ms: number }
   | PlayerReply

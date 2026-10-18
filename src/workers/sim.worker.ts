@@ -45,13 +45,16 @@ function simJob(m: ToSim): FromSim {
   if (m.type === 'init') {
     const town = planTown(m.settings);
     const graph = placeGraphOf(town);
-    world = m.save ? loadWorld(graph, m.save) : createWorld(graph, m.settings.seed, { region: regionOf(town), start: m.start, startDay: m.startDay, history: HISTORY_YEARS });
+    // A save that no longer fits (another save version, another town) is set aside: play starts afresh.
+    let resumed: World | null = null;
+    if (m.save) try { resumed = loadWorld(graph, m.save); } catch (e) { console.warn('save not loaded', e); }
+    world = resumed ?? createWorld(graph, m.settings.seed, { region: regionOf(town), start: m.start, startDay: m.startDay, history: HISTORY_YEARS });
     map = new StreetMap(town, world.graph);
     forget();
     // With a history the world's day 0 lies that many weeks back (the same weekday): play starts after it.
-    if (!m.save) runTo(Math.max(m.clock + historyDays(HISTORY_YEARS) * MINUTES_PER_DAY, world.clock));
+    if (!resumed) runTo(Math.max(m.clock + historyDays(HISTORY_YEARS) * MINUTES_PER_DAY, world.clock));
     sentAt = world.clock;
-    return { type: 'ready', clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), ms: took() };
+    return { type: 'ready', resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), ms: took() };
   }
   if (!world || !map) throw new Error('sim worker: not initialised');
   if (m.type === 'save') return { type: 'saved', clock: world.clock, bytes: saveWorld(world), ms: took() };

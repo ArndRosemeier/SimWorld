@@ -11,6 +11,9 @@ import { offsetPolyline, pointInPoly, polyArea, polyBounds, type Poly } from '..
 import type { Shape } from '../geom/clip';
 import { bridgeDecksAt } from '../build/bridges';
 import type { Town } from '../plan/town';
+import { footprintsOf, type Footprints } from '../plan/footprints';
+import { buildingRef } from '../plan/placeGraph';
+import { BODY } from './clearance';
 import type { PlaceGraph, PlaceId, PlaceKind } from '../sim/places';
 import { CURB_H } from '../world/ground';
 
@@ -19,6 +22,9 @@ export const OUTDOOR: ReadonlySet<PlaceKind> = new Set<PlaceKind>(['park', 'squa
 
 /** Radius (m) of the patch people use at an outdoor place with no outline of its own. */
 const PATCH: Partial<Record<PlaceKind, number>> = { sports: 30, woods: 60, field: 50, farm: 20 };
+
+/** How far (m) out of the door the doorstep is. */
+const DOOR_STEP = 1.2;
 
 /** Default walking-line offset (m) for a road without one (a footpath the graph added). */
 const SIDE = 0;
@@ -30,11 +36,15 @@ export class StreetMap {
   private readonly areas = new Map<PlaceId, Shape>();
   /** The bridge deck height at a point, null off the decks. */
   private readonly deck: (x: number, z: number) => number | null;
+  /** Everything standing on the ground (props, parked cars, buildings), to keep clear of. */
+  readonly fp: Footprints;
+  private readonly steps = new Map<PlaceId, [number, number]>();
 
   constructor(readonly town: Town, readonly graph: PlaceGraph) {
     const n = graph.nodes.length;
     graph.edges.forEach((e, i) => { this.edgeOf.set(e.a * n + e.b, i); this.edgeOf.set(e.b * n + e.a, i); });
     this.deck = bridgeDecksAt(town.macro.bridges, town.terrain);
+    this.fp = footprintsOf(town.cells);
     // Outdoor places with an outline: the cell shape their centre lies in, or their public building's site.
     for (const pl of graph.places) {
       if (!OUTDOOR.has(pl.kind) || pl.kind === 'street') continue;
@@ -77,8 +87,39 @@ export class StreetMap {
    * direction of travel, -1 right), moved `lane` metres further out (people do not all walk one line).
    */
   walkLine(e: number, from: number, sign: number, lane = 0): number[] {
-    const side = this.graph.edges[e].side ?? SIDE;
-    return offsetPolyline(this.centreline(e, from), sign * Math.max(0, side + lane));
+    const E = this.graph.edges[e], side = E.side ?? SIDE;
+    // Inside the walking strip, with room for the shoulders (a narrow sidewalk has one line).
+    const room = Math.max(0, (E.walkWidth ?? 1.4) / 2 - BODY);
+    return offsetPolyline(this.centreline(e, from), sign * Math.max(0, side + Math.max(-room, Math.min(room, lane))));
+  }
+
+  /**
+   * The doorstep of a place: a step out of its door, square to the facade the door is in (so a walk leaves
+   * by the front and not through the wall beside it). The door itself for places without a town building.
+   */
+  doorStep(place: PlaceId): [number, number] {
+    let st = this.steps.get(place);
+    if (st) return st;
+    const pl = this.graph.places[place], ref = buildingRef(pl.building);
+    st = [pl.x, pl.z];
+    const poly = ref && 'cell' in ref ? this.town.cells[ref.cell]?.buildings[ref.index]?.poly : undefined;
+    if (poly) {
+      let best = Infinity, ux = 0, uz = 0, fx = 0, fz = 0;
+      for (let i = 0; i < poly.length; i += 2) {
+        const ax = poly[i], az = poly[i + 1], bx = poly[(i + 2) % poly.length], bz = poly[(i + 3) % poly.length];
+        const L = Math.hypot(bx - ax, bz - az);
+        if (L < 1e-6) continue;
+        const t = Math.max(0, Math.min(1, ((pl.x - ax) * (bx - ax) + (pl.z - az) * (bz - az)) / (L * L)));
+        const d = Math.hypot(ax + (bx - ax) * t - pl.x, az + (bz - az) * t - pl.z);
+        if (d < best) { best = d; ux = (bx - ax) / L; uz = (bz - az) / L; fx = ax + (bx - ax) * t; fz = az + (bz - az) * t; }
+      }
+      // The normal pointing out of the building (from the facade point nearest the door).
+      let nx = -uz, nz = ux;
+      if (pointInPoly(poly, fx + nx * 0.3, fz + nz * 0.3)) { nx = -nx; nz = -nz; }
+      if (best < 2) st = [pl.x + nx * DOOR_STEP, pl.z + nz * DOOR_STEP];
+    }
+    this.steps.set(place, st);
+    return st;
   }
 
   /** The outline of an outdoor place, if it has one. */
@@ -97,7 +138,7 @@ export class StreetMap {
       const [x0, z0, x1, z1] = polyBounds(shape.outer);
       for (let i = 0; i < 24; i++) {
         const x = x0 + (x1 - x0) * hash3f(place, who, k, i * 2), z = z0 + (z1 - z0) * hash3f(place, who, k, i * 2 + 1);
-        if (inShape(shape, x, z) && !T.isWater(x, z, 1)) return [x, z];
+        if (inShape(shape, x, z) && !T.isWater(x, z, 1) && this.standable(x, z)) return [x, z];
       }
       return [pl.x, pl.z];
     }
@@ -105,9 +146,14 @@ export class StreetMap {
     for (let i = 0; i < 12; i++) {
       const a = hash3f(place, who, k, i * 2) * Math.PI * 2, d = Math.sqrt(hash3f(place, who, k, i * 2 + 1)) * r;
       const x = pl.x + Math.cos(a) * d, z = pl.z + Math.sin(a) * d;
-      if (!T.isWater(x, z, 1)) return [x, z];
+      if (!T.isWater(x, z, 1) && this.standable(x, z)) return [x, z];
     }
     return [pl.x, pl.z];
+  }
+
+  /** Can someone stand at (x, z): clear of every prop, parked car and building? */
+  standable(x: number, z: number): boolean {
+    return this.fp.overlap(x, z, 0.4) === 0 && !this.fp.insideBuilding(x, z);
   }
 }
 
