@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { CHANNELS, type SoundMap, type SoundSource } from '../src/audio/soundMap';
 import { Soundscape, SCHOOL_BELLS, type Listener, type SoundEnv } from '../src/audio/soundscape';
 import { moodOf, nextPiece, parseTracks } from '../src/audio/music';
-import { LiveClock } from '../src/audio/env';
+import { LiveClock, soundEnvOf } from '../src/audio/env';
+import { DEFAULT_LATITUDE } from '../src/sim/calendar';
 import { strikesIn } from '../src/audio/soundscape';
 
 /** A 1 km square town: built in the middle, a river along the east edge, gardens, a church, a school, a farm. */
@@ -137,6 +138,12 @@ test('the environment comes from the calendar and the weather: night by the sun,
   assert.equal(tue.schoolDay, true);
   assert.ok(tue.night < 0.05 && at('2026-10-20', '02:00').night > 0.95);
   assert.ok(at('2026-06-20', '21:00').night < at('2026-12-20', '21:00').night + 1e-9 && at('2026-12-20', '17:30').night > 0.9, 'December dusk comes early');
+  const coast = new LiveClock(7, new URLSearchParams({ date: '2026-01-14', time: '06:00' }));
+  coast.now();
+  coast.setCoastal(true);
+  const ce = coast.now();
+  const coastal = soundEnvOf({ seed: 7, epoch: coast.epoch, latitude: DEFAULT_LATITUDE, clock: ce.clock, region: { region: { coastal: true } } }, ce.clock);
+  assert.deepEqual({ rain: ce.rain, wind: ce.wind }, { rain: coastal.rain, wind: coastal.wind }, 'the coast takes effect after the first reading');
   const wet = new LiveClock(7, new URLSearchParams({ date: '2026-10-20', time: '12:00', rain: '0.8' })).now();
   assert.equal(wet.rain, 0.8);
   assert.deepEqual(strikesIn(3, 100, 0), []);

@@ -45,12 +45,11 @@ export function soundEnvOf(world: SoundWorld, clock = world.clock, o: EnvOverrid
  * The real date and time as a dated world. URL overrides for listening: `?date=YYYY-MM-DD`,
  * `?time=HH:MM` (both run on from the page load), `?rain=0…1`, `?wind=0…1`.
  */
-export class LiveClock implements SoundWorld {
+export class LiveClock {
   readonly epoch: number;
-  readonly latitude = DEFAULT_LATITUDE;
-  clock = 0;
-  region = { region: { coastal: false } };
   readonly overrides: EnvOverrides = {};
+  /** The dated world the calendar and the weather read. Replaced (not changed) when the coast is known, because the weather caches its model per world object. */
+  private world: SoundWorld;
   private readonly startMinute: number;
   private readonly startMs = performance.now();
 
@@ -64,12 +63,20 @@ export class LiveClock implements SoundWorld {
     const minute = Number.isFinite(hh) ? hh * 60 + (Number.isFinite(mm) ? mm : 0) : now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
     this.startMinute = (daysOf(date.year, date.month, date.day) - this.epoch) * MINUTES_PER_DAY + minute;
     for (const k of ['rain', 'wind'] as const) if (q.has(k) && Number.isFinite(Number(q.get(k)))) this.overrides[k] = clamp(Number(q.get(k)), 0, 1);
-    this.clock = this.startMinute;
+    this.world = { seed, epoch: this.epoch, latitude: DEFAULT_LATITUDE, clock: this.startMinute, region: { region: { coastal: false } } };
+  }
+
+  get clock(): number { return this.world.clock; }
+
+  /** The town is on the coast (or not): from now on the weather is the coastal climate. */
+  setCoastal(coastal: boolean): void {
+    if (!!this.world.region?.region.coastal === coastal) return;
+    this.world = { ...this.world, region: { region: { coastal } } };
   }
 
   /** Advance to now (one game minute per real minute) and return the sound environment. */
   now(): SoundEnv {
-    this.clock = this.startMinute + (performance.now() - this.startMs) / 60000;
-    return soundEnvOf(this, this.clock, this.overrides);
+    this.world.clock = this.startMinute + (performance.now() - this.startMs) / 60000;
+    return soundEnvOf(this.world, this.world.clock, this.overrides);
   }
 }
