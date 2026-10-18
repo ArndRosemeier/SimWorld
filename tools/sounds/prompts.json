@@ -1,0 +1,62 @@
+{
+ "dog_bark": {
+  "sound": "a single bark of a medium-sized dog outdoors in a garden, one short loud woof",
+  "seed": "a medium-sized dog barking once outside in a back garden, a single loud woof"
+ },
+ "dog_barks": {
+  "sound": "a medium-sized dog barking three or four times at the fence, outdoors",
+  "seed": "a dog barking a few times at the garden fence, outdoors in a quiet suburban street"
+ },
+ "dog_yap": {
+  "sound": "a small dog yapping a few times, outdoors",
+  "seed": "a small terrier yapping a few times in a front garden"
+ },
+ "rooster_crow": {
+  "sound": "a rooster crowing once at dawn on a farm, cock-a-doodle-doo",
+  "seed": "a rooster crowing once at dawn in a farmyard"
+ },
+ "cow_moo": {
+  "sound": "a cow mooing once in a field, outdoors",
+  "seed": "a cow mooing once in a meadow on a farm"
+ },
+ "kids_playground": {
+  "sound": "children playing in a schoolyard at break time, distant cheerful shouts and laughter, a ball bouncing, no intelligible words, continuous",
+  "seed": "children playing and laughing in a schoolyard during break time, heard from across the street, continuous"
+ },
+ "bell_toll": {
+  "sound": "one strike of a large church tower bell, heard from the town square, long ringing decay",
+  "seed": "a single toll of a big church bell in a small town, ringing out and slowly fading"
+ },
+ "bell_peal": {
+  "sound": "church bells ringing a peal before a Sunday service, several bells in rounds, continuous",
+  "seed": "a ring of church bells pealing in rounds from a stone tower on a Sunday morning, many bells ringing one after another, continuous, outdoors"
+ },
+ "school_bell": {
+  "sound": "an electric school bell ringing for about three seconds in a school corridor",
+  "seed": "an old electric school bell ringing loudly for three seconds at the end of a lesson"
+ },
+ "lawnmower": {
+  "sound": "a petrol lawnmower running and cutting grass in a back garden, steady, continuous",
+  "seed": "someone mowing the lawn with a petrol push mower in the back garden, the four-stroke engine running steadily at full speed, continuous"
+ },
+ "train_horn": {
+  "sound": "a passenger train sounding its horn once, a single long blast, heard from a distance",
+  "seed": "a train horn blowing once, one long blast, as a train approaches a level crossing"
+ },
+ "train_pass": {
+  "sound": "a passenger train passing by at moderate speed, rumble and rail clicks, approaching and receding",
+  "seed": "a regional passenger train passing by on the tracks, approaching, clattering past and fading away"
+ },
+ "crossing_bells": {
+  "sound": "a railway level crossing warning bell ringing, continuous",
+  "seed": "the warning bells of a railway level crossing ringing steadily"
+ },
+ "amb_country_day": {
+  "sound": "open countryside by day, wind in tall grass, skylarks and distant birds, a far-off tractor, continuous",
+  "seed": "a quiet open meadow on a dry sunny afternoon, a gentle breeze, skylarks singing high above, a distant tractor, continuous"
+ },
+ "amb_country_night": {
+  "sound": "countryside at night, crickets chirping steadily, a distant owl now and then, continuous",
+  "seed": "crickets chirping steadily in a field on a warm summer night, continuous, no birds"
+ }
+}

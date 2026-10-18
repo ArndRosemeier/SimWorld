@@ -29,6 +29,8 @@ export interface Space {
   hub?: boolean;
   /** Given by the caller (the stair hall, the lift lobby): never merged or reshaped. */
   fixed?: boolean;
+  /** No door into it from the storey's other spaces (the flats' hall beside a shop: its way in is the street). */
+  closed?: boolean;
   /** No wall to another open space (the pieces of a gallery round a hall and its stairs). */
   open?: boolean;
   /** A leftover that could not join a neighbour: kept as a room of its own (a closet). */
@@ -538,12 +540,13 @@ function wallsAndDoors(spaces: Space[], leaf: Set<RoomType>, tidy: (s: Space[]) 
     const best = new Map<number, Seg | null>();
     const doorSeg = (i: number, j: number) => {
       const k = Math.min(i, j) * n + Math.max(i, j);
+      if (spaces[i].closed || spaces[j].closed) return undefined;
       if (!best.has(k)) best.set(k, pair(i, j).filter((s) => s.len >= dw + 0.3).sort((p, q) => q.len - p.len).find((s) => through(s, Math.min(i, j), Math.max(i, j))) ?? null);
       return best.get(k) ?? undefined;
     };
     // Prim from the way in.
-    let root = spaces.findIndex((s) => s.fixed && s.hub);
-    if (root < 0) root = spaces.findIndex((s) => s.hub);
+    let root = spaces.findIndex((s) => s.fixed && s.hub && !s.closed);
+    if (root < 0) root = spaces.findIndex((s) => s.hub && !s.closed);
     if (root < 0) root = spaces.reduce((m, s, i) => (Math.abs(polyArea(s.poly)) > Math.abs(polyArea(spaces[m].poly)) ? i : m), 0);
     const inTree = new Uint8Array(n);
     inTree[root] = 1;

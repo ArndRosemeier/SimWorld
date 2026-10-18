@@ -15,6 +15,7 @@ import { planInterior, storeyFacade } from '../interior/building';
 import { polyBounds } from '../geom/geom2';
 import { planTown, type Town } from '../plan/town';
 import { parcelParams } from '../world/landuse';
+import { soundMapOf, soundMapTransferables } from '../audio/soundMap';
 import type { FromTown, ToTown } from './townProtocol';
 import { serve } from './serve';
 
@@ -75,6 +76,7 @@ function handle(m: ToTown): FromTown {
       const b = buildBridges(macro.bridges, terrain, macro.edges);
       return { type: 'bridges', ground: out(b.deck), buildings: out(b.structure), ms: ms() };
     }
+    case 'sound': return { type: 'sound', map: soundMapOf(town), ms: ms() };
     case 'interior': {
       const b = cells[m.cell]?.buildings.find((q) => q.id === m.building);
       if (!b) throw new Error(`no building ${m.building} in cell ${m.cell}`);
@@ -101,4 +103,4 @@ function meshesOf(r: FromTown): MeshData[] {
   }
 }
 
-serve<ToTown, FromTown>(handle, (r) => meshesOf(r).flatMap(meshTransferables));
+serve<ToTown, FromTown>(handle, (r) => (r.type === 'sound' ? soundMapTransferables(r.map) : meshesOf(r).flatMap(meshTransferables)));

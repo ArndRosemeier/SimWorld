@@ -1,0 +1,39 @@
+{
+  "tracks": {
+    "title": {
+      "file": "title.mp3",
+      "seconds": 148.06,
+      "mood": "title"
+    },
+    "day-1": {
+      "file": "day-1.mp3",
+      "seconds": 112.79,
+      "mood": "day"
+    },
+    "day-2": {
+      "file": "day-2.mp3",
+      "seconds": 126.48,
+      "mood": "day"
+    },
+    "evening": {
+      "file": "evening.mp3",
+      "seconds": 119.04,
+      "mood": "evening"
+    },
+    "night": {
+      "file": "night.mp3",
+      "seconds": 115.93,
+      "mood": "night"
+    },
+    "rain": {
+      "file": "rain.mp3",
+      "seconds": 118.93,
+      "mood": "rain"
+    },
+    "sunday": {
+      "file": "sunday.mp3",
+      "seconds": 118.12,
+      "mood": "sunday"
+    }
+  }
+}

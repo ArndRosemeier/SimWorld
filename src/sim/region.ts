@@ -55,7 +55,7 @@ export interface Region {
   lore: LoreLine[];
   /** The railway: through the town (to the city one way, out into the country the other), a branch line ending here, or none. */
   rail?: 'through' | 'terminus' | null;
-  /** The town is on the coast (milder, foggier weather: src/sim/weather.ts). */
+  /** On the coast (milder, foggier weather). */
   coastal?: boolean;
 }
 

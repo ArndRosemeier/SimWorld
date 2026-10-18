@@ -20,7 +20,13 @@ export interface CarTrip {
   /** Game clock minutes. */
   depart: number;
   arrive: number;
+  /** The region town at either end when it is off the map (an 'away' place: the city, the nearby town), else null. */
+  fromRegion: string | null;
+  toRegion: string | null;
 }
+
+/** The region town an away place lies in (src/sim/offsite.ts), null for a place in town. */
+export const regionOfPlace = (world: World, place: PlaceId): string | null => world.offsite.town[place] ?? null;
 
 /** Car trips that set off after clock minute `since` (call once per game minute with the last clock seen). */
 export function carTripsSince(world: World, since: number): CarTrip[] {
@@ -28,22 +34,24 @@ export function carTripsSince(world: World, since: number): CarTrip[] {
   for (const t of world.trips) {
     if (t.mode !== 'car' || t.leader >= 0 || t.depart <= since) continue;
     const hh = householdOf(world, t.who);
-    if (hh) out.push({ driver: t.who, household: hh.id, from: t.from, to: t.to, depart: t.depart, arrive: t.arrive });
+    if (hh) out.push({ driver: t.who, household: hh.id, from: t.from, to: t.to, depart: t.depart, arrive: t.arrive, fromRegion: regionOfPlace(world, t.from), toRegion: regionOfPlace(world, t.to) });
   }
   return out;
 }
 
 /**
  * Where a household's car stands when the town is loaded: at the destination of a member who
- * drove somewhere (under way, or there now), else at home.
+ * drove somewhere (under way, or there now), else at home; -1 when it is off the map (driven to
+ * the city or the nearby town).
  */
 export function carPlace(world: World, household: number): PlaceId {
   const hh = world.households[household];
   const a = world.actors.cols;
-  for (const t of world.trips) if (t.mode === 'car' && t.leader < 0 && hh.members.includes(t.who)) return t.to;
+  const here = (p: PlaceId) => (regionOfPlace(world, p) === null ? p : -1);
+  for (const t of world.trips) if (t.mode === 'car' && t.leader < 0 && hh.members.includes(t.who)) return here(t.to);
   for (const m of hh.members) {
     const p = a.place[m];
-    if (p >= 0 && p !== hh.home && a.with[m] < 0 && world.travel.mode(hh.home, p, true) === 'car' && a.dest[m] < 0 && hasCar(world, m)) return p;
+    if (p >= 0 && p !== hh.home && a.with[m] < 0 && world.travel.mode(hh.home, p, true) === 'car' && a.dest[m] < 0 && hasCar(world, m)) return here(p);
   }
   return hh.home;
 }

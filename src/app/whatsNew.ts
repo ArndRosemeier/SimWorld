@@ -5,6 +5,7 @@
  */
 import changelogMd from '../../CHANGELOG.md?raw';
 import { parseChangelog, type Release } from './changelog';
+import { el, onEscape } from './dom';
 
 const RELEASES: Release[] = parseChangelog(changelogMd);
 
@@ -44,18 +45,11 @@ export function openWhatsNew(): void {
   if (!RELEASES.length) list.append(el('p', '', 'No versions yet.'));
   panel.append(header, list);
   backdrop.append(panel);
-  const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') shut(); };
-  const shut = (): void => { backdrop.remove(); removeEventListener('keydown', onKey); };
+  const shut = (): void => { backdrop.remove(); stopKeys(); };
+  const stopKeys = onEscape(shut);
   close.addEventListener('click', shut);
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) shut(); });
-  addEventListener('keydown', onKey);
   document.body.append(backdrop);
   close.focus();
 }
 
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: string): HTMLElementTagNameMap[K] {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}

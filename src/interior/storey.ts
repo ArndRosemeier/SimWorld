@@ -13,14 +13,14 @@
  */
 import type { Rng } from '@futuremagic/core';
 import { polyArea, pointInPoly, polyCentroid, polyBounds, distSqPointSeg, type Poly } from '../geom/geom2';
-import { intersection } from '../geom/clip';
+import { intersection, largest } from '../geom/clip';
 import type { BuildingDesc } from '../plan/building';
 import { WALLS } from './fill/palette';
 import { roomArea, type Area, type EdgeKind } from './fill/area';
 import { Filler, type Item } from './fill/place';
 import { splitStorey, type Program, type Space, type Split } from './fill/split';
 import { flatsProgram, homeProgram, homeItems, lacksOf, type HomePart, type HomeRoom } from './fill/home';
-import { coreP, coreRect, coreFits, liftRect, doorWay, stairsOf, Frame, LANDING, type Door, type LiftShaft, type StairCore } from './cores';
+import { coreRect, coreFits, liftRect, doorWay, stairHall, stairsOf, Frame, LANDING, type Door, type LiftShaft, type StairCore } from './cores';
 import type { FloorPlan, Furn, IWall, Room, RoomType } from './types';
 
 /** What a storey is for. */
@@ -32,25 +32,26 @@ export type StoreyUse =
   /** A car park deck: columns on a grid. */
   | { kind: 'parking' };
 
-export interface StoreyCores { lift: LiftShaft | null; stair: StairCore | null }
+/**
+ * The building's lift and stairs (planned once, src/interior/cores.ts planCores) and, for homes
+ * over a shop, the ground floor's hall from their own street door to the stairs (`entry`, the
+ * home `entryUnit` or -1 for all of them): walled off from the workplace, no door into it.
+ */
+export interface StoreyCores { lift: LiftShaft | null; stair: StairCore | null; entry?: Poly | null; entryUnit?: number }
 
 /**
  * `up`: stairs from this storey to the next (the core fits both); `below`: stairs arrive from the
  * storey below; `door`: the street door (ground floor only).
  */
-/** Floor area (m²) under which the stair hall is only the landing at the foot of the flights. */
-const SMALL_FLOOR = 70;
-
 export function planStorey(b: BuildingDesc, poly: Poly, floor: number, y: number, height: number, use: StoreyUse, cores: StoreyCores, up: boolean, below: boolean, door: Door | null, r: Rng): FloorPlan {
   const F = new Frame(poly);
   const plan: FloorPlan = { floor, y, height, poly, rooms: [], walls: [], furniture: [], flights: [], landings: [], stairHole: null, lights: [], fixtures: [] };
   const clipRoom = (rect: Poly): Poly | null => {
-    const s = intersection([rect], [poly]);
-    if (!s.length) return null;
-    const q = s.sort((a, b2) => Math.abs(polyArea(b2.outer)) - Math.abs(polyArea(a.outer)))[0].outer;
-    return Math.abs(polyArea(q)) > 2 ? q : null;
+    const q = largest(intersection([rect], [poly]));
+    return q && Math.abs(polyArea(q)) > 2 ? q : null;
   };
   const ground = floor === 0;
+  let closed = false;
   // The stair hall belongs to the home in a house, to everyone in a block.
   const hallUnit = use.kind === 'rooms' && use.part ? use.unit : -1;
   // --- the lift: shaft walls, and the lobby in front of its doors.
@@ -72,12 +73,12 @@ export function planStorey(b: BuildingDesc, poly: Poly, floor: number, y: number
   // --- the stair hall: the core and a landing strip along its open side.
   const st = cores.stair && coreFits(cores.stair, poly) ? cores.stair : null;
   if (st) {
-    // On a small floor (a narrow town house) only the landing at the foot of the flights, no strip along them.
-    const small = Math.abs(polyArea(poly)) < SMALL_FLOOR;
-    const bw = st.w + st.g / 2, side = small ? 0 : 1.2, foot = small ? 1.1 : 1.4;
-    const v0 = st.open > 0 ? -bw : -bw - side, v1 = st.open > 0 ? bw + side : bw;
-    const hq = clipRoom([...coreP(st, -foot, v0), ...coreP(st, st.len, v0), ...coreP(st, st.len, v1), ...coreP(st, -foot, v1)]);
-    if (hq) plan.rooms.push({ type: 'stairs', poly: hq, floorMat: ground ? 'stone' : 'tile', wallColor: [0.88, 0.87, 0.83], unit: hallUnit });
+    // (On a small floor, a narrow town house, only the landing at the foot of the flights.) The
+    // flats over a shop: their hall from their own street door instead, closed to the shop.
+    const entry = ground && cores.entry ? cores.entry : null;
+    const hq = entry ?? clipRoom(stairHall(st, poly));
+    if (hq) plan.rooms.push({ type: 'stairs', poly: hq, floorMat: ground ? 'stone' : 'tile', wallColor: [0.88, 0.87, 0.83], unit: entry ? cores.entryUnit ?? -1 : hallUnit });
+    closed = !!entry && !!hq;
     stairsOf(plan, st, y, height, up, below);
   }
   // The way in behind the street door.
@@ -96,7 +97,7 @@ export function planStorey(b: BuildingDesc, poly: Poly, floor: number, y: number
     }
   } else if (use.kind === 'rooms') {
     const kept = plan.rooms;
-    const fixed = kept.map((q) => ({ type: q.type, poly: q.poly, hub: true }));
+    const fixed = kept.map((q) => ({ type: q.type, poly: q.poly, hub: true, closed: closed && q.type === 'stairs' }));
     const S = splitStorey({ poly, fixed, front, solid: solid() }, use.program, r);
     plan.rooms = [];
     // A home without a bedroom or kitchen: the bed or the kitchenette in the living room.
@@ -215,8 +216,8 @@ function entryHall(p: Poly, w: IWall): Poly | null {
   if (!pointInPoly(p, mx + nx * 0.3, mz + nz * 0.3)) { nx = -nx; nz = -nz; }
   const P = (s: number, d: number) => [mx + ux * s + nx * d, mz + uz * s + nz * d];
   const q = intersection([[...P(-0.8, -0.05), ...P(0.8, -0.05), ...P(0.8, 1.4), ...P(-0.8, 1.4)]], [p]);
-  const best = q.sort((a, b) => Math.abs(polyArea(b.outer)) - Math.abs(polyArea(a.outer)))[0];
-  return best && Math.abs(polyArea(best.outer)) > 1.2 ? best.outer : null;
+  const best = largest(q);
+  return best && Math.abs(polyArea(best)) > 1.2 ? best : null;
 }
 
 /** The ground floor's entrance hall of a block of flats: from the street door straight in past the middle of the floor. */
@@ -228,8 +229,7 @@ function entranceHall(poly: Poly, way: Poly): Poly | null {
   const depth = Math.max(L, (cx - ax) * nx + (cz - az) * nz + 0.8);
   const P = (s: number, d: number) => [ax + px * s + nx * d, az + pz * s + nz * d];
   const q = intersection([[...P(-0.8, 0), ...P(0.8, 0), ...P(0.8, depth), ...P(-0.8, depth)]], [poly]);
-  const best = q.sort((a, b) => Math.abs(polyArea(b.outer)) - Math.abs(polyArea(a.outer)))[0];
-  return best ? best.outer : null;
+  return largest(q);
 }
 
 /** Facade edges: blind where an attached building stands against the side walls, else windows. */

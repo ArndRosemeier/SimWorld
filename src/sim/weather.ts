@@ -326,7 +326,7 @@ export function stepWet(wet: number, rain: number, sun: number, dtH: number): nu
 
 // ---- the world's weather, and what people make of it ----------------------------------------------------------
 
-/** What the weather needs of a world (the region's lore says whether the town is on the coast). */
+/** What the weather needs from a world (a `World` fits: `world.region` is the region as the town knows it). */
 interface WeatherWorld { seed: number; epoch: number; clock: number; region?: { region: { coastal?: boolean } } | null }
 
 const models = new WeakMap<object, { model: WeatherModel; last: Map<number, Weather> }>();

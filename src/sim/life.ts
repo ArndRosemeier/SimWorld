@@ -25,12 +25,13 @@ import { addHousehold, adoptPet, fitRoutine, newAnimal, newPerson, settle, type 
 import { regionDestination, type RegionPlace } from './region';
 import { careHomeRoom, jobOpen, moveToCareHome } from './economy';
 import { DAYS_PER_YEAR, MINUTES_PER_DAY, weekdayOf } from './time';
+import { dateOf, termOn } from './calendar';
 import { ageOf, commute, firstName, householdOf, isPerson, jobOf, nameOf, placesOf, tickRng, traitOf, valueOf, type World } from './world';
 
 export const LIFE_EVENTS = [
   'birthday', 'schoolStart', 'schoolEnd', 'illness', 'recovery', 'death', 'dating', 'moveIn', 'marriage', 'breakup',
   'divorce', 'affair', 'pregnancy', 'birth', 'hired', 'fired', 'quit', 'retired', 'leftHome', 'arrived', 'departed',
-  'petAdopted', 'theft', 'burglary', 'vandalism', 'fight', 'engagement', 'funeral',
+  'petAdopted', 'theft', 'burglary', 'vandalism', 'fight', 'engagement', 'funeral', 'holiday',
 ] as const;
 export type LifeEventKind = (typeof LIFE_EVENTS)[number];
 
@@ -59,11 +60,13 @@ export interface Life {
   together: Map<number, number>;
   /** Engaged couples (`coupleKey`) → their wedding (occasion ids in the agenda). */
   engaged: Map<number, Engagement>;
+  /** Households away on holiday → the day they come back and where they went ("in the mountains"). */
+  away: Map<number, { back: number; where: string }>;
 }
 
 export interface Engagement { x: ActorId; y: ActorId; wedding: number; reception: number }
 
-export const newLife = (): Life => ({ events: [], pregnant: new Map(), together: new Map(), engaged: new Map() });
+export const newLife = (): Life => ({ events: [], pregnant: new Map(), together: new Map(), engaged: new Map(), away: new Map() });
 
 /** Who moves to a small town: mostly young people and families (work, a cheaper house, a garden). */
 const NEWCOMERS_HOUSE: [HouseholdType, number][] = [['coupleYoung', 0.25], ['family', 0.55], ['singleParent', 0.05], ['coupleMid', 0.1], ['multiGen', 0.05]];
@@ -106,6 +109,7 @@ export function lifeDay(world: World, days = 1): void {
   work(world, day, rng.fork('work'));
   homes(world, day, rng.fork('homes'));
   pets(world, day, rng.fork('pets'));
+  holidays(world, day, rng.fork('holiday'));
   crime(world, day, rng.fork('crime'));
   ceremonies(world, day);
 }
@@ -828,7 +832,8 @@ function commit(world: World, day: number, kind: keyof typeof CRIME_RATES, offen
 function burglary(world: World, day: number, offender: ActorId, rng: Rng): void {
   const victims = world.households.filter((h) => h.members.length > 0 && !h.members.includes(offender));
   if (victims.length === 0) return;
-  const hh = victims[rng.int(0, victims.length - 1)];
+  // A house left empty for a holiday is the likeliest target.
+  const hh = rng.weighted(victims, (h) => (world.life.away.has(h.id) ? 8 : 1));
   const head = hh.members[0];
   const fact = news(world, hh.members, { topic: 'crime', text: 'someone broke into {object}\'s house', object: head, place: hh.home, magnitude: 0.75 });
   const secret = news(world, [offender], { topic: 'crime', text: '{subject} broke into {object}\'s house', subject: offender, object: head, place: hh.home, magnitude: 0.9, secret: true });
@@ -950,5 +955,53 @@ function hold(world: World, day: number, o: Occasion): void {
       remember(world, g, { who: [dead], summary: `I went to ${o.name}`, importance: 0.5, emotion: 'sadness' });
     }
     log(world, day, 'funeral', dead, -1, o.place, -1);
+  }
+}
+
+// ---- holidays away ---------------------------------------------------------------------------------------
+// Families go away in the school holidays (most of them once in the summer), others a week or two any time of year,
+// more in summer. While away the house is empty and dark, nobody goes to work or school (the pets are fed by a
+// neighbour, unseen), and the neighbours know (and so may a burglar). Coming back, they remember where they went.
+
+const DESTINATIONS = ['at the seaside', 'in the mountains', 'by a lake', 'abroad', 'at a campsite', 'visiting family', 'on a city break'];
+
+function holidays(world: World, day: number, rng: Rng): void {
+  const place = world.offsite.holiday;
+  if (place < 0) return;
+  const a = world.actors.cols, pc = world.people.cols;
+  for (const [h, trip] of world.life.away) if (trip.back <= day) { world.life.away.delete(h); comeBack(world, world.households[h], trip.where); }
+  // People leave on Saturdays (in coarse steps: the Saturdays the step covered).
+  const clock = day * MINUTES_PER_DAY;
+  const saturdays = step === 1 ? (weekdayOf(clock) === 5 ? 1 : 0) : step / 7;
+  if (saturdays === 0) return;
+  const term = termOn(world, clock);
+  const summer = term.holiday === 'the summer holidays';
+  const month = dateOf(world, clock).month;
+  for (const hh of world.households) {
+    if (hh.members.length === 0 || world.life.away.has(hh.id)) continue;
+    let kids = false, old = true;
+    for (const m of hh.members) { const age = ageOf(world, m); if (age >= 4 && age <= 17) kids = true; if (age < 75) old = false; }
+    // Chance per Saturday: families only in the school holidays (the summer one most), the rest any time.
+    const p = kids ? (summer ? 0.11 : term.holiday ? 0.06 : 0) : (old ? 0.4 : 1) * (month >= 6 && month <= 9 ? 0.035 : 0.015);
+    if (p === 0 || !rng.chance(1 - Math.pow(1 - p, saturdays))) continue;
+    const days = kids && !summer ? 7 : rng.chance(0.5) ? 7 : 14;
+    const where = DESTINATIONS[rng.int(0, DESTINATIONS.length - 1)];
+    const back = day + days;
+    world.life.away.set(hh.id, { back, where });
+    const leaveAt = clock + rng.int(8, 11) * 60;
+    for (const m of hh.members) {
+      pc.leaveUntil[a.row[m]] = Math.max(pc.leaveUntil[a.row[m]], back * MINUTES_PER_DAY);
+      // In live play they set off this morning (the coarse chronicle only keeps the record).
+      if (step === 1) intend(world, m, { kind: 'holiday', place, at: leaveAt, until: back * MINUTES_PER_DAY + 600, priority: 75, origin: 'event', reason: `going on holiday ${where}` });
+    }
+    const fact = news(world, closeTo(world, ...hh.members), { topic: 'family', text: `{subject}'s family are away ${where}`, subject: hh.members[0], magnitude: 0.15 });
+    log(world, day, 'holiday', hh.members[0], -1, place, fact);
+  }
+}
+
+function comeBack(world: World, hh: Household, where: string): void {
+  for (const m of hh.members) {
+    if (!world.actors.cols.alive[m]) continue;
+    remember(world, m, { who: hh.members.filter((o) => o !== m), summary: `we were on holiday ${where}`, importance: 0.5, emotion: 'joy' });
   }
 }

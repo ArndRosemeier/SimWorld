@@ -36,6 +36,10 @@
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
+    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
     "key": "idiom: [.filter .households .length .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
     "reason": "Different questions over the household list (who lives alone, which care-home rooms are taken, which households still have members; emptied households stay as records): each is a one-line Array.filter with its own predicate, and the shared part is Array.filter itself."
   },
@@ -128,16 +132,16 @@
     "reason": "The shape of every texture generator: a per-pixel Tex.each loop sampling tileable TNoise.fbm; it is the generator contract, not a copy."
   },
   {
+    "key": "idiom: [.each .round Math] in simworld/build/texgen/ground.ts + simworld/build/texgen/interior.ts + simworld/build/texgen/roof.ts",
+    "reason": "Texture generators round a feature size to a whole count per tile (Math.round(W / size)) so the pattern wraps, then loop Tex.each; the tiling contract, not a copy."
+  },
+  {
     "key": "same name: simworld/build/texgen/facade.ts#extra + simworld/build/texgen/ground.ts#extra",
     "reason": "Two implementations of the one StoneOpts.extra hook (per-layer stone detail), not two copies of a helper."
   },
   {
     "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/fill/area.ts + simworld/interior/storey.ts",
     "reason": "The length of a wall segment ({ax, az, bx, bz}, the interior's IWall and the filler's Edge) before walking along it."
-  },
-  {
-    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
-    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
   },
   {
     "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/home.ts + simworld/interior/fill/work.ts",
@@ -240,11 +244,31 @@
     "reason": "A loop over a cell plan's flat junction list (x, z, degree triples), the plan's own format; each use asks something different of it."
   },
   {
-    "key": "idiom: [.actors .count .row] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts",
-    "reason": "A loop over every actor reading its row in its kind's table: a plain loop over the columns is the one way (surfaced when the street layer's files joined the idiom mining; no new copy)."
+    "key": "idiom: [.fromEntries .map Object] in simworld/audio/engine.ts + simworld/audio/soundMap.ts + simworld/llm/appraisal.ts",
+    "reason": "Building a record keyed by a fixed list of ids (sound categories, sound-map channels, LLM appraisal fields): one line of plain JavaScript each, with a different list and value per place."
+  },
+  {
+    "key": "idiom: [.x .y .z] in simworld/audio/soundscape.ts + simworld/audio/townAudio.ts + simworld/main.ts",
+    "reason": "Reading a 3D position (the camera, a sound source, a listener) field by field into plain numbers at the boundary between three.js and the audio layer, which takes no three.js types by design (rules.json, src/audio)."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
     "key": "idiom: [.filter .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
-    "reason": "Filtering a household's members by a condition that differs at each use (earners, adults, children); a helper would only wrap Array.filter."
+    "reason": "Picking household members by a condition (adults, children, earners) in the systems that need different conditions; each filter is one line with its own predicate."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts + simworld/street/tracks.ts + simworld/workers/sim.worker.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops. The street layer and the sim worker read the same columns."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/economy.ts + simworld/sim/encounters.ts + simworld/street/tracks.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.actors .count .row] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts",
+    "reason": "Looping over every actor (`world.actors.count`) is how each data-oriented sim system walks its tables (plan R3); a shared iterator would cost a call per actor in hot loops and hide which tables a system reads."
   }
 ]

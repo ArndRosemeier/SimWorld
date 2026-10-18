@@ -63,7 +63,7 @@ export class SimClient {
    * Start the worker: it plans the town, makes the world (play beginning on the real date `start`, game day
    * `startDay`) and runs it to `clock`.
    */
-  static async start(settings: TownSettings, start: CivilDate, startDay: number, clock: number, rate: number): Promise<SimClient> {
+  static async boot(settings: TownSettings, start: CivilDate, startDay: number, clock: number, rate: number): Promise<SimClient> {
     const pool = new WorkerPool<ToSim, FromSim>(simWorkerUrl, 1);
     const [ready] = await pool.start(() => ({ type: 'init', settings, start, startDay, clock }));
     if (ready.type !== 'ready') throw new Error(ready.type === 'error' ? ready.message : 'the sim worker did not start');
@@ -79,7 +79,7 @@ export class SimClient {
   }
 
   /** Ground height (sidewalk level) at (x, z), bilinear from the worker's grid. */
-  groundAt(x: number, z: number): number {
+  standHeight(x: number, z: number): number {
     const g = this.ground;
     const fx = Math.min(g.n - 1.001, Math.max(0, (x - g.x0) / g.step)), fz = Math.min(g.n - 1.001, Math.max(0, (z - g.z0) / g.step));
     const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
