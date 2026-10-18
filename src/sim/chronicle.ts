@@ -47,13 +47,16 @@ export function chronicle(world: World, days: number, opts: ChronicleOptions = {
   settleAtHome(world);
 }
 
+/** Days of history for `years` years (whole weeks). */
+export const historyDays = (years: number): number => Math.round((years * 365) / 7) * 7;
+
 /**
  * The town's past before play (plan §2.4): `years` of chronicle, coarse far back and finer toward the present, so old
  * events have left kin, exes, grudges and secrets, and recent ones are still talked about. Whole weeks, so the
  * weekday is kept.
  */
 export function history(world: World, years: number): void {
-  const total = Math.round((years * 365) / 7) * 7;
+  const total = historyDays(years);
   const recent = Math.min(total, 28), year = Math.min(total - recent, 336);
   // Far back only the life events matter: what was said then is long forgotten.
   chronicle(world, total - recent - year, { step: 56, talksPerDay: 0 });
