@@ -17,7 +17,7 @@ import { buildMacroPlan } from './macro';
 import { planCell, type CellPlan } from './cell';
 import { placeEateries } from './terrace';
 import { dwellingsOf, type BuildingDesc } from './building';
-import { PLACES, PREFER, amenityCounts, type AmenityKind } from './amenities';
+import { EATERY_OF, PREFER, amenityCounts, type AmenityKind } from './amenities';
 import type { District, MacroPlan } from './types';
 import type { LandmarkKind } from './landmarks';
 
@@ -161,7 +161,7 @@ function allocateAmenities(macro: MacroPlan, cells: CellPlan[], pop: number, war
     }
     if (!best) return false;
     best.b.amenity = kind;
-    best.b.eatery = PLACES[kind].eatery ?? 0;
+    best.b.eatery = EATERY_OF[kind] ?? 0;
     let l = taken.get(kind);
     if (!l) taken.set(kind, (l = []));
     l.push(best);

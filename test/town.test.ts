@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { planTown, dwellingTarget } from '../src/plan/town';
 import { inSite, siteToWorld, type LandmarkKind } from '../src/plan/landmarks';
-import { PLACES, amenityCounts, weekly, openAt, type PlaceKind } from '../src/plan/amenities';
+import { EATERY_OF, amenityCounts } from '../src/plan/amenities';
 import { dwellingsOf } from '../src/plan/building';
 import { buildMacroPlan } from '../src/plan/macro';
 import { planCell } from '../src/plan/cell';
@@ -11,6 +11,9 @@ import { makeProfile } from '../src/world/settings';
 import { pointInPoly, closestOnPolyline } from '../src/geom/geom2';
 import { FARM_RING, RoadKind } from '../src/world/rural';
 import { RAIL_HW } from '../src/plan/rail';
+import { placeGraphOf, buildingRef } from '../src/plan/placeGraph';
+import { PLACE_KINDS } from '../src/sim/places';
+import { createWorld } from '../src/sim/synth';
 
 // One small town shared by the file (planning it is the expensive part).
 const town = planTown({ seed: 1, size: 0 });
@@ -84,29 +87,41 @@ test('every service a town needs is in a building, and eateries have their kind'
   for (const [k, n] of amenityCounts(town.dwellings * 2.2, terrain.profile.warmth)) assert.ok((have.get(k) ?? 0) >= n, `${k}: ${have.get(k) ?? 0} of ${n}`);
   for (const b of buildings) {
     if (b.shopfront) assert.ok(b.amenity, 'every shop front has a use');
-    assert.equal(b.eatery ?? 0, (b.amenity && PLACES[b.amenity].eatery) || 0);
+    assert.equal(b.eatery ?? 0, (b.amenity && EATERY_OF[b.amenity]) || 0);
   }
   const eats = cells.reduce((s, c) => s + c.eateries.length, 0);
   assert.equal(eats, buildings.filter((b) => b.eatery).length);
 });
 
-test('the place table: hours parse, public places are staffed', () => {
-  for (const [k, p] of Object.entries(PLACES) as [PlaceKind, (typeof PLACES)[PlaceKind]][]) {
-    if (p.hours) assert.ok(weekly(p.hours).length > 0, k);
-    for (const s of p.staff) {
-      if (s.shifts) weekly(s.shifts);
-      assert.ok(s.count(1000) >= 1 && s.minAge >= 16, `${k} ${s.role}`);
-    }
-    if (p.hours && k !== 'park' && k !== 'plaza') assert.ok(p.staff.length > 0, `${k} is staffed`);
+test('the place graph: every home, workplace and street on one connected road network', () => {
+  const g = placeGraphOf(town);
+  assert.deepEqual(placeGraphOf(town), g, 'deterministic');
+  // One network: every node reachable from node 0.
+  const adj = g.nodes.map((): number[] => []);
+  for (const e of g.edges) { adj[e.a].push(e.b); adj[e.b].push(e.a); assert.ok(e.length > 0 && e.walk > 0 && e.walk <= 1); }
+  const seen = new Set([0]), stack = [0];
+  while (stack.length) for (const v of adj[stack.pop()!]) if (!seen.has(v)) { seen.add(v); stack.push(v); }
+  assert.equal(seen.size, g.nodes.length, 'connected');
+  // Places: valid kinds and ids, unique names, near their node, every household housed once.
+  assert.equal(new Set(g.places.map((p) => p.name)).size, g.places.length, 'unique names');
+  for (const [i, p] of g.places.entries()) {
+    assert.equal(p.id, i);
+    assert.ok(PLACE_KINDS.includes(p.kind), p.kind);
+    if (p.kind === 'woods' || p.kind === 'field') continue; // off the road, a walk out
+    assert.ok(Math.hypot(g.nodes[p.node].x - p.x, g.nodes[p.node].z - p.z) < 160, `${p.name} near its road`);
+    assert.ok(p.street, `${p.name} has an address`);
   }
-});
-
-test('weekly hours: ranges, lists, spans past midnight', () => {
-  const h = weekly('Mo-Fr 8-18; Sa,Su 10-12.5; Fr 20-26');
-  assert.equal(h.length, 8);
-  assert.ok(openAt(h, 0, 8) && !openAt(h, 0, 18) && openAt(h, 6, 12.25) && !openAt(h, 6, 13));
-  assert.ok(openAt(h, 4, 23) && openAt(h, 5, 1.5) && !openAt(h, 5, 2));
-  assert.throws(() => weekly('Mo-Fx 8-18'));
-  assert.throws(() => weekly('Fr-Mo 8-18'));
-  assert.throws(() => weekly('Mo 18-8'));
+  assert.equal(g.places.reduce((s, p) => s + p.homes, 0), town.dwellings);
+  for (const k of ['townhall', 'church', 'school', 'kindergarten', 'doctor', 'fire', 'police', 'supermarket', 'station', 'sports', 'pub', 'farm'] as const)
+    assert.ok(g.places.some((p) => p.kind === k), k);
+  const ref = buildingRef(g.places.find((p) => p.kind === 'pub')!.building);
+  assert.ok(ref && 'cell' in ref && cells[ref.cell].buildings[ref.index].amenity, 'building codes point at the building');
+  // Every named street is a place.
+  for (const p of g.places) if (p.street) assert.ok(g.places.some((q) => q.kind === 'street' && q.name === p.street), p.street);
+  // The society sim takes it as it is: the population lives here and fills the jobs.
+  const w = createWorld(g, 1);
+  const people = w.people.first.length;
+  assert.ok(people > town.dwellings * 1.6 && people < town.dwellings * 3.2, `${people} people in ${town.dwellings} homes`);
+  assert.ok(w.jobs.filter((j) => j.holder >= 0).length / w.jobs.length > 0.9, 'jobs filled');
+  for (const p of g.places) assert.ok(w.travel.minutes(0, p.id) < 180, `${p.name} reachable`);
 });
