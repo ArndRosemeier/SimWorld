@@ -23,7 +23,7 @@ import { awayRide } from './offsite';
 import { DRIVE_IF_WALK_OVER } from './travel';
 import { isCold, isFoul, isNiceOut, isWetOut, weatherAt } from './weather';
 import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
-import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, playerDrives, tickRng, tripOf, type World } from './world';
+import { ageOf, commute, hasCar, householdOf, isPerson, jobOf, placesOf, placesWith, playerDrives, tickRng, tripOf, type World } from './world';
 
 /** Does a weekday mask include weekday `wd`? */
 const onMask = (mask: DayMask, wd: number) => ((mask >> wd) & 1) === 1;
@@ -377,7 +377,9 @@ function occasions(world: World, id: ActorId, age: number, offer: (place: PlaceI
   for (const o of list) {
     if (o.start > now + 45 || o.end < now + 30) continue;
     if (o.guests && !o.guests.includes(id)) continue;
-    const fit = o.appeal === 'faith' ? faith * faith * 2.5 : o.appeal === 'children' ? (age < 13 ? 1 : 0) : o.appeal === 'adults' ? (age >= 16 ? 1 : 0.2) : 1;
+    const fit = o.appeal === 'faith' ? faith * faith * 2.5 : o.appeal === 'children' ? (age < 13 ? 1 : 0)
+      : o.appeal === 'families' ? (age < 13 ? 1 : age >= 18 && hasLittleOnes(world, id) ? 0.8 : 0)
+      : o.appeal === 'adults' ? (age >= 16 ? 1 : 0.2) : 1;
     if (fit <= 0) continue;
     const left = o.end - now;
     const place = o.place >= 0 ? o.place : world.streetOf[world.actors.cols.home[id]];
@@ -385,6 +387,12 @@ function occasions(world: World, id: ActorId, age: number, offer: (place: PlaceI
     const fresh = now <= o.start + 30 ? 1 : 0.5;
     offer(place, o.activity, [Math.min(left, 60), Math.min(left, 180)], o.pull * fit * fresh * 4, true);
   }
+}
+
+/** Does a child under 13 live in this person's household (they bring the children to an egg hunt)? */
+function hasLittleOnes(world: World, id: ActorId): boolean {
+  const hh = householdOf(world, id);
+  return !!hh && hh.members.some((m) => m !== id && isPerson(world, m) && ageOf(world, m) < 13);
 }
 
 /** Pick a free-time activity from needs, habits and personality (plan §1.3). */
