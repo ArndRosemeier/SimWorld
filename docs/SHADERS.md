@@ -29,6 +29,7 @@ Arnd's PC is the reference machine for timings.
 - **A new kind gets a swatch:** its row in `VARIANTS` (`src/render/looks.ts`, how its variants are told apart) and mesh data that `collectSwatches` reaches, or the looks check (docs/CI.md) fails with "no swatch". It draws every kind in every variant headless and fails on black, blown-out white, NaN, magenta or nothing drawn.
 - **Lights are fixed before the warm-up.** Never add or reparent a light afterwards; unused pool lights stay at intensity 0.
 - **Put things into the scene with `stage.add`**, or `stage.prepare` first when adding to your own group.
+- **A typed TSL `Fn` (one with a layout, `Fn(f, { p: 'vec2', return: 'vec4' })`) reads only its parameters.** three builds its code once per backend and reuses it in every later build (another material, another render target), so a uniform, attribute or texture it closes over is declared only the first time and the next build fails (`nodeUniform… undeclared`). Pass them in as parameters (src/render/tsl/ground.ts `parcelAt`), or leave the layout off.
 - **Humans** (the `@futuremagic/humanoid` package) make their own node materials: build them before the warm-up and pass them to `stage.warmUp(extra)`, or compile them with `stage.warmLater`.
 
 ## Planned
