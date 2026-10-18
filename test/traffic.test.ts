@@ -9,11 +9,15 @@ import { LIMITS, Rule, RoadNet } from '../src/traffic/roadNet';
 import { Parking } from '../src/traffic/parking';
 import { Traffic, type Car, type Vehicle } from '../src/traffic/traffic';
 import { TownTraffic } from '../src/traffic/townTraffic';
+import { newRules } from '../src/sim/politics';
 import { carPlace, carTripsSince } from '../src/traffic/trips';
 
 // One small town shared by the file (planning it is the expensive part).
 const town = planTown({ seed: 1, size: 0 });
 const net = new RoadNet(town);
+// (Made at file level too: the test times only the drive.)
+const graph = placeGraphOf(town);
+const world = createWorld(graph, 1);
 const sedan = (key: number): Car => ({ key, kind: 'sedan', variant: 0 });
 const run = (tr: Traffic, seconds: number, each?: () => void) => { for (let t = 0; t < seconds; t += 0.1) { tr.update(0.1); each?.(); } };
 
@@ -143,9 +147,28 @@ test('a car stops at a red light and goes on green', () => {
   assert.ok(stopped && !ranRed && through, `stopped ${stopped}, ran the red ${ranRed}, went on green ${through}`);
 });
 
+test('the council\'s rules: the 30 zone slows the centre\'s faster roads only; the bypass takes most through traffic', () => {
+  const fast = net.edges.filter((e) => e.kmh > 30);
+  const centre = fast.filter((e) => e.centre), outside = fast.filter((e) => !e.centre);
+  assert.ok(centre.length > 3 && outside.length > centre.length, `${centre.length} central of ${fast.length}`);
+  const before = fast.map((e) => net.limit(e));
+  const rules = { ...newRules(), speed30: true };
+  const tt = new TownTraffic(town, [], 1);
+  tt.obey(rules, 0);
+  assert.ok(centre.every((e) => Math.abs(tt.net.limit(tt.net.edges[net.edges.indexOf(e)]) - 30 / 3.6) < 1e-9));
+  assert.ok(outside.every((e) => tt.net.limit(tt.net.edges[net.edges.indexOf(e)]) === before[fast.indexOf(e)]) && outside.length > 0);
+  const through = (r: typeof rules) => {
+    const t = new TownTraffic(town, [], 1);
+    t.obey(r, 500);
+    // (The morning rush, 7 to 11.)
+    for (let m = 7 * 60; m < 11 * 60; m++) { t.trips([], m); t.update(2); }
+    return t.stats.through;
+  };
+  const open = through({ ...newRules(), works: [{ key: 'bypass', what: 'bypass', start: 100, done: 400 }] }), none = through(newRules());
+  assert.ok(open < none * 0.5 && open > 0, `${open} with the bypass, ${none} without`);
+});
+
 test('the sim drives the traffic: car trips take the household car, which parks near the destination', () => {
-  const graph = placeGraphOf(town);
-  const world = createWorld(graph, 1);
   const tt = new TownTraffic(town, graph.places, 1);
   tt.placeCars(world.households, (h) => carPlace(world, h));
   let trips = 0;
