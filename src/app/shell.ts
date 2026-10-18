@@ -1,7 +1,7 @@
 /**
  * The screen's frame (plan R2, R4): one thin bar along the top with the date, time and weather, and one Menu button
  * at its right that holds every window the game has (who to be, the paper, the map, save and load, sound, What's
- * new, and chat's own entries). Panels open from the menu instead of each bringing its own fixed button, so the
+ * new, and chat's past talks, usage and models). Only chat's own launcher sits beside it (`addTool`). Panels open from the menu instead of each bringing its own fixed button, so the
  * screen stays clear for the town and chat keeps the right-hand side: while the chat panel is open
  * (`body.chat-open`, width `--chat-w`) the bar and the picker stop short of it (`--right` in index.html).
  */
@@ -26,6 +26,7 @@ export class Shell {
   private readonly when = el('span', 'sh-when');
   private readonly said = el('span', 'sh-said');
   private saidTimer = 0;
+  private readonly tools = el('div', 'sh-tools');
   private readonly button = el('button', 'sh-menu-button', 'Menu');
   private readonly items: MenuItem[] = [];
   private menu: HTMLElement | null = null;
@@ -38,7 +39,13 @@ export class Shell {
     this.button.addEventListener('click', () => (this.menu ? this.closeMenu() : this.openMenu()));
     this.said.setAttribute('role', 'status');
     this.bar.append(this.when, this.said);
-    document.body.append(this.bar, this.button);
+    this.tools.append(this.button);
+    document.body.append(this.bar, this.tools);
+  }
+
+  /** A button that must stay one click away (chat's launcher) goes beside Menu, not into it. */
+  addTool(b: HTMLElement): void {
+    this.tools.insertBefore(b, this.button);
   }
 
   /** Add an entry; entries keep the order they were added in within their group. */

@@ -15,7 +15,8 @@ import { ACTOR_PERSON, type ActorId } from '../sim/actors';
 import type { PlaceId, PlaceKind } from '../sim/places';
 import { tripOf, type World } from '../sim/world';
 import { OUTDOOR, type StreetMap } from './streetMap';
-import { avoid, crossing } from './clearance';
+import { avoid, clearWay, crossing, detour, lineClear } from './clearance';
+import type { Footprints } from '../plan/footprints';
 
 export interface Track {
   id: ActorId;
@@ -88,7 +89,7 @@ export function trackOf(world: World, map: StreetMap, id: ActorId, clock: number
   // Someone going along (a toddler, the dog) keeps beside who they are with.
   if (lead >= 0 && outside(world, lead) && a.dest[lead] === a.dest[id] && a.place[lead] === a.place[id]) {
     const t = trackOf(world, map, lead, clock);
-    if (t) return { ...t, id, keys: beside(t.keys, 0.8), sig };
+    if (t) return { ...t, id, keys: beside(map.fp, t.keys, 0.8), sig };
   }
   if (a.dest[id] >= 0) {
     const keys = tripKeys(world, map, id);
@@ -138,7 +139,7 @@ export function walkPath(world: World, map: StreetMap, id: ActorId, from: PlaceI
   const [sx, sz] = outFrom ? [ox, oz] : map.doorStep(from);
   const [ex, ez] = outTo ? [dx, dz] : map.doorStep(to);
   const middle = avoid(map.fp, streetPath(world, map, id, from, to, sx, sz, ex, ez));
-  return [...(outFrom ? [] : [ox, oz]), ...middle, ...(outTo ? [] : [dx, dz])];
+  return clearWay(map.fp, [...(outFrom ? [] : [ox, oz]), ...middle, ...(outTo ? [] : [dx, dz])]);
 }
 
 /** From (ox, oz) to (dx, dz) along the sidewalks of the route between two places. */
@@ -225,7 +226,7 @@ function resampleKeepEnds(path: number[]): number[] {
  */
 function whereAt(world: World, map: StreetMap, id: ActorId, place: PlaceId, t: number): [number, number] {
   const pl = world.graph.places[place];
-  if (!OUTDOOR.has(pl.kind)) return [pl.x, pl.z];
+  if (!OUTDOOR.has(pl.kind)) return map.door(place);
   const keys = stayKeys(world, map, id, place, t, t);
   const p = sample(keys, t);
   return [p[0], p[2]];
@@ -245,8 +246,10 @@ function stayKeys(world: World, map: StreetMap, id: ActorId, place: PlaceId, t0:
   for (let k = k0; k <= k1; k++) {
     const start = k * leg;
     if (street) {
-      // Up and down the street on its sidewalk; at the turn they step over to the walking line back.
-      const path = avoid(map.fp, streetLeg(world, map, id, place, k - 1, k));
+      // Up and down the street on its sidewalk; at the turn they step over to the walking line back (from where
+      // the last leg ended, round the lamp or the traffic light on the corner).
+      const before = streetLeg(world, map, id, place, k - 2, k - 1);
+      const path = clearWay(map.fp, [before[before.length - 2], before[before.length - 1], ...avoid(map.fp, streetLeg(world, map, id, place, k - 1, k))]);
       // At an easy pace that fills most of the leg (window shopping), never a dawdle or a run.
       const walk = Math.min(leg * 0.9 - TURN, polylineLength(path) / Math.max(AMBLE, Math.min(speed, polylineLength(path) / (leg * 0.9))));
       const ks = timed(map, path, start + TURN, start + TURN + walk);
@@ -269,7 +272,7 @@ function stayKeys(world: World, map: StreetMap, id: ActorId, place: PlaceId, t0:
     }
     path.push(qx, qz);
     const walk = Math.max(0.01, Math.min(leg * 0.9, polylineLength(path) / speed));
-    const ks = timed(map, avoid(map.fp, path), start, start + walk);
+    const ks = timed(map, clearWay(map.fp, avoid(map.fp, path)), start, start + walk);
     for (let i = keys.length ? 4 : 0; i < ks.length; i += 4) keys.push(ks[i], ks[i + 1], ks[i + 2], ks[i + 3]);
   }
   return keys;
@@ -306,8 +309,8 @@ function neighbours(map: StreetMap, node: number): number[] {
  * The same keys moved `d` metres to the side of the direction of movement (someone walking beside): to the
  * left, and kept on the same side where the walk turns back (they do not pass through who they are with).
  */
-function beside(keys: number[], d: number): number[] {
-  const out = keys.slice();
+function beside(fp: Footprints, keys: number[], d: number): number[] {
+  const out: number[] = [];
   const n = keys.length / 4;
   let px = 0, pz = 0;
   for (let i = 0; i < n; i++) {
@@ -318,9 +321,26 @@ function beside(keys: number[], d: number): number[] {
     if (l < 1e-3) { ox = px; oz = px || pz ? pz : d; } // standing still: where they were (at first: to one side)
     else { ox = (-dz / l) * d; oz = (dx / l) * d; }
     if (ox * px + oz * pz < 0) { ox = -ox; oz = -oz; }
-    out[i * 4 + 1] += ox;
-    out[i * 4 + 3] += oz;
-    px = ox; pz = oz;
+    // A tree or a lamp on that side: the other side, else fall in behind.
+    const t = keys[i * 4], x = keys[i * 4 + 1], y = keys[i * 4 + 2], z = keys[i * 4 + 3];
+    const clear = (sx: number, sz: number) => lineClear(fp, x + sx, z + sz, x + sx, z + sz);
+    const [sx, sz] = clear(ox, oz) ? [ox, oz] : clear(-ox, -oz) ? [-ox, -oz] : [0, 0];
+    if (sx || sz) { px = sx; pz = sz; }
+    // From the last key round anything between (a lamp they would pass on the other side of), timed along.
+    if (i > 0) {
+      const lx = out[out.length - 3], lz = out[out.length - 1], lt = out[out.length - 4], ly = out[out.length - 2];
+      const way = detour(fp, lx, lz, x + sx, z + sz);
+      if (way && way.length > 4) {
+        const L = polylineLength(way);
+        let s = 0;
+        for (let j = 2; j + 2 < way.length; j += 2) {
+          s += Math.hypot(way[j] - way[j - 2], way[j + 1] - way[j - 1]);
+          const f = L > 0 ? s / L : 0;
+          out.push(lt + (t - lt) * f, way[j], ly + (y - ly) * f, way[j + 1]);
+        }
+      }
+    }
+    out.push(t, x + sx, y, z + sz);
   }
   return out;
 }

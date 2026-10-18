@@ -159,6 +159,11 @@ export function terrainLook(mat: NodeMaterial): void {
 
 // ---------------------------------------------------------------- the town's ground surfaces
 
+/** Fallen leaves (linear): fresh yellow, orange, and brown once they have lain a while. */
+const LITTER_YELLOW = [0.78, 0.58, 0.14].map((c) => c ** 2.2) as [number, number, number];
+const LITTER_ORANGE = [0.72, 0.34, 0.08].map((c) => c ** 2.2) as [number, number, number];
+const LITTER_BROWN = [0.4, 0.26, 0.13].map((c) => c ** 2.2) as [number, number, number];
+
 /** Colour and roughness per `GroundLayer` (src/build/ground.ts), the averages of Scale's ground textures. */
 const LAYERS: [number, number, number, number][] = [
   [0.2, 0.2, 0.21, 0.85], // Asphalt
@@ -197,6 +202,19 @@ export function groundLook(mat: NodeMaterial): void {
     // Hard surfaces: asphalt, paving, curbs, plazas, cobbles, promenade, markings, quay walls.
     const soft = layer.equal(3).or(layer.equal(6)).or(layer.equal(11));
     const road = layer.equal(0).or(layer.equal(8)).or(layer.equal(9)).or(layer.equal(10));
+    // Fallen leaves: drifts on lawns and bare earth, fewer on paving (swept), a few on the roads; yellow and
+    // orange at first, browner as the trees go bare. Rain darkens them and snow covers them (below).
+    If(SEASON.litter.greaterThan(0.001), () => {
+      const share = select(soft, 1.0, select(road, 0.15, 0.4));
+      const dens = SEASON.litter.mul(share).mul(mix(0.35, 1.5, fbm2(p.mul(0.08).add(17.1))));
+      const blot = vnoise(p.mul(6.3)).mul(0.6).add(vnoise(p.mul(15.7).add(4.1)).mul(0.4));
+      const cov = smoothstep(0.0, 0.07, blot.sub(sub(1.0, dens.mul(0.75))));
+      const hue = vnoise(p.mul(1.9).add(3.3));
+      const col = mix(mix(vec3(...LITTER_YELLOW), vec3(...LITTER_ORANGE), smoothstep(0.3, 0.6, hue)), vec3(...LITTER_BROWN),
+        max(smoothstep(0.62, 0.85, hue), SEASON.bare.mul(0.75)));
+      alb.assign(mix(alb, col.mul(mix(0.8, 1.1, grain)), cov));
+      rough.assign(mix(rough, 0.9, cov));
+    });
     // Rain: hard surfaces darken and turn glossy, puddles gather in the hollows (Scale's wet streets); lawns and
     // gravel only darken.
     If(LIGHT.wet.greaterThan(0.001), () => {

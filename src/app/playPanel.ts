@@ -9,7 +9,7 @@ import type { DigestItem } from '../sim/chronicle';
 import type { PlayerAction, PlayerStatus } from '../sim/player';
 import { capitalize, type InhabitantCard } from '../sim/profile';
 import { NEEDS } from '../sim/species';
-import { el, onEscape } from './dom';
+import { button, el, onEscape } from './dom';
 
 export interface PlayHandlers {
   autopilot: (on: boolean) => void;
@@ -53,9 +53,9 @@ export class PlayPanel {
     const buttons = el('div', 'pl-buttons');
     buttons.append(
       this.auto,
-      button('What now?', () => void this.openActions()),
-      button('Skip time', () => this.openSkip()),
-      button('Someone else', () => h.switchPerson()),
+      button('', 'What now?', () => void this.openActions()),
+      button('', 'Skip time', () => this.openSkip()),
+      button('', 'Someone else', () => h.switchPerson()),
     );
     this.root.append(name, el('p', 'pl-occ', card.occupation), this.doing, needs, buttons);
   }
@@ -90,7 +90,7 @@ export class PlayPanel {
     const head = el('div', 'pl-menu-head');
     const stop = onEscape(() => close());
     const close = (): void => { stop(); if (this.menu === m) this.closeMenu(); };
-    head.append(el('h3', '', title), button('Close', close));
+    head.append(el('h3', '', title), button('', 'Close', close));
     m.append(head);
     // Just above the panel, however tall it is.
     m.style.bottom = `${Math.round(innerHeight - this.root.getBoundingClientRect().top + 8)}px`;
@@ -109,7 +109,7 @@ export class PlayPanel {
     let group = '';
     for (const a of actions) {
       if (a.group !== group) { group = a.group; body.append(el('h4', '', group)); }
-      const b = button('', () => { this.h.go(a); this.closeMenu(); });
+      const b = button('', '', () => { this.h.go(a); this.closeMenu(); });
       b.className = a.open ? 'pl-act' : 'pl-act pl-closed';
       b.append(el('span', '', a.label), el('span', 'pl-min', a.open ? (a.minutes ? `${a.minutes} min` : 'here') : 'closed'));
       body.append(b);
@@ -123,7 +123,7 @@ export class PlayPanel {
     const body = el('div', 'pl-menu-body');
     body.append(el('p', 'pl-note', 'Your life goes on without you watching. Afterwards you hear what you would know of it.'));
     for (const [label, days] of SKIPS) {
-      body.append(button(label, async () => {
+      body.append(button('', label, async () => {
         body.replaceChildren(el('p', 'pl-note', 'Time passes…'));
         await this.h.skipDays(days);
         if (this.menu === m) this.closeMenu();
@@ -147,7 +147,7 @@ export class PlayPanel {
   gone(onPick: () => void): void {
     const m = this.popup(`${this.card.name} is gone`);
     const body = el('div', 'pl-menu-body');
-    body.append(el('p', 'pl-note', `${this.card.name.split(' ')[0]}'s life in this town has ended. Who will you be now?`), button('Choose someone', () => { this.closeMenu(); onPick(); }));
+    body.append(el('p', 'pl-note', `${this.card.name.split(' ')[0]}'s life in this town has ended. Who will you be now?`), button('', 'Choose someone', () => { this.closeMenu(); onPick(); }));
     m.append(body);
   }
 
@@ -155,11 +155,4 @@ export class PlayPanel {
     this.closeMenu();
     this.root.remove();
   }
-}
-
-function button(text: string, onClick: (b: HTMLButtonElement) => void): HTMLButtonElement {
-  const b = el('button', '', text);
-  b.type = 'button';
-  b.addEventListener('click', () => onClick(b));
-  return b;
 }

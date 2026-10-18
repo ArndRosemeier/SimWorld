@@ -12,6 +12,10 @@ import { SERVICE_KEY, ServiceRounds, exitTowardRegion, roundGoal } from '../src/
 import { agendaOn } from '../src/sim/agenda';
 import { carPlace, regionOfPlace, type CarTrip } from '../src/traffic/trips';
 import { TownTraffic } from '../src/traffic/townTraffic';
+import { CAR_STRIDE, PARKED_STRIDE, POSE_STRIDE, TrafficFeed, vehiclePose } from '../src/traffic/feed';
+import { tick } from '../src/sim/world';
+import { VISITOR_KEY, visitorsAt } from '../src/traffic/visitors';
+import { isOpen } from '../src/sim/schedule';
 
 // Setup at file level: making the world is the slow part, and the test times only the drive.
 const town = planTown({ seed: 1, size: 0 });
@@ -109,4 +113,66 @@ test('service rounds: the bin lorry on bin day streets, post and deliveries on w
   for (let k = 0; k < 4000 && !out; k++) tr.update(2);
   assert.equal(stops, post.stops.length);
   assert.ok(out && stuck === 0);
+});
+
+test('visitors from the region: tradespeople on working days, shoppers to open places, family more at weekends; they park, stay and leave', () => {
+  const tr = new TownTraffic(town, graph.places, 1, world);
+  let day = dayOf(world.clock);
+  while (runsLike(world, day * MINUTES_PER_DAY) !== 1) day++;
+  const count = (d: number) => {
+    const c = { trade: 0, errand: 0, family: 0 };
+    for (let m = d * MINUTES_PER_DAY; m < (d + 1) * MINUTES_PER_DAY; m++) {
+      for (const v of visitorsAt(world, tr.net, m)) {
+        c[v.why]++;
+        assert.ok(v.car.key >= VISITOR_KEY && v.exit >= 0 && tr.net.nodes[v.exit].exit);
+        if (v.why === 'errand') assert.ok(graph.places.some((p) => p.x === v.x && p.z === v.z && isOpen(world, p.id, m)), 'shopping where it is open');
+      }
+    }
+    return c;
+  };
+  const tue = count(day), sun = count(day + 5);
+  assert.equal(runsLike(world, (day + 5) * MINUTES_PER_DAY), 6);
+  assert.ok(tue.trade > 5 && tue.errand > 10, JSON.stringify(tue));
+  assert.equal(sun.trade, 0, 'no tradespeople on Sunday');
+  assert.ok(sun.family > tue.family && sun.family > sun.errand, JSON.stringify(sun));
+
+  // Loaded at noon: the visitors who came this morning stand parked; when their stay is over they drive home.
+  const noon = day * MINUTES_PER_DAY + 12 * 60;
+  tr.visitors(world, noon - 240, noon);
+  const guests = [...tr.parking.occupied()].filter((s) => s.car >= VISITOR_KEY);
+  assert.ok(guests.length > 3, `${guests.length} visitors parked`);
+  assert.ok(guests.every((s) => tr.carOf(s.car).kind !== undefined));
+  tr.anchor(noon);
+  tr.visitors(world, noon, noon + 240);
+  for (let k = 0; k < 10; k++) tr.update(1);
+  assert.equal([...tr.parking.occupied()].filter((s) => guests.some((g) => g.car === s.car)).length, 0, 'gone home after their stay');
+  assert.ok(tr.traffic.vehicles.some((v) => v.car.key >= VISITOR_KEY && 'exit' in v.goal), 'driving out of town');
+});
+
+test('the feed: the world drives the traffic; moving cars between recorded moments, parked ones in their bays, never both', () => {
+  // (Last in the file: it runs the world on.)
+  const feed = new TrafficFeed(town, world, 1);
+  const first = feed.message();
+  assert.ok(first.parked && first.parked.length / PARKED_STRIDE > 50, 'household cars stand in the bays');
+  assert.equal(feed.standing.circles.length / 3, (first.parked.length / PARKED_STRIDE) * 3, 'each parked car is three circles to keep clear of');
+  let parked = new Set(Array.from({ length: first.parkedCars!.length / CAR_STRIDE }, (_, i) => first.parkedCars![i * CAR_STRIDE]));
+  let clock = world.clock, moving = 0;
+  const p = [0, 0, 0, 0];
+  for (let k = 0; k < 6; k++) {
+    clock += 0.75;
+    if (Math.floor(clock) > world.clock) tick(world, Math.floor(clock) - world.clock);
+    feed.run(clock);
+    const m = feed.message();
+    if (m.parkedCars) parked = new Set(Array.from({ length: m.parkedCars.length / CAR_STRIDE }, (_, i) => m.parkedCars![i * CAR_STRIDE]));
+    const T = m.times, n = m.cars.length / CAR_STRIDE;
+    assert.ok(T[0] <= clock && T[T.length - 1] > clock, 'the moments reach past the clock');
+    for (let i = 1; i < T.length; i++) assert.ok(T[i] > T[i - 1]);
+    moving = Math.max(moving, n);
+    for (let i = 0; i < n; i++) {
+      assert.ok(!parked.has(m.cars[i * CAR_STRIDE]), 'a car drives or stands, never both');
+      vehiclePose(m, i, T[T.length - 1], p);
+      assert.ok(Math.abs(p[0] - m.poses[((i + 1) * T.length - 1) * POSE_STRIDE]) < 1e-3);
+    }
+  }
+  assert.ok(moving > 0, 'cars on the road');
 });

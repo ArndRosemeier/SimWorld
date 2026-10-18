@@ -33,6 +33,7 @@ import { closestOnPolyline, frameToWorld, worldToFrame } from '../geom/geom2';
 const siteToWorld = frameToWorld, worldToSite = worldToFrame;
 import { boundaryAt } from '../world/boundary';
 import { RAIL_HW } from './rail';
+import { fillName, landmarkPatterns, type LandmarkNameKind } from '../lang/words';
 
 /**
  * The town's public buildings with grounds of their own. Smaller institutions (the pharmacy,
@@ -40,12 +41,6 @@ import { RAIL_HW } from './rail';
  */
 export type LandmarkKind = 'townhall' | 'sports' | 'church' | 'school' | 'kindergarten' | 'clinic' | 'fire' | 'supermarket' | 'station' | 'carehome' | 'petrol';
 
-/** What a landmark is, in words (map tooltips). */
-export const LANDMARK_KIND_NAME: Record<LandmarkKind, string> = {
-  townhall: 'town hall', sports: 'sports ground', church: 'church', school: 'school', kindergarten: 'kindergarten',
-  clinic: 'health centre', fire: 'fire station', supermarket: 'supermarket', station: 'railway station',
-  carehome: 'care home', petrol: 'petrol station',
-};
 
 export interface Landmark {
   id: number;
@@ -387,19 +382,13 @@ function stationDesign(terrain: Terrain): Designer {
 const SAINTS = ['Mary', 'Peter', 'Paul', 'Stephen', 'James', 'John', 'Mark', 'Nicholas', 'Michael', 'Catherine', 'Andrew', 'Lawrence', 'Bartholomew', 'Clement'];
 
 function landmarkName(kind: LandmarkKind, r: Rng, city: string, american: boolean): string {
-  const root = r.pick(ROOTS);
+  const name = (k: LandmarkNameKind) => fillName(r.pick(landmarkPatterns(k)), { root: r.pick(ROOTS), city, saint: r.pick(SAINTS) });
   switch (kind) {
     case 'townhall': return american ? 'City Hall' : r.chance(0.5) ? 'Town Hall' : `${city} Town Hall`;
-    case 'sports': return r.pick([`${root} Park`, `${root} Field`, `${city} Sports Ground`, `${root} Recreation Ground`, `${root} Lane`]);
-    case 'church': return `${r.chance(0.8) ? 'St ' + r.pick(SAINTS) + "'s" : r.pick(['Holy Trinity', 'Christ', 'All Saints'])} ${r.pick(['Church', 'Church', 'Parish Church'])}`;
-    case 'school': return r.pick([`${root} Primary School`, `${city} Primary School`, `${root} Elementary School`, `${root} Road School`]);
-    case 'kindergarten': return r.pick([`${root} Kindergarten`, 'Little Acorns Kindergarten', `${root} Nursery`, 'Rainbow Kindergarten', 'Busy Bees Nursery']);
-    case 'clinic': return r.pick([`${city} Health Centre`, `${root} Medical Practice`, `${root} Surgery`, `${root} Health Centre`]);
     case 'fire': return `${city} Fire Station`;
     case 'station': return `${city}`;
     case 'supermarket': return r.pick(['FreshMart', 'ValueFoods', 'Greenway', 'Harvest Market', 'DailyFare', 'Corner Basket']);
-    case 'carehome': return r.pick([`${root} House`, `${root} Court Care Home`, `${root} Lodge`, `${root} Manor Care Home`, 'The Willows', 'Evergreen House']);
-    case 'petrol': return r.pick([`${root} Service Station`, `${city} Filling Station`, 'QuickFuel', 'Roadside Fuel', `${root} Garage Fuels`]);
+    default: return name(kind);
   }
 }
 

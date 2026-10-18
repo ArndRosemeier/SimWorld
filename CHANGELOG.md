@@ -1,5 +1,93 @@
 # Changelog
 
+## v0.078 — The council's traffic rules on the roads
+
+- When the council passes the 30 km/h limit through the centre, cars on the centre's faster roads slow to 30.
+- Once the bypass round the town is open, most through traffic goes round the town instead of through it.
+- When parking in the centre costs money, fewer people from the region drive in to shop.
+
+## v0.077 — An invented world
+
+- Recorded Arnd's setting rule: the town lies in a made-up, western-adjacent country with right-hand traffic and English names, and nothing in it points to a real region.
+- Prices, licence plates, phone numbers, school grades and words that differ between British and American English all follow one set of conventions.
+
+## v0.076 — Place and business names fit an invented western town
+
+- Shop signs and landmark names no longer point to one country: a Mini Market instead of a Corner Shop, a Second-hand Shop, Food to Go, a Property Agency, Funeral Services, a Fuel Station, and church names without "Parish Church".
+- All of these words now come from one table, so a wording change is made in one place.
+
+## v0.075 — Snow on the trees
+
+- When snow lies, the conifers carry it on their branches, the bare branches of leafy trees get a dusting on top, and distant crowns show white patches.
+
+## v0.074 — Visitors from the region
+
+- Cars from the surrounding towns now come into town and park: tradespeople's vans calling at houses on working days, people shopping or running errands at places that are open, and relatives visiting family (more at weekends and in the evening). They stay a while and drive home on the road they came in by.
+- More through traffic in the morning and evening rush, so the rush hours show on the country roads.
+- When the town is loaded, the visitors who arrived earlier are already parked.
+
+## v0.073 — Talk to the people of the town
+
+- Walk up to someone on the street (or follow them) and press T: they stop, turn to you, and a chat panel opens on the right with plenty of room to talk.
+- With your own OpenRouter key (Chat button, then Models) replies stream in from a language model, written from only what that person knows: their life, the people they know, their memories and the news they have heard.
+- Conversations have consequences: what you say changes how they feel about you, what they believe and what they plan to do, a lie you tell can spread as a rumour, news they pass on is something you now know, and both of you remember the talk afterwards.
+- Without a key, or when the model is unavailable, the town answers on its own with simpler replies.
+- You choose which models do what (chat replies, reading the replies, memories) and can add any OpenRouter model; the defaults are cheap ones that write well.
+- The Usage tab shows what the language model has cost, by task, model, person and session.
+- The "Mind" switch in the chat panel shows what each reply changed in the person's mind.
+
+## v0.072 — Autumn: each tree turns at its own pace, fallen leaves on the ground
+
+- Leafy trees no longer all turn colour together: each tree turns at its own pace, so in October the town shows green, yellow, orange and red-brown side by side.
+- Fallen leaves gather on lawns, gardens and bare earth from mid-October, fewer on swept paving and a few on the roads. They are yellow and orange at first and turn brown as the trees go bare, then are cleared or rot away by the new year.
+- Rain darkens the fallen leaves, and snow covers them.
+
+## v0.071 — Parked cars in the planned bays
+
+- The town's parked cars now stand in the parking bays the town planner laid out along the kerbs, which keep clear of junctions, zebra crossings and driveways. Before, the cars had their own bays every few metres, which could block a driveway or a crossing.
+- Each parked car faces the same way as the traffic on its side of the street.
+
+## v0.070 — People stop walking through buildings, cars and street furniture
+
+- People no longer cut through buildings, car parks, fountains or hedges: where a walk can't just step aside, it goes the long way round.
+- People keep clear of the cars parked at the kerb, which now come and go with the traffic.
+- Walks start and end at the front door in the wall, not in the middle of the house, and the doorstep moves aside when a mailbox or hydrant stands right outside.
+- Joggers and strollers at the sports ground no longer squeeze through the parked cars, and a dog or child walking beside someone falls in behind at a lamp post instead of passing through it.
+
+## v0.069 — Townsfolk talk to each other
+
+- When two people meet, what they say is now written out: the news that really passes between them, told in their own voice ("Have you heard? My sister lost her job at the bakery. Marta told me."), and answered in the listener's.
+- Each reply answers what was just said: "How are you?" gets how they are, news gets sympathy, glee or doubt, a doubter hears who it came from, a story raises a question ("Do you know when the wedding is?") that is answered from what is really on in town, and someone who heard a different version says so ("That's not what I heard") until one of them gives way.
+- Your own news is announced, not passed on as hearsay ("Did I tell you? We're off to the seaside"), and bad news about someone's family gets sympathy, not gossip.
+- With no news to share, people talk about the weather, the season, the weekend, what is on in town, what the other one is up to, local lore, work, the family, being tired or hungry, and the place they are in. They talk to their dogs and to toddlers too.
+- Two people who meet again the same day don't go over the same ground, and phrases are not repeated all day long.
+- Toddlers don't gossip any more, young children only tell their family, and nobody tells you news about your own household.
+- Children, teenagers and old people sound different, the chatty say more, and some people have a pet phrase. American towns say "mom" and "fall".
+- The street view and the chat panel can now show these lines (speech bubbles and the "Nearby" channel come next).
+
+## v0.068 — Council decisions change the town
+
+- When the council passes something, it happens about a month later and the town hears of it: the pool closes, the 30 km/h limit is in force, parking in the centre costs money, the street lights go off at midnight.
+- Sunday trading: the supermarket and the bigger shops open on Sunday afternoons, with new Sunday shifts that locals take.
+- Cutting the library's hours really shuts it on Tuesdays and Thursdays and at five, and the librarians work less.
+- Higher local rates and parking charges come out of households' budgets.
+- Building projects (the bypass, the new estate, wind turbines, a skate park) start months after the vote, take their time, and are news when they open.
+- A passed issue is settled and does not come up again.
+- The game now gets the town's face from the sim once a day: what each shop is now and its name, to-let and for-sale boards, upkeep and wealth, and the council's rules, ready for signs, boards and street lights to show.
+
+## v0.067 — Trees follow the seasons
+
+- Deciduous trees drop their leaves through November and stand bare over the winter; they leaf again in April. Conifers keep their needles.
+- Distant trees thin to a twiggy crown in winter too.
+- In spring some trees (about one in seven) blossom white and pink for a few weeks.
+
+## v0.066 — Cars on the streets
+
+- The town's traffic is now on screen: household cars drive their owners' real trips and park near where they are going. Buses keep to their timetable, and the bin lorry, the post van and the delivery vans make their rounds.
+- Each household's car stands in a bay near home or wherever its driver went, always the same model and colour. When someone drives off, their car leaves its bay, so no car is ever shown twice.
+- Cars light up as they should: headlights after dark, brake lights, indicators at turns, and hazard lights when a bus or van stops.
+- The cars in car parks stay as they were.
+
 ## v0.065 — Shop signs, street names and the town sign
 
 - Every shop, café, pub, office and works now has its real name on the front: a painted fascia over the shop window in its own colours and type, a hanging sign by a café's or pub's door, a brass plate by an office door, big letters on a works' wall.

@@ -26,7 +26,7 @@ export class Playing {
    * Once the town shows: play as `be` (an inhabitant's id, from `?be=`), else as whoever the loaded save was being
    * played as, else bring up the picker.
    */
-  async begin(be: number | null): Promise<void> {
+  async takeOver(be: number | null): Promise<void> {
     const r = await this.sim.ask({ op: 'cards' });
     const was = r.status?.alive ? r.status : null;
     const card = r.cards.find((c) => c.id === (be ?? was?.id ?? -1));

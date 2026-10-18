@@ -51,7 +51,8 @@ const EV_SHARE: Partial<Record<District, number>> = { downtown: 0.14, commercial
 const MANHOLE_LIFT = 0.035;
 
 /** Every cell's props (trees and shrubs excepted) as instance lists. */
-export function propInstances(cells: readonly CellPlan[], terrain: Terrain): PropGroup[] {
+export function propInstances(cells: readonly CellPlan[], terrain: Terrain, opts: { kerbCars?: boolean } = {}): PropGroup[] {
+  const kerbCars = opts.kerbCars ?? true;
   const lists = new InstanceLists();
   const put = (key: string, x: number, y: number, z: number, yaw: number, scale: number, c: [number, number, number] = [0, 0, 0], w = 0) =>
     lists.add(key, x, y, z, yaw, scale, c[0], c[1], c[2], w);
@@ -112,12 +113,15 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain): Pro
         case PropType.Gravestone: furn('gravestone', v, x, z, yaw, sc); break;
         case PropType.Grave: furn('grave', v, x, z, yaw, sc); break;
         case PropType.Tomb: furn('tomb', v, x, z, yaw, sc); break;
-        case PropType.ParkedCar: {
-          const kind = PARKED[v % PARKED.length], variant = (v >> 4) % 4;
-          // Level on the road: the higher of the centre and the mean of front and back (Scale's settle).
-          const fx = -Math.sin(yaw), fz = -Math.cos(yaw), h = (dx: number, dz: number) => terrain.height(x + dx, z + dz);
-          const y = Math.max(h(0, 0), (h(fx * 2, fz * 2) + h(-fx * 2, -fz * 2)) / 2);
-          put(`v:${kind}:${variant}`, x, y, z, yaw, sc, paintColor(kind, 1_000_000 + plan.id * 4096 + i / 6));
+        case PropType.ParkedCar: case PropType.KerbCar: {
+          // Kerbside bays hold the traffic's household cars instead when it draws them (`kerbCars` false).
+          if (t === PropType.ParkedCar || kerbCars) {
+            const kind = PARKED[v % PARKED.length], variant = (v >> 4) % 4;
+            // Level on the road: the higher of the centre and the mean of front and back (Scale's settle).
+            const fx = -Math.sin(yaw), fz = -Math.cos(yaw), h = (dx: number, dz: number) => terrain.height(x + dx, z + dz);
+            const y = Math.max(h(0, 0), (h(fx * 2, fz * 2) + h(-fx * 2, -fz * 2)) / 2);
+            put(`v:${kind}:${variant}`, x, y, z, yaw, sc, paintColor(kind, 1_000_000 + plan.id * 4096 + i / 6));
+          }
           // Near-future kerbs: some parking bays have an EV charging post (more in dense districts).
           if (hashToFloat(hash32(seed * 31 + i * 7 + 11)) < (EV_SHARE[plan.district] ?? 0.03)) {
             const ev = evChargerSpot(plan.streets, x, z, yaw);

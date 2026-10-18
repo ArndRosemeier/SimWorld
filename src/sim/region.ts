@@ -57,6 +57,8 @@ export interface Region {
   rail?: 'through' | 'terminus' | null;
   /** On the coast (milder, foggier weather). */
   coastal?: boolean;
+  /** An American town (people say "mom", "fall" and "county"); otherwise British usage. */
+  american?: boolean;
 }
 
 /** The region as the world holds it (`world.region`). */
