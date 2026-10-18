@@ -55,8 +55,8 @@ import { VehiclesView } from './render/vehiclesView';
 import { RailView } from './render/railView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
 import { A, FEMALE, MALE } from './sim/actors';
-import { buildingLooksOf, litShares } from './street/windows';
-import { setBuildingLooks, setLitShares, setWindowMap } from './render/windowLight';
+import { buildingLooksOf, decorShares, litShares } from './street/windows';
+import { setBuildingLooks, setDecor, setLitShares, setWindowMap, WINDOW_SLOTS } from './render/windowLight';
 import { hhmm, minuteOfDay, MINUTES_PER_DAY } from './sim/time';
 import type { MediaView } from './sim/media';
 import type { TownFace } from './sim/view';
@@ -170,8 +170,12 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   // Lit windows follow who is in and awake (src/street/windows.ts), refreshed with every game minute.
   setWindowMap(sim.windows);
   const lit = new Uint8Array(sim.windows.count), looks = new Uint8Array(sim.windows.count * 2);
-  sim.onView = (v) => { litShares(v, sim.windows, A.sleep, lit); setLitShares(lit); };
+  // Holiday decorations in the windows follow the households' choices, once a game day (src/sim/decor.ts).
+  const decor = new Uint8Array(WINDOW_SLOTS * 2);
+  const decorate = (face = sim.town) => { decorShares(face.decor, sim.windows, decor); setDecor(decor); };
+  sim.onView = (v) => { litShares(v, sim.windows, A.sleep, lit); setLitShares(lit); if (v.town) decorate(v.town); };
   sim.onView(sim.view);
+  decorate();
   if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);
   sim.keepSaved();
   shell.add({ label: 'Paper', group: 'Town', open: () => openPaper(sim.view) });

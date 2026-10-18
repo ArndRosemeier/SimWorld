@@ -19,7 +19,8 @@ import { h_noise2 as vnoise } from '@futuremagic/humanoid/three/nodes/peopleNois
 import type { MaterialArrays } from '../textures';
 import { h11, h21, LIGHT, SNOW_ALBEDO, perturbNormalUV } from './common';
 import { setDiffuse } from './ground';
-import { buildingLooks, windowLit } from '../windowLight';
+import { decorAt, looksAt, slotAt, windowLit } from '../windowLight';
+import { windowDecor } from './decor';
 
 /** Upkeep (0 … 1) below which a building's walls show wear, fully at 0. */
 const WEAR_FROM = 0.55;
@@ -283,6 +284,7 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
                 });
                 const lit = bool(false).toVar();
                 const lightCol = vec3(0).toVar();
+                const dec = vec2(0.0).toVar();
                 If(eatery.and(isShopFloor.or(isDoor)), () => {
                   lit.assign(h11(winId.mul(5.0)).lessThan(uEatLit));
                   lightCol.assign(vec3(1.0, 0.64, 0.34).mul(add(1.2, mul(0.3, uNight))));
@@ -291,10 +293,17 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
                   lightCol.assign(vec3(1.0, 0.92, 0.78).mul(1.6));
                 }).Else(() => {
                   // Homes and offices: lit as the sim says who is in and awake (src/render/windowLight.ts).
-                  lit.assign(windowLit(positionWorld.xz.sub(nW.xz.mul(0.8)), h11(winId.mul(13.0)), uLitFrac));
+                  const at = slotAt(positionWorld.xz.sub(nW.xz.mul(0.8))).toVar();
+                  lit.assign(windowLit(at, h11(winId.mul(13.0)), uLitFrac));
+                  dec.assign(decorAt(at));
                   lightCol.assign(mix(vec3(1.0, 0.82, 0.58), vec3(0.85, 0.9, 1.0), step(0.8, h11(winId.mul(23.0)))).mul(1.3));
                 });
-                const inside = room.mul(select(lit, lightCol, vec3(uDayLight.mul(0.13).add(0.004))));
+                const inside = room.mul(select(lit, lightCol, vec3(uDayLight.mul(0.13).add(0.004)))).toVar();
+                // Holiday decorations the household put up (src/sim/decor.ts): something on the sill, a garland along the top.
+                If(dec.y.greaterThan(h11(winId.mul(29.0))), () => {
+                  const d = windowDecor(q, qs, int(dec.x.mul(255.0).add(0.5)), winId, uNight);
+                  inside.assign(mix(inside, d.get('col').mul(select(lit, lightCol.mul(0.5), vec3(uDayLight.mul(0.55).add(0.02)))), d.get('a')).add(d.get('glow')));
+                });
                 albedo.assign(mix(albedo, vec3(0.015), detail));
                 rough.assign(mix(rough, 0.05, detail));
                 metal.assign(mix(metal, 0.0, detail));
@@ -320,7 +329,7 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
     If(frontFacing.and(glass.lessThan(0.5)), () => {
       // Wear from the sim's upkeep: a neglected building's walls go grey and grimy, in streaks running down
       // from the ledges and in blotches; a well-off household's paint is fresh. Unknown (0) shows none.
-      const looks = buildingLooks(positionWorld.xz.sub(nW.xz.mul(0.5))).toVar();
+      const looks = looksAt(slotAt(positionWorld.xz.sub(nW.xz.mul(0.5)))).toVar();
       If(looks.x.greaterThan(0.002), () => {
         const wear = clamp(sub(WEAR_FROM, looks.x).mul(1.0 / WEAR_FROM), 0.0, 1.0);
         const streak = vnoise(vec2(positionWorld.x.add(positionWorld.z).mul(1.7), positionWorld.y.mul(0.12)));
