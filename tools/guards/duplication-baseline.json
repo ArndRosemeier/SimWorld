@@ -48,7 +48,11 @@
     "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
   },
   {
-    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
+    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/placeGraph.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
+    "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
+  },
+  {
+    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/placeGraph.ts",
     "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
   },
   {

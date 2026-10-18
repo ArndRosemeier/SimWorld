@@ -67,30 +67,40 @@ export function checkBanned(root, files, rules = RULES.banned) {
 }
 
 const IMPORT_RE = /(?:import|export)\s[^'"]*?from\s*(['"])([^'"]+)\1|import\s*\(\s*(['"])([^'"]+)\3\s*\)|import\s*(['"])([^'"]+)\5/g;
+/** `import type { … } from` / `export type { … } from`: erased at build time, no code dependency. */
+const TYPE_ONLY_RE = /^(?:import|export)\s+type\s/;
 
-/** The specifiers a file imports, resolved to repo paths for relative ones. */
-export function importsOf(root, file) {
+/** The specifiers a file imports, resolved to repo paths for relative ones; with `withKind`, each as `{ spec, typeOnly }`. */
+export function importsOf(root, file, opts = {}) {
   const src = fs.readFileSync(path.join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
   const out = [];
   let m;
   while ((m = IMPORT_RE.exec(src))) {
     const spec = m[2] || m[4] || m[6];
-    if (spec.startsWith('.')) out.push(path.posix.normalize(path.posix.join(path.posix.dirname(file), spec)));
-    else out.push(spec);
+    const typeOnly = TYPE_ONLY_RE.test(m[0]);
+    const resolved = spec.startsWith('.') ? path.posix.normalize(path.posix.join(path.posix.dirname(file), spec)) : spec;
+    out.push(opts.withKind ? { spec: resolved, typeOnly } : resolved);
   }
   return out;
 }
 
-/** Layer rules: `{ from: folder, deny: [folders or package names], why }`. A package name also denies its subpaths. */
+/**
+ * Layer rules: `{ from: folder, deny: [folders or package names], why, types?, allow? }`. A package
+ * name also denies its subpaths. `types`: denied folders whose `import type` is fine (erased, no code
+ * dependency). `allow`: modules inside a denied folder that may be imported anyway (named exceptions).
+ */
 export function checkLayers(root, files, rules = RULES.layers) {
   const problems = [];
   for (const file of files) {
     const rs = rules.filter((r) => prefixMatch(file, r.from));
     if (!rs.length) continue;
-    for (const imp of importsOf(root, file)) {
+    for (const { spec: imp, typeOnly } of importsOf(root, file, { withKind: true })) {
       for (const r of rs) {
         const hit = r.deny.find((d) => prefixMatch(imp, d) || imp === d);
-        if (hit) problems.push(`${file}  imports ${imp}: ${r.from} may not import ${hit} (${r.why})`);
+        if (!hit) continue;
+        if (typeOnly && (r.types || []).some((t) => prefixMatch(imp, t) || imp === t)) continue;
+        if ((r.allow || []).some((a) => imp === a || imp === a.replace(/\.ts$/, ''))) continue;
+        problems.push(`${file}  imports ${imp}: ${r.from} may not import ${hit} (${r.why})`);
       }
     }
   }

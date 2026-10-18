@@ -1,5 +1,8 @@
 name: Changelog
-# After a merge, fold the change notes (changes/*.md) into CHANGELOG.md as the next versions, 
+# After a merge, fold the change notes (changes/*.md) into CHANGELOG.md as the next versions,
+# 0.001 per merge in merge order. Race-safe when several PRs merge at once: one fold runs at a time
+# (the concurrency group), each run folds every note on main when it starts (so a queued run that
+# GitHub replaces loses nothing), and the push rebases onto any merge that landed meanwhile.
 on:
   push:
     branches: [main]
@@ -35,6 +38,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A CHANGELOG.md changes
-          git commit -m "changelog: $(grep -m1 -oE '^## v0\.[0-9]+' CHANGELOG.md | cut -c4-)"
+          git commit -m "changelog: $(grep -m1 -oE '^## v[0-9]+\.[0-9]{3}' CHANGELOG.md | cut -c4-)"
           for i in 1 2 3 4; do git push origin HEAD:main && exit 0; sleep $((i * 3)); git pull --rebase origin main; done
           exit 1

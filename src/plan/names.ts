@@ -1,7 +1,8 @@
 /**
  * Procedural names for streets, stations, districts and shops.
  *
- * Ported from Scale (src/plan/names.ts) unchanged.
+ * Ported from Scale (src/plan/names.ts); numbered avenues fixed (the number and its suffix
+ * came from two draws, "61th") and kept to town size (1st to 30th).
  */
 import { Rng, deriveSeed } from '@futuremagic/core';
 
@@ -21,7 +22,11 @@ export function streetName(seed: number, id: number, cls: number): string {
   const r = new Rng(deriveSeed(seed, 'street', id));
   const root = r.pick(ROOTS);
   if (cls === 0) return `${root} Boulevard`;
-  if (cls === 1) return r.chance(0.5) ? `${root} Avenue` : `${r.int(1, 120)}${ordSuffix(r.int(1, 120))} Avenue`.replace(/^(\d+)\w+/, (m) => m);
+  if (cls === 1) {
+    if (r.chance(0.5)) return `${root} Avenue`;
+    const n = r.int(1, 30);
+    return `${n}${ordSuffix(n)} Avenue`;
+  }
   return `${root} ${r.pick(STREET_SUFFIX)}`;
 }
 
