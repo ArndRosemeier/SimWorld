@@ -12,7 +12,7 @@
   ],
   "layers": [
     { "from": "src/sim", "deny": ["three", "src/render", "src/app", "src/game", "src/llm"], "why": "the society simulation is pure data: it runs in a worker and in headless tests" },
-    { "from": "src/plan", "deny": ["three", "src/render", "src/app", "src/game", "src/sim"], "why": "the town planner is pure data: it runs in workers and headless tests" },
+    { "from": "src/plan", "deny": ["three", "src/render", "src/app", "src/game", "src/sim"], "types": ["src/sim"], "allow": ["src/sim/placeKinds.ts"], "why": "the town planner is pure data: it runs in workers and headless tests (it fills the sim's PlaceGraph type, with the sim's per-kind defaults from placeKinds)" },
     { "from": "src/geom", "deny": ["three", "src/render", "src/app", "src/game", "src/sim", "src/plan", "src/world"], "why": "2D geometry is a leaf: everything pure may use it" },
     { "from": "src/world", "deny": ["three", "src/render", "src/app", "src/game"], "why": "world queries are pure: gameplay, workers and tests use them" },
     { "from": "src/talk", "deny": ["three", "src/render", "src/app", "src/game"], "why": "the procedural text engine is pure: workers, tests and tools use it" },

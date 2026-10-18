@@ -10,7 +10,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 |---|---|---|
 | `src/sim` | The society: actors, places, schedules, needs, encounters, knowledge, minds, intentions, life events. Pure data, runs in a worker and in headless tests. **The single source of truth for every inhabitant.** | core only (guarded) |
 | `src/geom` | 2D polygon geometry and polygon booleans (ported from Scale's core). Pure. | core only (guarded) |
-| `src/plan`, `src/world` | The town planner and terrain (ported from Scale). Pure data. | core, `src/sim` types for the place graph (`src/plan` may not import `src/sim` code, only `import type`) |
+| `src/plan`, `src/world` | The town planner and terrain (ported from Scale). Pure data. | core; from `src/sim` only `import type` (the place graph contract) and the per-kind defaults in `src/sim/placeKinds.ts` |
 | `src/talk` | The procedural text engine (background chatter, fallback answers). Pure. | core, `src/sim` types |
 | `src/llm` | OpenRouter, the model roster, task routing, usage ledger, prompt building, response contracts. No state of its own about NPCs. | core, `src/sim` types |
 | `src/render` | three.js: renderer, Stage, materials, lights, meshes, views. | everything pure |
@@ -60,8 +60,9 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | The parts (massing) of a public building | `landmarkParts(lm, terrain)` on the `Kit` | `src/plan/landmarkParts.ts`, `src/plan/civicParts.ts`, `src/plan/kit.ts` |
 | The railway and the station spot | `planRail(plan, terrain)` → `macro.rail` (`Railway`) | `src/plan/rail.ts` |
 | Farms, country roads, level crossings | `RuralPlan` (`farms`, `roads`, `crossings`, `layout(farm)`, `roadEdge`) | `src/world/rural.ts` |
-| Opening hours, staff, capacity, services of a kind of place | `PLACES[kind]` (`PlaceKind`, `AmenityKind`), `weekly(spec)`, `openAt(hours, day, hour)` | `src/plan/amenities.ts` |
+| Which ground-floor uses does a town have, which sim place kind is each? | `AmenityKind`, `amenityCounts(pop, warm)`, `PLACE_KIND_OF`, `EATERY_OF`, `AMENITY_LABEL` (hours, staff and capacity are the sim's `placeKinds`) | `src/plan/amenities.ts` |
 | What is this shop front / workplace? | `b.amenity` (set by `planTown`), `b.eatery` for the terrace kind | `src/plan/town.ts`, `src/plan/eatery.ts` |
+| The town as the sim sees it (places, addresses, road network) | `placeGraphOf(town)` → `PlaceGraph`; `buildingRef(place.building)` back to the cell building, site or farm | `src/plan/placeGraph.ts` |
 | 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |
 | Polygon union, difference, intersection, offset | `src/geom/clip.ts` (clipper) | `src/geom/clip.ts` |
 
@@ -81,7 +82,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | What does a person / an animal add? | the Person and Animal component tables (`world.people`, `world.animals`); households and jobs | `src/sim/people.ts`, `src/sim/animals.ts` |
 | Which species exist, which needs do they have, when are they awake? | `SPECIES`, `NEEDS` | `src/sim/species.ts` |
 | A new struct-of-arrays table | `Columns` (typed columns that grow), `DerivedTable` for per-actor-type tables | `src/sim/table.ts` |
-| Where can actors be? | `PlaceGraph` (places with kind, capacity, opening hours, staff slots; road nodes and edges). The planner produces one with `placeGraphOf(plan)`; tests make one with `testTown(seed, size)` | `src/sim/places.ts`, `src/sim/testTown.ts` |
+| Where can actors be? | `PlaceGraph` (places with kind, capacity, opening hours, staff slots; road nodes and edges). The planner produces one with `placeGraphOf(town)` (`src/plan/placeGraph.ts`); tests make one with `testTown(seed, size)` | `src/sim/places.ts`, `src/sim/testTown.ts` |
 | What does a place kind offer, when is it open, who works there? | `KINDS` (services, gossip rate), `defaultHours(kind)`, `defaultStaff(kind, scale)`; `isOpen(world, place, clock)` | `src/sim/placeKinds.ts`, `src/sim/schedule.ts` |
 | How long does it take to get between places? Which one is nearest? | `world.travel.minutes(a, b, car)`, `world.travel.nearest(from, candidates)` | `src/sim/travel.ts` |
 | Game time: day, weekday, minute of day | `dayOf`, `weekdayOf`, `minuteOfDay`, `onDay`, `atMinute` | `src/sim/time.ts` |

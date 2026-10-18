@@ -54,6 +54,18 @@ test('layers: a denied import (relative or package) is reported, an allowed one 
   assert.ok(p.some((x) => x.includes('imports src/render/b')));
 });
 
+test('layers: type-only imports and named exceptions pass where the rule says so', () => {
+  const root = fixture({
+    'src/gen/a.ts': "import type { T } from '../sim/t';\nimport { k } from '../sim/kinds';\nimport { w } from '../sim/world';\n",
+    'src/sim/t.ts': 'export type T = number;',
+    'src/sim/kinds.ts': 'export const k = 1;',
+    'src/sim/world.ts': 'export const w = 1;',
+  });
+  const rule = { from: 'src/gen', deny: ['src/sim'], why: 'pure', types: ['src/sim'], allow: ['src/sim/kinds.ts'] };
+  const p = checkLayers(root, listFiles(root, 'src'), [rule]);
+  assert.deepEqual(p.map((x) => x.split(':')[0]), ['src/gen/a.ts  imports src/sim/world']);
+});
+
 test('duplication ratchet: new, stale and unexplained entries go red', () => {
   assert.deepEqual(checkDuplication(['a'], [{ key: 'a', reason: 'ok' }]), []);
   assert.match(checkDuplication(['a', 'b'], [{ key: 'a', reason: 'ok' }])[0], /^NEW b/);
