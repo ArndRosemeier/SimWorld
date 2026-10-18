@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.123 — The ground shader builds again for a second view
+
+- Fixed the countryside's field patchwork failing to draw when the ground shader is built a second time, for example for a minimap or a reflection.
+
 ## v0.122 — The traffic can be heard
 
 - Cars rush past you on the street, louder the faster they go.
