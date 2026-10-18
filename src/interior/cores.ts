@@ -167,9 +167,9 @@ export function planCores(b: BuildingDesc, poly: Poly, maxH: number, door: Door 
     if (got) return { lift: null, ...got };
   }
   // A roomy way in first, then (small and oddly cut houses) narrower ones that still let one walk
-  // in. Where even a step inside the door would run into the stairs, the house goes without them
-  // (the lift alone takes people up when it fits).
-  let liftOnly: LiftShaft | null = null;
+  // in. Where even a step inside the door would run into the stairs anywhere they fit, they go where
+  // they fit at all (the floor plan then keeps a way round them: src/interior/ways.ts): a storey up
+  // has stairs to it, the lift alone takes nobody who walks.
   for (const [depth, half] of [[2.2, 0.75], [1.6, 0.5], [1.0, 0.4]]) {
     const way = door && doorWay(poly, door, depth, half);
     if (!way) break;
@@ -179,11 +179,10 @@ export function planCores(b: BuildingDesc, poly: Poly, maxH: number, door: Door 
     if (st) return { lift, stair: st, entry: null };
     const alone = lift && stairAt(poly, null, maxH, way);
     if (alone) return { lift: null, stair: alone, entry: null };
-    liftOnly ??= lift;
-    if (depth === 1) return { lift: liftOnly, stair: null, entry: null };
   }
-  const lift = planLift(b, poly);
-  return { lift, stair: planStair(b, poly, lift, maxH), entry: null };
+  const lift = planLift(b, poly), withLift = planStair(b, poly, lift, maxH);
+  const stair = withLift ?? planStair(b, poly, null, maxH);
+  return { lift: stair && !withLift ? null : lift, stair, entry: null };
 }
 
 /** Floor area (m²) under which the stair hall is only the landing at the foot of the flights. */
@@ -334,6 +333,18 @@ function* stairSpots(poly: Poly, lift: LiftShaft | null, maxH: number): Generato
   // The end away from the lift (the lift sits at the -u end when there is one).
   const liftEnd = lift ? Math.sign((lift.cx - F.cx) * F.ux + (lift.cz - F.cz) * F.uz) || -1 : 0;
   const lr = lift ? liftRect(lift, LANDING + 0.6) : null;
+  const standsAt = (c: StairCore, hall: number) => {
+    const r = coreRect(c, 0, 0.1);
+    for (let k = 0; k < 8; k += 2) {
+      const n = (k + 2) % 8;
+      if (!pointInPoly(poly, r[k], r[k + 1]) || !pointInPoly(poly, (r[k] + r[n]) / 2, (r[k + 1] + r[n + 1]) / 2)) return false;
+    }
+    // Room in front of it for the stair hall: across the whole width of the core, not just its middle.
+    const vb = c.w + c.g / 2;
+    for (const v of [0, -vb, vb]) { const h = coreP(c, -hall, v); if (!pointInPoly(poly, h[0], h[1])) return false; }
+    if (lr) for (let k = 0; k < 8; k += 2) if (pointInPoly(lr, r[k], r[k + 1]) || pointInPoly(r, lr[k], lr[k + 1])) return false;
+    return true;
+  };
   for (const [w, g, near, far, rise, tread, hall] of CORE_SIZES) {
     const run = Math.max(2.2, Math.ceil(maxH / 2 / rise) * tread);
     const len = near + run + far, band = 2 * w + g;
@@ -345,18 +356,20 @@ function* stairSpots(poly: Poly, lift: LiftShaft | null, maxH: number): Generato
           const vc = side * (F.hv - 0.15 - band / 2);
           const [cx, cz] = F.P(uN, vc);
           const c: StairCore = { cx, cz, ux: end * F.ux, uz: end * F.uz, len, w, g, near, run, open: -side * end };
-          const r = coreRect(c, 0, 0.1);
-          let ok = true;
-          for (let k = 0; k < 8 && ok; k += 2) {
-            const n = (k + 2) % 8;
-            if (!pointInPoly(poly, r[k], r[k + 1]) || !pointInPoly(poly, (r[k] + r[n]) / 2, (r[k + 1] + r[n + 1]) / 2)) ok = false;
-          }
-          // Room in front of it for the stair hall.
-          const h = coreP(c, -hall, 0);
-          if (!pointInPoly(poly, h[0], h[1])) ok = false;
-          if (ok && lr) for (let k = 0; k < 8; k += 2) if (pointInPoly(lr, r[k], r[k + 1]) || pointInPoly(r, lr[k], lr[k + 1])) ok = false;
-          if (ok) yield c;
+          if (standsAt(c, hall)) yield c;
         }
+      }
+    }
+  }
+  // An odd outline (no room at its long sides): anywhere inside, either way round, the compact core.
+  const [w, g, near, far, rise, tread, hall] = CORE_SIZES[CORE_SIZES.length - 1];
+  const run = Math.max(2.2, Math.ceil(maxH / 2 / rise) * tread), len = near + run + far;
+  for (const [dx, dz] of [[F.ux, F.uz], [-F.ux, -F.uz], [-F.uz, F.ux], [F.uz, -F.ux]]) {
+    for (let u = -F.hu; u <= F.hu; u += 0.5) for (let v = -F.hv; v <= F.hv; v += 0.5) {
+      const [cx, cz] = F.P(u, v);
+      for (const open of [1, -1]) {
+        const c: StairCore = { cx, cz, ux: dx, uz: dz, len, w, g, near, run, open };
+        if (standsAt(c, hall)) yield c;
       }
     }
   }

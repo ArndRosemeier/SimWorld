@@ -12,7 +12,7 @@
 import { polyArea, type Poly } from '../geom/geom2';
 import type { WallWindows } from '../build/massing';
 import type { Interior, StreetDoor } from './building';
-import type { FurnKind, FurnUse } from './types';
+import type { FloorPlan, FurnKind, FurnUse } from './types';
 import { doorLeavesOf, type DoorLeaf } from './doors';
 
 /** A box: centre, half sizes along its own x (across), y and z (along), turned `yaw` about y (x = sin, z = cos). */
@@ -55,7 +55,7 @@ const OUTER_T = 0.2, INNER_T = 0.12;
 /** Height of a street door's opening. */
 export const STREET_DOOR_H = 2.15;
 /** Pieces nobody walks into: on the floor flat, or on a wall. */
-const FLAT = new Set<FurnKind>(['rug', 'painting', 'mirror', 'screen']);
+export const FLAT = new Set<FurnKind>(['rug', 'painting', 'mirror', 'screen']);
 
 /**
  * The walk-in building for interior `I` whose ground floor stands at world y `base`; `windows` (src/build/massing.ts
@@ -103,23 +103,8 @@ export function indoorsOf(I: Interior, base: number, windows: readonly WallWindo
         s0 = Math.max(s0, g1);
       }
     }
-    // Inner walls between their doorways.
-    for (const w of s.walls) {
-      const L = Math.hypot(w.bx - w.ax, w.bz - w.az);
-      if (L < 0.2) continue;
-      const dx = (w.bx - w.ax) / L, dz = (w.bz - w.az) / L;
-      let s0 = 0;
-      for (const [d0, d1] of [...w.doors.map(([a, b]) => [a * L, b * L]).sort((p, q) => p[0] - q[0]), [L, L]]) {
-        if (d0 > s0) wall(w.ax + dx * s0, w.az + dz * s0, w.ax + dx * d0, w.az + dz * d0, y, top, INNER_T);
-        s0 = Math.max(s0, d1);
-      }
-    }
-    for (const it of s.furniture) {
-      if (FLAT.has(it.kind) || it.h < 0.05) continue;
-      colliders.push({ x: it.x, y: y + it.h / 2, z: it.z, hx: it.w / 2, hy: it.h / 2, hz: it.d / 2, yaw: it.yaw });
-    }
+    colliders.push(...innerBoxes(s, base));
     for (const fl of s.flights) ramps.push({ x0: fl.x, y0: base + fl.y0, z0: fl.z, x1: fl.x + fl.dx * fl.run, y1: base + fl.y1, z1: fl.z + fl.dz * fl.run, width: fl.width });
-    for (const l of s.landings) colliders.push(landingBox(l, base));
     const below = f > 0 ? I.storeys[f - 1].stairHole : null;
     slabs.push({ floor: f, y, outer: P, holes: below ? [below] : [] });
   });
@@ -134,6 +119,30 @@ export function indoorsOf(I: Interior, base: number, windows: readonly WallWindo
     spots: I.spots.map((p) => ({ use: p.use, floor: p.floor, x: p.x, y: base + I.storeys[p.floor].y, z: p.z, yaw: p.yaw, seat: p.seat, unit: p.unit })),
     leaves: doorLeavesOf(I, base),
   };
+}
+
+/**
+ * A storey's inner solids, with its ground floor at world y `base`: the inner walls between their doorways, the
+ * furniture one walks into, the stair landings. (The outer walls and the stairs are indoorsOf's.)
+ */
+export function innerBoxes(s: FloorPlan, base: number): Box[] {
+  const out: Box[] = [], y = base + s.y, top = y + s.height;
+  for (const w of s.walls) {
+    const L = Math.hypot(w.bx - w.ax, w.bz - w.az);
+    if (L < 0.2) continue;
+    const dx = (w.bx - w.ax) / L, dz = (w.bz - w.az) / L;
+    let s0 = 0;
+    for (const [d0, d1] of [...w.doors.map(([a, b]) => [a * L, b * L]).sort((p, q) => p[0] - q[0]), [L, L]]) {
+      if (d0 - s0 > 0.02) out.push({ x: w.ax + dx * (s0 + d0) / 2, y: (y + top) / 2, z: w.az + dz * (s0 + d0) / 2, hx: INNER_T / 2, hy: (top - y) / 2, hz: (d0 - s0) / 2, yaw: Math.atan2(dx, dz) });
+      s0 = Math.max(s0, d1);
+    }
+  }
+  for (const it of s.furniture) {
+    if (FLAT.has(it.kind) || it.h < 0.05) continue;
+    out.push({ x: it.x, y: y + it.h / 2, z: it.z, hx: it.w / 2, hy: it.h / 2, hz: it.d / 2, yaw: it.yaw });
+  }
+  for (const l of s.landings) out.push(landingBox(l, base));
+  return out;
 }
 
 /** The facade's window openings that fall on the wall piece a → b (outward n, y0 to y1), in the piece's terms. */
