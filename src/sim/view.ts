@@ -17,6 +17,7 @@ import { MINUTES_PER_DAY } from './time';
 import type { Mode, Trip } from './travel';
 import { townLooks, type TownLooks } from './economy';
 import { rulesOf, type TownRules } from './politics';
+import { homeDecor, type HomeDecor } from './decor';
 import { weatherAt, type Weather } from './weather';
 import { householdOf, type World } from './world';
 
@@ -84,6 +85,8 @@ export interface TownFace {
   /** Per place: LOOK_* flags (to let, for sale, new, struggling), upkeep and wealth 0..1. */
   looks: TownLooks;
   rules: TownRules;
+  /** Per place: holiday decorations up today (src/sim/decor.ts: DECOR_* bits, share of households decorating). */
+  decor: HomeDecor;
 }
 
 /** The view of `world` now, with the town's face when `face` is set (the worker sends it once a game day). */
@@ -114,6 +117,7 @@ export function townFace(world: World): TownFace {
     day: Math.floor(world.clock / MINUTES_PER_DAY), kind: world.kindOf.slice(), name: world.graph.places.map((p) => p.name),
     hours: world.graph.places.map((p) => p.hours.map((h) => ({ ...h }))),
     looks: townLooks(world), rules: { ...rules, works: rules.works.map((w) => ({ ...w })) },
+    decor: homeDecor(world),
   };
 }
 

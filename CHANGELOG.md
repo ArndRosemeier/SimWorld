@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.104 — Building wear and fresh paint
+
+- Walls of run-down buildings get grime and rain streaks, from the upkeep the economy keeps for each place.
+- Well-off homes look a touch brighter, as if freshly painted.
+- Both follow the sim's town face, so a building that is let go slowly greys and one that is done up cleans again.
+
+## v0.103 — People sit down on benches
+
+- People out in parks, squares, the cemetery and at sports grounds now and then sit down on a free bench for a few minutes, then get up and stroll on. Only one person sits on each seat.
+- Sitting down and getting up are smooth movements, and people turn to face the right way instead of snapping round.
+- People can now also lie down on a bed and sit up again. The furnished homes will use this for family members at home.
+
+## v0.102 — Holiday decorations follow the calendar
+
+- From mid-October, homes put pumpkins in their windows for Halloween (their faces glow after dark), far more often where children live.
+- At Christmas, fairy lights go up from the start of the market and trees appear in windows from the second week of December; all come down after 6 January.
+- Easter brings a few strings of painted eggs, and the summer festival week brings bunting.
+- Each household decides for itself: its taste, children, money and mood all count, and a household that lost someone recently does not decorate.
+
 ## v0.101 — Names, jobs and holidays fit the invented world
 
 - People now have English-sounding names: the German-sounding given names and surnames are gone (Lena, Jonas, Schmidt, Becker and the like).

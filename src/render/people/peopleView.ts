@@ -26,8 +26,21 @@ export interface Figure {
   readonly vz: number;
   /** Where they face when standing still (yaw, radians; 0 looks to -z), e.g. toward someone they talk to. */
   readonly face?: number;
+  /** Sitting or lying down (else standing or walking). */
+  readonly rest?: Rest;
   /** Their body (changes only with their age) and today's clothes, made on demand. */
   look(): Look;
+}
+
+/**
+ * Sitting on a seat or lying on a bed: `seat` is the seat's or mattress's height (m) above the figure's y (the
+ * floor). A sitter stands SEAT_REACH (@futuremagic/humanoid) in front of the seat's middle, facing `face`: they
+ * sit down there and get up there. A sleeper's (x, z) is on the mattress under the hips, `face` from head to feet.
+ * Sitting down, lying down and getting up play when `rest` comes and goes; keep them in place meanwhile.
+ */
+export interface Rest {
+  kind: 'sit' | 'lie';
+  seat: number;
 }
 
 export interface Look {
@@ -57,6 +70,8 @@ const NEAR = 30;
 const SPARE = 16;
 /** Bodies asked of the workers at once. */
 const BUILDING = 3;
+/** How fast people turn (rad/s). */
+const TURN = 7;
 
 interface Slot {
   id: number;
@@ -139,24 +154,33 @@ export class PeopleView {
       const look = f.look();
       if (look.bodyKey !== s.bodyKey) { this.drop(s); this.slots.delete(s.id); continue; }
       if (look.outfitKey !== s.outfitKey) { s.outfitKey = look.outfitKey; s.human.dress(look.outfit); }
-      this.pose(s, f, d, dt, time);
+      this.posture(s, f, d, dt, time);
     }
     this.dropUnseen();
   }
 
-  private pose(s: Slot, f: Figure, d: number, dt: number, time: number): void {
+  private posture(s: Slot, f: Figure, d: number, dt: number, time: number): void {
     const h = s.human!;
+    // Coming into view: already in their pose and turned their way (no sitting down again, no turning round).
+    const first = !h.object.visible;
+    if (first) h.animator.snapPose();
     h.object.visible = true;
     const speed = Math.hypot(f.vx, f.vz);
-    if (speed > 0.15) s.yaw = Math.atan2(-f.vx, -f.vz);
-    else if (f.face !== undefined) s.yaw = f.face;
+    const want = speed > 0.15 ? Math.atan2(-f.vx, -f.vz) : f.face;
+    // Turning takes a moment (a walker who stops at a bench turns round to sit).
+    if (want !== undefined && first) s.yaw = want;
+    else if (want !== undefined) {
+      const d = Math.atan2(Math.sin(want - s.yaw), Math.cos(want - s.yaw));
+      s.yaw += Math.abs(d) < TURN * dt ? d : Math.sign(d) * TURN * dt;
+    }
     const near = d < NEAR;
     if (near !== s.near) {
       s.near = near;
       h.char.setLod(near ? 0 : 1);
       h.object.traverse((o) => { if ((o as Mesh).isMesh) o.castShadow = near && casts(o as Mesh); });
     }
-    const anim: AnimState = { move: speed > 2.6 ? 'run' : speed > 0.15 ? 'walk' : 'idle' };
+    const r = f.rest;
+    const anim: AnimState = r ? { move: r.kind === 'sit' ? 'sit' : 'sleep', seat: r.seat } : { move: speed > 2.6 ? 'run' : speed > 0.15 ? 'walk' : 'idle' };
     h.update({ pos: [f.x, f.y, f.z], vel: [f.vx, 0, f.vz], yaw: s.yaw, anim }, dt, time, null);
   }
 
