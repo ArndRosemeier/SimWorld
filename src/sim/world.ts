@@ -196,9 +196,8 @@ export const placesOf = (world: World, kinds: readonly PlaceKind[]): PlaceId[] =
  * way to change a place's kind, so the per-kind lookups stay right.
  */
 export function setPlaceKind(world: World, place: PlaceId, kind: PlaceKind, patch: Partial<Pick<Place, 'name' | 'hours' | 'staff' | 'capacity'>>): void {
-  const p = world.graph.places[place];
-  p.kind = kind;
-  Object.assign(p, patch);
+  // A new place object: the old one may be shared with the planner's graph, which keeps the town as planned.
+  world.graph.places[place] = { ...world.graph.places[place], ...patch, kind };
   world.kindOf[place] = PLACE_KINDS.indexOf(kind);
   placeCache.delete(world);
 }
