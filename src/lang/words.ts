@@ -104,6 +104,15 @@ export const ownedWord = (kind: string): string | undefined => OWNED[kind];
 /** A landmark's name patterns (see `fillName`). */
 export const landmarkPatterns = (kind: LandmarkNameKind): readonly string[] => LANDMARK[kind];
 
+/**
+ * A home as people mention it before its street ("a house on Elm Street", "a place on Mill Road"). A unit in a
+ * block is "a place": "apartment" and "flat" each point to one side of the Atlantic.
+ */
+const DWELLING: Readonly<Record<string, string>> = { house: 'a house', apartments: 'a place', farmhouse: 'a farmhouse' };
+
+/** How people name a home of this place kind before its street ("a house", "a place"). */
+export const dwellingWord = (kind: string): string => DWELLING[kind] ?? 'a place';
+
 /** Fill a name pattern's `{key}` slots. */
 export const fillName = (pattern: string, slots: Readonly<Record<string, string>>): string =>
   pattern.replace(/\{(\w+)\}/g, (_, k: string) => slots[k] ?? '');

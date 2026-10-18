@@ -44,6 +44,18 @@
     "reason": "Both implement Transport.stream (the real OpenRouter connection and the recorded/recording test transports); one interface method, different jobs."
   },
   {
+    "key": "same name: simworld/llm/decide.ts#build + simworld/llm/tasks.ts#build",
+    "reason": "Each is the request builder of its own task kind (DecisionSpec.build makes typed decision questions, TaskSpec.build makes chat messages); the same contract shape on purpose."
+  },
+  {
+    "key": "same name: simworld/llm/llm.ts#decide + simworld/llm/openrouter.ts#decide",
+    "reason": "Llm.decide (the task API: model fallback, usage ledger) and Transport.decide (one HTTP call), like run and stream."
+  },
+  {
+    "key": "same name: simworld/llm/openrouter.ts#decide + simworld/llm/recorded.ts#decide",
+    "reason": "Both implement Transport.decide (the real OpenRouter decisions endpoint and the recorded/recording test transports); one interface method, different jobs."
+  },
+  {
     "key": "same name: simworld/plan/cell.ts#add + simworld/plan/macro.ts#add",
     "reason": "Local closures ported from Scale's planner (cell.ts adds a building, macro.ts an arterial edge); unrelated jobs."
   },
@@ -485,10 +497,6 @@
   },
   {
     "key": "idiom: [.actors .cols .sex] in simworld/chat/card.ts + simworld/sim/life.ts + simworld/sim/profile.ts",
-    "reason": "A person's sex for their pronouns or kin words (she/he, wife/husband) in three describers of different things: the NPC card, life events, the picker's card."
-  },
-  {
-    "key": "idiom: [.actors .cols .sex] in simworld/chat/card.ts + simworld/sim/profile.ts + simworld/talk/chatter.ts",
     "reason": "A person's sex for their pronouns or kin words (she/he, wife/husband) in three describers of different things: the NPC card, life events, the picker's card."
   },
   {

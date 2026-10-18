@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testTown } from '../src/sim/testTown';
 import { createWorld } from '../src/sim/synth';
-import { tick } from '../src/sim/world';
+import { ageOf, tick } from '../src/sim/world';
 import { ACTOR_PERSON } from '../src/sim/actors';
 import { addFact, beliefAbout, beliefsOf, forget, reach, tell, witness, SOURCE_WITNESSED, exchange } from '../src/sim/knowledge';
 import { T_CONSC, T_OPEN } from '../src/sim/people';
@@ -84,7 +84,9 @@ test('knowledge: a juicy story spreads through a town in two days, and some rete
   const w = createWorld(testTown(5, 200), 5);
   const ps = personsOf(w);
   const f = addFact(w, { topic: 'crime', subject: ps[5], place: 3, text: '{subject} was arrested at {place}', magnitude: 0.8 });
-  witness(w, f, [ps[60], ps[61]]);
+  // Grown-up witnesses (children tell only their family what they saw).
+  const adults = ps.filter((p) => ageOf(w, p) >= 18);
+  witness(w, f, [adults[60], adults[61]]);
   tick(w, 2 * 1440);
   const { any } = reach(w, f);
   assert.ok(any >= 15, `reached ${any} of ${ps.length}`);
