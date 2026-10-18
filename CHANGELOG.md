@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.118 — The school bus and the post stop where people live
+
+- The school bus no longer drives kilometres out along a country road every morning. Its pick-ups are now in the town, on streets where many families live, at the place where those homes are.
+- The post van stops where the homes on each street are, not at the far end of a long road.
+
+## v0.117 — Police cars and ambulances on the streets
+
+- Two police cars stand outside the police station. The day after a burglary, a theft, graffiti or a fight, one drives round to where it happened and stays a while.
+- The police patrol the town late in the morning and in the afternoon, and on weekend evenings too.
+- Now and then an ambulance comes in from the hospital town with its blue lights flashing and traffic pulling over. It stops at the home of someone who has been taken ill (the old and the frail most often), then drives away quietly.
+
 ## v0.116 — Cars park in their own driveways
 
 - A household living in a house with a driveway parks its car there: it comes home, turns in from the street and stands nose to the house.
