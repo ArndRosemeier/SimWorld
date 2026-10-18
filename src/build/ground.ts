@@ -8,7 +8,7 @@
  * `groundSpecs()` and the `GroundLayer` numbers, so they share the ground material.
  */
 import earcut from 'earcut';
-import type { Shape } from '../geom/clip';
+import { difference, shapesToPolys, type Shape } from '../geom/clip';
 import type { Terrain } from '../world/terrain';
 import type { CellPlan } from '../plan/cell';
 import { RoadClass } from '../plan/types';
@@ -161,28 +161,49 @@ export function ringWall(mb: MeshBuilder, ring: number[], terrain: Terrain, yTop
   }
 }
 
+/** One kind of draped surface of a cell: its shapes, height above the ground, layer. */
+export interface GroundSurface { shapes: Shape[]; dy: number; layer: GroundLayer }
+
+/**
+ * The draped surfaces of a cell. They never overlap: two drapes a centimetre apart cross
+ * wherever their triangles follow the terrain differently (DRAPE_TOL), and fight in the depth
+ * buffer further off, so a block's ground has holes where anything else lies on it.
+ */
+export function groundSurfaces(plan: CellPlan): GroundSurface[] {
+  const oldTown = plan.district === 'oldtown';
+  // Blocks: lots and yards. Lot surfaces of dense districts are paved, gardens are grass.
+  const dense = plan.district === 'downtown' || plan.district === 'commercial' || plan.district === 'oldtown';
+  const industrial = plan.district === 'industrial' || plan.district === 'port';
+  // Highest first: each lies where none above it does.
+  const S: GroundSurface[] = [
+    { shapes: plan.cemPaths, dy: CURB_H + 0.01, layer: GroundLayer.Gravel },
+    { shapes: plan.yards, dy: CURB_H + 0.01, layer: industrial ? GroundLayer.Gravel : GroundLayer.Grass },
+    { shapes: plan.sidewalks, dy: CURB_H, layer: oldTown ? GroundLayer.PlazaStone : GroundLayer.Paving },
+    { shapes: plan.promenade, dy: CURB_H, layer: GroundLayer.Promenade },
+    { shapes: plan.plazas, dy: CURB_H, layer: GroundLayer.PlazaStone },
+    { shapes: plan.paved, dy: CURB_H, layer: GroundLayer.AsphaltLight },
+    { shapes: plan.parks, dy: CURB_H, layer: GroundLayer.Grass },
+    { shapes: plan.cemeteries, dy: CURB_H, layer: GroundLayer.Grass },
+    { shapes: plan.blocks, dy: CURB_H - 0.01, layer: industrial ? GroundLayer.AsphaltLight : dense ? GroundLayer.Paving : GroundLayer.Grass },
+  ];
+  const above: Shape[] = [];
+  for (const g of S) {
+    const own = g.shapes;
+    g.shapes = uncovered(own, above);
+    above.push(...own);
+  }
+  return [{ shapes: plan.carriageway, dy: 0, layer: oldTown ? GroundLayer.Cobble : GroundLayer.Asphalt }, ...S];
+}
+
 export function buildGround(plan: CellPlan, terrain: Terrain, origin: [number, number, number]): MeshBuilder {
   const mb = new MeshBuilder(groundSpecs());
   mb.setOrigin(...origin);
-  const oldTown = plan.district === 'oldtown';
-  for (const s of plan.carriageway) drapeShape(mb, s, terrain, 0, oldTown ? GroundLayer.Cobble : GroundLayer.Asphalt);
+  for (const g of groundSurfaces(plan)) for (const s of g.shapes) drapeShape(mb, s, terrain, g.dy, g.layer);
   // Curbs: carriageway outline walls facing the road.
   for (const s of plan.carriageway) {
     ringWall(mb, s.outer, terrain, CURB_H, -0.05, GroundLayer.Curb, false);
     for (const h of s.holes) ringWall(mb, h, terrain, CURB_H, -0.05, GroundLayer.Curb, false);
   }
-  for (const s of plan.sidewalks) drapeShape(mb, s, terrain, CURB_H, oldTown ? GroundLayer.PlazaStone : GroundLayer.Paving);
-  for (const s of plan.promenade) drapeShape(mb, s, terrain, CURB_H, GroundLayer.Promenade);
-  for (const s of plan.plazas) drapeShape(mb, s, terrain, CURB_H, GroundLayer.PlazaStone);
-  for (const s of plan.paved) drapeShape(mb, s, terrain, CURB_H, GroundLayer.AsphaltLight);
-  for (const s of plan.parks) drapeShape(mb, s, terrain, CURB_H, GroundLayer.Grass);
-  for (const s of plan.cemeteries) drapeShape(mb, s, terrain, CURB_H, GroundLayer.Grass);
-  for (const s of plan.cemPaths) drapeShape(mb, s, terrain, CURB_H + 0.01, GroundLayer.Gravel);
-  // Blocks: lots and yards. Lot surfaces of dense districts are paved, gardens are grass.
-  const dense = plan.district === 'downtown' || plan.district === 'commercial' || plan.district === 'oldtown';
-  const industrial = plan.district === 'industrial' || plan.district === 'port';
-  for (const s of plan.blocks) drapeShape(mb, s, terrain, CURB_H - 0.01, industrial ? GroundLayer.AsphaltLight : dense ? GroundLayer.Paving : GroundLayer.Grass);
-  for (const s of plan.yards) drapeShape(mb, s, terrain, CURB_H + 0.01, industrial ? GroundLayer.Gravel : GroundLayer.Grass);
   // Quay walls along the water side of promenades.
   for (const s of plan.promenade) {
     const n = s.outer.length >> 1;
@@ -200,9 +221,15 @@ export function buildGround(plan: CellPlan, terrain: Terrain, origin: [number, n
   return mb;
 }
 
+/** The parts of `shapes` that none of `over` covers. */
+function uncovered(shapes: Shape[], over: Shape[]): Shape[] {
+  return shapes.length && over.length ? difference(shapesToPolys(shapes), shapesToPolys(over)) : shapes;
+}
+
 /** Lane markings, crosswalks and stop lines as thin draped quads. */
 function buildMarkings(mb: MeshBuilder, plan: CellPlan, terrain: Terrain): void {
-  const lift = 0.025;
+  // Above the carriageway by more than its drape tolerance (DRAPE_TOL) plus depth precision far off.
+  const lift = 0.04;
   const strip = (pts: number[], off: number, halfW: number, dash: number, gap: number, layer: number, trim0: number, trim1: number) => {
     const L = polylineLength(pts);
     if (L < trim0 + trim1 + 1) return;
