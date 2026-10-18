@@ -24,6 +24,13 @@ export function button(cls: string, text: string, onClick: (e: MouseEvent) => vo
 }
 
 /** A checkbox that calls `onChange` with its new state. */
+/** Show an on/off button's state: its text and tooltip for that state (`[on, off]` pairs), and `aria-pressed`. */
+export function showToggle(b: HTMLButtonElement, on: boolean, text: readonly [string, string], title: readonly [string, string]): void {
+  b.textContent = on ? text[0] : text[1];
+  b.title = on ? title[0] : title[1];
+  b.setAttribute('aria-pressed', String(on));
+}
+
 export function checkbox(checked: boolean, onChange: (checked: boolean) => void): HTMLInputElement {
   const c = el('input', '');
   c.type = 'checkbox';

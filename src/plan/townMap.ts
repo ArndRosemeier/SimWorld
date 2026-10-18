@@ -43,10 +43,13 @@ export interface TownMap {
   parkEnds: Uint32Array;
   buildings: Float32Array;
   buildingEnds: Uint32Array;
+  /** Per cell: the index in `buildingEnds` of its first building (building `buildingCode(cell, i)` is outline `cellFirst[cell] + i`). */
+  cellFirst: Uint32Array;
   roads: MapRoad[];
   streets: MapLabel[];
   rail: Float32Array | null;
-  landmarks: { kind: LandmarkKind; name: string; x: number; z: number }[];
+  /** `id`: the landmark's id (its building code is `SITE + id`). */
+  landmarks: { id: number; kind: LandmarkKind; name: string; x: number; z: number }[];
 }
 
 const RASTER = 384;
@@ -75,6 +78,8 @@ export function townMapOf(town: Town): TownMap {
   }
   const [parks, parkEnds] = packed(cells.flatMap((c) => c.parks.map((p) => p.outer)));
   const [buildings, buildingEnds] = packed(cells.flatMap((c) => c.buildings.map((b) => b.poly)));
+  const cellFirst = new Uint32Array(cells.length);
+  for (let i = 1; i < cells.length; i++) cellFirst[i] = cellFirst[i - 1] + cells[i - 1].buildings.length;
   const roads = townRoads(town);
   const inside = (x: number, z: number) => Math.abs(x - cx) < half && Math.abs(z - cz) < half;
   const mapRoads: MapRoad[] = roads.lines.filter((l) => {
@@ -95,11 +100,11 @@ export function townMapOf(town: Town): TownMap {
     return best;
   });
   // The station is named after the town; on a map it reads "Harborwick Station".
-  const lms = macro.landmarks.map((l) => ({ kind: l.kind, name: l.kind === 'station' && !/station/i.test(l.name) ? `${l.name} Station` : l.name, x: l.x, z: l.z }));
-  return { cx, cz, half, n, ground, parks, parkEnds, buildings, buildingEnds, roads: mapRoads, streets, rail: macro.rail ? Float32Array.from(macro.rail.pts) : null, landmarks: lms };
+  const lms = macro.landmarks.map((l) => ({ id: l.id, kind: l.kind, name: l.kind === 'station' && !/station/i.test(l.name) ? `${l.name} Station` : l.name, x: l.x, z: l.z }));
+  return { cx, cz, half, n, ground, parks, parkEnds, buildings, buildingEnds, cellFirst, roads: mapRoads, streets, rail: macro.rail ? Float32Array.from(macro.rail.pts) : null, landmarks: lms };
 }
 
 /** The buffers of a map, for postMessage's transfer list. */
 export function townMapTransferables(m: TownMap): Transferable[] {
-  return [m.ground.buffer, m.parks.buffer, m.parkEnds.buffer, m.buildings.buffer, m.buildingEnds.buffer, ...m.roads.map((r) => r.pts.buffer), ...(m.rail ? [m.rail.buffer] : [])];
+  return [m.ground.buffer, m.parks.buffer, m.parkEnds.buffer, m.buildings.buffer, m.buildingEnds.buffer, m.cellFirst.buffer, ...m.roads.map((r) => r.pts.buffer), ...(m.rail ? [m.rail.buffer] : [])];
 }

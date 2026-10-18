@@ -79,7 +79,10 @@ import { TownAudio } from '../audio/townAudio';
 import { soundEnvFromSim, soundEnvOf, soundOverrides } from '../audio/env';
 import { soundNote, soundOpener } from '../app/soundPanel';
 import { openPaper } from '../app/paperPanel';
-import { mapOpener } from '../app/mapPanel';
+import { mapOpener, type MapMarks, type MapViewer } from '../app/mapPanel';
+import { Minimap } from '../app/minimap';
+import type { TownMap } from '../plan/townMap';
+import type { PlayerStatus } from '../sim/player';
 
 const HAZE = 0xa9c8e4;
 
@@ -258,10 +261,22 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   /** Whether the bus stops (from the sim) have joined the signs. */
   let stopsShown = false;
   const fwd = { x: 0, y: 0, z: 0 };
-  shell.add({ label: 'Map', group: 'Town', open: mapOpener(
-    async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
-    () => (cam.mode === 'drone' ? null : { x: camera.position.x, z: camera.position.z, fx: fwd.x, fz: fwd.z }),
-  ) });
+  // The town map (made once in a town worker) for the menu's big map and the minimap in the corner.
+  let townMap: Promise<TownMap> | null = null;
+  const fetchMap = () => (townMap ??= pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0).then((r) => r.map));
+  /** Where you are for the maps: your person while you play, else the camera down in the streets (none from high up). */
+  let mapAt: { x: number; z: number } | null = null;
+  const mapMe = (): MapViewer | null => (cam.mode === 'drone' || !mapAt ? null : { x: mapAt.x, z: mapAt.z, fx: fwd.x, fz: fwd.z });
+  const ties = { of: null as PlayerStatus | null, kin: new Set<number>(), known: new Set<number>() };
+  const mapMarks = (): MapMarks => {
+    const s = playing.playing ? sim.player : null, building = playing.building;
+    if (s && s !== ties.of) { ties.of = s; ties.kin = new Set(s.kin); ties.known = new Set(s.known); }
+    const people = s ? street.figuresNow().filter((f) => f.id !== s.id && (ties.kin.has(f.id) || ties.known.has(f.id))).map((f) => ({ x: f.x, z: f.z, kin: ties.kin.has(f.id) })) : [];
+    return { home: s?.home ?? null, inside: s && building >= 0 ? { building, x: s.x, z: s.z } : null, stops: sim.stops, people };
+  };
+  const openMap = mapOpener(fetchMap, mapMe, mapMarks);
+  shell.add({ label: 'Map', group: 'Town', open: () => void openMap() });
+  const minimap = new Minimap(fetchMap, () => void openMap());
   renderer.setAnimationLoop((t: number) => {
     if (lastT) debug.frame(t - lastT);
     const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
@@ -275,6 +290,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     const player = cam.mode === 'play' ? playing.track(dt, t, stage.waiting > 0) : null;
     goingIn.update(t);
     const ground = player ?? (cam.mode === 'drone' ? { x: cx, z: cz } : { x: camera.position.x, z: camera.position.z });
+    mapAt = ground;
     sim.poll(ground.x, ground.z);
     people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);
     vehicles.show(camera, sim.clock, sim.traffic, sim.parked);
@@ -317,6 +333,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     audio.frame(dt, { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: fwd.x, fy: fwd.y, fz: fwd.z, ux: e[4], uy: e[5], uz: e[6] }, soundEnvFromSim(time, sim.view, sim.clock, ears));
     // Asked to start straight away (`?be`, `?street`, `?follow`, `?still`): no title, the town as soon as it shows.
     if (!shown && straight && view.done > 0) startPlay();
+    minimap.keepUp(shown ? mapMe() : null, mapMarks);
     shell.setWhen(`${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(sim.clock)))} · ${describeWeather(w)}`);
     if (hud) {
       const n = people.counts;
