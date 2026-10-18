@@ -10,15 +10,15 @@
  * with InteriorGen.planCores, planFloor and shopKindOf). Pure: a function of the building.
  */
 import { Rng, deriveSeed, hash32 } from '@futuremagic/core';
-import { offset } from '../geom/clip';
+import { largest, offset } from '../geom/clip';
 import { distPointPolyEdge as distPolyEdge, pointInPoly, polyArea, polyBounds, type Poly } from '../geom/geom2';
-import { dwellingsOf, streetDoor, type BuildingDesc } from '../plan/building';
+import { dwellingsOf, flatsDoor, streetDoor, type BuildingDesc } from '../plan/building';
 import { PLACE_KIND_OF, type AmenityKind } from '../plan/amenities';
 import { buildingTiers } from '../build/massing';
 import { KINDS, defaultStaff } from '../sim/placeKinds';
 import type { StaffSlot } from '../sim/places';
 import { coreFits, planCores } from './cores';
-import { planStorey, type StoreyUse } from './storey';
+import { planStorey, type StoreyCores, type StoreyUse } from './storey';
 import { homeItems, homeProgram, type HomeRoom } from './fill/home';
 import { workItems, workProgram, type Need, type Work } from './fill/work';
 import type { FloorPlan, Furn, FurnUse, Spot } from './types';
@@ -44,6 +44,11 @@ export interface Interior {
   /** The workplace on the ground floor (or in the whole building), if any. */
   work: Work | null;
   spots: Spot[];
+  /**
+   * The street doors on the ground floor (on the facade): the building's (`streetDoor`) and, for
+   * homes over a workplace with their own hall, the flats' (`homes`; plan/building flatsDoor).
+   */
+  doors: { x: number; z: number; homes: boolean }[];
 }
 
 /** Storey height and level above the ground floor (Scale: buildingLayout floorBottom). */
@@ -60,8 +65,7 @@ export function storeyFacade(b: BuildingDesc, f: number, tiers = buildingTiers(b
 /** The inside outline of storey f: its facade, 20 cm in. */
 export function storeyPoly(b: BuildingDesc, f: number, tiers = buildingTiers(b)): Poly {
   const outer = storeyFacade(b, f, tiers);
-  const inner = offset([outer], -0.2, 'miter');
-  return inner.length ? inner.sort((a, c) => Math.abs(area(c.outer)) - Math.abs(area(a.outer)))[0].outer : outer;
+  return largest(offset([outer], -0.2, 'miter')) ?? outer;
 }
 const area = polyArea;
 
@@ -73,6 +77,9 @@ export function workOf(b: BuildingDesc): Work | null {
     pharmacy: 'pharmacy', police: 'police', bakery: 'bakery', butcher: 'butcher', post: 'post', bank: 'bank', library: 'library',
     hairdresser: 'hairdresser', garage: 'garage', pub: 'pub', bar: 'pub', cafe: 'cafe', icecream: 'icecream', restaurant: 'restaurant',
     pizzeria: 'restaurant', grocer: 'grocery', shop: 'grocery', office: 'office', workshop: 'workshop', factory: 'factory', vacant: 'vacant',
+    // The economy's newer kinds borrow the nearest layout until they get their own.
+    hardware: 'grocery', clothes: 'clothes', florist: 'grocery', newsagent: 'grocery', charity: 'clothes', takeaway: 'restaurant',
+    hotel: 'restaurant', estateagent: 'office', beauty: 'hairdresser', physio: 'office', gym: 'workshop', funeral: 'office',
   };
   return a === 'shop' && hash32(b.seed ^ 0x51c7e3) % 3 === 0 ? 'clothes' : MAP[a];
 }
@@ -139,8 +146,11 @@ export function planInterior(b: BuildingDesc, place?: PlaceUse): Interior {
   const polys = Array.from({ length: n }, (_, f) => storeyPoly(b, f, tiers));
   const door = streetDoor(b);
   const maxH = Math.max(b.groundH, b.floorH);
-  const cores = planCores(b, polys[0], maxH, door);
   const uses = usesOf(b, place);
+  // Homes over a workplace: their own door and hall to the stairs (one home: its hall).
+  const fd = uses[0].kind === 'rooms' && uses[0].unit < 0 ? flatsDoor(b) : null;
+  const cores: StoreyCores = planCores(b, polys[0], maxH, door, fd);
+  cores.entryUnit = dwellingsOf(b) === 1 ? 0 : -1;
   const stairOn = (f: number) => !!cores.stair && f >= 0 && f < n && coreFits(cores.stair, polys[f]);
   const storeys: FloorPlan[] = [];
   for (let f = 0; f < n; f++) {
@@ -157,7 +167,9 @@ export function planInterior(b: BuildingDesc, place?: PlaceUse): Interior {
   const spots = spotsOf(storeys);
   const kind = b.amenity ? PLACE_KIND_OF[b.amenity] : null;
   standIn(storeys, spots, kind ? peakStaff(place?.staff ?? defaultStaff(kind)) : 0);
-  return { storeys, units: unitsOf(storeys), work: workOf(b), spots };
+  const doors = [{ x: door.x, z: door.z, homes: !fd || !cores.entry ? dwellingsOf(b) > 0 : false }];
+  if (fd && cores.entry) doors.push({ x: fd.x, z: fd.z, homes: true });
+  return { storeys, units: unitsOf(storeys), work: workOf(b), spots, doors };
 }
 
 /** Rooms where staff without a desk or counter of their own stand and work. */

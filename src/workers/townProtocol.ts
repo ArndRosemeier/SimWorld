@@ -7,6 +7,7 @@ import type { PropGroup } from '../build/streetProps';
 import type { TreeModelData } from '../build/vegetation';
 import type { TownSettings } from '../world/settings';
 import type { ParcelParams } from '../world/landuse';
+import type { SoundMap } from '../audio/soundMap';
 
 import type { TerrainTileSpec as TileSpec } from '../build/terrainMesh';
 
@@ -32,6 +33,8 @@ export type ToTown =
   | { type: 'forest'; x0: number; z0: number; size: number }
   /** One tree or shrub model (index into src/build/vegetation.ts `VEG_MODELS`). */
   | { type: 'vegModel'; index: number }
+  /** What the town sounds like where (src/audio/soundMap.ts). */
+  | { type: 'sound' }
   /** The cutaway of one storey of a building (`building`: its id in the cell). */
   | { type: 'interior'; cell: number; building: number; floor: number };
 
@@ -67,6 +70,7 @@ export type FromTown =
   | { type: 'trees'; recs: Float32Array; ms: number }
   | { type: 'forest'; recs: Float32Array; ms: number }
   | { type: 'vegModel'; model: TreeModelData; ms: number }
+  | { type: 'sound'; map: SoundMap; ms: number }
   /** `at`: the storey's centre (floor level), `radius` its reach; `about`: what the building is, for the HUD. */
   | { type: 'interior'; mesh: MeshData | null; at: [number, number, number]; radius: number; floors: number; about: string; ms: number }
   | { type: 'error'; message: string };

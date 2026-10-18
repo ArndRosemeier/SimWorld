@@ -28,10 +28,6 @@
     "reason": "One designer per public building (the Designer contract from Scale): the same closure shape, each with its own sizes and parameters for its parts; a table would hide the drawing rules."
   },
   {
-    "key": "idiom: [.actors .cols .people .row] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
     "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/synth.ts",
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
@@ -148,19 +144,7 @@
     "reason": "Untouched sim code: the idiom finder regrouped existing [.actors .cols] uses after new files changed its clusters."
   },
   {
-    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
-    "reason": "Untouched sim code: the idiom finder regrouped existing [.actors .cols] uses after new files changed its clusters."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
-    "reason": "Untouched sim code: the idiom finder regrouped existing [.actors .cols] uses after new files changed its clusters."
-  },
-  {
     "key": "idiom: [.add .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vegetation.ts",
-    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
-  },
-  {
-    "key": "idiom: [.add .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vehicles.ts",
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
   {
@@ -242,18 +226,6 @@
   {
     "key": "idiom: [.land .sample] in simworld/build/forest.ts + simworld/plan/placeGraph.ts + simworld/world/rural.ts",
     "reason": "Callers of LandUse.sample (the one land-use query) asking it different questions: where forest grows, where places go, where farms are."
-  },
-  {
-    "key": "idiom: [.actors .count] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/encounters.ts + simworld/sim/knowledge.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/region.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts",
-    "reason": "Untouched sim code: the idiom finder regrouped existing [.actors .count] uses (the actor table's row count) after new files changed its clusters."
-  },
-  {
-    "key": "idiom: [.actors .count] in simworld/sim/chronicle.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
-    "reason": "Untouched sim code: the idiom finder regrouped existing [.actors .count] uses (the actor table's row count) after new files changed its clusters."
-  },
-  {
-    "key": "idiom: [.actors .count] in simworld/sim/encounters.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
-    "reason": "Untouched sim code: the idiom finder regrouped existing [.actors .count] uses (the actor table's row count) after new files changed its clusters."
   },
   {
     "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/fill/area.ts + simworld/interior/storey.ts",
@@ -378,5 +350,69 @@
   {
     "key": "same name: simworld/render/vegetationView.ts#update + simworld/traffic/townTraffic.ts#update",
     "reason": "Per-frame update methods of two different views (vegetation LOD re-split, traffic stepping); the conventional name of a frame hook."
+  },
+  {
+    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.filter .households .length .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
+    "reason": "Different questions over the household list (who lives alone, which care-home rooms are taken, which households still have members; emptied households stay as records): each is a one-line Array.filter with its own predicate, and the shared part is Array.filter itself."
+  },
+  {
+    "key": "idiom: [.each .round Math] in simworld/build/texgen/ground.ts + simworld/build/texgen/interior.ts + simworld/build/texgen/roof.ts",
+    "reason": "Texture generators round a feature size to a whole count per tile (Math.round(W / size)) so the pattern wraps, then loop Tex.each; the tiling contract, not a copy."
+  },
+  {
+    "key": "idiom: [.fromEntries .map Object] in simworld/audio/engine.ts + simworld/audio/soundMap.ts + simworld/llm/appraisal.ts",
+    "reason": "Building a record keyed by a fixed list of ids (sound categories, sound-map channels, LLM appraisal fields): one line of plain JavaScript each, with a different list and value per place."
+  },
+  {
+    "key": "idiom: [.x .y .z] in simworld/audio/soundscape.ts + simworld/audio/townAudio.ts + simworld/main.ts",
+    "reason": "Reading a 3D position (the camera, a sound source, a listener) field by field into plain numbers at the boundary between three.js and the audio layer, which takes no three.js types by design (rules.json, src/audio)."
+  },
+  {
+    "key": "idiom: [.actors .count] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/encounters.ts + simworld/sim/knowledge.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/region.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts",
+    "reason": "Looping over every actor (`world.actors.count`) is how each data-oriented sim system walks its tables (plan R3); a shared iterator would cost a call per actor in hot loops and hide which tables a system reads."
+  },
+  {
+    "key": "idiom: [.actors .count] in simworld/sim/actions.ts + simworld/sim/economy.ts + simworld/sim/encounters.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
+    "reason": "Looping over every actor (`world.actors.count`) is how each data-oriented sim system walks its tables (plan R3); a shared iterator would cost a call per actor in hot loops and hide which tables a system reads."
+  },
+  {
+    "key": "idiom: [.actors .count] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
+    "reason": "Looping over every actor (`world.actors.count`) is how each data-oriented sim system walks its tables (plan R3); a shared iterator would cost a call per actor in hot loops and hide which tables a system reads."
+  },
+  {
+    "key": "idiom: [.actors .count] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/region.ts",
+    "reason": "Looping over every actor (`world.actors.count`) is how each data-oriented sim system walks its tables (plan R3); a shared iterator would cost a call per actor in hot loops and hide which tables a system reads."
+  },
+  {
+    "key": "idiom: [.filter .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
+    "reason": "Picking household members by a condition (adults, children, earners) in the systems that need different conditions; each filter is one line with its own predicate."
+  },
+  {
+    "key": "idiom: [.add .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/interior.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
+  },
+  {
+    "key": "idiom: [.add .toVar] in simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
+  },
+  {
+    "key": "idiom: [.cols .t] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/relations.ts",
+    "reason": "Sim systems reading the component tables (actors.cols / .t); the table access pattern, not a copy. Regrouped by the finder when files change."
+  },
+  {
+    "key": "idiom: [.entries Object] in simworld/audio/engine.ts + simworld/audio/music.ts + simworld/render/meshes.ts",
+    "reason": "Iterating a record with Object.entries; language idiom."
+  },
+  {
+    "key": "idiom: [.mul .toVar] in simworld/render/tsl/ground.ts + simworld/render/tsl/interior.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
   }
 ]

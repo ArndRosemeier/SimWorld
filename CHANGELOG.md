@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.032 — Commuters drive out of town and back
+
+- People who work in the city or the nearby town now drive off the map on the road that leads there, instead of parking at the edge of town.
+- Coming home, their car comes in on that same road and parks near where they are going.
+- A car that is away in the city is not standing in town when the game loads.
+
+## v0.031 — Rooms have real floors and walls
+
+- Floors are wood boards, tiles, carpet, stone or marble, laid along the room; walls are painted plaster or wallpaper, bathrooms are tiled.
+- Furniture is wood or fabric, stairs are stone, and lamps glow.
+- The finishes are made by the texture workers like the facades, and stay within the shader time limit.
+
+## v0.030 — Flats over shops have their own front door
+
+- A building with a shop, café or other workplace downstairs and homes upstairs now has a second street door. It opens into a hall with the stairs, so the people who live there no longer walk through the shop to get home.
+- You can see the second door on the facade beside the shop's own door.
+- People going home to these flats use that door.
+
+## v0.029 — Buses on the road
+
+- The timetable's buses now drive through town: they come in on the country road from the nearby town, pull into a lay-by at each stop, wait there until their departure time, and leave towards where they are going.
+- Traffic overtakes a bus standing at its stop; a second bus for the same stop waits behind the first.
+- The school bus now stops only on streets where people live, not out on the farm roads.
+- Vehicles can now make a stop on the way (hazards on, then drive on), which the bin lorry and the post van will use.
+
+## v0.028 — Commuters and the secondary school
+
+- About one worker in five now commutes. They drive or take the train to the city or the next town in the morning and come back in the evening. While they are away they are out of town.
+- Children go to the town's primary school until they are ten. From eleven they ride the school bus to the secondary school in the next town.
+- The city, the next town and the school take their names from the region around the town.
+
+## v0.027 — Money in town: wages, rent, and shops that open and close
+
+- Every household now has a monthly budget: wages from their real jobs, pensions, child benefit and support coming in; rent or mortgage, bills, groceries and the car going out. Money worries show as stress and as couples bickering, and the rare household that falls far behind has to leave.
+- Shops, pubs and cafés earn from the people who actually buy there, plus the villages around and passing traffic. One that keeps losing money closes: its staff lose their jobs, its regulars find another local, and the whole town talks about it.
+- Empty shop units reopen as what the town is missing, often run by a local with savings and ambition, and the street hears about the new place.
+- New kinds of places the town can have: petrol station, hardware store, clothes shop, florist, newsagent, charity shop, takeaway, hotel, estate agent, beauty salon, physiotherapist, gym, funeral home and a care home, where the town's oldest live.
+
 ## v0.026 — Chat models picked by live tests
 
 - NPCs now answer in chat with GLM by default (fast, natural, cheap), falling back to Gemini Flash and Mistral Large 4. The big, expensive models are no longer defaults; you can still add any OpenRouter model and choose models per task.

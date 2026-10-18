@@ -14,8 +14,10 @@ import { vehicleLook } from './tsl/vehicles';
 import { textAtlas } from './textAtlas';
 import { FURNITURE_SPECS } from '../build/furniture';
 import { VEHICLE_SPECS } from '../build/vehicles';
+import { interiorLook } from './tsl/interior';
 import type { MaterialArrays } from './textures';
 import { facadeSpecs } from '../build/massing';
+import { INTERIOR_SPECS } from '../build/interior';
 import type { AttrSpec } from '../build/meshBuilder';
 import { TERRAIN_SPECS } from '../build/terrainMesh';
 import { barkLook, farLook, leafLook, type VegetationTextures } from './tsl/vegetation';
@@ -44,7 +46,7 @@ export interface MaterialKind {
 const kinds = new Map<string, MaterialKind>();
 
 /** The generated texture arrays (src/render/textures.ts `loadTextures`); set before the warm-up makes the textured kinds. */
-const textures: { facade?: MaterialArrays; vegetation?: VegetationTextures } = {};
+const textures: { facade?: MaterialArrays; interior?: MaterialArrays; vegetation?: VegetationTextures } = {};
 export function useTextures(t: typeof textures): void {
   Object.assign(textures, t);
 }
@@ -158,3 +160,13 @@ export const TREE_FAR = defineKind('treeFar', FAR_SPECS, () => {
   farLook(m);
   return m;
 }, { cast: true, receive: true }, INSTANCE_SPECS);
+
+/**
+ * Inside buildings (src/build/interior.ts `INTERIOR_SPECS`: uv in metres, aLayer, aTint): floor,
+ * wall and furniture finishes from the interior texture family, tinted per surface, and lamps.
+ */
+export const INTERIOR = defineKind('interior', INTERIOR_SPECS, () => {
+  const m = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
+  interiorLook(m, needTextures('interior'));
+  return m;
+});

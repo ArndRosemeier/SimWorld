@@ -8,6 +8,7 @@ import { hashCombine } from '@futuremagic/core';
 import type { Rng } from '@futuremagic/core';
 import { A, ACTOR_PERSON, type ActorId } from './actors';
 import { performIntention } from './actions';
+import { shoppingTrip, spend } from './economy';
 import { activeIntention, avoids } from './intentions';
 import { urgentNeed } from './needs';
 import { HABITS, HABIT_COUNT, T_CONSC, T_EXTRA, T_OPEN, V_FAITH } from './people';
@@ -18,6 +19,7 @@ import type { Job } from './people';
 import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIES, speciesId } from './species';
 import { atMinute, dayOf, MINUTES_PER_DAY, minuteOfDay, weekdayOf } from './time';
 import { drawingOn } from './agenda';
+import { awayRide } from './offsite';
 import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
 import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, type World } from './world';
 
@@ -73,6 +75,7 @@ export function arrive(world: World): void {
       a.place[id] = a.dest[id];
       a.dest[id] = -1;
       a.activity[id] = a.planned[id];
+      spend(world, id, a.place[id], a.activity[id]);
     }
   }
   // Drop the trips that are over: arrived, or replaced by a new plan on the way.
@@ -110,8 +113,10 @@ export function go(world: World, id: ActorId, place: PlaceId, activity: number, 
     a.until[id] = Math.max(until, now + 5);
   } else {
     const car = hasCar(world, id);
-    const t = world.travel.minutes(from, place, car);
-    world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode: world.travel.mode(from, place, car), leader: -1 });
+    // Out of town without a car: the next bus or train on the timetable (the school bus for pupils), else a lift.
+    const ride = car ? null : awayRide(world, from, place, now);
+    const t = ride ? ride.minutes : world.travel.minutes(from, place, car);
+    world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode: ride ? ride.mode : world.travel.mode(from, place, car), leader: -1, run: ride ? ride.run : -1 });
     a.dest[id] = place;
     a.arrive[id] = now + t;
     const street = world.streetOf[place];
@@ -212,7 +217,7 @@ function anchors(world: World, id: ActorId): Day {
     }
   }
   let school: [number, number] | null = null;
-  if (pc.school[p] >= 0 && pc.leaveUntil[p] <= now && (world.graph.places[pc.school[p]].kind === 'school' ? schoolDay(world, now) : runsLike(world, now) < 5)) {
+  if (pc.school[p] >= 0 && pc.leaveUntil[p] <= now && (world.graph.places[pc.school[p]].kind === 'kindergarten' ? runsLike(world, now) < 5 : schoolDay(world, now))) {
     const kg = world.graph.places[pc.school[p]].kind === 'kindergarten';
     const age = ageOf(world, id);
     const s = atMinute(now, kg ? 450 : 465), e = atMinute(now, kg ? 870 : age < 10 ? 780 : 915);
@@ -387,6 +392,11 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
     if (age >= 16 && rng.chance(0.15)) {
       const list = placesWith(world, 'errand');
       if (list.length) offer(list[rng.int(0, list.length - 1)], A.errand, [15, 35], 0.6);
+    }
+    // Now and then something only a particular shop has: the florist, the hardware store, a takeaway, the gym.
+    if (age >= 14 && m >= 480 && rng.chance(0.25)) {
+      const trip = shoppingTrip(world, id, here, rng);
+      if (trip) offer(trip.place, trip.activity, trip.minutes, 0.5);
     }
     // Visit someone they like who lives elsewhere.
     if (m >= 600 && m < 1260) {

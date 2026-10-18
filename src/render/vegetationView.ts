@@ -160,7 +160,7 @@ export async function showVegetation(stage: Stage, pool: WorkerPool<ToTown, From
     if (!p) models.set(i, (p = pool.run<Extract<FromTown, { type: 'vegModel' }>>({ type: 'vegModel', index: i }, priority + 1).then((r) => r.model)));
     return p;
   };
-  const load = async (recs: Float32Array[]) => {
+  const placeRecords = async (recs: Float32Array[]) => {
     const used = [...new Set(recs.flatMap((R) => { const s: number[] = []; for (let o = 5; o < R.length; o += FOREST_STRIDE) s.push(R[o]); return s; }))];
     const data = new Map<number, TreeModelData>();
     await Promise.all(used.map(async (i) => { data.set(i, await model(i)); }));
@@ -169,7 +169,7 @@ export async function showVegetation(stage: Stage, pool: WorkerPool<ToTown, From
 
   // The town's own trees first.
   const townRecs = (await pool.run<Extract<FromTown, { type: 'trees' }>>({ type: 'trees' }, priority)).recs;
-  const inTown = await load([townRecs]);
+  const inTown = await placeRecords([townRecs]);
   let near = inTown.split(cam, true);
   await placeBatches(stage, parent, inTown);
 
@@ -198,7 +198,7 @@ export async function showVegetation(stage: Stage, pool: WorkerPool<ToTown, From
     const fx = Math.max(Math.abs(x0 - town.x), Math.abs(x0 + F - town.x)), fz = Math.max(Math.abs(z0 - town.z), Math.abs(z0 + F - town.z));
     if (Math.hypot(nx - town.x, nz - town.z) < FAR_R && Math.hypot(fx, fz) > rIn) tile(x0, z0, F, (r) => r >= rIn && r < FAR_R);
   }
-  const country = await load(await Promise.all(jobs));
+  const country = await placeRecords(await Promise.all(jobs));
   near += country.split(cam, true);
   await placeBatches(stage, parent, country);
 

@@ -702,7 +702,7 @@ function endPatch(g: Geo, E: EndCtx, P: Patch) {
     for (let i = 0; i <= nx; i++) us.push(i / nx);
     for (let i = 0; i <= ny; i++) vs.push(i / ny);
   }
-  const at = (uu: number, vv: number, l: number): { p: V3; n: V3 } => {
+  const surfaceAt = (uu: number, vv: number, l: number): { p: V3; n: V3 } => {
     const u = lerp(P.u0, P.u1, uu);
     const yb = lerp(P.yb0, P.yb1, uu), yt = lerp(P.yt0, P.yt1, uu) + (P.bow ?? 0) * Math.sin(PI * uu);
     const y = lerp(yb, yt, vv);
@@ -710,7 +710,7 @@ function endPatch(g: Geo, E: EndCtx, P: Patch) {
     return { p: addS(endSurf(E, u, y).p, n, l), n };
   };
   for (const side of [1, -1]) {
-    const grid = us.map((uu) => vs.map((vv) => at(uu, vv, lift)));
+    const grid = us.map((uu) => vs.map((vv) => surfaceAt(uu, vv, lift)));
     for (let i = 0; i < us.length - 1; i++) {
       for (let j = 0; j < vs.length - 1; j++) {
         const isFrame = fr > 0 && ((!P.centered && i === 0) || i === us.length - 2 || j === 0 || j === vs.length - 2);
@@ -729,11 +729,11 @@ function endPatch(g: Geo, E: EndCtx, P: Patch) {
       for (let j = 1; j < vs.length; j++) edge.push([us.length - 1, j]);
       for (let i = us.length - 2; i >= 0; i--) edge.push([i, vs.length - 1]);
       if (!P.centered) for (let j = vs.length - 2; j >= 0; j--) edge.push([0, j]);
-      const cen = at(0.5, 0.5, 0).p;
+      const cen = surfaceAt(0.5, 0.5, 0).p;
       for (let k = 0; k < edge.length - 1; k++) {
         const [i0, j0] = edge[k], [i1, j1] = edge[k + 1];
         const a = grid[i0][j0], b = grid[i1][j1];
-        const a2 = at(us[i0], vs[j0], -0.012).p, b2 = at(us[i1], vs[j1], -0.012).p;
+        const a2 = surfaceAt(us[i0], vs[j0], -0.012).p, b2 = surfaceAt(us[i1], vs[j1], -0.012).p;
         const mid: V3 = [(a.p[0] + b.p[0]) / 2, (a.p[1] + b.p[1]) / 2, (a.p[2] + b.p[2]) / 2];
         g.quadN(mx(a.p, side), mx(b.p, side), mx(b2, side), mx(a2, side), [0, 0], [1, 0], [1, 1], [0, 1], sk, mx(sub(mid, cen), side));
       }
@@ -755,7 +755,7 @@ function buildWheel(R: number, tw: number, rimR: number, style: WheelStyle): Sou
   const N = 18;
   const hw = tw / 2;
   const s = R / 0.33;
-  const at = (x: number, r: number, a: number): V3 => [x, r * Math.cos(a), r * Math.sin(a)];
+  const ringAt = (x: number, r: number, a: number): V3 => [x, r * Math.cos(a), r * Math.sin(a)];
   type Seg = { a: V2; b: V2; part: number; n: V2; tread?: boolean };
   const sideR = rimR + 0.48 * (R - rimR);
   const segs: Seg[] = [
@@ -777,7 +777,7 @@ function buildWheel(R: number, tw: number, rimR: number, style: WheelStyle): Sou
       const a0 = (2 * PI * k) / N, a1 = (2 * PI * (k + 1)) / N, am = (a0 + a1) / 2;
       const n: V3 = [sg.n[0], sg.n[1] * Math.cos(am), sg.n[1] * Math.sin(am)];
       const ua = sg.tread ? -2 : 5, ub = sg.tread ? -1 : 5;
-      g.quadN(at(sg.a[0], sg.a[1], a0), at(sg.a[0], sg.a[1], a1), at(sg.b[0], sg.b[1], a1), at(sg.b[0], sg.b[1], a0),
+      g.quadN(ringAt(sg.a[0], sg.a[1], a0), ringAt(sg.a[0], sg.a[1], a1), ringAt(sg.b[0], sg.b[1], a1), ringAt(sg.b[0], sg.b[1], a0),
         [k / N, ua], [(k + 1) / N, ua], [(k + 1) / N, ub], [k / N, ub], sg.part, n);
     }
   }
@@ -785,7 +785,7 @@ function buildWheel(R: number, tw: number, rimR: number, style: WheelStyle): Sou
   const xb = hw - 0.11;
   for (let k = 0; k < N; k++) {
     const a0 = (2 * PI * k) / N, a1 = (2 * PI * (k + 1)) / N;
-    g.triN([xb, 0, 0], at(xb, rimR - 0.024, a0), at(xb, rimR - 0.024, a1), [0, 5], [0, 5], [0, 5], VPart.Undercarriage, [1, 0, 0]);
+    g.triN([xb, 0, 0], ringAt(xb, rimR - 0.024, a0), ringAt(xb, rimR - 0.024, a1), [0, 5], [0, 5], [0, 5], VPart.Undercarriage, [1, 0, 0]);
   }
   const xF = hw - 0.028, xH = hw - 0.012;
   const rH = 0.058 * s, rR = rimR - 0.018;
@@ -806,7 +806,7 @@ function buildWheel(R: number, tw: number, rimR: number, style: WheelStyle): Sou
       for (let k = 0; k < segsN; k++) {
         const a0 = (2 * PI * k) / segsN, a1 = (2 * PI * (k + 1)) / segsN;
         const A = prof[i], Bp = prof[i + 1];
-        g.quadN(at(A[0], A[1], a0), at(A[0], A[1], a1), at(Bp[0], Bp[1], a1), at(Bp[0], Bp[1], a0), [0, 5], [0, 5], [0, 5], [0, 5], part, [1, 0, 0]);
+        g.quadN(ringAt(A[0], A[1], a0), ringAt(A[0], A[1], a1), ringAt(Bp[0], Bp[1], a1), ringAt(Bp[0], Bp[1], a0), [0, 5], [0, 5], [0, 5], [0, 5], part, [1, 0, 0]);
       }
     }
   };
@@ -829,8 +829,8 @@ function buildWheel(R: number, tw: number, rimR: number, style: WheelStyle): Sou
   const hn = 8;
   for (let k = 0; k < hn; k++) {
     const a0 = (2 * PI * k) / hn, a1 = (2 * PI * (k + 1)) / hn;
-    g.triN([xc + 0.004, 0, 0], at(xc, rH * 0.85, a0), at(xc, rH * 0.85, a1), [0, 5], [0, 5], [0, 5], VPart.Chrome, [1, 0, 0]);
-    g.quadN(at(xc, rH * 0.85, a0), at(xc, rH * 0.85, a1), at(xc - 0.02, rH * 1.05, a1), at(xc - 0.02, rH * 1.05, a0),
+    g.triN([xc + 0.004, 0, 0], ringAt(xc, rH * 0.85, a0), ringAt(xc, rH * 0.85, a1), [0, 5], [0, 5], [0, 5], VPart.Chrome, [1, 0, 0]);
+    g.quadN(ringAt(xc, rH * 0.85, a0), ringAt(xc, rH * 0.85, a1), ringAt(xc - 0.02, rH * 1.05, a1), ringAt(xc - 0.02, rH * 1.05, a0),
       [0, 5], [0, 5], [0, 5], [0, 5], VPart.Chrome, [0.3, Math.cos((a0 + a1) / 2), Math.sin((a0 + a1) / 2)]);
   }
   const geo = finalize(g, 50);
