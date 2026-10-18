@@ -5,46 +5,10 @@
  * (refs → ids, ordinal steps → deltas, clock times → game minutes; malformed items are dropped and
  * reported). Personality gates, clamping and feasibility are the sim's job.
  */
+import { EMOTIONS, PROPOSABLE_INTENTIONS, type Claim, type ProposableIntention, type Proposal, type ProposalChange } from '../sim/mind/proposal';
+import { FACT_TOPICS } from '../sim/knowledge';
 import { backgroundBlock, transcript, type Message, type NpcPromptInput, type RefKind, type RefTable } from './prompt';
 import type { JsonSchema } from './wire';
-
-// --- the sim's proposal type ------------------------------------------------------------------------
-// MIRROR of the Society simulation thread's draft for src/sim/mind/proposal.ts (agreed 2026-10-18).
-// Replace this block with `import type { ... } from '../sim/mind/proposal'` as soon as that file is on
-// main; nothing else in src/llm may declare these types.
-
-export type ActorId = number;
-export type PlaceId = number;
-export const EMOTIONS = ['joy', 'sadness', 'anger', 'fear', 'surprise', 'disgust'] as const;
-export type Emotion = (typeof EMOTIONS)[number];
-export const INTENTIONS = ['go', 'meet', 'tell', 'avoid', 'callPolice', 'takeLeave', 'quitJob', 'give', 'buy'] as const;
-export type IntentionKind = (typeof INTENTIONS)[number];
-
-export interface Claim {
-  /** One-line paraphrase. */
-  text: string;
-  about?: ActorId;
-  place?: PlaceId;
-  /** From the sim's FACT_TOPICS; 'other' until that list is exported. */
-  topic: string;
-  secret: boolean;
-}
-
-export type ProposalChange =
-  | { kind: 'relation'; toward: ActorId; trust?: number; affection?: number; respect?: number; reason: string }
-  | { kind: 'emotion'; emotion: Emotion; delta: number; reason: string }
-  | { kind: 'belief'; claim: Claim; plausibility: number }
-  | { kind: 'utterance'; claim: Claim; utterance: 'speculation' | 'lie' }
-  | { kind: 'intention'; intention: IntentionKind; person?: ActorId; place?: PlaceId; at?: number; until?: number; item?: string; claimText?: string; reason: string }
-  | { kind: 'memory'; summary: string; importance: number; emotion?: Emotion }
-  | { kind: 'endConversation'; reason: string };
-
-export interface Proposal {
-  npc: ActorId;
-  partner: ActorId;
-  conversation: string;
-  changes: ProposalChange[];
-}
 
 // --- the wire schema (strict mode: every property required, optional ones nullable) -------------
 
@@ -57,10 +21,12 @@ const step = (what: string) => nullable({ type: 'integer', enum: [-3, -2, -1, 0,
 const refs = (description: string) => ({ type: 'array', items: { type: 'string' }, description });
 const secret = { type: 'boolean', description: 'true if it is private and the speaker would not repeat it freely' };
 
+const topic = { type: 'string', enum: [...FACT_TOPICS], description: 'what kind of news it is' };
+
 /** The model's names for intentions (snake case reads better in a prompt) → the sim's. */
-const WIRE_INTENTIONS: Record<string, IntentionKind> = {
-  go: 'go', meet: 'meet', tell: 'tell', avoid: 'avoid', call_police: 'callPolice', take_leave: 'takeLeave', quit_job: 'quitJob', give: 'give', buy: 'buy',
-};
+const WIRE_INTENTIONS: Record<string, ProposableIntention> = Object.fromEntries(
+  PROPOSABLE_INTENTIONS.map((k) => [k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`), k]),
+);
 
 export const APPRAISAL_SCHEMA: JsonSchema = obj({
   relations: {
@@ -76,12 +42,12 @@ export const APPRAISAL_SCHEMA: JsonSchema = obj({
   beliefs: {
     type: 'array',
     description: 'New claims the PARTNER made about the world (people, places, events) and how the speaker takes them. Not small talk, not claims about feelings.',
-    items: obj({ claim: str('the claim in one plain sentence, with refs for people and places, e.g. "P3 lost her job at L2"'), about: refs('refs of the people and places it is about'), stance: { type: 'string', enum: ['accepts', 'doubts', 'rejects'] }, secret }),
+    items: obj({ claim: str('the claim in one plain sentence, with refs for people and places, e.g. "P3 lost her job at L2"'), about: refs('refs of the people and places it is about'), stance: { type: 'string', enum: ['accepts', 'doubts', 'rejects'] }, topic, secret }),
   },
   utterances: {
     type: 'array',
     description: 'Claims about the world the SPEAKER made that are not among their listed beliefs: speculation (a guess) or a lie. Empty if they only said what they believe.',
-    items: obj({ claim: str('the claim in one plain sentence, with refs'), about: refs('refs it is about'), kind: { type: 'string', enum: ['speculation', 'lie'] }, secret }),
+    items: obj({ claim: str('the claim in one plain sentence, with refs'), about: refs('refs it is about'), kind: { type: 'string', enum: ['speculation', 'lie'] }, topic, secret }),
   },
   intentions: {
     type: 'array',
@@ -171,7 +137,8 @@ export function parseAppraisal(json: string, input: AppraisalInput, refs: RefTab
     const t = text(v.claim);
     if (!t) return undefined;
     const about = refs.split(v.about, (r) => dropped.push(`${what}: unknown ref ${JSON.stringify(r)}`));
-    return stripUndefined({ text: refs.unref(t), about: about.people[0], place: about.places[0], topic: 'other', secret: v.secret === true });
+    const topic = FACT_TOPICS.find((x) => x === v.topic) ?? 'other';
+    return stripUndefined({ text: refs.unref(t), about: about.people[0], place: about.places[0], topic, secret: v.secret === true });
   };
 
   for (const r of arr(raw.relations)) {
@@ -199,16 +166,18 @@ export function parseAppraisal(json: string, input: AppraisalInput, refs: RefTab
     changes.push({ kind: 'belief', claim, plausibility: PLAUSIBILITY[stance] });
   }
 
+  // The speaker's own claims that are not among its beliefs: a lie becomes a rumour sourced from the
+  // NPC, speculation only a memory (the sim decides).
   for (const u of arr(raw.utterances)) {
     const claim = isObj(u) ? claimOf(u, 'utterance') : undefined;
-    const kind = isObj(u) && (u.kind === 'speculation' || u.kind === 'lie') ? u.kind : undefined;
-    if (!claim || !kind) { dropped.push(`utterance: missing claim or kind ${JSON.stringify(u)}`); continue; }
-    changes.push({ kind: 'utterance', claim, utterance: kind });
+    const form = isObj(u) && (u.kind === 'speculation' || u.kind === 'lie') ? u.kind : undefined;
+    if (!claim || !form) dropped.push(`utterance: missing claim or kind ${JSON.stringify(u)}`);
+    else changes.push({ kind: 'utterance', claim, form });
   }
 
   for (const i of arr(raw.intentions)) {
     if (!isObj(i)) { dropped.push('intention: not an object'); continue; }
-    const intention = typeof i.kind === 'string' ? WIRE_INTENTIONS[i.kind] : undefined;
+    const intention = typeof i.kind === 'string' && Object.hasOwn(WIRE_INTENTIONS, i.kind) ? WIRE_INTENTIONS[i.kind] : undefined;
     const quote = text(i.quote, 300);
     if (!intention || !quote) { dropped.push(`intention: bad kind or no quote ${JSON.stringify(i)}`); continue; }
     if (!replyContains(input.reply, quote)) { dropped.push(`intention ${intention}: quote not found in the reply ("${quote}")`); continue; }

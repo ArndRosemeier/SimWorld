@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.006 — NPC consequences use the simulation's own contract
+
+- What an NPC takes away from a conversation (feelings, news, promises, memories) now reaches the town simulation in exactly the form it checks and applies, including what kind of news it was (job, romance, family, ...) and whether it is a secret.
+
+## v0.005 — NPCs can lie to you
+
+- When a character tells you something they know is false, it becomes a rumour that traces back to them and can travel through town.
+- When they only guess out loud, they remember having said it, but it never turns into "news".
+
+## v0.004 — The town comes alive (headless)
+
+- Every inhabitant now lives a day: they sleep, wash, eat with their household, go to work or school, shop, visit friends, go to the pub, church on Sunday, and walk the dog.
+- A town of about 2,000 people is generated from its buildings: households, families across the town, every job a real position at a real place, pets, farm animals and a few foxes, deer, hedgehogs and owls.
+- News spreads only when people meet, fastest at the pub, the café and the bakery; stories change a little with each retelling, and people forget what does not concern them.
+- Conversations with the language model can change how a person feels and what they plan to do, but only a little per turn and only within their character.
+
 ## v0.003 — The language layer
 
 - The game can now talk to language models through OpenRouter with the player's own key: NPC replies stream in, and a second, cheap model reads each reply to work out what it changed in the NPC's mind (feelings, beliefs, promises they made, what they will remember).

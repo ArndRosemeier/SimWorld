@@ -73,20 +73,29 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Run the society simulation | the sim worker, talked to through `SimClient` | `src/workers/sim.worker.ts`, `src/game/SimClient.ts` *planned* |
 | Save or load anything | `src/persist` (guarded: `localStorage` only there) | `src/persist/` *planned* |
 
-### The society (`src/sim`, all planned)
+### The society (`src/sim`)
 
 | Question | The one way | Where |
 |---|---|---|
-| What is an actor, what does every actor have? | the actor contract: `ActorId`, the base component tables every actor has | `src/sim/actors.ts` |
-| What does a person / an animal add? | the Person and Animal component tables; species data | `src/sim/people.ts`, `src/sim/animals.ts` |
-| Where can actors be, and how long does it take to get between places? | `PlaceGraph` (places with kind, capacity, opening hours, staff slots; travel times). The planner produces one with `placeGraphOf(plan)`; tests make one with `testTown(seed, size)` | `src/sim/places.ts` |
-| Advance the world | `world.tick(minutes)` (live) and `chronicle(world, days)` (time skip and history) | `src/sim/world.ts`, `src/sim/chronicle.ts` |
-| Who meets whom right now? | `encounters(world)` (co-presence per place per tick) | `src/sim/encounters.ts` |
-| What does this person believe, and from whom? | `beliefsOf(world, id)`; facts are created with `witness` / `tell` | `src/sim/knowledge.ts` |
-| What does this person remember? Which memories matter for this conversation? | `memoriesOf`, `recall(world, id, query)` | `src/sim/memory.ts` |
-| How do two actors feel about each other? | `relation(world, a, b)` | `src/sim/relations.ts` |
-| What is this person about to do, and why? | the intention stack: `intentionsOf`, `intend` | `src/sim/intentions.ts` |
-| Apply what an LLM proposed for an NPC (clamped, gated by personality, logged) | `applyProposal(world, id, proposal)`: the only way LLM output changes state. The proposal type is `Proposal` | `src/sim/mind/apply.ts`, `src/sim/mind/proposal.ts` |
+| What is an actor, what does every actor have? | the actor contract: `ActorId`, the base component tables every actor has (`world.actors.cols`) | `src/sim/actors.ts` |
+| What does a person / an animal add? | the Person and Animal component tables (`world.people`, `world.animals`); households and jobs | `src/sim/people.ts`, `src/sim/animals.ts` |
+| Which species exist, which needs do they have, when are they awake? | `SPECIES`, `NEEDS` | `src/sim/species.ts` |
+| A new struct-of-arrays table | `Columns` (typed columns that grow), `DerivedTable` for per-actor-type tables | `src/sim/table.ts` |
+| Where can actors be? | `PlaceGraph` (places with kind, capacity, opening hours, staff slots; road nodes and edges). The planner produces one with `placeGraphOf(plan)`; tests make one with `testTown(seed, size)` | `src/sim/places.ts`, `src/sim/testTown.ts` |
+| What does a place kind offer, when is it open, who works there? | `KINDS` (services, gossip rate), `defaultHours(kind)`, `defaultStaff(kind, scale)`; `isOpen(world, place, clock)` | `src/sim/placeKinds.ts`, `src/sim/schedule.ts` |
+| How long does it take to get between places? Which one is nearest? | `world.travel.minutes(a, b, car)`, `world.travel.nearest(from, candidates)` | `src/sim/travel.ts` |
+| Game time: day, weekday, minute of day | `dayOf`, `weekdayOf`, `minuteOfDay`, `onDay`, `atMinute` | `src/sim/time.ts` |
+| Make a world with its population | `createWorld(graph, seed)` (households, kin, jobs from staff slots, schools, habits, pets, livestock, wildlife, relationships) | `src/sim/synth.ts` |
+| Advance the world | `tick(world, minutes)` (live) and `chronicle(world, days)` (time skip and history, *planned*) | `src/sim/world.ts`, `src/sim/chronicle.ts` |
+| A random number inside the sim | `tickRng(world, ...purpose)`: derived from (seed, clock, purpose), so saves need no generator state | `src/sim/world.ts` |
+| Move an actor or change what they do | `go(world, id, place, activity, until)` (travel, followers); decisions come from `decideAll` | `src/sim/schedule.ts` |
+| Who meets whom right now? | `encounters(world)` (last tick's conversations, with what was told); `presentAt(world, place)` | `src/sim/encounters.ts` |
+| What does this person believe, and from whom? | `beliefsOf(world, id)`; facts are created with `addFact` and spread with `witness` / `tell` / `broadcast`; `reach` for rumour metrics | `src/sim/knowledge.ts` |
+| What does this person remember? Which memories matter for this conversation? | `remember`, `memoriesOf`, `recall(world, id, query)` | `src/sim/memory.ts` |
+| How do two actors feel about each other? | `relation(world, a, b)`; `bond`, `meet` to change it | `src/sim/relations.ts` |
+| What is this person about to do, and why? | the intention stack: `intentionsOf`, `intend`; carried out by `performIntention` | `src/sim/intentions.ts`, `src/sim/actions.ts` |
+| What may an LLM propose for an NPC? | `Proposal`, `ProposalChange`, `AppliedChange` (contract with `src/llm`) | `src/sim/mind/proposal.ts` |
+| Apply what an LLM proposed for an NPC (clamped, gated by personality, logged) | `applyProposal(world, id, proposal)`: the only way LLM output changes state | `src/sim/mind/apply.ts` |
 
 ### Language
 
@@ -98,6 +107,6 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Which model runs a task? | `route(roster, task.routing, pins)` (the settings screen shows `llm.plan(task)`) | `src/llm/router.ts` |
 | How much has the LLM cost so far? | the usage ledger: `UsageLedger` (`total()`, `by('task' \| 'model' \| 'npc' \| 'session')`, `onRecord`) | `src/llm/usage.ts` |
 | What does an NPC's prompt contain? | `NpcPromptInput` (card, state, scene, people, places, beliefs, recalled memories, turns: only what that NPC believes) → `speechMessages`; people and places as refs via `RefTable` | `src/llm/prompt.ts` |
-| Turn an NPC reply into state changes | the `npc.appraisal` task: `APPRAISAL_SCHEMA` → `parseAppraisal` → `Proposal` for `applyProposal` (the type mirrors the sim's draft until `src/sim/mind/proposal.ts` lands, then is imported) | `src/llm/appraisal.ts` |
+| Turn an NPC reply into state changes | the `npc.appraisal` task: `APPRAISAL_SCHEMA` → `parseAppraisal` → `Proposal` for `applyProposal` | `src/llm/appraisal.ts` |
 | Test anything that calls an LLM | `replayTransport(recordings)` (never the network); real recordings from `test/slow/openrouter.slow.test.ts` with `LLM_RECORD=1` | `src/llm/recorded.ts` |
 | Background chatter, a fallback answer, any generated sentence | the procedural text engine | `src/talk/` |
