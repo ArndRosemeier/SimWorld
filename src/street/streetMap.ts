@@ -39,7 +39,8 @@ const DOOR_SHIFTS: [number, number][] = [[DOOR_STEP, 0], [DOOR_STEP, 0.8], [DOOR
  * street's posts, trees, furniture and the parked cars as circles (x, z, r, ground y) * n.
  */
 export interface NearSolids {
-  buildings: { code: number; poly: number[]; y0: number; y1: number }[];
+  /** `doors`: the doors of its places (x, z pairs, on the facade). */
+  buildings: { code: number; poly: number[]; y0: number; y1: number; doors: number[] }[];
   circles: number[];
 }
 
@@ -61,6 +62,8 @@ export class StreetMap {
   private readonly entrances = new Map<PlaceId, { door: [number, number]; step: [number, number] }>();
   /** Every town building's outline, bounds and height (made when the player first walks). */
   private solids: Solid[] | null = null;
+  /** The doors (x, z pairs) of each building's places, by `Place.building` code. */
+  private readonly doorsOf = new Map<number, number[]>();
 
   constructor(readonly town: Town, readonly graph: PlaceGraph) {
     const n = graph.nodes.length;
@@ -210,11 +213,17 @@ export class StreetMap {
         list.push({ code, poly: b.poly, y0: low - 1, y1: base + buildingHeight(b) + 1, b: polyBounds(b.poly) });
       });
       this.solids = list;
+      this.graph.places.forEach((pl, id) => {
+        if (pl.building < 0) return;
+        const d = this.door(id), l = this.doorsOf.get(pl.building) ?? [];
+        if (!l.some((_, i) => i % 2 === 0 && Math.hypot(l[i] - d[0], l[i + 1] - d[1]) < 0.5)) l.push(d[0], d[1]);
+        this.doorsOf.set(pl.building, l);
+      });
     }
     const buildings: NearSolids['buildings'] = [];
     for (const s of this.solids) {
       if (s.b[0] > x + r || s.b[2] < x - r || s.b[1] > z + r || s.b[3] < z - r) continue;
-      buildings.push({ code: s.code, poly: s.poly.slice(), y0: s.y0, y1: s.y1 });
+      buildings.push({ code: s.code, poly: s.poly.slice(), y0: s.y0, y1: s.y1, doors: this.doorsOf.get(s.code) ?? [] });
     }
     const circles: number[] = [], idx: number[] = [];
     for (let f: Footprints | null = this.fp; f; f = f.also) {

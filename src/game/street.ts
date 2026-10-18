@@ -71,6 +71,7 @@ export class Street {
     const secPerMin = 60 / this.sim.rate;
     // Pinned people stay where they stopped, even if the sim moves their track elsewhere meanwhile.
     for (const [id, pin] of [...this.pins, ...this.indoors]) {
+      if (id === self?.fig.id) continue;
       if (pin !== this.pins.get(id) && this.pins.has(id)) continue;
       let f = this.figures.get(id);
       if (!f || f.w !== pin.w) this.figures.set(id, (f = new WalkerFigure(pin.w, this)));

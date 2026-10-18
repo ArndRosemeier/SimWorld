@@ -124,11 +124,11 @@ export function indoorsOf(I: Interior, base: number): Indoors {
   };
 }
 
-/** A stair landing (a quad `poly` with its top at `y` above the ground floor) as a 22 cm thick box. */
+/** A stair landing (a quad `poly` with its top at `y` above the ground floor) as a 22 cm thick box: its z along the first edge. */
 export function landingBox(l: { poly: number[]; y: number }, base: number): Box {
   const L = l.poly;
   let cx = 0, cz = 0;
   for (let i = 0; i < 8; i += 2) { cx += L[i] / 4; cz += L[i + 1] / 4; }
   const ex = L[2] - L[0], ez = L[3] - L[1];
-  return { x: cx, y: base + l.y - 0.11, z: cz, hx: Math.hypot(L[6] - L[0], L[7] - L[1]) / 2, hy: 0.11, hz: Math.hypot(ex, ez) / 2, yaw: Math.atan2(ex, ez) + Math.PI / 2 };
+  return { x: cx, y: base + l.y - 0.11, z: cz, hx: Math.hypot(L[6] - L[0], L[7] - L[1]) / 2, hy: 0.11, hz: Math.hypot(ex, ez) / 2, yaw: Math.atan2(ex, ez) };
 }

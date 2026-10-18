@@ -97,7 +97,7 @@ function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
   else if (op.op === 'autopilot') setAutopilot(w, op.on);
   else if (op.op === 'go') playerGo(w, op.place, op.activity);
   else if (op.op === 'digest' && w.player) out.digest = digest(w, w.player.id, op.since);
-  else if (op.op === 'steer') steerPlayer(w, op.x, op.z);
+  else if (op.op === 'steer') steerPlayer(w, op.x, op.z, op.building);
   else if (op.op === 'near') out.near = map!.solidsNear(op.x, op.z, op.r);
   // The menu is wanted after a move too (what is there to do where they are going).
   if (op.op === 'actions' || op.op === 'go' || op.op === 'become') out.actions = playerActions(w);

@@ -57,7 +57,7 @@ export type PlayerOp =
   | { op: 'actions' }
   | { op: 'go'; place: number; activity: number }
   | { op: 'digest'; since: number }
-  | { op: 'steer'; x: number; z: number }
+  | { op: 'steer'; x: number; z: number; building: number }
   | { op: 'near'; x: number; z: number; r: number };
 
 /** The answer to a `PlayerOp` (empty lists where the op asks for nothing), with the player's status after it. */

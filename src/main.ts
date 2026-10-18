@@ -212,7 +212,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   // The picker comes up over the town once it shows; picking someone plays as them (?be=<id> skips the picker).
   // Going into the building the player's person is in: its interior, the people in it, its room lights.
   const goingIn = new GoingInside(sim, street, new InteriorView(pool, stage));
-  const playing = new Playing(sim, cam, street, settings.seed);
+  const playing = new Playing(sim, cam, street, settings.seed, goingIn);
   shell.add({ label: 'Choose who to be', group: 'Play', open: () => void playing.choose() });
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
