@@ -8,7 +8,8 @@
  */
 import { WorkerPool } from '../workers/pool';
 import simWorkerUrl from '../workers/sim.worker.ts?worker&url';
-import type { ActorInfo, FromSim, HeightGrid, ToSim } from '../workers/simProtocol';
+import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim } from '../workers/simProtocol';
+import type { PlayerStatus } from '../sim/player';
 import { DEFAULT_LATITUDE, daysOf, epochFor, weekdayOfDays, type CivilDate } from '../sim/calendar';
 import type { SimView } from '../sim/view';
 import type { TrafficMsg } from '../traffic/feed';
@@ -140,6 +141,16 @@ export class SimClient {
     }
   }
 
+  /** The player's person as of the worker's last answer (src/sim/player.ts), null while nobody is picked. */
+  player: PlayerStatus | null = null;
+
+  /** A player request (cards, become, autopilot, actions, go, digest); updates `player`. */
+  async ask(op: PlayerOp): Promise<PlayerReply> {
+    const r = await this.pool.run<PlayerReply>({ type: 'player', op }, 0);
+    this.player = r.status;
+    return r;
+  }
+
   /** The game clock reads `clock` now. */
   private restart(clock: number): void {
     this.clock0 = clock;
@@ -173,6 +184,7 @@ export class SimClient {
     this.last = now;
     this.inflight = this.pool.run<Extract<FromSim, { type: 'street' }>>({ type: 'update', clock: this.clock, x, z, r: STREET_RADIUS }, 0).then((m) => {
       if (m.view) this.view = m.view;
+      this.player = m.player;
       this.traffic = m.traffic;
       if (m.traffic.parked) this.parked = { poses: m.traffic.parked, cars: m.traffic.parkedCars! };
       for (const i of m.info) this.infos.set(i.id, i);
