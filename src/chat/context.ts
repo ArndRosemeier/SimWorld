@@ -17,7 +17,7 @@ import { relation } from '../sim/relations';
 import { hhmm, MINUTES_PER_DAY, minuteOfDay } from '../sim/time';
 import { describeWeather, weatherAt } from '../sim/weather';
 import { firstName, isPerson, jobOf, nameOf, type World } from '../sim/world';
-import { activityOf, homeOf, moodOf, npcCard, occupationOf } from './card';
+import { activityOf, homeOf, moodOf, npcCard, occupationText } from './card';
 
 /** Most people, places, beliefs and memories a prompt carries (prompt size stays a few thousand tokens). */
 export const LIMITS = { people: 14, places: 12, salient: 8, relevant: 6, standing: 4, memories: 5, history: 4 } as const;
@@ -147,8 +147,7 @@ export function chatContext(world: World, npc: ActorId, partner: ActorId, conver
   const knownFacts: string[] = [];
   const fam = pf.feelings?.familiarity ?? 0;
   if (fam >= 0.25) {
-    const occ = occupationOf(world, partner);
-    if (occ) knownFacts.push(occ.startsWith('pupil') || occ === 'retired' || occ === 'out of work' ? occ : `works as ${occ}`);
+    knownFacts.push(occupationText(world, partner));
   }
   if (fam >= 0.45 && homeOf(world, partner)) knownFacts.push(`lives in ${homeOf(world, partner)}`);
   for (const b of held) if (b.fact.subject === partner && knownFacts.length < 6) knownFacts.push(`${b.text} (${b.source === partner ? 'they told you' : 'you heard'})`);

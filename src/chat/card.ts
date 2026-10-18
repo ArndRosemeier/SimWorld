@@ -13,23 +13,15 @@ import { partnerOf } from '../sim/life';
 import { EMOTIONS } from '../sim/mind/proposal';
 import { VALUES } from '../sim/people';
 import { opinionsOf } from '../sim/politics';
-import { capFirst } from '../talk/answer';
+import { capitalize, householdText, occupationOf } from '../sim/profile';
 import { N_FOOD, N_REST, N_SOCIAL, NEED_COUNT } from '../sim/species';
 import { MINUTES_PER_DAY } from '../sim/time';
-import { ageOf, firstName, householdOf, isPerson, jobOf, nameOf, traitOf, valueOf, type World } from '../sim/world';
+import { ageOf, firstName, householdOf, nameOf, traitOf, valueOf, type World } from '../sim/world';
 
 
-/** "baker at Keller's Bakery", "retired", "pupil at Hill School", "" (no job, not a child). */
-export function occupationOf(world: World, id: ActorId): string {
-  const job = jobOf(world, id);
-  const age = ageOf(world, id);
-  if (job) return `${job.role} at ${world.graph.places[job.place].name}`;
-  const school = world.people.cols.school[world.actors.cols.row[id]];
-  if (school >= 0) return `${age < 6 ? 'goes to' : 'pupil at'} ${world.graph.places[school].name}`;
-  if (age >= 66) return 'retired';
-  if (age < 6) return 'a small child';
-  return age >= 18 ? 'out of work' : '';
-}
+/** "baker at Keller's Bakery", "owns Elm Street Bakery", "retired" (the picker's words, src/sim/profile.ts). */
+export const occupationText = (world: World, id: ActorId): string => lowerFirst(occupationOf(world, id));
+const lowerFirst = (s: string): string => s.charAt(0).toLowerCase() + s.slice(1);
 
 /** "a house on Elm Street", "a flat on Mill Lane". */
 export function homeOf(world: World, id: ActorId): string {
@@ -75,7 +67,7 @@ export function speechStyleOf(world: World, id: ActorId): string {
   else if (age >= 70) parts.push('a few old-fashioned turns of phrase');
   if (valueOf(world, id, 0) < 0.3) parts.push('not above a white lie');
   if (valueOf(world, id, 3) > 0.75) parts.push('mentions their faith now and then');
-  return `${parts.join(', ')}. ${capFirst(r.pick(VERBAL_HABITS))}.`;
+  return `${parts.join(', ')}. ${capitalize(r.pick(VERBAL_HABITS))}.`;
 }
 
 
@@ -113,24 +105,11 @@ export function biographyOf(world: World, id: ActorId): string {
   const out: string[] = [];
   const hh = householdOf(world, id);
   const partner = partnerOf(world, id);
-  // Who they live with, by what each is to them.
-  const home = (bond: 'child' | 'parent' | null): ActorId[] => {
-    const out: ActorId[] = [];
-    for (const m of hh?.members ?? []) if (m !== id && isPerson(world, m) && (!bond || world.relations.has(id, m, bond))) out.push(m);
-    return out;
-  };
-  const kids = home('child');
-  const living: string[] = [];
-  if (partner >= 0 && hh?.members.includes(partner)) living.push(`${world.relations.has(id, partner, 'spouse') ? 'spouse' : 'partner'} ${firstName(world, partner)}`);
-  if (kids.length) living.push(`${kids.length === 1 ? 'child' : 'children'} ${kids.map((k) => `${firstName(world, k)} (${ageOf(world, k)})`).join(', ')}`);
-  const parents = home('parent');
-  if (parents.length) living.push(`${parents.length === 1 ? 'parent' : 'parents'} ${parents.map((p) => firstName(world, p)).join(' and ')}`);
-  if (living.length) out.push(`Lives with ${living.join('; ')}.`);
-  else if (hh && home(null).length === 0) out.push('Lives alone.');
-  else if (partner >= 0) out.push(`In a relationship with ${nameOf(world, partner)}.`);
-  if (hh?.animals.length) out.push(`Has ${hh.animals.map((p) => nameOf(world, p)).join(' and ')} at home.`);
+  // Who they live with (and their pets), as the picker's card says it.
+  out.push(`${householdText(world, id)}.`);
+  if (partner >= 0 && !hh?.members.includes(partner)) out.push(`In a relationship with ${nameOf(world, partner)}.`);
   // Where they come from, kin out of town (their own standing knowledge).
-  for (const s of standingOf(world, id)) if (s.fact.subject === id) out.push(capFirst(s.text.replace(nameOf(world, id), '').trim()) + '.');
+  for (const s of standingOf(world, id)) if (s.fact.subject === id) out.push(capitalize(s.text.replace(nameOf(world, id), '').trim()) + '.');
   const today = world.clock / MINUTES_PER_DAY;
   const lines: string[] = [];
   for (let i = world.life.events.length - 1; i >= 0 && lines.length < 6; i--) {
@@ -152,7 +131,7 @@ export function biographyOf(world: World, id: ActorId): string {
 export function npcCard(world: World, id: ActorId): NpcCard {
   const values: Record<string, number> = {};
   VALUES.forEach((v, k) => { values[v] = valueOf(world, id, k); });
-  const occupation = occupationOf(world, id);
+  const occupation = occupationText(world, id);
   return {
     id, name: nameOf(world, id), age: ageOf(world, id), gender: world.actors.cols.sex[id] === FEMALE ? 'woman' : 'man',
     ...(occupation ? { occupation } : {}), ...(homeOf(world, id) ? { home: homeOf(world, id) } : {}),

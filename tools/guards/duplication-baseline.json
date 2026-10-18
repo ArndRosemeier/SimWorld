@@ -164,10 +164,6 @@
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
   {
-    "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
-    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
-  },
-  {
     "key": "same name: simworld/build/furniture.ts#add + simworld/plan/kit.ts#add",
     "reason": "FB.add merges a solid into the furniture mesh; Kit.add records a landmark part. Both Scale ports, unrelated jobs."
   },
@@ -218,6 +214,14 @@
   {
     "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/fill/area.ts + simworld/interior/storey.ts",
     "reason": "The length of a wall segment ({ax, az, bx, bz}, the interior's IWall and the filler's Edge) before walking along it."
+  },
+  {
+    "key": "idiom: [.cornerGap] in simworld/interior/fill/home.ts + simworld/interior/fill/place.ts + simworld/interior/fill/work.ts",
+    "reason": "Furnishing rules score a wall spot by its gap to the corner (the one seam is the filler's cornerGap); each rule weighs it differently. Entered the finder's top idioms when the street layer grew."
+  },
+  {
+    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
+    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
   },
   {
     "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/home.ts + simworld/interior/fill/work.ts",
@@ -364,10 +368,6 @@
     "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
   },
   {
-    "key": "idiom: [.members .some] in simworld/sim/groups.ts + simworld/sim/politics.ts + simworld/sim/schedule.ts",
-    "reason": "Different questions about a list of members (a household's grown-up at home, a club member who holds an office, a councillor who agrees with an issue): each is one Array.some with its own predicate; the shared part is Array.some itself."
-  },
-  {
     "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
@@ -404,6 +404,10 @@
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
+    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
+    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
+  },
+  {
     "key": "idiom: [.beginPath .lineTo .lineWidth .moveTo] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
@@ -412,23 +416,71 @@
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
   {
-    "key": "idiom: [.actors .cols .graph .places] in simworld/chat/card.ts + simworld/chat/context.ts + simworld/sim/media.ts + simworld/workers/sim.worker.ts",
-    "reason": "Reading an actor's columns and the place graph at the top of a function that describes someone in words; each describes a different thing (card, prompt, paper, street label)."
+    "key": "idiom: [.add .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/smoke.ts + simworld/render/tsl/vegetation.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.assign .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/smoke.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/smoke.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.vertexNode] in simworld/render/tsl/precip.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/smoke.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
   {
     "key": "idiom: [.cornerGap] in simworld/interior/fill/home.ts + simworld/interior/fill/place.ts + simworld/interior/fill/work.ts",
-    "reason": "The furniture filler's clearance option passed per item list; surfaced only because new files shifted the finder's word weights (not new code)."
+    "reason": "Furnishing rules scoring a candidate spot by the filler's own cornerGap (one seam, Filler.cornerGap); each room's rule weighs it differently, nothing to fold."
+  },
+  {
+    "key": "idiom: [.actors .cols .home] in simworld/sim/life.ts + simworld/sim/profile.ts + simworld/sim/synth.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+  },
+  {
+    "key": "idiom: [.addEventListener .type] in simworld/app/paperPanel.ts + simworld/app/picker.ts + simworld/app/whatsNew.ts",
+    "reason": "Regrouped by the finder after unrelated changes."
+  },
+  {
+    "key": "idiom: [.filter .known] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/synth.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+  },
+  {
+    "key": "idiom: [.known .to] in simworld/sim/life.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+  },
+  {
+    "key": "idiom: [.members .some] in simworld/sim/groups.ts + simworld/sim/politics.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
   {
     "key": "idiom: [.createTextNode document] in simworld/app/chatPanel.ts + simworld/app/llmSettings.ts + simworld/app/whatsNew.ts",
     "reason": "Plain text appended next to elements in DOM panels: the safe way to show model and changelog text without markup."
   },
   {
-    "key": "idiom: [.graph .place .places] in simworld/chat/card.ts + simworld/sim/knowledge.ts + simworld/sim/media.ts",
-    "reason": "Looking a place up by id for its name in sentences about people and news; one indexing expression each."
+    "key": "idiom: [.actors .cols .graph .places] in simworld/chat/card.ts + simworld/chat/context.ts + simworld/sim/media.ts + simworld/sim/player.ts",
+    "reason": "Reading an actor's columns and the place graph at the top of a function that describes someone or picks a place in words; each describes a different thing (NPC card, prompt context, paper, the player's options)."
   },
   {
-    "key": "idiom: [.home .place] in simworld/chat/context.ts + simworld/sim/actions.ts + simworld/sim/schedule.ts",
-    "reason": "Where someone is, else their home (`place >= 0 ? place : home`): the sim's own fallback, one line each where a place is needed."
+    "key": "idiom: [.actors .cols .sex] in simworld/chat/card.ts + simworld/sim/life.ts + simworld/sim/profile.ts",
+    "reason": "A person's sex for their pronouns or kin words (she/he, wife/husband) in three describers of different things: the NPC card, life events, the picker's card."
+  },
+  {
+    "key": "idiom: [.addEventListener .key] in simworld/app/chatPanel.ts + simworld/app/llmSettings.ts + simworld/app/picker.ts",
+    "reason": "One-line key checks in different panels (Enter sends a chat line, Enter saves the key, Escape closes the picker); each with its own action."
+  },
+  {
+    "key": "idiom: [.append .createTextNode document] in simworld/app/llmSettings.ts + simworld/app/picker.ts + simworld/app/playPanel.ts",
+    "reason": "Mixing a link or an emphasis into a line of text in three different panels (settings key text, picker card, play panel); a one-line DOM idiom."
+  },
+  {
+    "key": "idiom: [.graph .place .places] in simworld/chat/card.ts + simworld/sim/knowledge.ts + simworld/sim/media.ts + simworld/sim/profile.ts",
+    "reason": "Looking up a place by id in the place graph inside a describer (card, belief, paper, profile); the one way to read a place, not a copy."
+  },
+  {
+    "key": "idiom: [.home .place] in simworld/chat/context.ts + simworld/sim/actions.ts + simworld/sim/player.ts + simworld/sim/schedule.ts",
+    "reason": "Comparing someone's place with their home (are they in, where to send them) in the systems that each need it: prompt scene, actions, the player's options, the schedule."
   }
 ]

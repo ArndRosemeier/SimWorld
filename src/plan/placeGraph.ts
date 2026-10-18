@@ -80,6 +80,7 @@ export function placeGraphOf(town: Town): PlaceGraph {
       const edge: RoadEdge = { a: a.node, b: b.node, length: Math.round(Math.max(length, Math.hypot(nodes[b.node].x - nodes[a.node].x, nodes[b.node].z - nodes[a.node].z)) * 10) / 10, walk: Math.round((L.walk / (1 + 4 * grade)) * 100) / 100 };
       // Where people walk (src/street): the middle of the sidewalk, the verge of a country road, a path's middle.
       edge.side = round1(L.sidewalk > 0 ? L.width / 2 + L.sidewalk / 2 : L.source === LineSource.Country ? L.width / 2 + 0.7 : 0);
+      edge.walkWidth = round1(L.sidewalk > 0 ? L.sidewalk : 1.4);
       const pts = slicePolyline(L, a.s, b.s);
       if (pts.length > 4) edge.pts = pts.map(round1);
       edges.push(edge);

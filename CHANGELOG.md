@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.064 — Choose who to be, and live their life
+
+- When the town has loaded, a picker opens over it: "Who will you be?" Every inhabitant has a card with their work, who they live with and what is going on in their life (recently widowed, new in town, engaged, not speaking to a brother, out of work…). Search by name, job or street, filter by "in love", "has a secret", "grieving" and more, sort by "most going on", or press "Surprise me".
+- Open a card to see the whole story, including the secrets only you will know, then press "Be …". The camera flies down to them and stays with them: behind them out of doors, circling their house while they are inside.
+- A panel shows who you are, what you are doing and how fed, rested and happy you are. Autopilot lets your routine run your day; switch it off and you decide. "What now?" lists what you can do: at home, at work, visiting the people closest to you, and the town's cafés, shops and parks, with how far each is and whether it is open.
+- "Skip time" moves on a day, a week, a month or up to a year; afterwards you read what your character lived through and heard in that time. "Save" saves the town, and "Someone else" brings the picker back.
+- The town now starts with a year of history behind it, so people have pasts, and it starts on the right day (it used to begin a day late).
+
+## v0.063 — Saves and the time skip in the game
+
+- The game saves the town when you switch away from the tab and every five minutes. Open it with `?resume` to play on from the last save.
+- `?skip=N` skips N days on start, to the same time of day; the town lives through them (life events, gossip) and everyone is drawn afresh.
+- Saves go to the browser's IndexedDB, gzipped, one per town.
+
+## v0.062 — The fields change through the farming year
+
+- The countryside follows the calendar: winter wheat and barley are green shoots in the winter, ripen gold in July and leave pale stubble until the autumn ploughing.
+- Rapeseed flowers bright yellow in late April and May. Maize and beet fields are bare ploughed soil in spring, green all summer and harvested in the autumn.
+- From far away the patchwork's average colour changes with them.
+
+## v0.061 — People walk around trees, cars and street furniture
+
+- People on the sidewalk step around street trees, lamps, benches, bins, café tables and parked cars instead of walking through them, and keep off building walls.
+- Each person stays inside the sidewalk: a narrow sidewalk has one walking line, a wide one room for several.
+- Corners no longer send walkers past the corner and back.
+- A walk to a door across the street crosses it where no parked car, lamp or tree is in the way, near the door, and not in the middle of a junction.
+- People leave and enter by the front of the building, not through the wall beside the door.
+- People strolling on squares, in parks and up and down a street keep walking most of the time, with a short pause, instead of standing about.
+- A save that no longer fits (an older save version, a changed town) no longer stops `?resume` from starting: play starts afresh and the old save is dropped.
+
+## v0.060 — The seam index names the paper and notices in the sim view
+
+- The SimView row in the architecture notes now lists the town's media (newest paper and board notices).
+
+## v0.059 — Chimney smoke
+
+- When it is cold, smoke rises from the chimneys of houses with the heating on: none on a mild day, most chimneys near freezing, more in the morning and the evening than in the small hours.
+- The smoke drifts with the wind, rises straight on a still day and is torn along low in a gale; it is pale by day, faint at night and thinner in the rain.
+
+## v0.058 — Front doors open onto the street
+
+- No front door opens into the house next door any more: on corner plots and narrow wedges the front was sometimes put on the shared wall.
+- Oddly pinched building outlines are gone.
+
 ## v0.057 — The town map
 
 - A "Map" button opens a map of the town in the style of a printed town plan: every street with its name, the main roads in yellow, buildings, parks, the river or sea, the woods, the railway, and the town's landmarks by name.

@@ -9,12 +9,13 @@
  *
  * Time is in game minutes (the sim's clock, fractional between ticks).
  */
-import { closestOnPolyline, polylineCum, polylineLength, resample, slicePolyline } from '../geom/geom2';
+import { alongLine, closestOnPolyline, joinPolylines, polylineCum, polylineLength, resample, slicePolyline, type MeasuredLine } from '../geom/geom2';
 import { hash2f, hashCombine } from '@futuremagic/core';
-import type { ActorId } from '../sim/actors';
+import { ACTOR_PERSON, type ActorId } from '../sim/actors';
 import type { PlaceId, PlaceKind } from '../sim/places';
 import { tripOf, type World } from '../sim/world';
 import { OUTDOOR, type StreetMap } from './streetMap';
+import { avoid, crossing } from './clearance';
 
 export interface Track {
   id: ActorId;
@@ -32,6 +33,12 @@ export interface Track {
 
 /** Walking speed on a stroll (m per game minute, ~3 km/h). Trips keep the sim's own travel time. */
 const STROLL = 50;
+/** Minutes a street stroller takes at a turn to step over to the walking line back. */
+const TURN = 0.15;
+/** Share of a stay's leg spent walking (the rest is a pause at the leg's spot). */
+const WALKING = 0.8;
+/** The slowest walk on a street stay (m/min, ~2.4 km/h: looking in the windows). */
+const AMBLE = 40;
 /** How far ahead a stay's track is laid out (game minutes). */
 const AHEAD = 30;
 /** Spacing (m) of a walk's points, so heights follow the ground. */
@@ -43,10 +50,10 @@ const STEP = 6;
  */
 const STAY: Partial<Record<PlaceKind, { leg: number; speed: number }>> = {
   park: { leg: 7, speed: STROLL },
-  square: { leg: 12, speed: STROLL },
+  square: { leg: 6, speed: 40 },
   cemetery: { leg: 10, speed: 40 },
   sports: { leg: 5, speed: 90 },
-  street: { leg: 4, speed: 65 },
+  street: { leg: 3, speed: 65 },
   woods: { leg: 6, speed: STROLL },
   field: { leg: 15, speed: 30 },
   farm: { leg: 10, speed: 40 },
@@ -120,27 +127,65 @@ function tripKeys(world: World, map: StreetMap, id: ActorId): number[] {
   return timed(map, path, t0, t1);
 }
 
-/** The ground path (x, z, …) of a walk between two places, along the sidewalks of the route between them. */
+/**
+ * The ground path (x, z, …) of a walk between two places: out of the door to its doorstep, along the sidewalks
+ * of the route between them, across the last street (where no parked car is in the way) when the door ahead is
+ * on its far side, and in at the door; bent around everything standing on the way.
+ */
 export function walkPath(world: World, map: StreetMap, id: ActorId, from: PlaceId, to: PlaceId, ox: number, oz: number, dx: number, dz: number): number[] {
+  const places = world.graph.places;
+  const outFrom = OUTDOOR.has(places[from].kind), outTo = OUTDOOR.has(places[to].kind);
+  const [sx, sz] = outFrom ? [ox, oz] : map.doorStep(from);
+  const [ex, ez] = outTo ? [dx, dz] : map.doorStep(to);
+  const middle = avoid(map.fp, streetPath(world, map, id, from, to, sx, sz, ex, ez));
+  return [...(outFrom ? [] : [ox, oz]), ...middle, ...(outTo ? [] : [dx, dz])];
+}
+
+/** From (ox, oz) to (dx, dz) along the sidewalks of the route between two places. */
+function streetPath(world: World, map: StreetMap, id: ActorId, from: PlaceId, to: PlaceId, ox: number, oz: number, dx: number, dz: number): number[] {
   const route = world.travel.roadPath(from, to);
-  if (route.length < 2) return [ox, oz, dx, dz];
-  // Keep to the side of the street the walk starts on; turn the other way at a junction and you cross.
-  const c0 = map.centreline(map.edge(route[0], route[1]), route[0]);
-  const sign = (c0[2] - c0[0]) * (oz - c0[1]) - (c0[3] - c0[1]) * (ox - c0[0]) > 0 ? 1 : -1;
-  const lane = laneOf(world, id);
-  const lines: number[][] = [];
+  const es: [number, number][] = [];
   for (let i = 0; i + 1 < route.length; i++) {
     const e = map.edge(route[i], route[i + 1]);
-    if (e >= 0) lines.push(map.walkLine(e, route[i], sign, lane));
+    if (e >= 0) es.push([e, route[i]]);
   }
-  if (!lines.length) return [ox, oz, dx, dz];
-  const walk = lines.flat();
+  if (!es.length) return [ox, oz, dx, dz];
+  // Keep to the side of the street the walk starts on; turn the other way at a junction and you cross.
+  const sign = sideOf(map.centreline(es[0][0], es[0][1]), ox, oz);
+  const lane = laneOf(world, id);
+  const lines = es.map(([e, a]) => map.walkLine(e, a, sign, lane));
+  const walk = joinPolylines(lines);
+  const W: MeasuredLine = { pts: walk, cum: polylineCum(walk) };
   // Join the street where the door is, not back at the junction behind it; leave it opposite the door ahead.
+  const here = lines[lines.length - 1];
   const first = closestOnPolyline(lines[0], ox, oz).s;
-  const lastStart = polylineLength(walk) - polylineLength(lines[lines.length - 1]);
-  const last = lastStart + closestOnPolyline(lines[lines.length - 1], dx, dz).s;
-  if (last - first < 1) return [ox, oz, dx, dz];
-  return [ox, oz, ...slicePolyline({ pts: walk, cum: polylineCum(walk) }, first, last), dx, dz];
+  const lastStart = polylineLength(walk) - polylineLength(here);
+  const [eL, aL] = es[es.length - 1];
+  const dHere = closestOnPolyline(here, dx, dz).s;
+  const across = (map.graph.edges[eL].side ?? 0) >= 1 && sideOf(map.centreline(eL, aL), dx, dz) !== sign;
+  if (!across) {
+    const last = lastStart + dHere;
+    if (last - first < 1) return [ox, oz, dx, dz];
+    return [ox, oz, ...slicePolyline(W, first, last), dx, dz];
+  }
+  // The door ahead is across the last street: cross it a little before the door, clear of the junction behind
+  // and of parked cars, lamps and trees.
+  const there = map.walkLine(eL, aL, -sign, lane);
+  const lenHere = polylineLength(here);
+  const lo = Math.min(lenHere, es.length > 1 ? (map.graph.edges[es[es.length - 2][0]].side ?? 0) + 2 : Math.max(0, first - lastStart));
+  const hi = Math.max(lo, lenHere - 2);
+  const [sc, tc] = crossing(map.fp, here, there, dHere - 2, lo, hi);
+  const T: MeasuredLine = { pts: there, cum: polylineCum(there) };
+  const dThere = closestOnPolyline(there, dx, dz).s;
+  const before = lastStart + sc - first >= 0.5 ? slicePolyline(W, first, lastStart + sc) : [...alongLine(W, lastStart + sc)];
+  const after = dThere - tc >= 0.5 ? slicePolyline(T, tc, dThere) : [...alongLine(T, tc)];
+  return [ox, oz, ...before, ...after, dx, dz];
+}
+
+/** Which side of a line (x, z, …) a point is: +1 left of its direction, -1 right. */
+function sideOf(line: number[], x: number, z: number): number {
+  const c = closestOnPolyline(line, x, z), i = Math.min(c.seg, (line.length >> 1) - 2) * 2;
+  return (line[i + 2] - line[i]) * (z - line[i + 1]) - (line[i + 3] - line[i + 1]) * (x - line[i]) > 0 ? 1 : -1;
 }
 
 /** Each person walks their own line, a little in or out from the middle of the sidewalk. */
@@ -201,18 +246,31 @@ function stayKeys(world: World, map: StreetMap, id: ActorId, place: PlaceId, t0:
     const start = k * leg;
     if (street) {
       // Up and down the street on its sidewalk; at the turn they step over to the walking line back.
-      const path = streetLeg(world, map, id, place, k - 1, k);
-      const walk = Math.min(leg * 0.8, polylineLength(path) / speed);
-      const cross = keys.length ? 0.15 : 0;
-      const ks = timed(map, path, start + cross, start + cross + walk);
+      const path = avoid(map.fp, streetLeg(world, map, id, place, k - 1, k));
+      // At an easy pace that fills most of the leg (window shopping), never a dawdle or a run.
+      const walk = Math.min(leg * 0.9 - TURN, polylineLength(path) / Math.max(AMBLE, Math.min(speed, polylineLength(path) / (leg * 0.9))));
+      const ks = timed(map, path, start + TURN, start + TURN + walk);
+      if (!keys.length) keys.push(start, ks[1], ks[2], ks[3]);
       for (let i = 0; i < ks.length; i += 4) keys.push(ks[i], ks[i + 1], ks[i + 2], ks[i + 3]);
       continue;
     }
+    // From the last leg's spot to this leg's, by way of other spots while there is time: they keep walking for
+    // most of the leg and pause at the end (a big park is crossed in a hurry rather than never).
     const [px, pz] = map.spot(place, id, k - 1), [qx, qz] = map.spot(place, id, k);
-    // A leg's walk takes at most most of the leg (they hurry across a big park rather than never arrive).
-    const walk = Math.min(leg * 0.8, Math.hypot(qx - px, qz - pz) / speed);
-    if (keys.length === 0) keys.push(start, px, map.groundY(px, pz), pz);
-    keys.push(start + Math.max(walk, 0.01), qx, map.groundY(qx, qz), qz);
+    // Animals (grazing, idling on the farm) go straight to the next spot and stay there a while.
+    const path = [px, pz], reach = world.actors.cols.kind[id] === ACTOR_PERSON ? leg * WALKING * speed : 0;
+    let len = 0, cx = px, cz = pz;
+    for (let j = 1; j <= 6; j++) {
+      const [sx, sz] = map.spot(place, id, -(k * 8 + j));
+      const d = Math.hypot(sx - cx, sz - cz);
+      if (len + d + Math.hypot(qx - sx, qz - sz) > reach) break;
+      path.push(sx, sz);
+      len += d; cx = sx; cz = sz;
+    }
+    path.push(qx, qz);
+    const walk = Math.max(0.01, Math.min(leg * 0.9, polylineLength(path) / speed));
+    const ks = timed(map, avoid(map.fp, path), start, start + walk);
+    for (let i = keys.length ? 4 : 0; i < ks.length; i += 4) keys.push(ks[i], ks[i + 1], ks[i + 2], ks[i + 3]);
   }
   return keys;
 }

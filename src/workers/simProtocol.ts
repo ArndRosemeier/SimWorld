@@ -6,6 +6,9 @@
  */
 import type { ChatRequest, ChatResponse } from '../chat/ops';
 import type { CivilDate } from '../sim/calendar';
+import type { DigestItem } from '../sim/chronicle';
+import type { PlayerAction, PlayerStatus } from '../sim/player';
+import type { InhabitantCard } from '../sim/profile';
 import type { SimView } from '../sim/view';
 import type { TownSettings } from '../world/settings';
 
@@ -29,7 +32,33 @@ export type ToSim =
    */
   | { type: 'skip'; days: number }
   /** A step of a conversation with an inhabitant (src/chat/ops.ts), against the world as it is now. */
-  | { type: 'chat'; req: ChatRequest };
+  | { type: 'chat'; req: ChatRequest }
+
+  /** Who the player is and what they do (src/sim/player.ts); answered with `player`. */
+  | { type: 'player'; op: PlayerOp };
+
+/**
+ * The player's requests (plan R2, R5): every inhabitant's card for the picker; become someone (autopilot on or
+ * off); hand them to their routine or take over; what they could do now; send them somewhere; what they know
+ * of the time since `since` (the digest after a skip).
+ */
+export type PlayerOp =
+  | { op: 'cards' }
+  | { op: 'become'; id: number; autopilot: boolean }
+  | { op: 'autopilot'; on: boolean }
+  | { op: 'actions' }
+  | { op: 'go'; place: number; activity: number }
+  | { op: 'digest'; since: number };
+
+/** The answer to a `PlayerOp` (empty lists where the op asks for nothing), with the player's status after it. */
+export interface PlayerReply {
+  type: 'player';
+  cards: InhabitantCard[];
+  actions: PlayerAction[];
+  digest: DigestItem[];
+  status: PlayerStatus | null;
+  ms: number;
+}
 
 /** What the view needs to know about an actor once (looks, names). */
 export interface ActorInfo {
@@ -67,9 +96,11 @@ export interface HeightGrid {
 }
 
 export type FromSim =
-  | { type: 'ready'; clock: number; people: number; ground: HeightGrid; view: SimView; ms: number }
+  /** `resumed`: the world is the save sent with init (false when there was none or it no longer fits). */
+  | { type: 'ready'; resumed: boolean; clock: number; people: number; ground: HeightGrid; view: SimView; ms: number }
   /** `view`: the snapshot, when the game minute has moved on since the last one sent (else null). */
-  | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; ms: number }
+  | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; player: PlayerStatus | null; ms: number }
+  | PlayerReply
   | { type: 'saved'; clock: number; bytes: Uint8Array; ms: number }
   | { type: 'skipped'; clock: number; view: SimView; ms: number }
   | { type: 'chat'; res: ChatResponse }

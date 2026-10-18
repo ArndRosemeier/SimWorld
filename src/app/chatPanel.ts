@@ -115,7 +115,7 @@ export class ChatPanel {
     this.root.setAttribute('aria-label', 'Conversation');
     const tabs = el('div', 'chat-tabs');
     for (const [t, label] of [['talk', 'Talk'], ['past', 'Past'], ['usage', 'Usage']] as [Tab, string][]) {
-      const b = button('', label, () => this.show(t));
+      const b = button('', label, () => this.showTab(t));
       this.tabs.set(t, b);
       tabs.append(b);
     }
@@ -175,7 +175,7 @@ export class ChatPanel {
     this.root.classList.add('open');
     this.root.classList.toggle('changes', this.showChanges);
     document.body.classList.add('chat-open');
-    this.show(tab);
+    this.showTab(tab);
   }
 
   hide(): void {
@@ -184,7 +184,7 @@ export class ChatPanel {
     this.input.blur();
   }
 
-  private show(tab: Tab): void {
+  private showTab(tab: Tab): void {
     this.tab = tab;
     for (const [t, b] of this.tabs) b.classList.toggle('on', t === tab);
     const talk = tab === 'talk';
@@ -284,7 +284,7 @@ export class ChatPanel {
     this.usageLine.textContent = t.calls ? `${money(t.cost)}${t.estimated ? '~' : ''} · ${t.calls} calls` : '';
     this.usageLine.title = 'What the language models have cost so far (from OpenRouter)';
     this.launcher.textContent = t.calls ? `Chat · ${money(t.cost)}` : 'Chat';
-    if (this.isOpen && this.tab === 'usage') this.show('usage');
+    if (this.isOpen && this.tab === 'usage') this.showTab('usage');
   }
 
   private fillPast(view: HTMLElement): void {

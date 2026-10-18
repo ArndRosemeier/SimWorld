@@ -11,9 +11,9 @@
  */
 import { Rng, deriveSeed, hashString } from '@futuremagic/core';
 import type { Belief, NpcPromptInput, PersonRef } from '../llm/prompt';
+import { capitalize } from '../sim/profile';
 
 /** "the bakery" → "The bakery". */
-export const capFirst = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 const lowFirst = (s: string) => (/^[A-Z][a-z]/.test(s) && !/^[A-Z][a-z]+ [A-Z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s);
 const first = (name: string) => name.split(/\s+/)[0];
 
@@ -37,6 +37,8 @@ const RE: [Intent, RegExp][] = [
 export function intentsOf(line: string, input: NpcPromptInput): Intent[] {
   const out: Intent[] = [];
   for (const [k, re] of RE) if (re.test(line)) out.push(k);
+  // A greeting answers first ("Hello there. Oh, getting by.").
+  if (out.includes('greet')) out.sort((a, b) => (b === 'greet' ? 1 : 0) - (a === 'greet' ? 1 : 0));
   if (namedPerson(line, input)) out.splice(out[0] === 'greet' ? 1 : 0, 0, 'person');
   else if (namedPlace(line, input)) out.push('place');
   if (!out.length || (out.length === 1 && out[0] === 'greet' && /\?\s*$/.test(line) && line.length > 25)) out.push(/\?\s*$/.test(line) ? 'question' : 'statement');
@@ -74,12 +76,12 @@ const said = (input: NpcPromptInput, text: string) => input.turns.some((t) => t.
 
 function hedge(v: Voice, b: Belief, input: NpcPromptInput): string {
   const text = lowFirst(b.text);
-  if (b.source === 'saw') return v.r.pick([`I saw it myself: ${text}.`, `${capFirst(text)}. Saw it with my own eyes.`]);
-  if (b.source === 'common' || !b.source) return `${capFirst(text)}.`;
+  if (b.source === 'saw') return v.r.pick([`I saw it myself: ${text}.`, `${capitalize(text)}. Saw it with my own eyes.`]);
+  if (b.source === 'common' || !b.source) return `${capitalize(text)}.`;
   const src = b.source.person === input.partner.id ? 'you' : [...input.people, ...input.scene.present].find((p) => p.id === (b.source as { person: number }).person)?.name;
   const who = src ? (src === 'you' ? 'you' : first(src)) : 'someone';
   if (who === 'you') return `You told me ${text}, didn't you?`;
-  if (b.confidence > 0.75) return v.r.pick([`${capFirst(text)}. ${who} told me.`, `${who} says ${text}.`]);
+  if (b.confidence > 0.75) return v.r.pick([`${capitalize(text)}. ${who} told me.`, `${who} says ${text}.`]);
   if (b.confidence > 0.4) return v.r.pick([`Apparently ${text}. At least that's what ${who} said.`, `I heard from ${who} that ${text}.`]);
   return v.r.pick([`${who} reckons ${text}, but I don't know if I believe it.`, `There's talk that ${text}. Could be nonsense.`]);
 }
@@ -109,7 +111,7 @@ function howAreYou(v: Voice, input: NpcPromptInput): string {
 function doing(v: Voice, input: NpcPromptInput): string {
   const act = input.state.activity;
   if (v.liking < -0.4) return v.r.pick(['That\'s my business.', 'Nothing that concerns you.']);
-  return capFirst(`${act.startsWith('on the way') ? 'I\'m ' : 'Just '}${act.replace(/^on the way/, 'on my way')}.`);
+  return capitalize(`${act.startsWith('on the way') ? 'I\'m ' : 'Just '}${act.replace(/^on the way/, 'on my way')}.`);
 }
 
 function work(v: Voice, input: NpcPromptInput): string {
@@ -119,7 +121,7 @@ function work(v: Voice, input: NpcPromptInput): string {
   if (occ.startsWith('pupil') || occ.startsWith('goes to')) return `School. ${v.r.pick(['It\'s fine.', 'Boring.', 'It\'s alright, I suppose.'])}`;
   if (occ === 'out of work') return v.r.pick(['I\'m out of work at the moment.', 'Looking for something. Times are hard.']);
   const [role, where] = occ.split(' at ');
-  return v.talkative < 0.35 ? `${capFirst(role)}${where ? `, at ${where}` : ''}.` : `I'm ${/^[aeiou]/i.test(role) ? 'an' : 'a'} ${role}${where ? ` at ${where}` : ''}. ${v.r.pick(['Keeps me busy.', 'It pays the bills.', 'I like it, mostly.', 'Long hours, but there you go.'])}`;
+  return v.talkative < 0.35 ? `${capitalize(role)}${where ? `, at ${where}` : ''}.` : `I'm ${/^[aeiou]/i.test(role) ? 'an' : 'a'} ${role}${where ? ` at ${where}` : ''}. ${v.r.pick(['Keeps me busy.', 'It pays the bills.', 'I like it, mostly.', 'Long hours, but there you go.'])}`;
 }
 
 function news(v: Voice, input: NpcPromptInput): string {
@@ -146,7 +148,7 @@ function weather(v: Voice, input: NpcPromptInput): string {
   if (!w) return 'Can\'t complain about the weather.';
   const wet = /rain|drizzle|pour|storm|sleet|snow/.test(w);
   const nice = /sunny|clear|bright/.test(w);
-  return wet ? v.r.pick([`Miserable, isn't it? ${capFirst(w.split(',')[0])}.`, 'Wet again. Typical.']) : nice ? v.r.pick(['Lovely day for it.', 'Makes a change, this sunshine.']) : v.r.pick([`${capFirst(w.split(',')[0])}. Could be worse.`, 'Grey old day.']);
+  return wet ? v.r.pick([`Miserable, isn't it? ${capitalize(w.split(',')[0])}.`, 'Wet again. Typical.']) : nice ? v.r.pick(['Lovely day for it.', 'Makes a change, this sunshine.']) : v.r.pick([`${capitalize(w.split(',')[0])}. Could be worse.`, 'Grey old day.']);
 }
 
 /**
@@ -162,7 +164,9 @@ export function proceduralReply(input: NpcPromptInput): string {
     talkative: t.extraversion, warm: (t.agreeableness + (f ? (f.affection + 1) / 2 : 0.5)) / 2, liking: f?.affection ?? 0, familiar: f?.familiarity ?? 0,
     partner: input.partner.name,
   };
-  const intents = intentsOf(line, input);
+  // The taciturn answer only the point, skipping the hello.
+  const all = intentsOf(line, input);
+  const intents = v.talkative < 0.35 && all.length > 1 ? all.filter((i) => i !== 'greet') : all;
   const parts: string[] = [];
   for (const k of intents.slice(0, 2)) {
     let s = '';
@@ -175,7 +179,7 @@ export function proceduralReply(input: NpcPromptInput): string {
       case 'work': s = work(v, input); break;
       case 'news': s = news(v, input); break;
       case 'person': { const p = namedPerson(line, input); s = p ? aboutPerson(v, input, p) : ''; break; }
-      case 'place': { const p = namedPlace(line, input); s = p ? v.r.pick([`${capFirst(p.name)}? I know it.`, `${capFirst(p.name)}, yes. What about it?`]) : ''; break; }
+      case 'place': { const p = namedPlace(line, input); s = p ? v.r.pick([`${capitalize(p.name)}? I know it.`, `${capitalize(p.name)}, yes. What about it?`]) : ''; break; }
       case 'weather': s = weather(v, input); break;
       case 'yes': s = v.r.pick(['Good.', 'Right you are.', 'Glad to hear it.']); break;
       case 'no': s = v.r.pick(['Fair enough.', 'Oh well.', 'Suit yourself.']); break;

@@ -16,11 +16,11 @@ import {
   type Poly, polyArea, polyCentroid, minAreaRect, splitPolyByLine, ensureCCW, cleanPoly, pointInPoly,
   distSqPointSeg, polyBounds, resample, polylineLength, simplifyClosed, segIntersect, rectangularity,
 } from '../geom/geom2';
-import { difference, intersection, offset, strokePolylines, union, shapesToPolys, type Shape, shapeArea } from '../geom/clip';
+import { cleanShapes, difference, intersection, largest, offset, strokePolylines, union, shapesToPolys, type Shape, shapeArea } from '../geom/clip';
 import type { Terrain } from '../world/terrain';
 import { RoadClass, type CellInfo, type District, type MacroPlan } from './types';
 import { ROAD_SPEC } from './macro';
-import { STYLES, asLockUp, isSliver, pickStyle, type BuildingDesc, type StyleId } from './building';
+import { STYLES, asLockUp, isSliver, pickStyle, streetDoor, type BuildingDesc, type StyleId } from './building';
 import type { EateryPlan } from './terrace';
 import { crossingsOf } from './crossings';
 import { landmarksOfCell, siteRect, siteToWorld, siteZones, worldToSite, SITE_STREET_CLEAR, type Landmark, type ZoneKind } from './landmarks';
@@ -310,6 +310,7 @@ export function planCell(macro: MacroPlan, cell: CellInfo, terrain: Terrain): Ce
     const bd = makeBuilding(lot, i, cell, bR.fork(i), terrain);
     if (bd) plan.buildings.push(bd);
   });
+  frontsOutdoors(plan.buildings);
 
   // Junctions (for traffic lights/stop signs and crossings).
   plan.junctions = findJunctions(plan.streets);
@@ -515,7 +516,8 @@ function makeLots(blk: Shape, g: Grammar, cell: CellInfo, r: Rng, plan: CellPlan
   if (g.layout === 'perimeter' && area < g.lotW[1] * g.lotD[1] * 1.3) {
     // Small block: one or two buildings.
     const parts = splitFree(outer, area / (area > g.lotW[1] * g.lotD[0] ? 2 : 1), r, 1);
-    for (const q of parts) plan.lots.push({ poly: q, front: longestEdge(q), corner: true, kind: 'perimeter' });
+    // The front is on the street (the block's outline), never the cut between the two.
+    for (const q of parts) plan.lots.push({ poly: q, front: frontEdge(q, outer) ?? longestEdge(q), corner: true, kind: 'perimeter' });
     return;
   }
   if (g.layout === 'free') {
@@ -693,6 +695,26 @@ function longestEdge(q: Poly): number[] {
 
 // ------------------------------------------------------------- buildings
 
+/**
+ * A building whose street door would open into a neighbour (its front picked on a party wall:
+ * slivers, wedges at bent block corners) gets the longest edge whose door opens outdoors.
+ */
+function frontsOutdoors(B: BuildingDesc[]): void {
+  const indoors = (b: BuildingDesc) => {
+    const d = streetDoor(b), P = b.poly, n = P.length >> 1, i = b.front % n, j = (i + 1) % n;
+    const L = Math.hypot(P[j * 2] - P[i * 2], P[j * 2 + 1] - P[i * 2 + 1]) || 1;
+    const x = d.x + ((P[j * 2 + 1] - P[i * 2 + 1]) / L) * 0.8, z = d.z - ((P[j * 2] - P[i * 2]) / L) * 0.8;
+    return B.some((o) => pointInPoly(o.poly, x, z));
+  };
+  for (const b of B) {
+    if (!indoors(b)) continue;
+    const n = b.poly.length >> 1, was = b.front;
+    const order = [...Array(n).keys()].sort((p, q) => edgeLen(b.poly, q) - edgeLen(b.poly, p));
+    for (const k of order) { b.front = k; if (!indoors(b)) break; }
+    if (indoors(b)) b.front = was;
+  }
+}
+
 function makeBuilding(lot: Lot, index: number, cell: CellInfo, r: Rng, terrain: Terrain): BuildingDesc | null {
   const p = terrain.profile;
   const frontLen = Math.hypot(lot.front[2] - lot.front[0], lot.front[3] - lot.front[1]);
@@ -769,18 +791,28 @@ function makeBuilding(lot: Lot, index: number, cell: CellInfo, r: Rng, terrain: 
     if (!sh.length) return null;
     poly = sh.sort((a, b) => shapeArea(b) - shapeArea(a))[0].outer;
   }
-  poly = ensureCCW(cleanPoly(poly, 0.05));
+  // A lot cut from a bent block can come out pinched (two parts touching at a corner, or a
+  // spike folding back): keep its biggest simple part.
+  const simple = largest(cleanShapes([poly]));
+  if (!simple) return null;
+  poly = ensureCCW(cleanPoly(simple, 0.05));
   if (Math.abs(polyArea(poly)) < 30 || poly.length < 6) return null;
 
-  // Front edge index of the footprint: the edge closest to/most parallel with the lot frontage.
+  // Front edge index of the footprint: the edge closest to and most parallel with the lot
+  // frontage (a long party wall at right angles to the street never wins: its door would open
+  // into the neighbour).
   const fmx = (lot.front[0] + lot.front[2]) / 2, fmz = (lot.front[1] + lot.front[3]) / 2;
+  const fL = Math.hypot(lot.front[2] - lot.front[0], lot.front[3] - lot.front[1]) || 1;
+  const fdx = (lot.front[2] - lot.front[0]) / fL, fdz = (lot.front[3] - lot.front[1]) / fL;
   let front = 0, bd = Infinity;
   const n = poly.length >> 1;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const d = distSqPointSeg(fmx, fmz, poly[i * 2], poly[i * 2 + 1], poly[j * 2], poly[j * 2 + 1]);
+    const d = Math.sqrt(distSqPointSeg(fmx, fmz, poly[i * 2], poly[i * 2 + 1], poly[j * 2], poly[j * 2 + 1]));
     const L = Math.hypot(poly[j * 2] - poly[i * 2], poly[j * 2 + 1] - poly[i * 2 + 1]);
-    const score = d - L * 0.2;
+    if (L < 1e-6) continue;
+    const par = Math.abs(((poly[j * 2] - poly[i * 2]) * fdx + (poly[j * 2 + 1] - poly[i * 2 + 1]) * fdz) / L);
+    const score = d + 8 * (1 - par) - L * 0.05;
     if (score < bd) { bd = score; front = i; }
   }
 

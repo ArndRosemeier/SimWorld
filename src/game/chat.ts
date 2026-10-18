@@ -50,8 +50,6 @@ interface Conversation {
 
 export class Chat {
   readonly panel: ChatPanel;
-  /** Your inhabitant (-1: the sim picks one until the character picker says). */
-  private player = -1;
   private talk: Conversation | null = null;
   private readonly names = new Map<number, string>();
 
@@ -69,10 +67,13 @@ export class Chat {
     });
   }
 
-  /** The inhabitant the player is (the character picker sets it). */
-  setPlayer(id: number): void {
-    if (this.talk) void this.close();
-    this.player = id;
+  /** Your inhabitant, as the picker set it in the sim (-1 before anyone is picked: the sim then lends you a stand-in). */
+  private get me(): number { return this.sim.player?.id ?? -1; }
+
+  /** Where you stand: your inhabitant's figure while you play them, else the camera on the street. */
+  private here(): { x: number; z: number } {
+    const f = this.cam.mode === 'play' && this.me >= 0 ? this.street.where(this.me) : undefined;
+    return f ?? this.cam.position();
   }
 
   get talking(): boolean { return this.talk !== null; }
@@ -81,8 +82,8 @@ export class Chat {
   target(): number {
     if (this.cam.mode === 'drone') return -1;
     if (this.cam.mode === 'follow' && this.cam.following >= 0) return this.cam.following;
-    const p = this.cam.position();
-    return this.street.peopleNear(p.x, p.z, TALK_RANGE).find((n) => n.id !== this.player)?.id ?? -1;
+    const p = this.here();
+    return this.street.peopleNear(p.x, p.z, TALK_RANGE).find((n) => n.id !== this.me)?.id ?? -1;
   }
 
   /** A HUD line: who you could talk to, or who you are talking to. */
@@ -110,24 +111,24 @@ export class Chat {
 
   async open(npc: number): Promise<void> {
     if (this.talk) await this.close();
-    const { header } = await this.sim.chat({ op: 'start', npc, player: this.player });
+    const { header } = await this.sim.chat({ op: 'start', npc, player: this.me });
     if (!header) return;
-    this.player = header.player;
     this.names.set(npc, header.name);
     const clock = this.sim.clock;
     this.talk = {
       id: `chat-${npc}-${header.player}-${Math.floor(clock)}`, header, turns: [], began: clock, told: [], last: null,
       pending: Promise.resolve(), abort: new AbortController(), procedural: !this.setup.hasKey, busy: false, over: false,
     };
-    // Face to face: they stop and turn to you, you step up to them.
-    const me = this.cam.position();
+    // Face to face: they stop and turn to you. On the street the camera steps up to them; while you play someone the
+    // camera stays with your inhabitant, and the person turns to them.
+    const me = this.here();
     const f = this.street.where(npc);
     if (f) {
       const dx = f.x - me.x, dz = f.z - me.z, d = Math.hypot(dx, dz) || 1;
       const stand = Math.min(d, 1.6);
-      this.cam.toStreet(f.x - (dx / d) * stand, f.z - (dz / d) * stand, Math.atan2(-dx, -dz));
-      this.cam.pitch = -0.08;
-      this.street.pin(npc, f.x - (dx / d) * stand, f.z - (dz / d) * stand);
+      const sx = f.x - (dx / d) * stand, sz = f.z - (dz / d) * stand;
+      if (this.cam.mode !== 'play') { this.cam.toStreet(sx, sz, Math.atan2(-dx, -dz)); this.cam.pitch = -0.08; }
+      this.street.pin(npc, sx, sz);
     }
     this.panel.begin(header, this.mode());
   }

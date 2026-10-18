@@ -15,7 +15,7 @@ import type { AppliedChange, Proposal } from '../sim/mind/proposal';
 import { relation } from '../sim/relations';
 import { ageOf, isPerson, nameOf, type World } from '../sim/world';
 import { proceduralReply } from '../talk/answer';
-import { moodOf, occupationOf } from './card';
+import { moodOf, occupationText } from './card';
 import { chatContext } from './context';
 import { clamp } from '@futuremagic/core';
 
@@ -73,7 +73,7 @@ function knows(world: World, player: ActorId, npc: ActorId, she: boolean): strin
 }
 
 /**
- * Who you are when nobody has been picked yet (before the character picker, `?as=` unset): the first grown-up of
+ * Who you are when nobody has been picked yet (before anyone is picked: `world.player` unset): the first grown-up of
  * the town who is not the person you talk to. Stable per world.
  */
 export function standIn(world: World, not: ActorId): ActorId {
@@ -87,7 +87,7 @@ export function standIn(world: World, not: ActorId): ActorId {
 export function chatOp(world: World, req: ChatRequest): ChatResponse {
   switch (req.op) {
     case 'start': {
-      const player = isPerson(world, req.player) ? req.player : standIn(world, req.npc);
+      const player = isPerson(world, req.player) ? req.player : isPerson(world, world.player?.id ?? -1) ? world.player!.id : standIn(world, req.npc);
       req = { ...req, player };
       if (!isPerson(world, req.npc) || player < 0 || req.npc === player) return { op: 'start', header: null };
       stopToTalk(world, req.npc, HOLD_MINUTES);
@@ -96,7 +96,7 @@ export function chatOp(world: World, req: ChatRequest): ChatResponse {
       return {
         op: 'start',
         header: {
-          npc: req.npc, name: nameOf(world, req.npc), age: ageOf(world, req.npc), occupation: occupationOf(world, req.npc), knows: knows(world, req.player, req.npc, she),
+          npc: req.npc, name: nameOf(world, req.npc), age: ageOf(world, req.npc), occupation: occupationText(world, req.npc), knows: knows(world, req.player, req.npc, she),
           looks: `seems ${[m.mood, m.needs].filter(Boolean).join(', ')}`, she, player: req.player, playerName: nameOf(world, req.player),
         },
       };
