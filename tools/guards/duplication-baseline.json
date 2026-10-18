@@ -18,5 +18,69 @@
   {
     "key": "same name: simworld/llm/openrouter.ts#stream + simworld/llm/recorded.ts#stream",
     "reason": "Both implement Transport.stream (the real OpenRouter connection and the recorded/recording test transports); one interface method, different jobs."
+  },
+  {
+    "key": "clone: simworld/plan/kit.ts#beam + simworld/plan/kit.ts#strut",
+    "reason": "Ported from Scale's landmark Kit: two part primitives with the same argument shape that emit different part kinds (PK.Beam, PK.Strut) read by different mesh builders."
+  },
+  {
+    "key": "clone: simworld/plan/kit.ts#cyl + simworld/plan/kit.ts#dome + simworld/plan/kit.ts#flat + simworld/plan/kit.ts#perf + simworld/plan/kit.ts#pyramid + simworld/plan/kit.ts#vault",
+    "reason": "Ported from Scale's landmark Kit: one-line part primitives that each record a different part kind through Kit.add; the shared body already is Kit.add."
+  },
+  {
+    "key": "clone: simworld/plan/kit.ts#groundMax + simworld/plan/kit.ts#groundMin",
+    "reason": "Ported from Scale's landmark Kit: the highest and the lowest ground under a footprint, a max and a min loop over the same samples."
+  },
+  {
+    "key": "clone: simworld/plan/kit.ts#lathe + simworld/plan/kit.ts#prism",
+    "reason": "Ported from Scale's landmark Kit: profile primitives with the same argument shape that emit different part kinds."
+  },
+  {
+    "key": "clone: simworld/plan/landmarks.ts#clinicDesign + simworld/plan/landmarks.ts#fireDesign + simworld/plan/landmarks.ts#kindergartenDesign + simworld/plan/landmarks.ts#supermarketDesign",
+    "reason": "One designer per public building (the Designer contract from Scale): the same closure shape, each with its own sizes and parameters for its parts; a table would hide the drawing rules."
+  },
+  {
+    "key": "idiom: [.angle .cos .sin Math] in simworld/geom/geom2.ts + simworld/plan/cell.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
+    "reason": "Axis vectors of a frame (cos, sin of its angle) computed once for a loop; the point transforms go through geom2 frameToWorld / worldToFrame."
+  },
+  {
+    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/sim/travel.ts",
+    "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
+  },
+  {
+    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
+    "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
+  },
+  {
+    "key": "same name: simworld/plan/cell.ts#add + simworld/plan/macro.ts#add",
+    "reason": "Local closures ported from Scale's planner (cell.ts adds a building, macro.ts an arterial edge); unrelated jobs."
+  },
+  {
+    "key": "same name: simworld/plan/cell.ts#at + simworld/plan/terrace.ts#at",
+    "reason": "Local closures ported from Scale's planner: a point along a street (cell.ts) and along a facade (terrace.ts)."
+  },
+  {
+    "key": "same name: simworld/plan/civicParts.ts#mat + simworld/plan/kit.ts#mat",
+    "reason": "civicParts imports and uses the Kit's one material helper `mat`; there is one definition, in kit.ts."
+  },
+  {
+    "key": "same name: simworld/plan/civicParts.ts#mat + simworld/plan/landmarkParts.ts#mat",
+    "reason": "Both use the Kit's one material helper `mat` (defined in kit.ts)."
+  },
+  {
+    "key": "same name: simworld/plan/kit.ts#mat + simworld/plan/landmarkParts.ts#mat",
+    "reason": "landmarkParts uses the Kit's one material helper `mat` (defined in kit.ts)."
+  },
+  {
+    "key": "same name: simworld/plan/cell.ts#add + simworld/sim/table.ts#add",
+    "reason": "Unrelated jobs under a common verb: the sim's component table adds a row; the planner's local closures add a building, a part, an arterial edge."
+  },
+  {
+    "key": "same name: simworld/plan/kit.ts#add + simworld/sim/table.ts#add",
+    "reason": "Unrelated jobs under a common verb: the sim's component table adds a row; the planner's local closures add a building, a part, an arterial edge."
+  },
+  {
+    "key": "same name: simworld/plan/macro.ts#add + simworld/sim/table.ts#add",
+    "reason": "Unrelated jobs under a common verb: the sim's component table adds a row; the planner's local closures add a building, a part, an arterial edge."
   }
 ]
