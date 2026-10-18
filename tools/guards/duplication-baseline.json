@@ -402,9 +402,5 @@
   {
     "key": "idiom: [.actors .cols] in simworld/sim/phone.ts + simworld/sim/schedule.ts + simworld/street/tracks.ts",
     "reason": "Untouched sim code: the idiom finder regrouped existing [.actors .cols] uses after new files changed its clusters. (Regrouped by the finder when the street layer and the sim worker joined the corpus; no new copy.)"
-  },
-  {
-    "key": "idiom: [.x .y .z] in simworld/audio/soundscape.ts + simworld/audio/townAudio.ts + simworld/main.ts",
-    "reason": "Untouched audio code: the idiom finder regrouped existing vector component uses (.x .y .z) after new sim files changed its clusters; no new copy."
   }
 ]
