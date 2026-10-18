@@ -18,6 +18,7 @@ import type { CarTrip } from './trips';
 import { Buses } from './buses';
 import { ServiceRounds, exitTowardRegion, roundGoal } from './rounds';
 import type { World } from '../sim/world';
+import { visitorsAt } from './visitors';
 
 /** Household car models, most common first (a small western town). */
 const HOUSEHOLD: VKind[] = ['sedan', 'suv', 'hatch', 'wagon', 'pickup', 'suv', 'sedan', 'van', 'hatch', 'pickup', 'sports', 'sedan'];
@@ -30,8 +31,10 @@ const CAR_REACH = 450;
 /** Seconds a departure that found no room to pull out keeps trying. */
 const RETRY_S = 90;
 
-/** Through cars per hour on the whole town's country roads, by hour of day. */
-const THROUGH_PER_HOUR = [1, 0.5, 0.5, 0.5, 1, 3, 8, 14, 12, 9, 8, 9, 10, 9, 9, 10, 13, 15, 11, 8, 6, 4, 3, 2];
+/** A visitor who came in longer ago than this (min) is parked already when the town is loaded. */
+const ARRIVED = 10;
+/** Through cars per hour on the whole town's country roads, by hour of day (the morning and evening rush). */
+const THROUGH_PER_HOUR = [1, 0.5, 0.5, 0.5, 1, 4, 12, 24, 20, 11, 9, 9, 10, 9, 10, 13, 20, 26, 16, 9, 6, 4, 3, 2];
 
 /** A household's car model (stable: the same car every time the town is made). */
 export function householdCar(seed: number, household: number): Car {
@@ -52,8 +55,10 @@ export class TownTraffic {
   /** Game clock (s) minus Traffic time (s): set at every game minute, or once for good by `anchor`. */
   private clockOffset = 0;
   private anchored = false;
+  /** Visitors from the region in town: their cars, the road they came in by, when they leave (game clock). */
+  private readonly guests = new Map<number, { car: Car; exit: number; leave: number }>();
   /** Stats for the HUD and tests. */
-  readonly stats = { trips: 0, walked: 0, parked: 0, through: 0, buses: 0, services: 0, stops: 0 };
+  readonly stats = { trips: 0, walked: 0, parked: 0, through: 0, buses: 0, services: 0, stops: 0, visitors: 0 };
 
   /** `world` (optional until the view has one) tells the roads to the region towns apart. */
   constructor(town: Town, private readonly places: readonly Place[], private readonly seed: number, world?: World) {
@@ -113,6 +118,37 @@ export class TownTraffic {
       const count = r.run ? 'buses' : 'services';
       this.launch(() => !!this.traffic.enter(r.car, r.enter, goal) && ++this.stats[count] > 0);
     }
+  }
+
+  /**
+   * Visitors from the region (src/traffic/visitors.ts) who come in in the game minutes (since, clock]
+   * drive in and park near where they are going; those whose stay is over drive home again. A visitor
+   * who came more than ARRIVED minutes before `clock` is already parked (at load: the vans and the
+   * shoppers' cars in town when it is loaded). Call once per game minute, after `rounds`.
+   */
+  visitors(world: World, since: number, clock: number): void {
+    for (let m = Math.floor(since) + 1; m <= clock; m++) {
+      for (const v of visitorsAt(world, this.net, m)) {
+        const leave = m + v.stay;
+        if (leave <= clock) continue;
+        this.guests.set(v.car.key, { car: v.car, exit: v.exit, leave });
+        this.stats.visitors++;
+        if (m < clock - ARRIVED) this.parking.parkNear(v.car.key, v.x, v.z);
+        else this.launch(() => !!this.traffic.enter(v.car, v.exit, { park: true, x: v.x, z: v.z }));
+      }
+    }
+    for (const [key, g] of this.guests) {
+      if (g.leave > clock) continue;
+      // Still on its way in (or never found a way): it leaves when it has parked, or is gone.
+      if (this.parking.has(key)) this.launch(() => !!this.traffic.depart(g.car, { exit: g.exit }));
+      else if (this.traffic.vehicles.some((v) => v.car.key === key)) continue;
+      this.guests.delete(key);
+    }
+  }
+
+  /** The car with key `key`: a visitor's, or a household's. */
+  carOf(key: number): Car {
+    return this.guests.get(key)?.car ?? householdCar(this.seed, key);
   }
 
   /** Run the cars for dt seconds. */
