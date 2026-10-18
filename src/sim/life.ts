@@ -21,6 +21,7 @@ import { isHome } from './placeKinds';
 import { bond, bondBit, FAMILY_MASK, liking, unbond } from './relations';
 import { SPECIES, speciesId } from './species';
 import { addHousehold, adoptPet, fitRoutine, newAnimal, newPerson, settle, type HouseholdType } from './synth';
+import { regionDestination, type RegionPlace } from './region';
 import { DAYS_PER_YEAR, MINUTES_PER_DAY } from './time';
 import { ageOf, commute, householdOf, isPerson, jobOf, nameOf, placesOf, tickRng, traitOf, valueOf, type World } from './world';
 
@@ -651,7 +652,7 @@ function homes(world: World, day: number, rng: Rng): void {
       remember(world, id, { who: [], summary: `I moved out of my parents' place into ${world.graph.places[home].name}`, importance: 0.8, emotion: 'joy', fact });
       log(world, day, 'leftHome', id, -1, home, fact);
     } else {
-      const fact = news(world, old.members, { topic: 'family', text: '{subject} moved away to the city', subject: id, magnitude: 0.4 });
+      const fact = news(world, old.members, { topic: 'family', text: `{subject} moved away to ${regionDestination(world, rng.fork('dest', id), ageOf(world, id) < 23 ? 'university' : undefined)?.name ?? 'the city'}`, subject: id, magnitude: 0.4 });
       log(world, day, 'departed', id, -1, -1, fact);
       leaveTown(world, id, rng.fork('leave', id));
     }
@@ -669,7 +670,7 @@ function homes(world: World, day: number, rng: Rng): void {
       const fact = news(world, closeTo(world, id), { topic: 'family', text: '{subject} moved in with {object}', subject: id, object: kids[0], place: to.home, magnitude: 0.3 });
       log(world, day, 'moveIn', id, kids[0], to.home, fact);
     } else {
-      const fact = news(world, closeTo(world, id), { topic: 'family', text: '{subject} moved into a care home', subject: id, magnitude: 0.4 });
+      const fact = news(world, closeTo(world, id), { topic: 'family', text: `{subject} moved into a care home${where(regionDestination(world, rng.fork('dest', id), 'hospital'))}`, subject: id, magnitude: 0.4 });
       log(world, day, 'departed', id, -1, -1, fact);
       leaveTown(world, id, rng.fork('leave', id));
     }
@@ -680,7 +681,7 @@ function homes(world: World, day: number, rng: Rng): void {
     const head = hh.members[0];
     const street = world.streetOf[hh.home];
     const neighbours = world.households.filter((o) => o !== hh && o.members.length && world.streetOf[o.home] === street).flatMap((o) => o.members.slice(0, 1));
-    const fact = news(world, [...closeTo(world, head), ...neighbours], { topic: 'family', text: '{subject} and family are moving away', subject: head, place: hh.home, magnitude: 0.45 });
+    const fact = news(world, [...closeTo(world, head), ...neighbours], { topic: 'family', text: `{subject} and family are moving away${where(regionDestination(world, rng.fork('dest', head)), ' to ')}`, subject: head, place: hh.home, magnitude: 0.45 });
     for (const m of hh.members.slice()) { log(world, day, 'departed', m, head, hh.home, fact); leaveTown(world, m, rng.fork('leave', m)); }
     for (const an of hh.animals.slice()) leaveTown(world, an, rng.fork('leave', an));
   }
@@ -696,13 +697,19 @@ function homes(world: World, day: number, rng: Rng): void {
     if (rng.chance(0.3)) newPet(world, day, hh, rng.fork('pet', hh.id), false);
     const street = world.streetOf[home];
     const neighbours = world.households.filter((o) => o !== hh && o.members.length && world.streetOf[o.home] === street).flatMap((o) => o.members.slice(0, 1));
-    const fact = news(world, neighbours, { topic: 'place', text: 'new people moved into {place}: {subject} and family', subject: hh.members[0], place: home, magnitude: 0.35 });
+    // Where they come from: the villages and towns around, or further away.
+    const from = rng.chance(0.6) ? regionDestination(world, rng.fork('from', home, day)) : null;
+    if (world.region) for (const m of hh.members) if (ageOf(world, m) >= 18) world.region.origin.set(m, from?.name ?? '');
+    const fact = news(world, neighbours, { topic: 'place', text: `new people moved into {place}: {subject} and family${where(from, ' from ')}`, subject: hh.members[0], place: home, magnitude: 0.35 });
     for (const m of hh.members) {
       remember(world, m, { who: hh.members.filter((o) => o !== m), summary: `we moved to town, into ${world.graph.places[home].name}`, importance: 0.8, emotion: 'joy', fact });
       log(world, day, 'arrived', m, hh.members[0], home, fact);
     }
   }
 }
+
+/** " in Marwick" (or " to ", " from "), or nothing without a region. */
+const where = (p: RegionPlace | null, word = ' in ') => (p ? word + p.name : '');
 
 // ---- pets ------------------------------------------------------------------------------------------------
 

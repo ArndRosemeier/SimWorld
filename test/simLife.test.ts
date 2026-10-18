@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Rng } from '@futuremagic/core';
+import { planRegion } from '../src/plan/region';
 import { testTown } from '../src/sim/testTown';
 import { createWorld } from '../src/sim/synth';
 import { lifeDay, leaveTown, mortality, partnerOf, type LifeEvent } from '../src/sim/life';
@@ -113,4 +114,15 @@ test('life: someone ill stays home in bed', () => {
   tick(world, 30);
   assert.equal(a.dest[id] >= 0 ? a.dest[id] : a.place[id], a.home[id]);
   assert.ok([A.sleep, A.eat, A.travel].includes(a.dest[id] >= 0 ? a.planned[id] : a.activity[id]));
+});
+
+test('life: with a region, people move away to real places and newcomers come from them', () => {
+  const region = planRegion({ seed: 4, town: 'Testford', coastal: false, seaBearing: 0, hilliness: 0.4, warmth: 0.5, american: false, oldWorld: 0.7, railBearing: 90, railTerminus: false, downstreamBearing: 200 });
+  const world = createWorld(testTown(4, 300), 4, { region });
+  live(world, 2 * 365, 7);
+  const names = region.places.map((p) => p.name);
+  const told = (kind: string) => world.life.events.filter((e) => e.kind === kind && e.fact >= 0).map((e) => world.knowledge.facts[e.fact].text);
+  const moves = [...told('departed'), ...told('arrived')];
+  assert.ok(moves.some((t) => names.some((n) => t.includes(n))), `no region place in: ${moves.slice(0, 3).join(' / ')}`);
+  booksBalance(world);
 });
