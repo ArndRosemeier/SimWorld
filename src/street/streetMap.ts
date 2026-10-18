@@ -12,6 +12,8 @@ import type { Shape } from '../geom/clip';
 import { bridgeDecksAt } from '../build/bridges';
 import type { Town } from '../plan/town';
 import { footprintsOf, type Footprints } from '../plan/footprints';
+import { townRoads } from '../plan/roads';
+import { signFootprints, signSpots } from '../plan/signs';
 import { buildingRef } from '../plan/placeGraph';
 import { BODY } from './clearance';
 import type { PlaceGraph, PlaceId, PlaceKind } from '../sim/places';
@@ -49,6 +51,9 @@ export class StreetMap {
     graph.edges.forEach((e, i) => { this.edgeOf.set(e.a * n + e.b, i); this.edgeOf.set(e.b * n + e.a, i); });
     this.deck = bridgeDecksAt(town.macro.bridges, town.terrain);
     this.fp = footprintsOf(town.cells);
+    // The signs' posts and legs (street names, estate boards, name and notice boards, town signs).
+    const posts = signFootprints(signSpots(town, townRoads(town), graph.places));
+    for (let o = 0; o < posts.length; o += 3) this.fp.circle(posts[o], posts[o + 1], posts[o + 2]);
     // Outdoor places with an outline: the cell shape their centre lies in, or their public building's site.
     for (const pl of graph.places) {
       if (!OUTDOOR.has(pl.kind) || pl.kind === 'street') continue;
