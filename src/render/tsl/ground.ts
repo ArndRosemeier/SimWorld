@@ -15,7 +15,7 @@ import {
 } from 'three/tsl';
 import { h_fbm2 as fbm2, h_noise2 as vnoise } from '@futuremagic/humanoid/three/nodes/peopleNoise';
 import { WARP_K1, WARP_K2, type ParcelParams } from '../../world/landuse';
-import { LIGHT, SNOW_ALBEDO, SLUSH_ALBEDO } from './common';
+import { LIGHT, SEASON, SNOW_ALBEDO, SLUSH_ALBEDO } from './common';
 
 /** Sets the diffuse colour without colorNode (the shadow pass would evaluate colorNode). */
 export function setDiffuse(mat: NodeMaterial, node: () => unknown): void {
@@ -77,8 +77,8 @@ const parcelAt = Fn(([p]) => {
 
 /** A value per crop (world/landuse `Crop` order) as a chain of selects. */
 const byCrop = (crop, values: unknown[]) => values.slice(0, -1).reduceRight((rest, v, i) => select(crop.lessThan(i + 0.5), v, rest), values[values.length - 1]);
-const cropColor = (crop) => byCrop(crop, [srgb(0.66, 0.56, 0.3), srgb(0.72, 0.66, 0.42), srgb(0.37, 0.49, 0.18), srgb(0.25, 0.37, 0.13), srgb(0.38, 0.29, 0.2), srgb(0.4, 0.5, 0.22), srgb(0.8, 0.74, 0.2), srgb(0.64, 0.58, 0.4)]);
-const cropCover = (crop) => byCrop(crop, [0.9, 0.88, 0.7, 0.6, 0.5, 1.0, 0.85, 0.8]);
+/** The crop's look today (SEASON.crops, written by the sky from world/landuse `cropLook`): colour, cover. */
+const cropLookNow = (crop) => byCrop(crop, SEASON.crops);
 const rowPeriod = (crop) => byCrop(crop, [0.17, 0.17, 0.22, 0.75, 0.6, 0.35, 0.35, 0.2]);
 
 // ---------------------------------------------------------------- terrain
@@ -116,13 +116,14 @@ export function terrainLook(mat: NodeMaterial): void {
       // Fields: the parcel patchwork, crop rows (fading out before they alias), tramlines, grass margins.
       const pc = parcelAt(wPos.xz).toVar();
       const crop = pc.w;
-      const pasture = crop.greaterThan(4.5).and(crop.lessThan(5.5)), ploughed = crop.greaterThan(3.5).and(crop.lessThan(4.5));
-      const cc = select(pasture, meadow.mul(mix(0.92, 1.1, pc.y)), cropColor(crop).mul(mix(0.86, 1.12, pc.y)).mul(mix(0.93, 1.05, big)));
+      const look = cropLookNow(crop).toVar();
+      const pasture = crop.greaterThan(4.5).and(crop.lessThan(5.5)), ploughed = look.w.lessThan(0.08).and(pasture.not());
+      const cc = select(pasture, meadow.mul(mix(0.92, 1.1, pc.y)), look.xyz.mul(mix(0.86, 1.12, pc.y)).mul(mix(0.93, 1.05, big)));
       const soil = srgb(0.34, 0.27, 0.19);
       const rowM = pc.z.div(rowPeriod(crop));
       const rows = sub(1.0, smoothstep(0.2, 0.55, fwidth(rowM)));
       const stripe = add(0.5, mul(0.5, sin(rowM.mul(6.2831853))));
-      const cover = cropCover(crop);
+      const cover = look.w;
       const soilShare = mix(sub(1.0, cover), mix(sub(1.0, cover), smoothstep(cover.sub(0.15), cover.add(0.15), stripe), 0.75), rows).toVar();
       const field = select(ploughed, cc.mul(mix(1.0, add(0.78, mul(0.4, stripe)), rows)), mix(cc, soil, soilShare)).toVar();
       If(pasture.not().and(ploughed.not()), () => {
@@ -133,7 +134,7 @@ export function terrainLook(mat: NodeMaterial): void {
       const fwB = fwidth(pc.x);
       field.assign(mix(field, meadow.mul(0.95), sub(1.0, smoothstep(1.1, add(1.1, fwB.mul(1.5)), pc.x)).mul(sub(1.0, smoothstep(2.0, 8.0, fwB)))));
       // Too far to resolve the parcels: their average colour.
-      field.assign(mix(field, srgb(0.5, 0.52, 0.27).mul(mix(0.85, 1.1, big)), smoothstep(25.0, 70.0, foot)));
+      field.assign(mix(field, SEASON.fieldFar.mul(mix(0.85, 1.1, big)), smoothstep(25.0, 70.0, foot)));
       const c = vLand.x.mul(forest).add(vLand.y.mul(field)).add(vLand.z.mul(meadow)).div(rural).toVar();
       c.assign(mix(c, bank, clamp(vLand.w.div(rural), 0.0, 1.0)));
       a.assign(mix(a, c, rural.mul(sub(1.0, wRock.mul(0.6)))));

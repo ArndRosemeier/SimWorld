@@ -14,6 +14,7 @@ import { MeshBuilder } from '../build/meshBuilder';
 import { dateOf, moonLit, moonPhase, moonPosition, sunAt, sunPosition, type Dated } from '../sim/calendar';
 import { minuteOfDay } from '../sim/time';
 import { strikesIn, type Weather } from '../sim/weather';
+import { CROP_OF, cropLook, type Crop } from '../world/landuse';
 import { aimSun, type Lights } from './lights';
 import { SKY_DOME } from './materials';
 import { meshFromData } from './meshes';
@@ -24,6 +25,8 @@ import { EXPOSURE } from './renderer';
 
 /** The fog's far distance in clear air (m); weather pulls it in. */
 const FOG_FAR = 6500;
+/** The ground shader's field soil (src/render/tsl/ground.ts), linear. */
+const FIELD_SOIL = [0.34, 0.27, 0.19].map((c) => Math.pow(c, 2.2));
 
 const v3 = (d: [number, number, number], out: Vector3) => out.set(d[0], d[1], d[2]);
 const _grey = new Color(), _c = new Color(), _dir = new Vector3(), _flashCol = new Color(0.8, 0.85, 1.0), _night = new Vector3(), _perp = new Vector3();
@@ -40,6 +43,7 @@ export class DaySky {
   night = 0;
   private pulses: { t: number; amp: number; angle: number; up: number }[] = [];
   private now = 0;
+  private readonly look = [0, 0, 0, 0];
   private lastMinute = -1;
   private cloudT = 0;
 
@@ -168,6 +172,18 @@ export class DaySky {
     SEASON.bare.value = doy > 200 ? smoothstep(305, 335, doy) : 1 - smoothstep(95, 125, doy);
     SEASON.blossom.value = smoothstep(95, 110, doy) * (1 - smoothstep(118, 135, doy));
     VEG.wind.value = clamp(w.wind * 2, 0.15, 2);
+    // The fields by the farming calendar (world/landuse `cropLook`), and their average for far away.
+    const lin = (c: number) => Math.pow(c, 2.2);
+    for (let c = 0; c < SEASON.crops.length; c++) {
+      cropLook(c as Crop, doy, this.look);
+      SEASON.crops[c].value.set(lin(this.look[0]), lin(this.look[1]), lin(this.look[2]), this.look[3]);
+    }
+    let r = 0, g = 0, b = 0;
+    for (const c of CROP_OF) {
+      const v = SEASON.crops[c].value, bare = 1 - Math.min(1, v.w);
+      r += v.x + (FIELD_SOIL[0] - v.x) * bare; g += v.y + (FIELD_SOIL[1] - v.y) * bare; b += v.z + (FIELD_SOIL[2] - v.z) * bare;
+    }
+    SEASON.fieldFar.value.set(r / CROP_OF.length, g / CROP_OF.length, b / CROP_OF.length);
   }
 
   /**
