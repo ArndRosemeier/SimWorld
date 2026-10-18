@@ -171,7 +171,7 @@ export class PeopleView {
         h.object.traverse((o) => { if ((o as Mesh).isMesh) o.castShadow = false; });
         s.human = h;
         // Every part's shaders, both detail levels, before it is drawn (cache hits after the warm-up).
-        await this.prepare(h);
+        await this.compileHuman(h);
         this.root.add(h.object);
         s.ready = true;
       })
@@ -183,7 +183,7 @@ export class PeopleView {
    * Compile `h` (not in the scene yet): both detail levels, and the shadow of each kind of part that casts
    * one up close the Stage has not seen yet (the Stage keeps track of the kinds).
    */
-  private async prepare(h: Humanoid): Promise<void> {
+  private async compileHuman(h: Humanoid): Promise<void> {
     const shown = h.char.lods.map((g) => g.visible);
     h.char.lods.forEach((g) => (g.visible = true));
     h.object.visible = true;

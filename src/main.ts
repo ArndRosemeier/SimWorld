@@ -27,7 +27,7 @@ import { WorkerPool } from './workers/pool';
 import townWorkerUrl from './workers/town.worker.ts?worker&url';
 import texWorkerUrl from './workers/tex.worker.ts?worker&url';
 import type { FromTex, ToTex } from './workers/texProtocol';
-import { loadTextures } from './render/textures';
+import { loadTextures, loadVegetationTextures } from './render/textures';
 import { INTERIOR, useTextures } from './render/materials';
 import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
@@ -93,6 +93,7 @@ async function start(audio: TownAudio, live: LiveClock): Promise<void> {
   // Facades first, then the interiors' finishes (queued behind them in the same pool).
   const facade = loadTextures(texPool, 'facade', (done, total) => step('Making the materials', 0.02 + (0.08 * done) / total), texSize);
   const interior = loadTextures(texPool, 'interior', (done, total) => step('Making the materials', 0.1 + (0.02 * done) / total), texSize, 100);
+  const vegetation = loadVegetationTextures(texPool, 200);
 
   const canvas = document.createElement('canvas');
   document.body.prepend(canvas);
@@ -108,7 +109,7 @@ async function start(audio: TownAudio, live: LiveClock): Promise<void> {
   const lights = makeLights(scene);
   const stage = new Stage(renderer, scene, camera);
   stage.shadowCamera = lights.sun.shadow.camera;
-  useTextures({ facade: await facade, interior: await interior });
+  useTextures({ facade: await facade, interior: await interior, vegetation: await vegetation });
   texPool.dispose();
   step('Making the people', 0.1);
   const { view: people, warm } = await PeopleView.create(stage, sampleLooks(settings.seed, play.clock), Math.min(2, cores));
@@ -158,6 +159,8 @@ async function start(audio: TownAudio, live: LiveClock): Promise<void> {
     if (cam.mode !== 'drone') fitSunShadow(lights, camera.position.x, camera.position.y, camera.position.z, 70);
     else if (shadowMode !== 'drone') fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
     shadowMode = cam.mode;
+    view.vegetation?.update(camera);
+    view.props?.update(camera);
     renderer.render(scene, camera);
     const e = camera.matrixWorld.elements;
     fwd.x = -e[8]; fwd.y = -e[9]; fwd.z = -e[10];

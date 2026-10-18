@@ -29,7 +29,7 @@ let sentAt = -1;
 /** Extra distance before someone shown counts as gone (no flicker at the edge). */
 const KEEP = 40;
 
-function handle(m: ToSim): FromSim {
+function simJob(m: ToSim): FromSim {
   const t0 = performance.now();
   const took = () => Math.round(performance.now() - t0);
   if (m.type === 'init') {
@@ -112,7 +112,7 @@ function heightGrid(map: StreetMap, half: number, step: number): HeightGrid {
   return { x0, z0, step, n, h };
 }
 
-serve<ToSim, FromSim>(handle, (r) => {
+serve<ToSim, FromSim>(simJob, (r) => {
   if (r.type === 'ready') return [r.ground.h.buffer, ...viewTransfers(r.view)];
   if (r.type === 'street') return [...r.tracks.map((t) => t.keys.buffer), ...(r.view ? viewTransfers(r.view) : [])];
   return [];
