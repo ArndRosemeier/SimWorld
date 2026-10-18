@@ -9,6 +9,9 @@ import { buildGround } from '../build/ground';
 import { buildTerrainTile, buildWaterTile, terrainSkirt, terrainTiles, waterSources, type WaterSources } from '../build/terrainMesh';
 import { buildCountryRoads } from '../build/rural';
 import { buildBridges } from '../build/bridges';
+import { propInstances, propModel } from '../build/streetProps';
+import { ForestGen, townTrees } from '../build/forest';
+import { buildVegModel } from '../build/vegetation';
 import { facadeSpecs, buildBuildings, buildLandmark } from '../build/massing';
 import { planTown, type Town } from '../plan/town';
 import { parcelParams } from '../world/landuse';
@@ -16,6 +19,7 @@ import type { FromTown, ToTown } from './townProtocol';
 
 let town: Town | null = null;
 let water: WaterSources | null = null;
+let forest: ForestGen | null = null;
 
 const out = (mb: MeshBuilder | null): MeshData | null => (mb && !mb.empty ? mb.build() : null);
 
@@ -71,6 +75,11 @@ function handle(m: ToTown): FromTown {
       const b = buildBridges(macro.bridges, terrain, macro.edges);
       return { type: 'bridges', ground: out(b.deck), buildings: out(b.structure), ms: ms() };
     }
+    case 'props': return { type: 'props', groups: propInstances(cells, terrain), ms: ms() };
+    case 'propModel': return { type: 'propModel', mesh: propModel(m.model), ms: ms() };
+    case 'trees': return { type: 'trees', recs: townTrees(cells, terrain), ms: ms() };
+    case 'forest': return { type: 'forest', recs: (forest ??= new ForestGen(land, macro)).tile(m.x0, m.z0, m.size), ms: ms() };
+    case 'vegModel': return { type: 'vegModel', model: buildVegModel(m.index), ms: ms() };
   }
 }
 
@@ -79,6 +88,8 @@ function meshesOf(r: FromTown): MeshData[] {
     case 'cell': case 'country': case 'bridges': return [r.ground, r.buildings].filter((x): x is MeshData => !!x);
     case 'terrain': return [r.mesh];
     case 'water': case 'landmark': return r.mesh ? [r.mesh] : [];
+    case 'vegModel': return [r.model.wood, r.model.leaves, r.model.far];
+    // (propModel: copied, not transferred: the models stay cached in this worker)
     default: return [];
   }
 }

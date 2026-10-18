@@ -7,9 +7,9 @@
  *     queued build under the cap) and only then puts it into the scene. Nothing ever draws with a
  *     shader that is not ready, so nothing compiles on the render path.
  */
-import { Group, Mesh, type Camera, type InstancedMesh, type Material, type Object3D, type Scene, type WebGPURenderer } from 'three/webgpu';
+import { Color, Group, Mesh, type Camera, type InstancedMesh, type Material, type Object3D, type Scene, type WebGPURenderer } from 'three/webgpu';
 import { allKinds, type MaterialKind } from './materials';
-import { meshFromData } from './meshes';
+import { batchedFromData, instancedFromData, meshFromData } from './meshes';
 import { MeshBuilder } from '../build/meshBuilder';
 import { ShaderCap } from './shaders/cap';
 import { ShaderMonitor } from './shaders/monitor';
@@ -222,7 +222,7 @@ export class Stage {
   }
 }
 
-/** A tiny mesh with the kind's attributes, so its warm-up build matches real meshes of the kind. */
+/** A tiny mesh with the kind's attributes (instanced or batched, one instance, for those kinds), so its warm-up build matches real meshes of the kind. */
 function standIn(kind: MaterialKind): Mesh {
   const mb = new MeshBuilder([...kind.attributes]);
   for (const a of kind.attributes) mb.set(a.name, ...new Array(a.size).fill(0.5));
@@ -230,5 +230,10 @@ function standIn(kind: MaterialKind): Mesh {
   mb.v(1, 0, 0, 0, 0, 1);
   mb.v(0, 1, 0, 0, 0, 1);
   mb.tri(0, 1, 2); // indexed, like every mesh of every kind
-  return meshFromData(mb.build(), kind);
+  if (kind.batched) {
+    const { mesh, geometries } = batchedFromData([mb.build()], kind, 1);
+    mesh.setColorAt(mesh.addInstance(geometries[0]), new Color(0.5, 0.5, 0.5));
+    return mesh;
+  }
+  return kind.instanced ? instancedFromData(mb.build(), kind, 1) : meshFromData(mb.build(), kind);
 }

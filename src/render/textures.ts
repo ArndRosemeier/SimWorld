@@ -7,10 +7,13 @@
  * Scale cached the generated layers in IndexedDB between sessions; that cache is left out here:
  * persistence belongs to src/persist (planned), and the cache comes back through it.
  */
-import { DataArrayTexture, LinearFilter, LinearMipmapLinearFilter, NoColorSpace, RGBAFormat, RepeatWrapping, SRGBColorSpace, UnsignedByteType } from 'three/webgpu';
+import { ClampToEdgeWrapping, DataArrayTexture, DataTexture, LinearFilter, LinearMipmapLinearFilter, NoColorSpace, RGBAFormat, RepeatWrapping, SRGBColorSpace, UnsignedByteType } from 'three/webgpu';
 import { FACADE_LAYER_COUNT, FACADE_TILE_METERS, GROUND_LAYER_COUNT, GROUND_TILE_METERS, TEX_SIZE } from '../build/texgen';
 import type { WorkerPool } from '../workers/pool';
 import type { FromTex, TexFamily, ToTex } from '../workers/texProtocol';
+import { BARK_STRIPS } from '../build/vegetation';
+import { packBark, type VegAtlas } from '../build/vegetationTex';
+import type { VegetationTextures } from './tsl/vegetation';
 
 export interface MaterialArrays {
   /** rgb = sRGB albedo, a = roughness. */
@@ -73,4 +76,39 @@ export async function loadTextures(
   }
   await Promise.all(jobs);
   return { albedo: makeArray(albedo, size, layers, true), normal: makeArray(normal, size, layers, false), tileMeters, layers };
+}
+
+/** An RGBA8 texture of a vegetation atlas (row 0 at v = 0), mip-mapped; the CPU copy dropped after the upload. */
+function vegTexture(data: Uint8Array, w: number, h: number, srgb: boolean, wrapV: boolean): DataTexture {
+  const t = new DataTexture(data, w, h, RGBAFormat, UnsignedByteType);
+  t.colorSpace = srgb ? SRGBColorSpace : NoColorSpace;
+  t.wrapS = ClampToEdgeWrapping;
+  t.wrapT = wrapV ? RepeatWrapping : ClampToEdgeWrapping;
+  t.minFilter = LinearMipmapLinearFilter;
+  t.magFilter = LinearFilter;
+  t.generateMipmaps = true;
+  t.anisotropy = wrapV ? 8 : 4;
+  t.needsUpdate = true;
+  t.onUpdate = () => {
+    (t.image as { data: unknown }).data = null;
+    t.onUpdate = null;
+  };
+  return t;
+}
+
+/**
+ * The bark atlas (one job per strip) and the leaf atlas (src/build/vegetationTex.ts) through
+ * `pool` (a started texture worker pool), for the vegetation kinds (`useTextures({ vegetation })`).
+ */
+export async function loadVegetationTextures(pool: WorkerPool<ToTex, FromTex>, priority = 0): Promise<VegetationTextures> {
+  type Veg = Extract<FromTex, { type: 'veg' }>;
+  const leaves = pool.run<Veg>({ type: 'veg', what: 'leaves' }, priority);
+  const strips = await Promise.all(Array.from({ length: BARK_STRIPS }, (_, strip) => pool.run<Veg>({ type: 'veg', what: 'bark', strip }, priority + 1)));
+  const bark = packBark(strips as VegAtlas[]);
+  const l = await leaves;
+  return {
+    bark: vegTexture(bark.albedo, bark.width, bark.height, true, true),
+    barkNormal: vegTexture(bark.normal!, bark.width, bark.height, false, true),
+    leaves: vegTexture(l.albedo, l.width, l.height, true, false),
+  };
 }

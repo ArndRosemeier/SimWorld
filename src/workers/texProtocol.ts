@@ -8,10 +8,14 @@ export type ToTex =
   /** First message to every worker (the pool's start() waits for one reply each). */
   | { type: 'init' }
   /** One layer of a family at `size` x `size` texels. */
-  | { type: 'layer'; family: TexFamily; index: number; size: number };
+  | { type: 'layer'; family: TexFamily; index: number; size: number }
+  /** A vegetation texture (src/build/vegetationTex.ts): one bark strip, or the leaf atlas. */
+  | { type: 'veg'; what: 'bark'; strip: number } | { type: 'veg'; what: 'leaves' };
 
 export type FromTex =
   | { type: 'ready' }
   /** RGBA8 albedo (rgb sRGB, a roughness) and normal (rg normal xy, b height, a AO); see src/build/texgen/index.ts. */
   | { type: 'layer'; family: TexFamily; index: number; albedo: Uint8Array; normal: Uint8Array; ms: number }
+  /** RGBA8 sRGB albedo (leaves: with alpha), and the bark's normal map. */
+  | { type: 'veg'; width: number; height: number; albedo: Uint8Array; normal?: Uint8Array; ms: number }
   | { type: 'error'; message: string };

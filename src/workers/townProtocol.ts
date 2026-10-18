@@ -3,6 +3,8 @@
  * worker plans the same town from the settings (deterministic), then builds mesh data on request.
  */
 import type { MeshData } from '../build/meshBuilder';
+import type { PropGroup } from '../build/streetProps';
+import type { TreeModelData } from '../build/vegetation';
 import type { TownSettings } from '../world/settings';
 import type { ParcelParams } from '../world/landuse';
 
@@ -19,7 +21,17 @@ export type ToTown =
   /** The countryside: roads, farmyards and the railway (ground), the farms' buildings. */
   | { type: 'country' }
   /** The town's river bridges: deck (ground) and structure (massing). */
-  | { type: 'bridges' };
+  | { type: 'bridges' }
+  /** Every street prop (furniture, parked cars) as instance lists per model (src/build/streetProps.ts). */
+  | { type: 'props' }
+  /** One prop model's mesh data, by its `PropGroup.model` key. */
+  | { type: 'propModel'; model: string }
+  /** The town's trees, shrubs and yews as tree records (src/build/forest.ts `townTrees`). */
+  | { type: 'trees' }
+  /** The countryside trees of one square tile (src/build/forest.ts `ForestGen.tile`). */
+  | { type: 'forest'; x0: number; z0: number; size: number }
+  /** One tree or shrub model (index into src/build/vegetation.ts `VEG_MODELS`). */
+  | { type: 'vegModel'; index: number };
 
 /** What the main thread needs to know about the town to lay out the view. */
 export interface TownSummary {
@@ -46,4 +58,9 @@ export type FromTown =
   | { type: 'landmark'; mesh: MeshData | null; ms: number }
   | { type: 'country'; ground: MeshData | null; buildings: MeshData | null; ms: number }
   | { type: 'bridges'; ground: MeshData | null; buildings: MeshData | null; ms: number }
+  | { type: 'props'; groups: PropGroup[]; ms: number }
+  | { type: 'propModel'; mesh: MeshData; ms: number }
+  | { type: 'trees'; recs: Float32Array; ms: number }
+  | { type: 'forest'; recs: Float32Array; ms: number }
+  | { type: 'vegModel'; model: TreeModelData; ms: number }
   | { type: 'error'; message: string };
