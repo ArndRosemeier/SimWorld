@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.071 — Parked cars in the planned bays
+
+- The town's parked cars now stand in the parking bays the town planner laid out along the kerbs, which keep clear of junctions, zebra crossings and driveways. Before, the cars had their own bays every few metres, which could block a driveway or a crossing.
+- Each parked car faces the same way as the traffic on its side of the street.
+
 ## v0.070 — People stop walking through buildings, cars and street furniture
 
 - People no longer cut through buildings, car parks, fountains or hedges: where a walk can't just step aside, it goes the long way round.
