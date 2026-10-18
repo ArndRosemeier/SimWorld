@@ -9,6 +9,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Folder | What | May import |
 |---|---|---|
 | `src/sim` | The society: actors, places, schedules, needs, encounters, knowledge, minds, intentions, life events. Pure data, runs in a worker and in headless tests. **The single source of truth for every inhabitant.** | core only (guarded) |
+| `src/geom` | 2D polygon geometry and polygon booleans (ported from Scale's core). Pure. | core only (guarded) |
 | `src/plan`, `src/world` | The town planner and terrain (ported from Scale). Pure data. | core, `src/sim` types for the place graph (`src/plan` may not import `src/sim` code, only `import type`) |
 | `src/talk` | The procedural text engine (background chatter, fallback answers). Pure. | core, `src/sim` types |
 | `src/llm` | OpenRouter, the model roster, task routing, usage ledger, prompt building, response contracts. No state of its own about NPCs. | core, `src/sim` types |
@@ -42,6 +43,27 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Did something compile on the render path? Is a shader over budget? | `shaders.report()` in the console; `stage.hudLine()` | `src/render/shaders/monitor.ts` |
 | A human: body, skeleton, materials, clothes, animation | `Humanoid` | `@futuremagic/humanoid/three` |
 | A human's look from a seed | `randomAppearance(race, seed, opts)` | `@futuremagic/humanoid` |
+
+### The town (`src/plan`, `src/world`, `src/geom`)
+
+| Question | The one way | Where |
+|---|---|---|
+| Plan the whole town from the settings | `planTown({ seed, size })`: terrain, land use, macro plan, every cell, the countryside, households, ground-floor uses | `src/plan/town.ts` |
+| How big is the town, how many households? | `townRadius(size)` (`src/world/settings.ts`), `dwellingTarget(size)`, `PEOPLE_PER_HOME`; `town.dwellings` | `src/plan/town.ts` |
+| How many households live in a building? | `dwellingsOf(b)` | `src/plan/building.ts` |
+| Ground height, water, rivers, lakes, the coast | `Terrain` (`height`, `isWater`, `water`, `lakeAt`, `coastDistance`) | `src/world/terrain.ts` |
+| Where does a road or the railway bridge a river? | `riverSpans(terrain, pts, margin)` | `src/world/terrain.ts` |
+| Forest, fields, meadow at a point | `LandUse.sample`; the town's outline `LandUse.edge` | `src/world/landuse.ts` |
+| Arterials, cells, districts, sites, the railway | `buildMacroPlan(terrain)` → `MacroPlan` | `src/plan/macro.ts` |
+| Streets, lots, buildings, props of one cell | `planCell(macro, cell, terrain)` (eatery terraces: `placeEateries`, after the uses are decided) | `src/plan/cell.ts`, `src/plan/terrace.ts` |
+| Where are the town hall, church, school, …, station? | `macro.landmarks` (`Landmark`: kind, site frame, `cell` -1 outside the town with its `road`); `siteToWorld`, `inSite` | `src/plan/landmarks.ts` |
+| The parts (massing) of a public building | `landmarkParts(lm, terrain)` on the `Kit` | `src/plan/landmarkParts.ts`, `src/plan/civicParts.ts`, `src/plan/kit.ts` |
+| The railway and the station spot | `planRail(plan, terrain)` → `macro.rail` (`Railway`) | `src/plan/rail.ts` |
+| Farms, country roads, level crossings | `RuralPlan` (`farms`, `roads`, `crossings`, `layout(farm)`, `roadEdge`) | `src/world/rural.ts` |
+| Opening hours, staff, capacity, services of a kind of place | `PLACES[kind]` (`PlaceKind`, `AmenityKind`), `weekly(spec)`, `openAt(hours, day, hour)` | `src/plan/amenities.ts` |
+| What is this shop front / workplace? | `b.amenity` (set by `planTown`), `b.eatery` for the terrace kind | `src/plan/town.ts`, `src/plan/eatery.ts` |
+| 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |
+| Polygon union, difference, intersection, offset | `src/geom/clip.ts` (clipper) | `src/geom/clip.ts` |
 
 ### Workers and persistence
 
