@@ -29,6 +29,9 @@ export function dwellingTarget(size: number): number {
   return Math.round(450 + 450 * clamp(size, 0, 1));
 }
 
+/** The districts that make up the town centre (the main streets, the council's 30 zone). */
+export const CENTRAL_DISTRICTS: ReadonlySet<District> = new Set<District>(['commercial', 'downtown', 'oldtown']);
+
 export interface Town {
   settings: TownSettings;
   terrain: Terrain;
@@ -135,14 +138,13 @@ function frontsWanted(pop: number, warmth: number): number {
  */
 function trimFronts(macro: MacroPlan, cells: CellPlan[], pop: number, warmth: number, seed: number): void {
   const [cx, cz] = macro.core, R = Math.max(...macro.boundary);
-  const MAIN = new Set<District>(['commercial', 'downtown', 'oldtown']);
   const fronts: { b: BuildingDesc; score: number }[] = [];
   cells.forEach((plan, ci) => {
     for (const b of plan.buildings) {
       if (!b.shopfront) continue;
       const [x, z] = polyCentroid(b.poly);
       const jitter = (hash32(deriveSeed(seed, 'fronts') ^ b.seed) >>> 8) / 0x1000000;
-      fronts.push({ b, score: Math.hypot(x - cx, z - cz) / R + (MAIN.has(macro.cells[ci].district) ? 0 : 0.6) + (isSliver(b.poly) ? 0.4 : 0) + 0.25 * jitter });
+      fronts.push({ b, score: Math.hypot(x - cx, z - cz) / R + (CENTRAL_DISTRICTS.has(macro.cells[ci].district) ? 0 : 0.6) + (isSliver(b.poly) ? 0.4 : 0) + 0.25 * jitter });
     }
   });
   const surplus = fronts.length - frontsWanted(pop, warmth);

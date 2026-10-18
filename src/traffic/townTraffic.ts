@@ -18,6 +18,7 @@ import type { CarTrip } from './trips';
 import { Buses } from './buses';
 import { ServiceRounds, exitTowardRegion, roundGoal } from './rounds';
 import type { World } from '../sim/world';
+import type { TownRules } from '../sim/politics';
 import { visitorsAt } from './visitors';
 
 /** Household car models, most common first (a small western town). */
@@ -31,6 +32,8 @@ const CAR_REACH = 450;
 /** Seconds a departure that found no room to pull out keeps trying. */
 const RETRY_S = 90;
 
+/** Share of the through traffic that still comes through town once the bypass is open. */
+const BYPASSED = 0.3;
 /** A visitor who came in longer ago than this (min) is parked already when the town is loaded. */
 const ARRIVED = 10;
 /** Through cars per hour on the whole town's country roads, by hour of day (the morning and evening rush). */
@@ -55,6 +58,8 @@ export class TownTraffic {
   /** Game clock (s) minus Traffic time (s): set at every game minute, or once for good by `anchor`. */
   private clockOffset = 0;
   private anchored = false;
+  /** Share of the through traffic still driving through town (the rest takes the bypass once it is open). */
+  private throughShare = 1;
   /** Visitors from the region in town: their cars, the road they came in by, when they leave (game clock). */
   private readonly guests = new Map<number, { car: Car; exit: number; leave: number }>();
   /** Stats for the HUD and tests. */
@@ -118,6 +123,15 @@ export class TownTraffic {
       const count = r.run ? 'buses' : 'services';
       this.launch(() => !!this.traffic.enter(r.car, r.enter, goal) && ++this.stats[count] > 0);
     }
+  }
+
+  /**
+   * Follow what the council decided (call when the rules may have changed, e.g. once per game minute):
+   * the 30 zone through the centre, and the bypass taking most through traffic round the town once open.
+   */
+  obey(rules: TownRules, day: number): void {
+    this.net.zone30 = rules.speed30;
+    this.throughShare = rules.works.some((w) => w.key === 'bypass' && w.done <= day) ? BYPASSED : 1;
   }
 
   /**
@@ -193,7 +207,7 @@ export class TownTraffic {
     const exits = this.net.nodes.map((n, i) => (n.exit ? i : -1)).filter((i) => i >= 0);
     if (exits.length < 2) return;
     const r = new Rng(deriveSeed(this.seed, 'through', clock));
-    const rate = THROUGH_PER_HOUR[Math.floor((clock % MINUTES_PER_DAY) / 60)] / 60;
+    const rate = (THROUGH_PER_HOUR[Math.floor((clock % MINUTES_PER_DAY) / 60)] / 60) * this.throughShare;
     if (!r.chance(rate)) return;
     const a = r.int(0, exits.length - 1);
     let b = r.int(0, exits.length - 2);
