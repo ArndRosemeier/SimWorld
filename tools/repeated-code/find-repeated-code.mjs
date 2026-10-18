@@ -150,7 +150,16 @@ function mix32(h) {
 export function shingles(bodyTokens, k = SHINGLE) {
   const sh = shape(bodyTokens);
   const out = new Set();
-  for (let i = 0; i + k <= sh.length; i += 1) out.add(fnv(sh.slice(i, i + k).join(' ')));
+  // fnv(sh.slice(i, i + k).join(' ')) without building the strings (this loop dominated the guard's run time).
+  for (let i = 0; i + k <= sh.length; i += 1) {
+    let h = 0x811c9dc5;
+    for (let j = i; j < i + k; j += 1) {
+      if (j > i) h = Math.imul(h ^ 32, 0x01000193);
+      const t = sh[j];
+      for (let c = 0; c < t.length; c += 1) h = Math.imul(h ^ t.charCodeAt(c), 0x01000193);
+    }
+    out.add(h >>> 0);
+  }
   return out;
 }
 

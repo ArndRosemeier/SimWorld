@@ -17,7 +17,8 @@ import type { Trip } from './travel';
 import type { DayMask, PlaceId, PlaceKind } from './places';
 import type { Job } from './people';
 import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIES, speciesId } from './species';
-import { atMinute, MINUTES_PER_DAY, minuteOfDay, weekdayOf } from './time';
+import { atMinute, dayOf, MINUTES_PER_DAY, minuteOfDay, weekdayOf } from './time';
+import { drawingOn } from './agenda';
 import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
 import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, type World } from './world';
 
@@ -325,6 +326,28 @@ export function nearestWith(world: World, from: PlaceId, service: Service, id: A
 
 interface Option { place: PlaceId; activity: number; minutes: [number, number]; weight: number }
 
+/**
+ * What is on in town (src/sim/agenda.ts) that this person might go to now: the market, the service, the festival,
+ * a club evening. Each occasion still under way for a while is offered, weighted by its pull and whom it appeals to.
+ */
+function occasions(world: World, id: ActorId, age: number, offer: (place: PlaceId, activity: number, minutes: [number, number], weight: number, occasion: boolean) => void): void {
+  const now = world.clock;
+  const list = drawingOn(world, dayOf(now));
+  if (list.length === 0) return;
+  const faith = world.people.cols.values[world.actors.cols.row[id] * 4 + V_FAITH];
+  for (const o of list) {
+    if (o.start > now + 45 || o.end < now + 30) continue;
+    if (o.guests && !o.guests.includes(id)) continue;
+    const fit = o.appeal === 'faith' ? faith * faith * 2.5 : o.appeal === 'children' ? (age < 13 ? 1 : 0) : o.appeal === 'adults' ? (age >= 16 ? 1 : 0.2) : 1;
+    if (fit <= 0) continue;
+    const left = o.end - now;
+    const place = o.place >= 0 ? o.place : world.streetOf[world.actors.cols.home[id]];
+    // Arriving for the start pulls hardest; an occasion well under way still draws, but less.
+    const fresh = now <= o.start + 30 ? 1 : 0.5;
+    offer(place, o.activity, [Math.min(left, 60), Math.min(left, 180)], o.pull * fit * fresh * 4, true);
+  }
+}
+
 /** Pick a free-time activity from needs, habits and personality (plan §1.3). */
 function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rng): void {
   const a = world.actors.cols, pc = world.people.cols, p = a.row[id];
@@ -338,14 +361,15 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
   const daylight = m >= sun.rise + 30 && m < sun.set;
   const dogHours = m >= 390 && m < 1290;
   const options: Option[] = [];
-  const offer = (place: PlaceId, activity: number, minutes: [number, number], weight: number) => {
+  const offer = (place: PlaceId, activity: number, minutes: [number, number], weight: number, occasion = false) => {
     if (place < 0 || weight <= 0 || avoids(world, id, -1, place)) return;
-    if (place !== home && !isOpen(world, place, now + 15)) return;
+    if (place !== home && !occasion && !isOpen(world, place, now + 15)) return;
     // Do not start an outing that would barely fit.
     if (place !== here && world.travel.minutes(here, place) * 2 + minutes[0] > limit - now) return;
     options.push({ place, activity, minutes, weight });
   };
   const evening = m >= 1200;
+  occasions(world, id, age, offer);
   offer(home, A.idle, [30, 90], 1 + need(N_REST) * 2 + (1 - t(T_EXTRA)) * 0.8 + (evening ? 2 : 0) + (age < 10 ? 4 : 0));
   if (age >= 10) {
     const habit = (h: string) => pc.habits[p * HABIT_COUNT + HABITS.indexOf(h as never)];
@@ -356,8 +380,7 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
     if (daylight) offer(habit('park'), A.leisure, [30, 90], (0.2 + fun * 1.2) * (0.5 + t(T_OPEN)));
     offer(habit('sports'), A.exercise, [45, 100], (0.1 + fun) * t(T_CONSC) * (age < 70 ? 1 : 0.2));
     const faith = pc.values[p * 4 + V_FAITH];
-    const service = runsLike(world, now) === 6 && m >= 540 && m < 600;
-    offer(habit('church'), A.worship, service ? [70, 90] : [20, 40], service ? 8 * faith : 0.05 * faith);
+    offer(habit('church'), A.worship, [20, 40], 0.05 * faith);
     offer(habit('library'), A.leisure, [30, 90], 0.4 * t(T_OPEN));
     if (age >= 16 && m >= 480 && m < 1170) offer(habit('shop'), A.shop, [20, 45], 0.5);
     // A bakery run in the morning.
