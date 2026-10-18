@@ -27,7 +27,7 @@
  * Pure; a function of the planned town. The placement belongs with the planner (it knows the
  * fronts, the gardens and the kerbs); the signs track only reads it.
  */
-import { alongLine } from '../geom/geom2';
+import { alongLine, facing } from '../geom/geom2';
 import { dwellingsOf, flatsDoorBay, streetDoor, type BuildingDesc } from './building';
 import { kerbStrip, PropType } from './cell';
 import { SITE } from './placeGraph';
@@ -88,8 +88,6 @@ export interface SignSpots {
   boards: BoardSpot[];
 }
 
-/** Instance yaw whose model front (-Z) faces along (nx, nz). */
-export const facing = (nx: number, nz: number): number => Math.atan2(-nx, -nz);
 /** Instance yaw whose model +X runs along (dx, dz). */
 export const along = (dx: number, dz: number): number => Math.atan2(-dz, dx);
 /** The axes of instance yaw `yaw`: where model +X runs (ax, az) and where its front faces (nx, nz). */

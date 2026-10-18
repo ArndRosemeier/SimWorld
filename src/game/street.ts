@@ -5,6 +5,7 @@
 import type { EquipmentVisuals } from '@futuremagic/humanoid';
 import { appearanceOf, bodyKey, coldOf, outfitOf } from '../street/looks';
 import { ACTOR_PERSON } from '../sim/actors';
+import { facing } from '../geom/geom2';
 import { isWetOut } from '../sim/weather';
 import type { Figure, Look, PeopleView } from '../render/people/peopleView';
 import type { SimClient, Walker } from './SimClient';
@@ -86,7 +87,7 @@ export class Street {
   pin(id: number, tx: number, tz: number): boolean {
     const f = this.where(id), w = this.sim.walkers.get(id) ?? this.indoors.get(id)?.w;
     if (!f || !w) return false;
-    this.pins.set(id, { x: f.x, y: f.y, z: f.z, face: Math.atan2(-(tx - f.x), -(tz - f.z)), w });
+    this.pins.set(id, { x: f.x, y: f.y, z: f.z, face: facing(tx - f.x, tz - f.z), w });
     return true;
   }
 

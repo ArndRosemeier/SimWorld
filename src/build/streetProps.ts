@@ -10,6 +10,7 @@
  */
 import { hash32, hashToFloat } from '@futuremagic/core';
 import { CURB_H } from '../world/ground';
+import { facing } from '../geom/geom2';
 import { PropType, type CellPlan, type StreetSeg } from '../plan/cell';
 import { RoadClass, type District } from '../plan/types';
 import { TERRACE_PALETTE } from '../plan/terrace';
@@ -227,5 +228,5 @@ function evChargerSpot(streets: StreetSeg[], x: number, z: number, yaw: number):
   if (!isFinite(da) || Math.abs(da - db) < 0.5) return null;
   const p = da > db ? a : b;
   // Front (−Z) of the post towards the car.
-  return { x: p.x, z: p.z, yaw: Math.atan2(-(cx - p.x), -(cz - p.z)) };
+  return { x: p.x, z: p.z, yaw: facing(cx - p.x, cz - p.z) };
 }

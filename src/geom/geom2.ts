@@ -437,3 +437,6 @@ export function joinPolylines(lines: readonly number[][], reach = 6): number[] {
   }
   return out;
 }
+
+/** Instance yaw whose model front (−Z) faces along (nx, nz): `facing(tx − x, tz − z)` turns something at (x, z) towards (tx, tz). */
+export const facing = (nx: number, nz: number): number => Math.atan2(-nx, -nz);
