@@ -9,7 +9,7 @@
  * src/build/vegetation.ts's.
  */
 import { hash32, hashToFloat } from '@futuremagic/core';
-import { CURB_H } from '../world/ground';
+import { townGround } from './ground';
 import { PropType, type CellPlan, type StreetSeg } from '../plan/cell';
 import { RoadClass, type District } from '../plan/types';
 import { TERRACE_PALETTE } from '../plan/terrace';
@@ -61,7 +61,7 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain, opts
     lists.add(key, x, y, z, yaw, scale, c[0], c[1], c[2], w);
   /** A noise offset per prop (so alike props differ in the shader). */
   const jitter = (x: number, z: number) => hashToFloat(hash32(Math.round(x * 10) * 7919 + Math.round(z * 10) * 104729)) * 50;
-  const curb = (x: number, z: number) => terrain.height(x, z) + CURB_H;
+  const curb = townGround(cells, terrain);
   const furn = (kind: FurnitureKind, v: number, x: number, z: number, yaw: number, scale: number, c?: [number, number, number]) =>
     put(`f:${kind}:${v & 1}`, x, curb(x, z), z, yaw, scale, c, jitter(x, z));
   const ends = streetEnds(cells);

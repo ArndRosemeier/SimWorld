@@ -10,7 +10,11 @@ import { careHomeRooms, siteToWorld } from '../src/plan/landmarks';
 import { decorInstances, DECOR_STRIDE } from '../src/build/decorProps';
 import { amenityCounts } from '../src/plan/amenities';
 import { CARE_ROOMS_PER_PERSON } from '../src/sim/placeKinds';
-import { closestOnPolyline, pointInPoly, polyArea } from '../src/geom/geom2';
+import { closestOnPolyline, pointInPoly, polyArea, polyCentroid, resample } from '../src/geom/geom2';
+import { inShape } from '../src/geom/clip';
+import { townGround } from '../src/build/ground';
+import { CURB_H } from '../src/world/ground';
+import { RoadClass } from '../src/plan/types';
 
 // Two towns of different sizes (planning them is the expensive part).
 const towns = [planTown({ seed: 11, size: 1 }), planTown({ seed: 3, size: 0.3 })];
@@ -147,4 +151,34 @@ test('holiday decorations: pumpkins and lights at the homes, a tree and stalls o
     if (gr.model.startsWith('f:stringLights')) continue; // (on the wall itself)
     assert.ok(!feet.some((p) => pointInPoly(p, gr.inst[o], gr.inst[o + 2])), `${gr.model} inside a building`);
   }
+});
+
+test('every street is drawn across its whole width, the edge arterials too; things stand on the drawn ground', () => {
+  const t = towns[1];
+  const shapes = t.cells.flatMap((c) => c.carriageway);
+  let n = 0, off = 0;
+  for (const c of t.cells) for (const st of c.streets) {
+    if (st.cls === RoadClass.Path) continue;
+    const p = resample(st.pts, 8), m = p.length >> 1;
+    for (let i = 2; i < m - 2; i++) {
+      const dx = p[i * 2 + 2] - p[i * 2 - 2], dz = p[i * 2 + 3] - p[i * 2 - 1], l = Math.hypot(dx, dz);
+      for (const s of [-0.35, 0.35]) {
+        const x = p[i * 2] - (dz / l) * st.width * s, z = p[i * 2 + 1] + (dx / l) * st.width * s;
+        n++;
+        if (!shapes.some((sh) => inShape(sh, x, z))) off++;
+      }
+    }
+  }
+  assert.ok(off < n * 0.01, `${off} of ${n} lane samples off the drawn carriageway`);
+  // The ground's height: the road on the terrain, the sidewalk a kerb up, open grass the dropped terrain mesh.
+  const ground = townGround(t.cells, t.terrain);
+  const cell = t.cells.find((c) => c.sidewalks.length && c.carriageway.length)!;
+  const inside = (sh: { outer: number[] }) => { const [x, z] = polyCentroid(sh.outer); return [x, z] as const; };
+  const road = cell.streets.find((s) => s.cls !== RoadClass.Path)!;
+  const [rx, rz] = [road.pts[Math.floor(road.pts.length / 4) * 2], road.pts[Math.floor(road.pts.length / 4) * 2 + 1]];
+  assert.ok(Math.abs(ground(rx, rz) - t.terrain.height(rx, rz)) < 1e-6, 'on the road');
+  const walk = cell.sidewalks.map(inside).find(([x, z]) => cell.sidewalks.some((s) => inShape(s, x, z)));
+  if (walk) assert.ok(Math.abs(ground(walk[0], walk[1]) - t.terrain.height(walk[0], walk[1]) - CURB_H) < 1e-6, 'on the sidewalk');
+  const far = 3000;
+  assert.ok(ground(far, far) < t.terrain.height(far, far), 'out in the country: the terrain mesh, under the natural ground');
 });

@@ -15,7 +15,7 @@
 import { hash32, hashToFloat } from '@futuremagic/core';
 import { closestOnPolyline, polylineLength, resample } from '../geom/geom2';
 import { inShape } from '../geom/clip';
-import { CURB_H } from '../world/ground';
+import { townGround } from './ground';
 import { RoadClass } from '../plan/types';
 import { dwellingsOf, facadeFront, streetDoor } from '../plan/building';
 import { along, facing } from '../plan/signs';
@@ -52,7 +52,7 @@ const BUNTING_Y = 5.4, BUNTING_REACH = 220, BUNTING_STEP = 32, MAX_SPANS = 48;
 /** Every outdoor decoration's instance, by model ('f:<FurnitureKind>:<variant>'), `square` the town's gathering place. */
 export function decorInstances(cells: readonly CellPlan[], terrain: Terrain, square: { x: number; z: number } | null): ModelInstances[] {
   const lists = new InstanceLists();
-  const ground = (x: number, z: number) => terrain.height(x, z) + CURB_H;
+  const ground = townGround(cells, terrain);
   const put = (kind: string, v: number, x: number, y: number, z: number, yaw: number, scale: number, slot: number, when: DecorWhen, rank: number) =>
     lists.add(`f:${kind}:${v}`, x, y, z, yaw, scale, 0, 0, 0, (x * 7.3 + z * 3.1) % 50, slot, when, rank);
 

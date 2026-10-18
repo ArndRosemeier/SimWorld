@@ -234,7 +234,9 @@ export function planCell(macro: MacroPlan, cell: CellInfo, terrain: Terrain): Ce
   }
 
   // --------------------------------------------------------- 2. surfaces
-  const cellPolys = [cell.poly];
+  // The cell's face, and the outer half of the arterials on the town's edge (no cell beyond draws it).
+  const outer = outerRoadStrips(macro, cell, terrain);
+  const cellPolys = outer.length ? shapesToPolys(union([cell.poly, ...outer])) : [cell.poly];
   const carrStrokes: Poly[] = [];
   const roadStrokes: Poly[] = [];
   for (const s of plan.streets) {
@@ -264,10 +266,10 @@ export function planCell(macro: MacroPlan, cell: CellInfo, terrain: Terrain): Ce
       } else if (run.length) { waterEdges.push(run); run = []; }
     }
   }
-  let blocksBase = difference(cellPolys, shapesToPolys(road));
+  let blocksBase = difference([cell.poly], shapesToPolys(road));
   if (waterEdges.length) {
     const prom = union(strokePolylines(waterEdges, cell.district === 'park' ? 4 : 9, 'round', 'round').map((s) => s.outer));
-    plan.promenade = difference(intersection(shapesToPolys(prom), cellPolys).flatMap((s) => [s.outer, ...s.holes]), shapesToPolys(road));
+    plan.promenade = difference(intersection(shapesToPolys(prom), [cell.poly]).flatMap((s) => [s.outer, ...s.holes]), shapesToPolys(road));
     blocksBase = difference(shapesToPolys(blocksBase), shapesToPolys(prom));
   }
   // Soften block corners slightly (opening).
@@ -1335,3 +1337,39 @@ function placeLandmarkProps(plan: CellPlan, lm: Landmark, terrain: Terrain): voi
     }
   }
 }
+
+/**
+ * The road strips (carriageway and sidewalks) beyond the cell's face along its arterials on the town's edge: an
+ * arterial between two cells is drawn half by each, one only one cell touches would be drawn only up to its
+ * centreline. Each such edge's strip goes to its one cell, less every other cell's face and the strips of the
+ * cells before it (where two edge arterials of different cells meet), and less water.
+ */
+export function outerRoadStrips(macro: MacroPlan, cell: CellInfo, terrain: Terrain): Poly[] {
+  const owners = new Map<number, Set<number>>();
+  for (const c of macro.cells) for (const e of c.edges) {
+    let o = owners.get(e);
+    if (!o) owners.set(e, (o = new Set()));
+    o.add(c.id);
+  }
+  const bridged = new Set(macro.bridges.map((b) => b.edge));
+  const strips = (id: number): Poly[] => {
+    const out: Poly[] = [];
+    for (const [e, o] of owners) {
+      if (o.size !== 1 || !o.has(id) || bridged.has(e)) continue;
+      const ed = macro.edges[e];
+      for (const sh of strokePolylines([ed.pts], ed.width / 2 + ed.sidewalk, 'round', 'round')) out.push(sh.outer);
+    }
+    return out;
+  };
+  const mine = strips(cell.id);
+  if (!mine.length) return [];
+  const cut: Poly[] = [];
+  for (const c of macro.cells) if (c.id !== cell.id) cut.push(c.poly, ...(c.id < cell.id ? strips(c.id) : []));
+  return shapesToPolys(difference(shapesToPolys(union(mine)), cut))
+    .filter((p) => { // drop the bits over water (a seafront arterial's outer side)
+      let wet = 0, n = 0;
+      for (let i = 0; i < p.length; i += 2) { n++; if (terrain.isWater(p[i], p[i + 1], 0)) wet++; }
+      return wet * 2 < n;
+    });
+}
+

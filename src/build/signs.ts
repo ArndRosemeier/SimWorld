@@ -7,7 +7,7 @@
  * board when nothing is for sale), src/render/signsView.ts. Pure; the town workers run it once.
  */
 import { hash32, hashToFloat } from '@futuremagic/core';
-import { CURB_H } from '../world/ground';
+import { townGround } from './ground';
 import { SITE } from '../plan/placeGraph';
 import { clockSpots, HANG_OUT, POSTER_Y, signSpots, yawAxes, type FrontSign } from '../plan/signs';
 import type { TownRoads } from '../plan/roads';
@@ -76,6 +76,7 @@ const PIN_OUT = 0.022;
 /** Every sign of the town; `places` are the planner's (`placeGraphOf`), `name` the town's. */
 export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, name: string): SignsData {
   const { terrain } = town;
+  const ground = townGround(town.cells, terrain);
   const spots = signSpots(town, roads, places);
   const lists = new InstanceLists();
   const what: SignWhat[] = [];
@@ -115,7 +116,7 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
     const w = say({ t: 'estate', place, slot: 'card' });
     if (h.onWall) addSign(BOARD, h.x, base(h.code) + h.y, h.z, h.yaw, 0.6, 0.6, w, ESTATE_PAINT);
     else {
-      const y = terrain.height(h.x, h.z);
+      const y = ground(h.x, h.z);
       // Sideways to the street, so both faces read from the pavement; the board hangs from the arm.
       const yaw = h.yaw + Math.PI / 2, { ax, az } = yawAxes(yaw);
       addSign('f:signPost:1', h.x, y, h.z, yaw, 1, 1, w);
@@ -125,14 +126,14 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
   for (const s of spots.sites) {
     const place = work.get(SITE + s.site);
     if (place === undefined) continue;
-    const y = terrain.height(s.x, s.z) + CURB_H;
+    const y = ground(s.x, s.z);
     addSign('f:signFrame:1', s.x, y, s.z, s.yaw, 1, 1, say({ t: 'post', slot: null }));
     addSign(BOARD, s.x, y + 0.85, s.z, s.yaw, 1.6, 0.8, say({ t: 'site', place, slot: 'board' }), [0.16, 0.22, 0.32]);
   }
   const post = say({ t: 'post', slot: null });
   const streets = new Map<number, number>();
   for (const c of spots.corners) {
-    const y = terrain.height(c.x, c.z) + CURB_H;
+    const y = ground(c.x, c.z);
     addSign('f:signPost:0', c.x, y, c.z, 0, 1, 1, post);
     c.blades.forEach((b, k) => {
       let w = streets.get(b.street);
@@ -157,7 +158,7 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
   for (const bd of spots.boards) {
     boarded.add(bd.place);
     if (bd.stand) {
-      const y = terrain.height(bd.x, bd.z) + CURB_H;
+      const y = ground(bd.x, bd.z);
       addSign('f:signFrame:1', bd.x, y, bd.z, bd.yaw, 1, 1, post);
       board(bd.place, bd.x, y + bd.y, bd.z, bd.yaw, true);
     } else board(bd.place, bd.x, base(bd.code) + bd.y, bd.z, bd.yaw, false);
@@ -184,14 +185,14 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
   }
   const front = say({ t: 'town', back: false, slot: 'board' }), back = say({ t: 'town', back: true, slot: 'board' });
   for (const g of spots.gateways) {
-    const y = terrain.height(g.x, g.z);
+    const y = ground(g.x, g.z);
     addSign('f:signFrame:0', g.x, y, g.z, g.yaw, 1, 1, post);
     addSign(BOARD, g.x, y + 1.6, g.z, g.yaw, 2.4, 1.2, front, [0.9, 0.9, 0.88]);
     addSign(BOARD, g.x, y + 1.6, g.z, g.yaw + Math.PI, 2.4, 1.2, back, [0.9, 0.9, 0.88]);
   }
   // The council's works boards (shown while it builds): a large board on the town sign's frame.
   for (const w of spots.works) {
-    const y = terrain.height(w.x, w.z);
+    const y = ground(w.x, w.z);
     const said = say({ t: 'works', at: w.at, slot: 'board' });
     // (The frame goes with its board: there only while the works are on.)
     addSign('f:signFrame:0', w.x, y, w.z, w.yaw, 1, 1, said);
