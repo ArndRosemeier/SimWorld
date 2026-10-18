@@ -282,7 +282,7 @@ export class Playing {
         const f = this.street.where(s.id), spot = this.goingIn.spotOf(s.id);
         const p = f ?? spot ?? { x: ins.indoors.doors[0]?.x ?? s.x, y: ins.indoors.base, z: ins.indoors.doors[0]?.z ?? s.z };
         const head = { x: p.x, y: p.y + (f || !spot || spot.use !== 'sleep' ? 1.55 : 0.6), z: p.z };
-        this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max, undefined, EYE_BALL));
+        this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max, undefined, EYE_BALL), (x, y, z) => phys.roomAround(x, y, z));
         this.street.hide(this.cam.tooClose ? s.id : -1);
         return { x: p.x, z: p.z };
       }
@@ -304,7 +304,7 @@ export class Playing {
     phys.world.step();
     if (!this.fetching && this.solidsAt && Math.hypot(av.x - this.solidsAt.x, av.z - this.solidsAt.z) > SOLIDS_R / 3) void this.fetchSolids(phys, av.x, av.z);
     const head = { x: av.x, y: av.y + 1.55, z: av.z };
-    this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max, av.body, EYE_BALL));
+    this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max, av.body, EYE_BALL), (x, y, z) => phys.roomAround(x, y, z, av.body));
     this.street.hide(this.cam.tooClose && this.sim.player ? this.sim.player.id : -1);
     const building = this.doorsAround(phys, av);
     const now = performance.now();

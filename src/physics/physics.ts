@@ -77,6 +77,12 @@ export class Physics {
   /** The keys of the sets in place. */
   keys(): IterableIterator<string> { return this.sets.keys(); }
 
+  /** How far (x, y, z) is from the nearest solid but `skip` (0 inside one). */
+  roomAround(x: number, y: number, z: number, skip?: RAPIER.Collider): number {
+    const p = this.world.projectPoint({ x, y, z }, true, undefined, undefined, skip);
+    return p ? (p.isInside ? 0 : Math.hypot(p.point.x - x, p.point.y - y, p.point.z - z)) : Infinity;
+  }
+
   /**
    * Is there room for a person standing at feet (x, y, z) (a capsule of `radius`, `height` tall, clear of every
    * solid but `skip`)?

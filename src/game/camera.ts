@@ -32,8 +32,11 @@ const STEER_BACK = 3.4;
  * near plane (NEAR_CLOSE) never cuts into them.
  */
 export const EYE_BALL = 0.22;
-/** Near plane while the camera is close to the person (m) and otherwise (the town far off needs depth precision). */
-const NEAR_CLOSE = 0.1, NEAR_FAR = 1;
+/**
+ * Near plane (m): NEAR_FAR as a rule (the town far off needs its depth precision: the ground's draped surfaces are
+ * spaced for it), down to NEAR_MIN only while something is that close to the camera (a wall, the person's body).
+ */
+const NEAR_MIN = 0.1, NEAR_FAR = 1;
 /** Closer than this to the head (m), the camera would look through the body: it is not drawn then. */
 const HIDE_AT = 0.75;
 
@@ -205,7 +208,7 @@ export class CameraControl {
    * (`clear(dx, dy, dz, max)`: how far from the head the view is free along that direction). From afar (the flight
    * down from the drone) it eases in as `updatePlay` does.
    */
-  updateSteer(dt: number, head: { x: number; y: number; z: number }, compiling: boolean, clear: (dx: number, dy: number, dz: number, max: number) => number): void {
+  updateSteer(dt: number, head: { x: number; y: number; z: number }, compiling: boolean, clear: (dx: number, dy: number, dz: number, max: number) => number, room: (x: number, y: number, z: number) => number = () => Infinity): void {
     if (!this.steering) {
       // Carry on looking the way the camera looks now.
       const e = this.camera.matrixWorld.elements;
@@ -228,8 +231,10 @@ export class CameraControl {
     this.camera.position.set(e.x, e.y, e.z);
     this.camera.lookAt(l.x, l.y, l.z);
     this.x = head.x; this.z = head.z;
-    this.setNear(far ? NEAR_FAR : NEAR_CLOSE);
-    this.tooClose = !far && Math.hypot(e.x - head.x, e.y - head.y, e.z - head.z) < HIDE_AT;
+    const toHead = Math.hypot(e.x - head.x, e.y - head.y, e.z - head.z);
+    // Nothing nearer than the near plane: the nearest solid, and the body (about 0.35 m round the head).
+    this.setNear(far ? NEAR_FAR : clamp(Math.min(room(e.x, e.y, e.z) * 0.6, (toHead - 0.35) * 0.8), NEAR_MIN, NEAR_FAR));
+    this.tooClose = !far && toHead < HIDE_AT;
   }
 
   /** The steering camera is so close to the head that the body would fill the view: the game leaves it undrawn. */
