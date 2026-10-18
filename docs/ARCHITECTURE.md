@@ -103,6 +103,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Make a car drive somewhere, park, leave the map; may a person cross here? | `Traffic`: `depart(car, goal)` (a parked car), `enter(car, exit, goal)` (from the region), `place(car, edge, fwd, s, goal)` (scripted: buses, rounds); `update(dt)`; `vehicles`, `onPark`, `onGone`; `obstacles` (people on the road), `safeToCross(x, z)`; `weatherK`, `daylight` | `src/traffic/traffic.ts` |
 | Which inhabitants set off by car just now? Where does a household's car stand at load? | `carTripsSince(world, clock)` → `CarTrip[]` (the drivers of `world.trips`, companions ride along); `carPlace(world, household)` | `src/traffic/trips.ts` |
 | The town's traffic from the sim (household cars, through traffic) | `TownTraffic(town, places, seed)`: `placeCars`, `trips(trips, clock)` once per game minute, `update(dt)` per frame; a household's car model `householdCar(seed, household)` | `src/traffic/townTraffic.ts` |
+| Buses on the road as the timetable says (in from the region, a lay-by at every town stop until departure, out again) | `Buses(world, net)`: `due(since, clock)`, `Buses.goal(trip, …)`; driven by `TownTraffic.transit(world, since, clock)` once per game minute. A stop is a `halt` goal of `Traffic` (also for service rounds) | `src/traffic/buses.ts` |
 | Draw the cars | the vehicle view *planned* (instanced `VEHICLE` kind, per-instance lights) | `src/render/vehiclesView.ts` *planned* |
 
 ### The app (`src/app`)
