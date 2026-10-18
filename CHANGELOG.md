@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.084 — Chat: no toddlers, no lost lines, plainer words
+
+- You can no longer start a full conversation with a toddler (nobody under four answers T).
+- A line you send while someone is still answering is no longer ignored: it goes out as soon as they finish.
+- People in chats talk plainly, without British or American turns of phrase (the town is in no real country).
+
 ## v0.083 — One invented post box and phone booth
 
 - Post boxes are one invented design everywhere: a deep teal box with a cream band on a short post. There is no British red pillar box or American blue mailbox any more.
