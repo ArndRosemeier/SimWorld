@@ -20,7 +20,7 @@
  * down to them and stays with them while you play as them. `?be=<id>` starts as that inhabitant. `?still` keeps the
  * drone view without the title or the picker, for screenshots (the looks check, tools/looks/check.mjs): once the town is built the
  * page's root gets `data-town="built"`.
- * On the street, T talks to the person nearest you (or the one you follow).
+ * T talks to the person nearest you (or the one you follow), out of doors or in the building you are in.
  *
  * A report's repro link (Shift+Ctrl+F12 → Report this spot, F8; src/game/report.ts, docs/REPORTS.md) adds `?clock=<world
  * minute>` (the world run to that minute from the start `date`), `?stand=x,y,z,yaw,building` and `?look=orbit,pitch`

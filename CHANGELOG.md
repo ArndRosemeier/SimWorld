@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.134 — Hands at rest
+
+- Sitting on chairs, benches and sofas, people rest their hands on their thighs or in their lap, fingers loosely curled, instead of holding them open on their knees.
+- In bed, the hands lie on the mattress or on the belly instead of hanging in the air.
+- Everyone has their own way of resting their hands, so a room of sitters does not look cloned.
+
+## v0.133 — Talk to people indoors
+
+- T now talks to whoever is near you wherever you are: your family at home, the staff and customers in a shop, people at work, in the church or the school. Before, only people out on the street could be talked to.
+- Only people on your floor and awake can be talked to; someone seated stays in their seat while you talk.
+- Family know each other's day: the people you live with know when you start work or school and what you have on today, and everyone knows their own plans ("Any plans today?" gets a real answer, with or without a language model).
+
 ## v0.132 — The title screen: Total Town
 
 - The game is now called Total Town (working title). It opens on a title screen: the name, an alpha badge with the version, and a small town at dusk under the stars whose windows light up one by one while the game gets ready behind it.
