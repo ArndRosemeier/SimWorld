@@ -103,23 +103,23 @@ const OPENABLE: readonly PlaceKind[] = [
 /** What a new business of a kind is called after its owner ("Keller's Bakery"): src/lang/words.ts `ownedWord`. */
 
 /** Roles that own the business they work in (they draw from its profit instead of a wage). */
-const OWNER_ROLES = new Set(['owner', 'landlord', 'shopkeeper', 'newsagent', 'florist', 'funeral director', 'estate agent']);
+const OWNER_ROLES = new Set(['owner', 'pub owner', 'shopkeeper', 'newsagent', 'florist', 'funeral director', 'estate agent']);
 
 // ---- wages and support -------------------------------------------------------------------------------------
 
 /** Full-time monthly net pay by role (the rest: by minimum age, a stand-in for training). */
 const PAY: Record<string, number> = {
-  doctor: 6500, dentist: 6000, vet: 4300, pharmacist: 3800, 'head teacher': 4200, teacher: 3100, mayor: 4000, engineer: 3800,
-  manager: 3700, 'branch manager': 3600, 'store manager': 3100, 'police officer': 2800, firefighter: 2600, nurse: 2500,
-  'care home manager': 3200, carer: 1750, priest: 2200, cashier: 1550, 'sales assistant': 1500, waiter: 1450, barista: 1450,
+  doctor: 6500, dentist: 6000, vet: 4300, pharmacist: 3800, principal: 4200, teacher: 3100, mayor: 4000, engineer: 3800,
+  manager: 3700, 'branch manager': 3600, 'supermarket manager': 3100, 'police officer': 2800, firefighter: 2600, nurse: 2500,
+  'care home manager': 3200, 'care worker': 1750, priest: 2200, cashier: 1550, 'sales assistant': 1500, waiter: 1450, barista: 1450,
   bartender: 1550, cook: 1700, chef: 2300, 'factory worker': 2150, foreman: 2900, farmhand: 1650, mechanic: 2300,
-  craftsman: 2300, 'master craftsman': 3100, 'office worker': 2400, 'bank clerk': 2400, 'postal clerk': 2050, postman: 2000,
-  librarian: 2300, 'kindergarten teacher': 2350, 'town clerk': 2400, cleaner: 1500, 'paper round': 300,
+  craftsman: 2300, 'master craftsman': 3100, 'office worker': 2400, 'bank clerk': 2400, 'postal clerk': 2050, 'postal worker': 2000,
+  librarian: 2300, 'kindergarten teacher': 2350, 'town clerk': 2400, cleaner: 1500, 'newspaper delivery': 300,
   'physiotherapist': 2700, beautician: 1700, 'fitness trainer': 1800, 'gym manager': 2500, 'hotel manager': 3000,
   housekeeper: 1550, receptionist: 1800, 'funeral assistant': 1900, 'shop manager': 1900, 'office assistant': 1800,
-  'counter assistant': 1450, hairdresser: 1750, baker: 2150, butcher: 2150, grocer: 1900, stocker: 1550, groundskeeper: 1900,
-  coach: 2100, gardener: 1850, sexton: 1700, 'station clerk': 2100, 'pharmacy assistant': 1800, 'dental nurse': 1950,
-  'vet assistant': 1800, 'school secretary': 2000, caretaker: 1900, farmer: 2200,
+  'counter assistant': 1450, hairdresser: 1750, baker: 2150, butcher: 2150, grocer: 1900, 'stock worker': 1550, groundskeeper: 1900,
+  coach: 2100, gardener: 1850, sexton: 1700, 'station clerk': 2100, 'pharmacy assistant': 1800, 'dental assistant': 1950,
+  'vet assistant': 1800, 'school secretary': 2000, 'school maintenance worker': 1900, farmer: 2200,
 };
 const PENSION = 1250;
 const CHILD_BENEFIT = 250;

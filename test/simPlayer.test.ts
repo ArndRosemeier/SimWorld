@@ -7,7 +7,7 @@ import { loadWorld, saveWorld } from '../src/sim/save';
 import { isPerson, tick } from '../src/sim/world';
 import { A } from '../src/sim/actors';
 import { cardsOf, profileOf, TAG_GRIEVING, TAG_PARENT } from '../src/sim/profile';
-import { becomePlayer, playerActions, playerGo, setAutopilot } from '../src/sim/player';
+import { becomePlayer, playerActions, playerGo, playerStatus, setAutopilot, steerPlayer } from '../src/sim/player';
 
 const planned = testTown(7, 220);
 const world = createWorld(planned, 7, { history: 1 });
@@ -74,4 +74,23 @@ test('player: who the player is survives a save', () => {
   becomePlayer(w, cardsOf(w)[0].id, false);
   const back = loadWorld(testTown(9, 60), saveWorld(w));
   assert.deepEqual(back.player, w.player);
+});
+
+test('player: steering puts them on the street at once, off any trip, drawn by the game; autopilot hands them back', () => {
+  const w = createWorld(testTown(10, 120), 10);
+  const id = cardsOf(w).find((c) => c.age >= 25 && c.age < 60)!.id;
+  becomePlayer(w, id, false);
+  const a = w.actors.cols;
+  assert.notEqual(a.activity[id], A.sleep, 'taken over, they are up');
+  const home = w.graph.places[a.home[id]];
+  steerPlayer(w, home.x + 3, home.z);
+  assert.equal(w.graph.places[a.place[id]].kind, 'street');
+  assert.equal(a.dest[id], -1);
+  const s = playerStatus(w)!;
+  assert.ok(s.steered && s.outdoors && s.x === home.x + 3, 'the status says where the player has them');
+  tick(w, 120);
+  assert.equal(w.graph.places[a.place[id]].kind, 'street', 'nobody walks them off while the player steers');
+  setAutopilot(w, true);
+  assert.equal(w.player!.at, null);
+  assert.equal(playerStatus(w)!.steered, false);
 });

@@ -14,7 +14,8 @@ import type { Town } from '../plan/town';
 import { footprintsOf, type Footprints } from '../plan/footprints';
 import { townRoads } from '../plan/roads';
 import { signFootprints, signSpots } from '../plan/signs';
-import { buildingRef } from '../plan/placeGraph';
+import { buildingRef, eachBuilding } from '../plan/placeGraph';
+import { buildingBase, buildingHeight } from '../build/massing';
 import { BODY } from './clearance';
 import type { PlaceGraph, PlaceId, PlaceKind } from '../sim/places';
 import { CURB_H } from '../world/ground';
@@ -33,6 +34,19 @@ const SPOT_ROOM = 1.2;
 /** Where to try the doorstep: [out from the facade, along it] in m, the plain step first. */
 const DOOR_SHIFTS: [number, number][] = [[DOOR_STEP, 0], [DOOR_STEP, 0.8], [DOOR_STEP, -0.8], [2, 0], [2, 1.2], [2, -1.2], [DOOR_STEP, 1.6], [DOOR_STEP, -1.6]];
 
+/**
+ * What stands within reach of a point, for the player's body (src/game/playing.ts): each town building's outline
+ * (x, z pairs, its `Place.building` code, from below its lowest ground `y0` to above its roof line `y1`), and the
+ * street's posts, trees, furniture and the parked cars as circles (x, z, r, ground y) * n.
+ */
+export interface NearSolids {
+  buildings: { code: number; poly: number[]; y0: number; y1: number }[];
+  circles: number[];
+}
+
+/** A town building as the player's body meets it: outline, bounds, from `y0` up to `y1`. */
+interface Solid { code: number; poly: Poly; y0: number; y1: number; b: [number, number, number, number] }
+
 /** Default walking-line offset (m) for a road without one (a footpath the graph added). */
 const SIDE = 0;
 
@@ -50,6 +64,8 @@ export class StreetMap {
   readonly seats: Seat[];
   readonly seatBook = new SeatBook();
   private readonly placeSeats = new Map<PlaceId, number[]>();
+  /** Every town building's outline, bounds and height (made when the player first walks). */
+  private solids: Solid[] | null = null;
 
   constructor(readonly town: Town, readonly graph: PlaceGraph) {
     const n = graph.nodes.length;
@@ -203,6 +219,32 @@ export class StreetMap {
   /** Can someone stand at (x, z): clear of every prop, parked car and building by `room` m? */
   standable(x: number, z: number, room = 0.4): boolean {
     return this.fp.overlap(x, z, room) === 0 && !this.fp.insideBuilding(x, z, room);
+  }
+
+  /** What stands within `r` of (x, z) (see `NearSolids`). */
+  solidsNear(x: number, z: number, r: number): NearSolids {
+    if (!this.solids) {
+      const t = this.town.terrain, list: Solid[] = [];
+      eachBuilding(this.town.cells, (b, code) => {
+        const { base, low } = buildingBase(b, t);
+        list.push({ code, poly: b.poly, y0: low - 1, y1: base + buildingHeight(b) + 1, b: polyBounds(b.poly) });
+      });
+      this.solids = list;
+    }
+    const buildings: NearSolids['buildings'] = [];
+    for (const s of this.solids) {
+      if (s.b[0] > x + r || s.b[2] < x - r || s.b[1] > z + r || s.b[3] < z - r) continue;
+      buildings.push({ code: s.code, poly: s.poly.slice(), y0: s.y0, y1: s.y1 });
+    }
+    const circles: number[] = [], idx: number[] = [];
+    for (let f: Footprints | null = this.fp; f; f = f.also) {
+      f.circlesNear(x, z, r, idx);
+      for (const i of idx) {
+        const cx = f.circles[i * 3], cz = f.circles[i * 3 + 1];
+        circles.push(cx, cz, f.circles[i * 3 + 2], this.groundY(cx, cz));
+      }
+    }
+    return { buildings, circles };
   }
 }
 

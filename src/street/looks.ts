@@ -64,7 +64,7 @@ const SHOE: C3[] = [[0.08, 0.08, 0.08], [0.25, 0.15, 0.08], [0.9, 0.9, 0.9], [0.
 const SUIT: C3[] = [[0.12, 0.12, 0.14], [0.2, 0.22, 0.28], [0.3, 0.3, 0.32], [0.25, 0.2, 0.15]];
 
 /** Roles that dress for the office (until uniforms come with their own clothes). */
-const SMART = /clerk|bank|office|manager|accountant|lawyer|mayor|secretary|head teacher|doctor|dentist|pharmacist|estate/;
+const SMART = /clerk|bank|office|manager|accountant|lawyer|mayor|secretary|principal|doctor|dentist|pharmacist|estate/;
 
 function vis(seed: number, primary: C3, secondary: C3, pattern = 'plain', wear = 0.15): ItemVisual {
   return { shape: 'cloth', seed, primary, secondary, accent: secondary, material: pattern, glow: 0, wear };
