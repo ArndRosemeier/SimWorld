@@ -242,5 +242,13 @@
   {
     "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/sky.ts",
     "reason": "TSL's own grammar (multiply, then keep as a variable): every node-material look is written in it; there is nothing to fold."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   }
 ]
