@@ -8,7 +8,7 @@ import { MINUTES_PER_DAY, atMinute, dayOf } from '../src/sim/time';
 import { departures, nextRide, runsAt, runsOnDay, transitOf } from '../src/sim/transit';
 
 const region = planRegion({
-  seed: 5, town: 'Testford', coastal: false, seaBearing: 0, hilliness: 0.4, warmth: 0.5, american: false, oldWorld: 0.7,
+  seed: 5, town: 'Testford', coastal: false, seaBearing: 0, hilliness: 0.4, warmth: 0.5, oldWorld: 0.7,
   railBearing: 90, railTerminus: false, downstreamBearing: 200,
 });
 const world = createWorld(testTown(5, 1200), 5, { region });

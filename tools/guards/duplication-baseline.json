@@ -344,7 +344,7 @@
     "reason": "Texture generators round a feature size to a whole count per tile (Math.round(W / size)) so the pattern wraps, then loop Tex.each; the tiling contract, not a copy."
   },
   {
-    "key": "idiom: [.fromEntries .map Object] in simworld/audio/engine.ts + simworld/audio/soundMap.ts + simworld/llm/appraisal.ts",
+    "key": "idiom: [.fromEntries .map Object] in simworld/audio/engine.ts + simworld/audio/soundMap.ts + simworld/sim/groups.ts",
     "reason": "Building a record keyed by a fixed list of ids (sound categories, sound-map channels, LLM appraisal fields): one line of plain JavaScript each, with a different list and value per place."
   },
   {
@@ -408,10 +408,6 @@
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
-    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
-    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
-  },
-  {
     "key": "idiom: [.beginPath .lineTo .lineWidth .moveTo] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
@@ -430,10 +426,6 @@
   {
     "key": "idiom: [.vertexNode] in simworld/render/tsl/precip.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/smoke.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
-  },
-  {
-    "key": "idiom: [.cornerGap] in simworld/interior/fill/home.ts + simworld/interior/fill/place.ts + simworld/interior/fill/work.ts",
-    "reason": "Furnishing rules scoring a candidate spot by the filler's own cornerGap (one seam, Filler.cornerGap); each room's rule weighs it differently, nothing to fold."
   },
   {
     "key": "idiom: [.filter .known] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/synth.ts",
@@ -521,6 +513,6 @@
   },
   {
     "key": "idiom: [.int .pick] in simworld/plan/cell.ts + simworld/traffic/townTraffic.ts + simworld/traffic/visitors.ts",
-    "reason": "Seeded draws through the Rng API (rng.int, rng.pick) in three unrelated choices: lot layout, trip choice and visitor choice; the shared part is Rng itself. Entered the finder's top idioms when the shell removed other app idioms."
+    "reason": "The seeded Rng's own vocabulary (r.int, r.pick from @futuremagic/core): each caller draws its own thing (a prop variant, a car trip, a visitor), there is no shared helper to fold."
   }
 ]
