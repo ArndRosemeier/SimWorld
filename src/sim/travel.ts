@@ -1,0 +1,98 @@
+/**
+ * Travel times between places over the road network of a `PlaceGraph`. Dijkstra from a place's road node runs once
+ * and is cached, so a town with a few hundred distinct entrance nodes answers every query from typed arrays.
+ */
+import { MinHeap } from '@futuremagic/core';
+import type { PlaceGraph, PlaceId } from './places';
+
+/** Walking speed, metres per game minute (4.8 km/h). */
+export const WALK_M_PER_MIN = 80;
+/** Town driving speed including junctions, metres per minute (30 km/h). */
+export const DRIVE_M_PER_MIN = 500;
+/** Minutes to get to the car and park it. */
+export const PARK_MIN = 3;
+/** People with a car drive when walking would take longer than this. */
+export const DRIVE_IF_WALK_OVER = 12;
+/** Detour factor when two places have no road connection (straight-line fallback). */
+const OFFROAD = 1.4;
+
+export class Travel {
+  private readonly graph: PlaceGraph;
+  /** CSR adjacency: neighbours of node n are adj[start[n] .. start[n+1]). */
+  private readonly start: Int32Array;
+  private readonly adj: Int32Array;
+  private readonly cost: Float32Array;
+  private readonly cache = new Map<number, Float32Array>();
+  private readonly heap = new MinHeap();
+
+  constructor(graph: PlaceGraph) {
+    this.graph = graph;
+    const n = graph.nodes.length;
+    const deg = new Int32Array(n + 1);
+    for (const e of graph.edges) { deg[e.a]++; deg[e.b]++; }
+    this.start = new Int32Array(n + 1);
+    for (let i = 0; i < n; i++) this.start[i + 1] = this.start[i] + deg[i];
+    this.adj = new Int32Array(this.start[n]);
+    this.cost = new Float32Array(this.start[n]);
+    const fill = this.start.slice(0, n);
+    for (const e of graph.edges) {
+      const c = e.length / Math.max(0.1, e.walk);
+      this.adj[fill[e.a]] = e.b; this.cost[fill[e.a]++] = c;
+      this.adj[fill[e.b]] = e.a; this.cost[fill[e.b]++] = c;
+    }
+  }
+
+  /** Effective walking metres from road node `from` to every node (cached). */
+  private fromNode(from: number): Float32Array {
+    let d = this.cache.get(from);
+    if (d) return d;
+    d = new Float32Array(this.graph.nodes.length).fill(Infinity);
+    const heap = this.heap;
+    heap.clear();
+    d[from] = 0;
+    heap.push(0, from);
+    while (heap.size > 0) {
+      const u = heap.pop();
+      const du = heap.lastPriority;
+      if (du > d[u]) continue;
+      for (let i = this.start[u]; i < this.start[u + 1]; i++) {
+        const v = this.adj[i], nd = du + this.cost[i];
+        if (nd < d[v]) { d[v] = nd; heap.push(nd, v); }
+      }
+    }
+    this.cache.set(from, d);
+    return d;
+  }
+
+  /** Effective walking metres between two places (entrance → road → entrance). */
+  metres(a: PlaceId, b: PlaceId): number {
+    if (a === b) return 0;
+    const pa = this.graph.places[a], pb = this.graph.places[b];
+    const straight = Math.hypot(pa.x - pb.x, pa.z - pb.z);
+    if (pa.node < 0 || pb.node < 0) return straight * OFFROAD;
+    const na = this.graph.nodes[pa.node], nb = this.graph.nodes[pb.node];
+    const road = this.fromNode(pa.node)[pb.node];
+    if (!Number.isFinite(road)) return straight * OFFROAD;
+    const viaRoad = Math.hypot(pa.x - na.x, pa.z - na.z) + road + Math.hypot(pb.x - nb.x, pb.z - nb.z);
+    return Math.min(viaRoad, straight * OFFROAD);
+  }
+
+  /** The candidate place nearest to `from` by travel time, -1 if none. The one "nearest X" helper. */
+  nearest(from: PlaceId, candidates: Iterable<PlaceId>): PlaceId {
+    let best = -1, bt = Infinity;
+    for (const p of candidates) {
+      const t = this.metres(from, p);
+      if (t < bt) { bt = t; best = p; }
+    }
+    return best;
+  }
+
+  /** Whole game minutes from a to b, walking or (with a car, when worth it) driving. At least 1 between places. */
+  minutes(a: PlaceId, b: PlaceId, car = false): number {
+    if (a === b) return 0;
+    const m = this.metres(a, b);
+    let t = m / WALK_M_PER_MIN;
+    if (car && t > DRIVE_IF_WALK_OVER) t = Math.min(t, m / DRIVE_M_PER_MIN + PARK_MIN);
+    return Math.max(1, Math.round(t));
+  }
+}
