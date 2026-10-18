@@ -12,7 +12,7 @@ import { buildBridges } from '../build/bridges';
 import { lampsOf, propFar, propInstances, propModel } from '../build/streetProps';
 import { ForestGen, townTrees } from '../build/forest';
 import { buildVegModel } from '../build/vegetation';
-import { facadeSpecs, buildBuildings, buildLandmark, buildingBase, buildingTiers } from '../build/massing';
+import { facadeSpecs, buildBuildings, buildLandmark, buildingBase, buildingTiers, windowOpenings } from '../build/massing';
 import { INTERIOR_SPECS, buildCutaway, buildIndoors } from '../build/interior';
 import { indoorsOf } from '../interior/indoors';
 import { planInterior, storeyFacade } from '../interior/building';
@@ -128,7 +128,7 @@ function handle(m: ToTown): FromTown {
       const code = m.cell * 65536 + m.index, work = places.places.find((p) => p.building === code && !p.homes);
       const I = planInterior(b, work ? { staff: work.staff, capacity: work.capacity } : undefined);
       const { base } = buildingBase(b, terrain);
-      const ind = indoorsOf(I, base);
+      const ind = indoorsOf(I, base, windowOpenings(b));
       const [x0, z0, x1, z1] = polyBounds(b.poly), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
       const mb = new MeshBuilder(INTERIOR_SPECS);
       mb.setOrigin(cx, base, cz);

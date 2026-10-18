@@ -48,6 +48,8 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
     const rough = float(0.6).toVar(), metal = float(0.0).toVar();
     const fEmis = vec3(0.0).toVar();
     const n1 = fn(vOPos.mul(7.0)).toVar(), n2 = fn(vOPos.mul(23.0)).toVar(), n0 = fn(vOPos.mul(1.7)).toVar();
+    // Evaluated here, outside the branches: built first inside one If, it would be set in that branch only.
+    const paintC = vPaint.toVar();
     const lightOn = uNight;
     const fc = mod(floor(screenCoordinate.xy), 2.0).toVar();
     // signal phase 0 red / 1 amber / 2 green, cycling (no traffic to follow yet)
@@ -56,7 +58,7 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
       base.assign(vec3(0.56, 0.57, 0.58).mul(add(0.9, mul(0.15, n1)).add(mul(0.06, n2))));
       rough.assign(add(0.32, mul(0.18, n1))); metal.assign(0.85);
     }).ElseIf(mid.equal(1), () => { // painted metal
-      base.assign(vPaint.mul(add(0.94, mul(0.08, n2))));
+      base.assign(paintC.mul(add(0.94, mul(0.08, n2))));
       rough.assign(add(0.38, mul(0.15, n1)).add(mul(0.12, n0).mul(n2))); metal.assign(0.25);
       const scuff = smoothstep(0.78, 0.92, n1.mul(0.6).add(n2.mul(0.4))).mul(0.35).toVar();
       base.assign(mix(base, vec3(0.32, 0.31, 0.3), scuff)); rough.addAssign(scuff.mul(0.3));
@@ -64,52 +66,52 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
       const along = select(abs(vONrm.x).lessThan(0.7), vOPos.x, vOPos.z);
       const grain = fn(vec3(along.mul(2.0), vOPos.y.mul(40.0), vOPos.z.mul(40.0).add(vOPos.x.mul(3.0)))).toVar();
       const rings = add(0.5, mul(0.5, sin(vOPos.y.add(vOPos.z).mul(140.0).add(grain.mul(6.0)))));
-      base.assign(vPaint.mul(add(0.68, mul(0.28, grain)).add(mul(0.12, rings))).mul(add(0.85, mul(0.2, n0))));
+      base.assign(paintC.mul(add(0.68, mul(0.28, grain)).add(mul(0.12, rings))).mul(add(0.85, mul(0.2, n0))));
       rough.assign(add(0.62, mul(0.15, grain)));
     }).ElseIf(mid.equal(3), () => { // concrete
-      base.assign(vPaint.mul(add(0.82, mul(0.22, n1)).add(mul(0.1, n2))).mul(sub(1.0, mul(0.25, step(0.86, n2))))); // (pits from the shared noises: each noise call costs build time)
+      base.assign(paintC.mul(add(0.82, mul(0.22, n1)).add(mul(0.1, n2))).mul(sub(1.0, mul(0.25, step(0.86, n2))))); // (pits from the shared noises: each noise call costs build time)
       rough.assign(0.9);
     }).ElseIf(mid.equal(4), () => { // stone (granite / limestone)
       const speck = step(0.82, n2.mul(0.7).add(n1.mul(0.3)));
-      base.assign(vPaint.mul(vec3(1.168, 1.098, 1.005)).mul(add(0.82, mul(0.25, n0)).add(mul(0.12, n1)).add(mul(0.06, n2))).mul(sub(1.0, speck.mul(0.3))));
+      base.assign(paintC.mul(vec3(1.168, 1.098, 1.005)).mul(add(0.82, mul(0.25, n0)).add(mul(0.12, n1)).add(mul(0.06, n2))).mul(sub(1.0, speck.mul(0.3))));
       rough.assign(add(0.72, mul(0.1, n2)));
     }).ElseIf(mid.equal(5), () => { // glass (screen-door transparency)
       If(fc.x.equal(fc.y), () => { Discard(); });
       base.assign(vec3(0.04, 0.05, 0.055));
       rough.assign(0.04); metal.assign(0.6);
     }).ElseIf(mid.equal(6), () => { // plastic / foliage
-      base.assign(vPaint);
+      base.assign(paintC);
       rough.assign(add(0.45, mul(0.1, n1)));
       If(sub_.equal(8), () => {
         const leaf = n2.mul(0.6).add(n1.mul(0.4));
-        base.assign(vPaint.mul(add(0.55, mul(0.75, leaf))).mul(add(0.8, mul(0.3, n1))));
+        base.assign(paintC.mul(add(0.55, mul(0.75, leaf))).mul(add(0.8, mul(0.3, n1))));
         rough.assign(0.85);
       });
     }).ElseIf(mid.equal(7), () => { // light lens
       If(sub_.greaterThanEqual(1).and(sub_.lessThanEqual(3)), () => {
         const want = select(sub_.equal(1), float(0.0), select(sub_.equal(2), float(1.0), float(2.0)));
         const lit = select(abs(phase.sub(want)).lessThan(0.5), float(1.0), float(0.0));
-        base.assign(vPaint.mul(0.12));
+        base.assign(paintC.mul(0.12));
         rough.assign(0.15);
-        fEmis.assign(vPaint.mul(vPaint).mul(lit).mul(add(2.2, mul(3.0, uNight))));
+        fEmis.assign(paintC.mul(paintC).mul(lit).mul(add(2.2, mul(3.0, uNight))));
       }).ElseIf(sub_.equal(4).or(sub_.equal(5)), () => {
         const walk = select(phase.lessThan(0.5), float(1.0), float(0.0));
         const lit = select(sub_.equal(5), walk, sub(1.0, walk));
         const mask = texture(sign, vUvF).r.toVar();
-        base.assign(vec3(0.02).add(vPaint.mul(mask).mul(0.05)));
+        base.assign(vec3(0.02).add(paintC.mul(mask).mul(0.05)));
         rough.assign(0.2);
-        fEmis.assign(vPaint.mul(mask).mul(lit).mul(add(3.0, mul(4.0, uNight))));
+        fEmis.assign(paintC.mul(mask).mul(lit).mul(add(3.0, mul(4.0, uNight))));
       }).ElseIf(sub_.equal(10), () => { // charger status light: a steady teal pulse
         const c = vec3(0.12, 0.8, 1.0);
         base.assign(c.mul(0.3));
         rough.assign(0.2);
         fEmis.assign(c.mul(add(0.75, mul(0.25, sin(uTime.mul(2.5).add(iTint.w))))).mul(add(1.4, mul(2.6, uNight))));
       }).ElseIf(sub_.equal(9), () => { // retro-reflective band
-        base.assign(vPaint); rough.assign(0.25); metal.assign(0.0);
+        base.assign(paintC); rough.assign(0.25); metal.assign(0.0);
       }).Else(() => { // lamp: frosted diffuser
         base.assign(vec3(0.82, 0.82, 0.8));
         rough.assign(0.25);
-        fEmis.assign(vPaint.mul(vec3(1.0, 0.86, 0.66)).mul(vEmit).mul(LIGHT.lamps).mul(9.0));
+        fEmis.assign(paintC.mul(vec3(1.0, 0.86, 0.66)).mul(vEmit).mul(LIGHT.lamps).mul(9.0));
       });
     }).ElseIf(mid.equal(8), () => { // water
       If(sub_.equal(1), () => {
@@ -128,7 +130,7 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
       base.assign(mix(vec3(0.16, 0.09, 0.045), vec3(0.13, 0.24, 0.19), pat));
       metal.assign(mix(0.85, 0.15, pat)); rough.assign(mix(0.38, 0.75, pat));
     }).ElseIf(mid.equal(10), () => { // rubber
-      base.assign(vPaint.mul(add(0.85, mul(0.2, n2))));
+      base.assign(paintC.mul(add(0.85, mul(0.2, n2))));
       rough.assign(0.95);
     }).ElseIf(mid.equal(11), () => { // signage
       // 6: the instance's lettering (shop names, street names, notices), lit with the shops at night.

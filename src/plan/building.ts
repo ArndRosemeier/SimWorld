@@ -210,6 +210,11 @@ export function pickStyle(r: Rng, district: District, p: WorldProfile, dens: num
   return r.weighted(keys, (k) => w[k]!);
 }
 
+/** How many window bays a facade edge `L` metres long has (the building's bay width fitted to it): one seam for the facade, its doors, its windows inside and its signs. */
+export function baysOf(b: { bay: number }, L: number): number {
+  return Math.max(1, Math.round(L / b.bay));
+}
+
 /**
  * Which bay of the front facade holds the door (Scale: build/buildingLayout doorBayOf): the
  * planner (terraces keep clear of it), the sim (where people go in) and the meshes agree on it.
@@ -236,7 +241,7 @@ export type FrontDoor = { edge: number; s0: number; s1: number; x: number; z: nu
 function frontBayDoor(b: BuildingDesc, bayOf: (bays: number) => number): FrontDoor | null {
   const P = b.poly, n = P.length >> 1, i = b.front % n, j = (i + 1) % n;
   const L = Math.hypot(P[j * 2] - P[i * 2], P[j * 2 + 1] - P[i * 2 + 1]);
-  const bays = Math.max(1, Math.round(L / b.bay)), bayW = L / bays, bay = bayOf(bays);
+  const bays = baysOf(b, L), bayW = L / bays, bay = bayOf(bays);
   if (bay < 0) return null;
   const dw = Math.min(1.3, bayW * 0.62), dc = (bay + 0.5) * bayW, t = dc / Math.max(1e-6, L);
   return { edge: i, s0: dc - dw / 2, s1: dc + dw / 2, x: P[i * 2] + (P[j * 2] - P[i * 2]) * t, z: P[i * 2 + 1] + (P[j * 2 + 1] - P[i * 2 + 1]) * t };

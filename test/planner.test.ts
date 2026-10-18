@@ -119,5 +119,13 @@ test('houses: a driveway beside most, on their lot, its car spot clear of buildi
       for (const p of c.parking) if (p.street === d.street) assert.ok(Math.abs(closestOnPolyline(s.pts, p.x, p.z).s - at) > 3.5, 'no parking bay across a driveway');
     }
     assert.ok(c.paths.every((p) => Math.abs(polyArea(p.outer)) > 2));
+    // Garages, carports and garden fences stand on free ground, off the houses.
+    for (let i = 0; i < c.props.length; i += 6) {
+      const t = c.props[i];
+      if (t !== 34 && t !== 33) continue;
+      const x = c.props[i + 1], z = c.props[i + 2];
+      assert.ok(!c.buildings.some((b) => pointInPoly(b.poly, x, z)), 'a garage or fence in a house');
+      assert.ok(!c.carriageway.some((r) => pointInPoly(r.outer, x, z) && !r.holes.some((h) => pointInPoly(h, x, z))), 'a garage or fence on the road');
+    }
   }
 });
