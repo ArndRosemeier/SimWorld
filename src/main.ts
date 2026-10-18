@@ -56,6 +56,7 @@ import { RailView } from './render/railView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
 import { A, FEMALE, MALE } from './sim/actors';
 import { buildingLooksOf, decorShares, litShares } from './street/windows';
+import { showDecor, type DecorShown } from './render/decorView';
 import { setBuildingLooks, setDecor, setLitShares, setWindowMap, WINDOW_SLOTS } from './render/windowLight';
 import { hhmm, minuteOfDay, MINUTES_PER_DAY } from './sim/time';
 import type { MediaView } from './sim/media';
@@ -172,8 +173,11 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const lit = new Uint8Array(sim.windows.count), looks = new Uint8Array(sim.windows.count * 2);
   // Holiday decorations in the windows follow the households' choices, once a game day (src/sim/decor.ts).
   const decor = new Uint8Array(WINDOW_SLOTS * 2);
-  const decorate = (face = sim.town) => { decorShares(face.decor, sim.windows, decor); setDecor(decor); };
-  sim.onView = (v) => { litShares(v, sim.windows, A.sleep, lit); setLitShares(lit); if (v.town) decorate(v.town); };
+  // Outdoors too: pumpkins, string lights, the square's tree and stalls, festival bunting (src/render/decorView.ts).
+  let outdoors: DecorShown | null = null;
+  const decorate = (face = sim.town) => { decorShares(face.decor, sim.windows, decor); setDecor(decor); outdoors?.set(decor, sim.view.occasions); };
+  void showDecor(stage, pool, view.root, 80 + town.cells).then((d) => { outdoors = d; decorate(); });
+  sim.onView = (v) => { litShares(v, sim.windows, A.sleep, lit); setLitShares(lit); if (v.town) decorate(v.town); else outdoors?.set(decor, v.occasions); };
   sim.onView(sim.view);
   decorate();
   if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);

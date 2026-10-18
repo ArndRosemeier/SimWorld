@@ -224,6 +224,14 @@ export function doorBayOf(seed: number, bays: number): number {
   return 1 + ((seed >>> 5) % Math.min(bays - 2, 3));
 }
 
+/** The building's front edge: its first corner (ax, az), its direction (dx, dz) and length L, and the outward normal (nx, nz). */
+export function facadeFront(b: BuildingDesc): { ax: number; az: number; dx: number; dz: number; L: number; nx: number; nz: number } {
+  const P = b.poly, n = P.length >> 1, i = b.front % n, j = (i + 1) % n;
+  const ax = P[i * 2], az = P[i * 2 + 1], L = Math.hypot(P[j * 2] - ax, P[j * 2 + 1] - az) || 1;
+  const dx = (P[j * 2] - ax) / L, dz = (P[j * 2 + 1] - az) / L;
+  return { ax, az, dx, dz, L, nx: dz, nz: -dx };
+}
+
 /**
  * The street door: on the front edge, centred in the door bay (`doorBayOf`), at most 1.3 m wide.
  * `s0`, `s1` its span along the edge from the edge's first corner, `x`, `z` its middle on the

@@ -31,9 +31,10 @@ export type FurnitureKind = 'lampModern' | 'lampClassic' | 'lampDouble' | 'traff
   | 'cafeTable' | 'cafeChair' | 'parasol' | 'awning' | 'menuBoard' | 'terraceRail' | 'parklet'
   | 'cemWall' | 'gravestone' | 'grave' | 'tomb'
   | 'gardenFence' | 'garage'
+  | 'pumpkin' | 'stringLights' | 'xmasTree' | 'marketStall' | 'bunting'
   | 'signBoard' | 'signPost' | 'signFrame' | 'signBracket';
 
-export const FURNITURE_KINDS: FurnitureKind[] = ['lampModern', 'lampClassic', 'lampDouble', 'trafficLight', 'bench', 'bin', 'hydrant', 'mailbox', 'bollard', 'planter', 'busStop', 'fountain', 'statue', 'kiosk', 'stopSign', 'playground', 'manhole', 'newsStand', 'bikeRack', 'phoneBooth', 'evCharger', 'cafeTable', 'cafeChair', 'parasol', 'awning', 'menuBoard', 'terraceRail', 'parklet', 'cemWall', 'gravestone', 'grave', 'tomb', 'gardenFence', 'garage', 'signBoard', 'signPost', 'signFrame', 'signBracket'];
+export const FURNITURE_KINDS: FurnitureKind[] = ['lampModern', 'lampClassic', 'lampDouble', 'trafficLight', 'bench', 'bin', 'hydrant', 'mailbox', 'bollard', 'planter', 'busStop', 'fountain', 'statue', 'kiosk', 'stopSign', 'playground', 'manhole', 'newsStand', 'bikeRack', 'phoneBooth', 'evCharger', 'cafeTable', 'cafeChair', 'parasol', 'awning', 'menuBoard', 'terraceRail', 'parklet', 'cemWall', 'gravestone', 'grave', 'tomb', 'gardenFence', 'garage', 'pumpkin', 'stringLights', 'xmasTree', 'marketStall', 'bunting', 'signBoard', 'signPost', 'signFrame', 'signBracket'];
 
 /** The vertex attributes of furniture meshes besides position and normal (the `FURNITURE` kind's). */
 export const FURNITURE_SPECS: AttrSpec[] = [{ name: 'uv', size: 2 }, { name: 'aFurn', size: 3 }, { name: 'aColor', size: 3 }];
@@ -1264,6 +1265,110 @@ function garage(fb: FB, v: number): number {
   return 2.5;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Holiday decorations (src/build/decorProps.ts): doorstep pumpkins, a 2.5 m string of lights along
+// x, the town's Christmas tree, a market stall (front −Z) and a 3 m stretch of festival bunting.
+// Bulbs are lamps: they light up with the street lamps.
+// ---------------------------------------------------------------------------------------------
+
+/** A point at t (0 … 1) on a line `len` m long along x, centred, sagging `sag` m at its middle. */
+const sagAt = (t: number, len: number, sag: number): V => [len * (t - 0.5), -sag * 4 * t * (1 - t), 0];
+
+const BULBS: V[] = [[1, 0.25, 0.2], [0.3, 1, 0.35], [0.35, 0.5, 1], [1, 0.85, 0.3]];
+const bulb = (c: V, e = 0.7): PO => ({ m: FMat.Light, e, s: 0, c });
+
+/** One flat triangle (both faces), its top edge from (x0, y) to (x1, y), its tip `h` below the middle. */
+function pennant(fb: FB, po: PO, x0: number, x1: number, y: number, h: number): void {
+  const tri: Prim = { pos: [x0, y, 0, x1, y, 0, (x0 + x1) / 2, y - h, 0], nrm: [0, 0, -1, 0, 0, -1, 0, 0, -1], uv: [0, 0, 1, 0, 0.5, 1], idx: [0, 1, 2] };
+  fb.add(tri, identity(), po, undefined, true);
+}
+
+function pumpkin(fb: FB, v: number): number {
+  const orange = plastic([0.86, 0.42, 0.08]), stem = { m: FMat.Wood, c: [0.35, 0.3, 0.15] } as PO, dark = paint([0.1, 0.05, 0.02]);
+  const one = (r: number, x: number, z: number, face: boolean) => {
+    for (let k = 0; k < 6; k++) fb.sphere(orange, r * 0.62, x + Math.cos((k / 6) * Math.PI * 2) * r * 0.38, r * 0.72, z + Math.sin((k / 6) * Math.PI * 2) * r * 0.38, 1, 1.05, 1, 10, 6);
+    fb.cyl(stem, r * 0.08, r * 0.12, r * 0.35, x, r * 1.3, z, 6);
+    if (!face) return;
+    // A carved face on the front (−Z): two eyes and a grin.
+    fb.box(dark, r * 0.22, r * 0.2, 0.02, x - r * 0.3, r * 0.95, z - r * 0.99, 0, 0, Math.PI / 4);
+    fb.box(dark, r * 0.22, r * 0.2, 0.02, x + r * 0.3, r * 0.95, z - r * 0.99, 0, 0, Math.PI / 4);
+    fb.box(dark, r * 0.7, r * 0.14, 0.02, x, r * 0.55, z - r * 0.97);
+  };
+  if (v === 0) one(0.24, 0, 0, true);
+  else { one(0.2, -0.12, 0, false); one(0.13, 0.2, -0.08, true); }
+  return 0.42;
+}
+
+function stringLights(fb: FB, v: number): number {
+  // A wire sagging between hooks 2.5 m apart, a bulb every 25 cm (coloured, or warm white).
+  const wire: PO = paint([0.08, 0.08, 0.08]);
+  const n = 10, wireAt = (t: number) => sagAt(t, 2.5, 0.12);
+  for (let i = 0; i < n; i++) fb.rod(wire, wireAt(i / n), wireAt((i + 1) / n), 0.006, 4);
+  for (let i = 0; i < n; i++) {
+    const [x, y] = wireAt((i + 0.5) / n);
+    fb.sphere(bulb(v === 0 ? BULBS[i % 4] : [1, 0.9, 0.7]), 0.028, x, y - 0.03, 0, 1, 1.3, 1, 6, 4);
+  }
+  return 0.05;
+}
+
+function xmasTree(fb: FB, _v: number): number {
+  // The town's tree: an 11 m fir in five tiers, warm lights round it and a star on top.
+  const needles: PO = { m: FMat.Plastic, c: [0.08, 0.2, 0.1], s: 8 };
+  fb.cyl({ m: FMat.Wood, c: [0.32, 0.22, 0.14] }, 0.22, 0.3, 1.6, 0, 0, 0, 10);
+  const tiers = 5;
+  for (let k = 0; k < tiers; k++) {
+    const y0 = 1.2 + k * 1.75, r = 3.4 * (1 - k / (tiers + 0.6));
+    fb.lathe(needles, [[0, 0], [r, 0.15], [r * 0.98, 0.35], [0, 2.6]], 14, 0, y0, 0, k * 0.7);
+    const m = Math.round(r * 5);
+    for (let i = 0; i < m; i++) {
+      const a = (i / m) * Math.PI * 2 + k, rr = r * 0.85;
+      fb.sphere(bulb([1, 0.85, 0.55], 1), 0.06, Math.cos(a) * rr, y0 + 0.45, Math.sin(a) * rr, 1, 1, 1, 6, 4);
+    }
+  }
+  const top = 1.2 + tiers * 1.75 + 0.5;
+  fb.polyPlate(bulb([1, 0.85, 0.3], 1), bulb([1, 0.85, 0.3], 1), 5, 0.45, 0.08, 0, top, 0, 0, 0, Math.PI / 2);
+  return top + 0.45;
+}
+
+function marketStall(fb: FB, v: number): number {
+  const timber: PO = { m: FMat.Wood, c: [0.5, 0.36, 0.22] };
+  if (v === 0) {
+    // A Christmas market hut: timber walls, a counter open to the front, a pitched roof with lights.
+    fb.box(timber, 3.0, 1.0, 2.2, 0, 0.5, 0);
+    fb.box(timber, 0.1, 1.3, 2.2, -1.45, 1.65, 0);
+    fb.box(timber, 0.1, 1.3, 2.2, 1.45, 1.65, 0);
+    fb.box(timber, 3.0, 1.3, 0.1, 0, 1.65, 1.05);
+    fb.box({ m: FMat.Wood, c: [0.62, 0.48, 0.3] }, 3.1, 0.06, 0.5, 0, 1.03, -1.2);
+    const roof: PO = { m: FMat.PaintedMetal, c: [0.42, 0.12, 0.1] };
+    for (const sx of [-1, 1]) fb.box(roof, 1.75, 0.06, 2.8, sx * 0.78, 2.62, -0.05, 0, 0, sx * -0.45);
+    for (let i = 0; i < 9; i++) fb.sphere(bulb([1, 0.85, 0.55], 1), 0.035, -1.4 + i * 0.35, 2.22, -1.42, 1, 1, 1, 6, 4);
+    return 3.0;
+  }
+  // A festival stall: four poles, a striped canopy, a counter.
+  for (const x of [-1.4, 1.4]) for (const z of [-1, 1]) fb.box(paint([0.85, 0.85, 0.85]), 0.06, 2.3, 0.06, x, 1.15, z);
+  for (let i = 0; i < 6; i++) fb.box(paint(i % 2 ? [0.95, 0.95, 0.92] : [0.12, 0.42, 0.62]), 0.5, 0.05, 2.3, -1.25 + i * 0.5, 2.32, 0, 0, 0.08);
+  fb.box(timber, 2.9, 0.9, 0.5, 0, 0.45, -0.8);
+  return 2.4;
+}
+
+function bunting(fb: FB, v: number): number {
+  if (v === 1) {
+    // A pole at the kerb to tie the line to.
+    fb.cyl(paint([0.85, 0.85, 0.85]), 0.05, 0.06, 5.8, 0, 0, 0, 8);
+    return 5.8;
+  }
+  // 3 m of line sagging 25 cm, eight pennants in the festival's colours.
+  const line: PO = paint([0.9, 0.9, 0.88]);
+  const ropeAt = (t: number) => sagAt(t, 3, 0.25);
+  for (let i = 0; i < 6; i++) fb.rod(line, ropeAt(i / 6), ropeAt((i + 1) / 6), 0.008, 4);
+  const cols: V[] = [[0.85, 0.15, 0.12], [0.98, 0.8, 0.15], [0.15, 0.45, 0.8], [0.2, 0.62, 0.3], [0.95, 0.95, 0.92]];
+  for (let i = 0; i < 8; i++) {
+    const t0 = (i + 0.1) / 8, t1 = (i + 0.9) / 8;
+    pennant(fb, plastic(cols[i % cols.length]), ropeAt(t0)[0], ropeAt(t1)[0], (ropeAt(t0)[1] + ropeAt(t1)[1]) / 2, 0.3);
+  }
+  return 0.05;
+}
+
 export function furnitureModel(kind: FurnitureKind, variant = 0): FurnitureModel {
   const key = kind + ':' + (Math.abs(variant | 0) % 2);
   let m = furnCache.get(key);
@@ -1314,6 +1419,11 @@ export function buildFurniture(kind: FurnitureKind, variant = 0): FurnitureModel
     case 'tomb': height = tomb(fb, v); radius = v === 0 ? 2.0 : 1.0; breakable = 'solid'; break;
     case 'gardenFence': height = gardenFence(fb, v); radius = 1.25; breakable = 'solid'; break;
     case 'garage': height = garage(fb, v); radius = 3.1; breakable = 'solid'; break;
+    case 'pumpkin': height = pumpkin(fb, v); radius = 0.3; breakable = 'topple'; break;
+    case 'stringLights': height = stringLights(fb, v); radius = 1.3; breakable = 'solid'; break;
+    case 'xmasTree': height = xmasTree(fb, v); radius = 3.4; breakable = 'solid'; break;
+    case 'marketStall': height = marketStall(fb, v); radius = 1.9; breakable = 'solid'; break;
+    case 'bunting': height = bunting(fb, v); radius = v === 0 ? 1.5 : 0.1; breakable = 'solid'; break;
     case 'signBoard': height = signBoard(fb, v); radius = 0.5; breakable = 'solid'; break;
     case 'signPost': height = signPost(fb, v); radius = 0.06; breakable = 'bend'; break;
     case 'signFrame': height = signFrame(fb, v); radius = v === 0 ? 1.3 : 0.9; breakable = 'solid'; break;

@@ -28,7 +28,7 @@
  * fronts, the gardens and the kerbs); the signs track only reads it.
  */
 import { alongLine } from '../geom/geom2';
-import { baysOf, dwellingsOf, flatsDoorBay, streetDoor, type BuildingDesc } from './building';
+import { baysOf, dwellingsOf, facadeFront, flatsDoorBay, streetDoor, type BuildingDesc } from './building';
 import { kerbStrip, PropType } from './cell';
 import { SITE } from './placeGraph';
 import { BOARD_KINDS } from '../sim/placeKinds';
@@ -204,13 +204,6 @@ export function signFootprints(spots: SignSpots): number[] {
 }
 
 /** The front edge: its start, unit direction, length and the outward normal. */
-function facadeFront(b: BuildingDesc) {
-  const P = b.poly, n = P.length >> 1, i = b.front % n, j = (i + 1) % n;
-  const ax = P[i * 2], az = P[i * 2 + 1], L = Math.hypot(P[j * 2] - ax, P[j * 2 + 1] - az) || 1;
-  const dx = (P[j * 2] - ax) / L, dz = (P[j * 2 + 1] - az) / L;
-  return { ax, az, dx, dz, L, nx: dz, nz: -dx };
-}
-
 function frontSign(b: BuildingDesc, code: number): FrontSign {
   const e = facadeFront(b), door = streetDoor(b);
   const onFront = (s: number, out: number) => ({ x: e.ax + e.dx * s + e.nx * out, z: e.az + e.dz * s + e.nz * out });

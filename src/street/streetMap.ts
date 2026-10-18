@@ -8,7 +8,7 @@
  */
 import { hash3f } from '@futuremagic/core';
 import { offsetPolyline, pointInPoly, polyArea, polyBounds, type Poly } from '../geom/geom2';
-import type { Shape } from '../geom/clip';
+import { inShape, type Shape } from '../geom/clip';
 import { bridgeDecksAt } from '../build/bridges';
 import type { Town } from '../plan/town';
 import { footprintsOf, type Footprints } from '../plan/footprints';
@@ -248,6 +248,3 @@ export class StreetMap {
   }
 }
 
-function inShape(s: Shape, x: number, z: number): boolean {
-  return pointInPoly(s.outer, x, z) && !s.holes.some((h: Poly) => pointInPoly(h, x, z));
-}
