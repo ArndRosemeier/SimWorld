@@ -36,6 +36,10 @@
     "reason": "Axis vectors of a frame (cos, sin of its angle) computed once for a loop; the point transforms go through geom2 frameToWorld / worldToFrame."
   },
   {
+    "key": "same name: simworld/interior/fill/place.ts#overlap + simworld/plan/footprints.ts#overlap",
+    "reason": "Different questions: the room filler's overlap tests two rectangles in a room; Footprints.overlap is how deep a walker's circle reaches into the street's props (the one obstacle seam)."
+  },
+  {
     "key": "same name: simworld/llm/openrouter.ts#stream + simworld/llm/recorded.ts#stream",
     "reason": "Both implement Transport.stream (the real OpenRouter connection and the recorded/recording test transports); one interface method, different jobs."
   },
