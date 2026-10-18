@@ -59,7 +59,9 @@ export type PlayerOp =
   | { op: 'go'; place: number; activity: number }
   | { op: 'digest'; since: number }
   | { op: 'steer'; x: number; z: number; building: number }
-  | { op: 'near'; x: number; z: number; r: number };
+  | { op: 'near'; x: number; z: number; r: number }
+  /** Where inhabitant `id` is now (the debug menu's Go to a person): on the street, or the building they are in. */
+  | { op: 'locate'; id: number };
 
 /** The answer to a `PlayerOp` (empty lists where the op asks for nothing), with the player's status after it. */
 export type { NearSolids };
@@ -70,6 +72,8 @@ export interface PlayerReply {
   actions: PlayerAction[];
   digest: DigestItem[];
   near: NearSolids | null;
+  /** `locate`'s answer: out of doors their spot (building -1), indoors their place's doorstep and its building; null: no such person. */
+  located: { x: number; z: number; building: number; name: string } | null;
   /** The player's person's looks and name (after `become`), for drawing them while the player walks them. */
   info: ActorInfo | null;
   status: PlayerStatus | null;

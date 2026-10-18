@@ -29,6 +29,7 @@
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { DebugMenu } from '../app/debug';
 import { addDebugTools } from './debugTools';
+import { DebugView } from './debugView';
 import { parseLook, parseStand } from './report';
 import { createRenderer, GraphicsUnavailable } from '../render/renderer';
 import { Stage } from '../render/stage';
@@ -243,7 +244,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   });
   const playing = new Playing(sim, cam, street, settings.seed, goingIn);
   shell.add({ label: 'Choose who to be', group: 'Play', open: () => void playing.choose() });
-  addDebugTools(debug, { sim, cam, camera, playing, stage, settings, start: play.start });
+  const debugView = new DebugView(stage, sim, playing, goingIn);
+  addDebugTools(debug, { sim, cam, camera, playing, stage, settings, start: play.start, view: debugView });
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
   const straight = q.has('be') || q.has('street') || q.has('still') || followId >= 0;
@@ -292,6 +294,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     const ground = player ?? (cam.mode === 'drone' ? { x: cx, z: cz } : { x: camera.position.x, z: camera.position.z });
     mapAt = ground;
     sim.poll(ground.x, ground.z);
+    debugView.overlay(t, ground.x, ground.z);
     people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);
     vehicles.show(camera, sim.clock, sim.traffic, sim.parked);
     rail.animate(camera, dt, sim.clock, sim.crossingPosts, sim.traffic, audio);
