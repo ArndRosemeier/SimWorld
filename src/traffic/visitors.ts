@@ -11,6 +11,7 @@
 import { Rng, deriveSeed } from '@futuremagic/core';
 import { runsLike } from '../sim/calendar';
 import { isOpen } from '../sim/schedule';
+import { rulesOf } from '../sim/politics';
 import { MINUTES_PER_DAY } from '../sim/time';
 import type { World } from '../sim/world';
 import type { RoadNet } from './roadNet';
@@ -30,6 +31,8 @@ const FAMILY = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1
 const REF_PEOPLE = 1500;
 /** Family visits at weekends, errands on Saturdays and Sundays, against a working day. */
 const WEEKEND_FAMILY = 3, SATURDAY_ERRAND = 1.3, SUNDAY_ERRAND = 0.3;
+/** Errands from the region once parking in the centre costs money (some shop elsewhere). */
+const CHARGED_ERRAND = 0.8;
 const VANS: VKind[] = ['van', 'van', 'pickup', 'van', 'delivery'];
 const CARS: VKind[] = ['sedan', 'hatch', 'suv', 'wagon', 'sedan', 'hatch', 'suv', 'pickup'];
 
@@ -60,7 +63,7 @@ export function visitorsAt(world: World, net: RoadNet, clock: number): Visit[] {
     out.push({ car: { key: VISITOR_KEY + ((clock * 4) % (1 << 24)) + out.length, kind: r.pick(kinds), variant: r.int(0, 3) }, exit, x: to.x, z: to.z, stay, why });
   };
   if (work) come(TRADE[h], 'trade');
-  come(ERRAND[h] * (wd === 5 ? SATURDAY_ERRAND : wd === 6 ? SUNDAY_ERRAND : 1), 'errand');
+  come(ERRAND[h] * (wd === 5 ? SATURDAY_ERRAND : wd === 6 ? SUNDAY_ERRAND : 1) * (rulesOf(world).parkingCharges ? CHARGED_ERRAND : 1), 'errand');
   come(FAMILY[h] * (wd >= 5 ? WEEKEND_FAMILY : 1), 'family');
   return out;
 }
