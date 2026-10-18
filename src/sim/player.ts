@@ -14,7 +14,7 @@ import { bondBit, FAMILY_MASK } from './relations';
 import { capitalize } from './profile';
 import { go, isOpen, placeNow } from './schedule';
 import { MINUTES_PER_DAY } from './time';
-import { activityOf, hasCar, isPerson, jobOf, nameOf, placesWith, type World } from './world';
+import { activityOf, hasCar, isPerson, jobOf, nameOf, placesWith, tripOf, type World } from './world';
 
 /** Make `id` the player (autopilot on: they carry on with their day until the player takes over). */
 export function becomePlayer(world: World, id: ActorId, autopilot = true): void {
@@ -199,8 +199,8 @@ export interface PlayerStatus {
   outdoors: boolean;
   /** Walked by the player (`steerPlayer`), out of doors or in: (x, z) is where the player last said they are. */
   steered: boolean;
-  /** Indoors: the doorstep of the place and the way out (yaw, 0 facing −z), where they step out when taken over. */
-  exit: { x: number; z: number; yaw: number } | null;
+  /** Where the player takes over (the sim worker fills it in: src/street/takeover.ts), null before. */
+  take: Takeover | null;
   /** Needs 0..1 (food, rest, social, hygiene, fun: NEEDS order), and mood -1..1. */
   needs: number[];
   mood: number;
@@ -240,7 +240,7 @@ export function playerStatus(world: World): PlayerStatus | null {
   const home = a.home[id] >= 0 ? world.graph.places[a.home[id]] : null;
   return {
     id, name: nameOf(world, id), alive, autopilot: p.autopilot, doing: alive ? (at ? 'out and about' : doingOf(world, id)) : 'gone',
-    place, placeName: pl.name, building: pl.building, x: at ? at.x : pl.x, z: at ? at.z : pl.z, travelling: a.dest[id] >= 0, outdoors: !!at && a.place[id] >= 0 && KINDS[world.graph.places[a.place[id]].kind].category === 'outdoor', steered: !!at, exit: null,
+    place, placeName: pl.name, building: pl.building, x: at ? at.x : pl.x, z: at ? at.z : pl.z, travelling: a.dest[id] >= 0, outdoors: !!at && a.place[id] >= 0 && KINDS[world.graph.places[a.place[id]].kind].category === 'outdoor', steered: !!at, take: null,
     needs: Array.from(a.needs.subarray(id * NEED_COUNT, id * NEED_COUNT + NEED_COUNT)), mood: a.mood[id],
     home: home ? { building: home.building, x: home.x, z: home.z } : null,
     ...tiesOf(world, id),
@@ -248,17 +248,36 @@ export function playerStatus(world: World): PlayerStatus | null {
 }
 
 /**
- * (x, z) on `id`'s track, or, when that is off the ground the game has, `lim` metres from the centre either way (travelling to or from the city or
- * the next town, kilometres out), the town's edge where their road leaves it: nobody is put where there is no
- * ground to stand on.
+ * Where the player takes someone over, as the sim has them: inside their building (by the spot they were given),
+ * on the street (on their walk, or at the doorstep of a place with no inside to show), or not yet: in a car, on a
+ * bus or a bike, or out of town, the player starts when they are on foot in town again (`back`: about when, or null).
  */
-export function onTheGround(w: World, id: ActorId, x: number, z: number, lim: number): [number, number] {
-  const far = Math.max(Math.abs(x), Math.abs(z));
-  if (far <= lim) return [x, z];
-  const a = w.actors.cols;
-  for (const at of [a.dest[id], a.place[id]]) {
-    const pl = at >= 0 ? w.graph.places[at] : null;
-    if (pl?.kind === 'away' && Math.max(Math.abs(pl.x), Math.abs(pl.z)) <= lim) return [pl.x, pl.z];
+export type Takeover =
+  /** In `building`; (x, z, yaw): its doorstep, facing out, for a building with no inside to show. */
+  | { kind: 'inside'; building: number; x: number; z: number; yaw: number }
+  | { kind: 'street'; x: number; z: number; yaw: number }
+  | { kind: 'wait'; why: string; back: number | null };
+
+/** The vehicle words for a trip under way ("driving to the town hall"). */
+const RIDING: Record<string, string> = { car: 'driving', bus: 'on the bus', train: 'on the train', bike: 'cycling' };
+
+/**
+ * Can `id` not be taken over now, and why: on their way somewhere by car, bus, train or bike (until they get there),
+ * or out of town (at work in the city, at school in the next town, or on the way: until they are back). Null when
+ * they can be (at home, at a place in town, walking).
+ */
+export function waitOf(world: World, id: ActorId): Extract<Takeover, { kind: 'wait' }> | null {
+  const a = world.actors.cols, places = world.graph.places;
+  const isAway = (p: PlaceId) => p >= 0 && places[p].kind === 'away';
+  if (a.dest[id] >= 0) {
+    const mode = tripOf(world, id)?.mode ?? 'foot', to = places[a.dest[id]];
+    if (isAway(a.dest[id])) return { kind: 'wait', why: `on the way to ${to.name}`, back: null };
+    if (mode !== 'foot') return { kind: 'wait', why: `${RIDING[mode] ?? 'travelling'} to ${to.name}`, back: a.arrive[id] };
+    if (isAway(a.place[id])) return { kind: 'wait', why: `coming back from ${places[a.place[id]].name}`, back: a.arrive[id] };
+    return null;
   }
-  return [(x * lim) / far, (z * lim) / far];
+  const here = a.place[id];
+  if (!isAway(here)) return null;
+  const home = a.home[id] >= 0 ? a.home[id] : here;
+  return { kind: 'wait', why: doingOf(world, id), back: a.until[id] + world.travel.minutes(here, home, hasCar(world, id)) };
 }

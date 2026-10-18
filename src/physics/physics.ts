@@ -29,15 +29,23 @@ export class Physics {
     return p;
   }
 
-  private setGround(g: HeightGrid): void {
+  /** The ground the world has now (src/physics/solids.ts `heightOnGrid` gives its heights). */
+  ground!: HeightGrid;
+  /** Its colliders: the heightfield, then the decks (they are not in the grid). */
+  private groundCols: RAPIER.Collider[] = [];
+
+  /** Make `g` the ground (in place of the one before): the body walks wherever it reaches (src/game/standing.ts keeps one round it). */
+  setGround(g: HeightGrid): void {
+    if (g === this.ground) return;
+    for (const c of this.groundCols) this.world.removeCollider(c, false);
+    this.ground = g;
     // Rapier's heightfield: column-major, rows along z, columns along x, centred on its collider.
     const n = g.n, h = new Float32Array(n * n);
     for (let iz = 0; iz < n; iz++) for (let ix = 0; ix < n; ix++) h[ix * n + iz] = g.h[iz * n + ix];
     const size = (n - 1) * g.step;
     const d = this.R.ColliderDesc.heightfield(n - 1, n - 1, h, { x: size, y: 1, z: size }).setTranslation(g.x0 + size / 2, 0, g.z0 + size / 2);
-    this.world.createCollider(d);
-    // The bridge decks, kept for good (they are not in the grid).
-    for (const b of deckBoxes(g)) this.world.createCollider(this.boxDesc(b));
+    this.groundCols = [this.world.createCollider(d), ...deckBoxes(g).map((b) => this.world.createCollider(this.boxDesc(b)))];
+    this.world.step();
   }
 
   private boxDesc(b: SolidBox): RAPIER.ColliderDesc {

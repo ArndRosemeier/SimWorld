@@ -102,7 +102,7 @@ export class SimClient {
   private last = 0;
   private readonly infos = new Map<number, ActorInfo>();
 
-  private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView, private readonly key: string, readonly windows: WindowSlots, /** The bus stops and their timetables (src/street/stops.ts). */ readonly stops: StopBoard[]) {
+  private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, /** How far from the centre either way the world is walkable (m). */ readonly world: number, readonly people: number, view: SimView, private readonly key: string, readonly windows: WindowSlots, /** The bus stops and their timetables (src/street/stops.ts). */ readonly stops: StopBoard[]) {
     this.view = view;
     this.town = view.town!;
   }
@@ -136,7 +136,7 @@ export class SimClient {
     const pool = new WorkerPool<ToSim, FromSim>(simWorkerUrl, 1);
     const [ready] = await pool.start(() => ({ type: 'init', settings, start, startDay, clock, until: opts.until, save: save?.bytes ?? null }));
     if (ready.type !== 'ready') throw new Error(ready.type === 'error' ? ready.message : 'the sim worker did not start');
-    const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view, key, ready.windows, ready.stops);
+    const c = new SimClient(pool, rate, ready.ground, ready.world, ready.people, ready.view, key, ready.windows, ready.stops);
     c.restart(ready.clock);
     c.resumed = ready.resumed;
     if (save && !ready.resumed && !opts.saveUrl) void dropSave(key); // it no longer fits this build or town
@@ -232,14 +232,18 @@ export class SimClient {
     return this.clock0 + ((performance.now() - this.base) / 60000) * this.rate;
   }
 
-  /** Ground height (sidewalk level) at (x, z): the worker's grid as the physics world has it (src/physics/solids.ts `heightOnGrid`). */
+  /** The ground round the player's body (the `near` op's, src/game/standing.ts), finer to have than the town's grid out in the fields. */
+  groundNear: HeightGrid | null = null;
+
+  /** Ground height (sidewalk level) at (x, z) as the physics world has it (src/physics/solids.ts `heightOnGrid`): the ground round the body where it reaches, else the town's grid. */
   standHeight(x: number, z: number): number {
-    return heightOnGrid(this.ground, x, z);
+    const g = this.groundNear && onGrid(this.groundNear, x, z) ? this.groundNear : this.ground;
+    return heightOnGrid(g, x, z);
   }
 
-  /** Is there ground at (x, z) to stand on (on the grid, `margin` metres inside its edge)? */
-  onGround(x: number, z: number, margin = 2): boolean {
-    return onGrid(this.ground, x, z, margin);
+  /** Is (x, z) in the walkable world, `margin` metres inside its edge? */
+  inWorld(x: number, z: number, margin = 0): boolean {
+    return Math.max(Math.abs(x), Math.abs(z)) <= this.world - margin;
   }
 
   /** Where a walker is at `clock` (x, y, z), into `out`. */

@@ -54,12 +54,6 @@ export function onGrid(g: HeightGrid, x: number, z: number, margin = 0): boolean
   return x >= g.x0 + margin && x <= g.x0 + size - margin && z >= g.z0 + margin && z <= g.z0 + size - margin;
 }
 
-/** (x, z) moved onto the grid, at least `margin` metres inside its edge (unchanged when it is already). */
-export function intoGrid(g: HeightGrid, x: number, z: number, margin = 0): [number, number] {
-  const size = (g.n - 1) * g.step, lo = (v: number, o: number) => Math.min(o + size - margin, Math.max(o + margin, v));
-  return [lo(x, g.x0), lo(z, g.z0)];
-}
-
 /**
  * A static box: centre, half extents and turn about the vertical (radians; local +z turns toward +x, as three's
  * rotation.y), then tilted by `pitch` about its own x (positive lifts its +z end: a ramp).

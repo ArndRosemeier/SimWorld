@@ -11,15 +11,16 @@ import { createWorld } from '../sim/synth';
 import { chronicle, digest, historyDays } from '../sim/chronicle';
 import { loadWorld, saveWorld } from '../sim/save';
 import { dayOf, MINUTES_PER_DAY } from '../sim/time';
-import { tick, nameOf, jobOf, householdOf, type World } from '../sim/world';
-import { becomePlayer, doingOf, onTheGround, playerActions, playerGo, playerStatus, setAutopilot, steerPlayer } from '../sim/player';
+import { tick, isPerson, nameOf, jobOf, householdOf, type World } from '../sim/world';
+import { becomePlayer, doingOf, waitOf, playerActions, playerGo, playerStatus, setAutopilot, steerPlayer } from '../sim/player';
 import { cardsOf } from '../sim/profile';
 import { ACTOR_PERSON } from '../sim/actors';
 import { viewOf, viewTransfers } from '../sim/view';
-import { OUTDOOR, StreetMap } from '../street/streetMap';
+import { GROUND_STEP, OUTDOOR, StreetMap } from '../street/streetMap';
 import { windowSlots } from '../street/windows';
 import { stopBoards } from '../street/stops';
 import { doorAccess, whoIsInside } from '../street/inside';
+import { takeoverOf } from '../street/takeover';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
@@ -59,11 +60,9 @@ const KEEP = 40;
  * inhabitant cards to have stories (widowed in June, new in town, not speaking to a brother).
  */
 const HISTORY_YEARS = 1;
-/** The ground grid sent to the main thread: half its side and its step (m). The player's body walks only on it. */
-let groundHalf = 0;
-const GROUND_STEP = 4;
-/** How far inside the grid's edge someone travelling out of town is still shown where they are (m). */
-const GROUND_EDGE = 20;
+/** How far inside the drawn terrain's edge the body may walk (m), and so how far from the centre either way (set at init). */
+const WORLD_EDGE = 100;
+let worldHalf = 0;
 
 function simJob(m: ToSim): FromSim {
   const t0 = performance.now();
@@ -83,10 +82,12 @@ function simJob(m: ToSim): FromSim {
     traffic = new TrafficFeed((roads = town), world);
     sentAt = world.clock;
     // The bus stops' posts, with their timetables; people walk round the posts.
-    groundHalf = town.terrain.profile.radius * 1.4;
+    worldHalf = town.terrain.extent - WORLD_EDGE;
+    // The town's ground for the main thread (the camera, the heights it stands things on); the body walks further, on the ground the `near` op sends.
+    const groundHalf = Math.ceil((town.terrain.profile.radius * 1.4) / GROUND_STEP) * GROUND_STEP;
     const stops = stopBoards(town, map.roads, world);
     for (const st of stops) map.fp.circle(st.x, st.z, 0.1);
-    return { type: 'ready', stops, resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: map.heightGrid(groundHalf, GROUND_STEP), view: viewOf(world, true), windows: windowSlots(town, graph), ms: took() };
+    return { type: 'ready', stops, resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: map.heightGrid(0, 0, groundHalf, GROUND_STEP), world: worldHalf, view: viewOf(world, true), windows: windowSlots(town, graph), ms: took() };
   }
   if (!world || !map || !traffic) throw new Error('sim worker: not initialised');
   if (m.type === 'save') return { type: 'saved', clock: world.clock, bytes: saveWorld(world), ms: took() };
@@ -120,7 +121,7 @@ function simJob(m: ToSim): FromSim {
 
 /** A player request (src/sim/player.ts), answered with their status after it. */
 function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
-  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], near: null, located: null, info: null, status: null, ms: 0 };
+  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], near: null, located: null, info: null, waits: [], status: null, ms: 0 };
   if (op.op === 'cards') out.cards = cardsOf(w);
   else if (op.op === 'become') { becomePlayer(w, op.id, op.autopilot); out.info = infoOf(w, op.id); known.add(op.id); }
   else if (op.op === 'autopilot') setAutopilot(w, op.on);
@@ -129,10 +130,11 @@ function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
   else if (op.op === 'steer') steerPlayer(w, op.x, op.z, op.building);
   else if (op.op === 'near') out.near = map!.solidsNear(op.x, op.z, op.r);
   else if (op.op === 'locate') out.located = locate(w, map!, op.id);
+  else if (op.op === 'waits') for (let id = 0; id < w.actors.count; id++) { const k = isPerson(w, id) ? waitOf(w, id) : null; if (k) out.waits.push({ id, why: k.why, back: k.back }); }
   // The menu is wanted after a move too (what is there to do where they are going).
   if (op.op === 'actions' || op.op === 'go' || op.op === 'become') out.actions = playerActions(w);
   // Their track changes at once: drop it, so the next street update makes and sends the new one.
-  if (op.op !== 'cards' && op.op !== 'digest' && op.op !== 'near' && op.op !== 'locate' && w.player) tracks.delete(w.player.id);
+  if (op.op !== 'cards' && op.op !== 'digest' && op.op !== 'near' && op.op !== 'locate' && op.op !== 'waits' && w.player) tracks.delete(w.player.id);
   out.status = playerOut(w, map!, w.clock);
   out.ms = took();
   return out;
@@ -147,36 +149,28 @@ function locate(w: World, map: StreetMap, id: number): PlayerReply['located'] {
   if (t && clock <= t.hideAfter) {
     const p: [number, number, number] = [0, 0, 0];
     sample(t.keys, clock, p);
-    const [x, z] = onTheGround(w, id, p[0], p[2], groundHalf - GROUND_EDGE);
-    return { x, z, building: -1, name };
+    return { x: p[0], z: p[2], building: -1, name };
   }
   const here = w.actors.cols.place[id];
-  if (here < 0) return null;
-  const [x, z] = onTheGround(w, id, ...map.doorStep(here), groundHalf - GROUND_EDGE), kind = w.graph.places[here].kind;
+  // Out of town (or in a vehicle): nowhere in the town to go to.
+  if (here < 0 || waitOf(w, id)) return null;
+  const [x, z] = map.doorStep(here), kind = w.graph.places[here].kind;
   return { x, z, building: OUTDOOR.has(kind) ? -1 : w.graph.places[here].building, name };
 }
 
 /** The player's status, placed on the street when they are out of doors (wherever the camera is). */
 function playerOut(w: World, map: StreetMap, clock: number): ReturnType<typeof playerStatus> {
   const s = playerStatus(w);
-  if (!s || !s.alive || s.steered) return s;
-  // Indoors: the way out, where they step out when the player takes over.
-  const a = w.actors.cols, here = a.place[s.id];
-  if (a.dest[s.id] < 0 && here >= 0 && !OUTDOOR.has(w.graph.places[here].kind)) {
-    const [dx, dz] = map.door(here), [sx, sz] = onTheGround(w, s.id, ...map.doorStep(here), groundHalf - GROUND_EDGE);
-    s.exit = { x: sx, z: sz, yaw: Math.atan2(-(sx - dx), -(sz - dz)) || 0 };
-  }
+  if (!s || !s.alive) return s;
+  // Steered: where the player last said (in the building they said) is where they take over again.
+  if (s.steered) { s.take = s.building >= 0 && !s.outdoors ? { kind: 'inside', building: s.building, x: s.x, z: s.z, yaw: 0 } : { kind: 'street', x: s.x, z: s.z, yaw: 0 }; return s; }
   let t = tracks.get(s.id);
   if (!t || t.sig !== signature(w, s.id) || clock >= t.validUntil) {
     const fresh = trackOf(w, map, s.id, clock);
     if (fresh) tracks.set(s.id, (t = fresh)); else { tracks.delete(s.id); t = undefined; }
   }
-  if (t && clock <= t.hideAfter) {
-    const p: [number, number, number] = [0, 0, 0];
-    sample(t.keys, clock, p);
-    [s.x, s.z] = onTheGround(w, s.id, p[0], p[2], groundHalf - GROUND_EDGE);
-    s.outdoors = true;
-  }
+  s.take = takeoverOf(w, map, s.id, clock, t ?? null);
+  if (s.take.kind === 'street' && t && clock <= t.hideAfter) { s.x = s.take.x; s.z = s.take.z; s.outdoors = true; }
   return s;
 }
 
