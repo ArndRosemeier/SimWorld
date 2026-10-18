@@ -168,6 +168,29 @@ test('the council\'s rules: the 30 zone slows the centre\'s faster roads only; t
   assert.ok(open < none * 0.5 && open > 0, `${open} with the bypass, ${none} without`);
 });
 
+test('a closed level crossing: cars heading for the railway stop at its barrier, a car facing away drives on', () => {
+  // A long straight-ish street, a car near its start, a barrier 80 m on.
+  const eid = net.edges.reduce((b, e, i) => (e.cls === net.edges[b].cls && e.len > net.edges[b].len && e.len < 400 ? i : b), net.edges.findIndex((e) => e.len > 150));
+  const e = net.edges[eid];
+  assert.ok(e.len > 150);
+  const p = { x: 0, z: 0, dx: 0, dz: 0 }, end = { x: 0, z: 0, dx: 0, dz: 0 };
+  net.lanePoint(e, 100, 0, p);
+  net.lanePoint(e, e.len - 2, 0, end);
+  const tr = new Traffic(net, new Parking(net));
+  const exit = net.nodes.findIndex((n) => n.exit);
+  const v = tr.place(sedan(1), eid, true, 10, { halt: true, x: end.x, z: end.z, dwell: 1e6, then: { exit } })!;
+  assert.ok(v);
+  const fx = -Math.sin(v.yaw), fz = -Math.cos(v.yaw);
+  tr.barriers = [{ x: p.x, z: p.z, r: e.width / 2, fx, fz }];
+  run(tr, 30);
+  assert.equal(v.edge, eid);
+  assert.ok(v.s < 100 - v.length / 2 && v.s > 60 && v.speed < 0.1, `waits at the barrier: s ${v.s.toFixed(1)}, speed ${v.speed.toFixed(2)}`);
+  // The barrier on the other side of the railway (facing the other way) does not hold it.
+  tr.barriers = [{ x: p.x, z: p.z, r: e.width / 2, fx: -fx, fz: -fz }];
+  run(tr, 15);
+  assert.ok(v.s > 100 || v.edge !== eid, 'drives on');
+});
+
 test('the sim drives the traffic: car trips take the household car, which parks near the destination', () => {
   const tt = new TownTraffic(town, graph.places, 1);
   tt.placeCars(world.households, (h) => carPlace(world, h));

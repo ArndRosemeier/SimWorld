@@ -14,7 +14,7 @@
 import { Rng, deriveSeed } from '@futuremagic/core';
 import { agendaOn } from '../sim/agenda';
 import { runsLike } from '../sim/calendar';
-import { COMPASS } from '../sim/region';
+import { COMPASS, regionPlaces } from '../sim/region';
 import { MINUTES_PER_DAY, dayOf } from '../sim/time';
 import type { Run } from '../sim/transit';
 import type { World } from '../sim/world';
@@ -51,8 +51,8 @@ const DELIVERED = new Set(['supermarket', 'grocer', 'bakery', 'butcher', 'cafe',
 
 /** The exit whose road leads towards a region town by its compass direction (the nearby town when unknown). */
 export function exitTowardRegion(world: World, net: RoadNet, region: string | null): number {
-  const places = world.region?.region.places;
-  const place = places?.find((p) => p.name === region) ?? places?.[1];
+  const places = regionPlaces(world);
+  const place = places.find((p) => p.name === region) ?? places[1];
   return net.exitToward(place ? COMPASS.indexOf(place.dir) * 45 : 0);
 }
 
