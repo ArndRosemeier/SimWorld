@@ -32,6 +32,7 @@ import { runEncounters, type Encounter } from './encounters';
 import { forget } from './knowledge';
 import { fadeRelations } from './relations';
 import { lifeDay } from './life';
+import { phoneCalls } from './phone';
 import { economyDay } from './economy';
 
 export interface World {
@@ -101,7 +102,7 @@ export function tick(world: World, minutes = 1): void {
     world.clock++;
     if (world.clock % MINUTES_PER_DAY === 0) passDays(world, 1);
     updateNeeds(world, 1);
-    if (world.clock % 60 === 0) updateMoods(world);
+    if (world.clock % 60 === 0) { updateMoods(world); phoneCalls(world); }
     arrive(world);
     decideAll(world);
     runEncounters(world);

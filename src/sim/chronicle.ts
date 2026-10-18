@@ -111,10 +111,10 @@ function partner(world: World, x: ActorId, pl: Pools, rng: Rng): [PlaceId, Actor
     return [st, pick(pl.street.get(st), rng)];
   }
   // Someone they know, the better known the likelier (best of two).
-  const rows = world.relations.known(x);
-  if (rows.length === 0) return [-1, -1];
+  const r1 = world.relations.anyKnown(x, rng);
+  if (r1 < 0) return [-1, -1];
   const c = world.relations.t.cols;
-  const r1 = rows[rng.int(0, rows.length - 1)], r2 = rows[rng.int(0, rows.length - 1)];
+  const r2 = world.relations.anyKnown(x, rng);
   const r = c.familiarity[r1] >= c.familiarity[r2] ? r1 : r2;
   return [a.home[c.to[r]], c.to[r]];
 }
