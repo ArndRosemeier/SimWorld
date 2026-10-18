@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.082 — Club words from the town's word list
+
+- The church coffee circle's yearly sale is now a second-hand sale.
+- Club names, office titles, big days and their results now come from the town's one word list, so a word changes everywhere at once.
+
 ## v0.081 — Invented town and street names
 
 - Street, park and town names no longer use real people or famous streets (no Lincoln, Madison, Hudson, Bowery or Tesla), and there are no more boulevards or numbered avenues. The new roots are plain nature, trade and landscape words such as Hawthorn, Heron, Flint and Weaver.
