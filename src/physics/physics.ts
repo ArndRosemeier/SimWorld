@@ -77,6 +77,12 @@ export class Physics {
   /** The keys of the sets in place. */
   keys(): IterableIterator<string> { return this.sets.keys(); }
 
+  /** How far (x, y, z) is from the nearest solid but `skip` (0 inside one). */
+  roomAround(x: number, y: number, z: number, skip?: RAPIER.Collider): number {
+    const p = this.world.projectPoint({ x, y, z }, true, undefined, undefined, skip);
+    return p ? (p.isInside ? 0 : Math.hypot(p.point.x - x, p.point.y - y, p.point.z - z)) : Infinity;
+  }
+
   /**
    * Is there room for a person standing at feet (x, y, z) (a capsule of `radius`, `height` tall, clear of every
    * solid but `skip`)?
@@ -88,9 +94,14 @@ export class Physics {
 
   /**
    * How far (m) a ray from (x, y, z) along the unit direction (dx, dy, dz) gets before it meets a solid, up to
-   * `max` (`skip`: a collider to see through, e.g. the player's own body).
+   * `max` (`skip`: a collider to see through, e.g. the player's own body). With `radius`, how far a ball that big
+   * gets (a camera that must not touch a wall).
    */
-  clear(x: number, y: number, z: number, dx: number, dy: number, dz: number, max: number, skip?: RAPIER.Collider): number {
+  clear(x: number, y: number, z: number, dx: number, dy: number, dz: number, max: number, skip?: RAPIER.Collider, radius = 0): number {
+    if (radius > 0) {
+      const hit = this.world.castShape({ x, y, z }, { x: 0, y: 0, z: 0, w: 1 }, { x: dx, y: dy, z: dz }, new this.R.Ball(radius), 0, max, true, undefined, undefined, skip);
+      return hit ? hit.time_of_impact : max;
+    }
     const hit = this.world.castRay(new this.R.Ray({ x, y, z }, { x: dx, y: dy, z: dz }), max, true, undefined, undefined, skip);
     return hit ? hit.timeOfImpact : max;
   }
