@@ -46,8 +46,8 @@ const PET: Record<AgeGroup, readonly string[]> = {
   old: ['mark my words', 'in my day', 'bless them', 'as sure as eggs is eggs', 'mind you', 'heaven knows', 'if you ask me', 'as it were'],
 };
 
-/** The dialect of the town: American towns say "mom" and "line", the others "mum" and "queue". */
-export const dialectOf = (world: World): Dialect => (world.region?.region.american ? 'us' : 'uk');
+/** The dialect of the town. One register since D27 (no British/American switch); the dialect machinery goes with the talk clean-up. */
+export const dialectOf = (_world: World): Dialect => 'uk';
 
 /** The voice of a person (cheap; call it per line). */
 export function voiceOf(world: World, id: ActorId): Voice {
