@@ -21,7 +21,8 @@ import { landmarkBody } from '../interior/landmark';
 import { buildingBase, buildingHeight } from '../build/massing';
 import { BODY } from './clearance';
 import type { PlaceGraph, PlaceId, PlaceKind } from '../sim/places';
-import { CURB_H, deckHeight, type DeckSpan } from '../world/ground';
+import { type DeckSpan } from '../world/ground';
+import { drawnGround, type DrawnGround } from '../build/drawnGround';
 import { SeatBook, seatsOf, type Seat } from './seats';
 
 /** Place kinds people are seen at while they stay (everything else is indoors: a farm's work is in its barn, out in the fields is 'field'). */
@@ -56,6 +57,8 @@ interface Solid { code: number; poly: Poly; y0: number; y1: number; b: [number, 
 /** The ground grid's step (m), and how much further than the solids round a point its ground reaches (m). */
 export const GROUND_STEP = 4;
 const GROUND_MORE = 25;
+/** The ground round the player's body is finer (m): a kerb is a step, not a 4 m ramp. */
+const NEAR_STEP = 1;
 
 /** Default walking-line offset (m) for a road without one (a footpath the graph added). */
 const SIDE = 0;
@@ -81,7 +84,11 @@ export class StreetMap {
   /** The doors (x, z pairs) of each building's places, by `Place.building` code. */
   private readonly doorsOf = new Map<number, number[]>();
 
+  /** The ground as drawn (src/build/drawnGround.ts): what feet stand on. */
+  private readonly ground: DrawnGround;
+
   constructor(readonly town: Town, readonly graph: PlaceGraph) {
+    this.ground = drawnGround(town);
     const n = graph.nodes.length;
     graph.edges.forEach((e, i) => { this.edgeOf.set(e.a * n + e.b, i); this.edgeOf.set(e.b * n + e.a, i); });
     this.decks = deckSpans(town.macro.bridges, town.terrain);
@@ -108,13 +115,16 @@ export class StreetMap {
     }
   }
 
-  /** Ground height where people stand: the sidewalk level (terrain plus the curb), a bridge deck over water. */
+  /**
+   * Ground height where people and animals stand: the ground as it is drawn there (src/build/drawnGround.ts): the
+   * pavement, down the kerb onto the carriageway, a country road's camber, a field, a bridge deck.
+   */
   groundY(x: number, z: number): number {
-    return (deckHeight(this.decks, x, z) ?? this.town.terrain.height(x, z)) + CURB_H;
+    return this.ground.heightAt(x, z);
   }
 
   /**
-   * What the player's body walks on (src/physics/solids.ts `heightOnGrid`): the ground at sidewalk level as a grid
+   * What the player's body walks on (src/physics/solids.ts `heightOnGrid`): the drawn ground as a grid
    * of heights every `step` metres, at least `half` metres round (cx, cz) either way, its points on whole multiples
    * of `step` (two grids agree where they overlap), and the bridge decks over it (a deck in the grid would smear into
    * a slope down to the water).
@@ -122,8 +132,8 @@ export class StreetMap {
   heightGrid(cx: number, cz: number, half: number, step: number): HeightGrid {
     const x0 = Math.floor((cx - half) / step) * step, z0 = Math.floor((cz - half) / step) * step;
     const n = Math.ceil((Math.max(cx + half - x0, cz + half - z0)) / step) + 1;
-    const h = new Float32Array(n * n), t = this.town.terrain;
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) h[j * n + i] = t.height(x0 + i * step, z0 + j * step) + CURB_H;
+    const h = new Float32Array(n * n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) h[j * n + i] = this.ground.heightAt(x0 + i * step, z0 + j * step);
     return { x0, z0, step, n, h, decks: this.decks };
   }
 
@@ -290,7 +300,7 @@ export class StreetMap {
         circles.push(cx, cz, f.circles[i * 3 + 2], this.groundY(cx, cz));
       }
     }
-    return { buildings, circles, ground: this.heightGrid(x, z, r + GROUND_MORE, GROUND_STEP) };
+    return { buildings, circles, ground: this.heightGrid(x, z, r + GROUND_MORE, NEAR_STEP) };
   }
 }
 
