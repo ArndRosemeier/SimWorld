@@ -1,0 +1,29 @@
+{
+  "name": "simworld",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A living procedural town in the browser: every inhabitant has a life, knowledge spreads person to person, and you can talk to anyone.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test --test-reporter=./tools/ci/budget-reporter.mjs --test-reporter-destination=stdout \"test/*.test.ts\" \"tools/**/*.test.mjs\"",
+    "guards": "node tools/guards/guards.mjs",
+    "dup": "node tools/duplicate-candidates/find-duplicate-candidates.mjs",
+    "repeated": "node tools/repeated-code/find-repeated-code.mjs",
+    "test:slow": "node --import tsx --test \"test/slow/**/*.slow.test.ts\""
+  },
+  "dependencies": {
+    "@futuremagic/core": "file:vendor/assetgenerator/packages/core",
+    "@futuremagic/humanoid": "file:vendor/assetgenerator/packages/humanoid",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/three": "^0.186.0",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.0",
+    "vite": "^8.3.1"
+  }
+}

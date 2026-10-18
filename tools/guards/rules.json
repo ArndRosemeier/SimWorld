@@ -1,0 +1,27 @@
+{
+  "banned": [
+    { "id": "Math.random", "pattern": "\\bMath\\.random\\s*\\(", "only": [], "why": "every random number comes from a seed: Rng / deriveSeed (@futuremagic/core)" },
+    { "id": "new WebGPURenderer", "pattern": "\\bnew\\s+(WebGPURenderer|WebGLRenderer)\\b", "only": ["src/render/renderer.ts"], "why": "one renderer, made in one place (createRenderer)" },
+    { "id": "new Worker", "pattern": "\\bnew\\s+Worker\\s*\\(", "only": ["src/workers/pool.ts"], "why": "workers are created by the one worker pool" },
+    { "id": "new Material", "pattern": "\\bnew\\s+\\w*Material\\s*\\(", "only": ["src/render/materials.ts"], "why": "every material is a kind in the registry, so warm-up knows every shader (docs/SHADERS.md)" },
+    { "id": "onBeforeCompile", "pattern": "\\bonBeforeCompile\\b", "only": [], "why": "shader variants come from the registry's TSL kinds, not from patched source (docs/SHADERS.md)" },
+    { "id": "renderer.compile", "pattern": "\\.compile(Async)?\\s*\\(", "only": ["src/render/stage.ts"], "why": "compiling is the Stage's job: warmUp(), warmLater() and add() (docs/SHADERS.md)" },
+    { "id": "new Light", "pattern": "\\bnew\\s+(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)\\s*\\(", "only": ["src/render/lights.ts"], "why": "lights are a fixed pool made before the warm-up: the light count is part of every shader's cache key (docs/SHADERS.md)" },
+    { "id": "localStorage", "pattern": "\\blocalStorage\\b", "only": ["src/persist/"], "why": "persistence goes through src/persist" },
+    { "id": "fetch openrouter", "pattern": "openrouter\\.ai", "flags": "gi", "only": ["src/llm/"], "why": "every LLM call goes through src/llm (model roster, task routing, usage tracking)" }
+  ],
+  "layers": [
+    { "from": "src/sim", "deny": ["three", "src/render", "src/app", "src/game", "src/llm"], "why": "the society simulation is pure data: it runs in a worker and in headless tests" },
+    { "from": "src/plan", "deny": ["three", "src/render", "src/app", "src/game", "src/sim"], "why": "the town planner is pure data: it runs in workers and headless tests" },
+    { "from": "src/world", "deny": ["three", "src/render", "src/app", "src/game"], "why": "world queries are pure: gameplay, workers and tests use them" },
+    { "from": "src/talk", "deny": ["three", "src/render", "src/app", "src/game"], "why": "the procedural text engine is pure: workers, tests and tools use it" },
+    { "from": "src/llm", "deny": ["three", "src/render", "src/app", "src/game"], "why": "the LLM layer knows prompts and contracts, not the screen" },
+    { "from": "src/render", "deny": ["src/app", "src/game", "src/llm"], "why": "the renderer does not know about the game, the UI or the LLM" }
+  ],
+  "duplication": {
+    "roots": {
+      "simworld": "src",
+      "core": "vendor/assetgenerator/packages/core/src"
+    }
+  }
+}

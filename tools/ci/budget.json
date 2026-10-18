@@ -1,0 +1,6 @@
+{
+  "why": "CI must stay fast forever (Arnd, 2026-10-18). These limits fail the fast suite when it grows past them. Raising one is a decision for Arnd, not a fix. See docs/CI.md.",
+  "perTestMs": 1000,
+  "perFileMs": 3000,
+  "totalMs": 60000
+}
