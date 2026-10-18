@@ -47,8 +47,8 @@ export type ToTown =
   | { type: 'map' }
   /** The cutaway of one storey of a building (`building`: its id in the cell). */
   | { type: 'interior'; cell: number; building: number; floor: number }
-  /** A whole building to walk around in (`index`: its place in the cell's buildings, as `buildingRef` decodes `Place.building`). */
-  | { type: 'indoors'; cell: number; index: number };
+  /** A whole building to walk around in, by its `Place.building` code (a town building, or a public building's walk-in body). */
+  | { type: 'indoors'; building: number };
 
 /** What the main thread needs to know about the town to lay out the view. */
 export interface TownSummary {
@@ -90,6 +90,9 @@ export type FromTown =
   | { type: 'map'; map: TownMap; ms: number }
   /** `at`: the storey's centre (floor level), `radius` its reach; `about`: what the building is, for the HUD. */
   | { type: 'interior'; mesh: MeshData | null; at: [number, number, number]; radius: number; floors: number; about: string; ms: number }
-  /** `mesh`: every storey furnished (origin `at`); `indoors`: its walls, furniture, floors, stairs, doors and spots in world coordinates. */
-  | { type: 'indoors'; mesh: MeshData | null; at: [number, number, number]; indoors: Indoors; about: string; ms: number }
+  /**
+   * `mesh`: every storey furnished (origin `at`); `indoors`: its walls, furniture, floors, stairs, doors and spots in
+   * world coordinates; `leaves`: each of `indoors.leaves` as a mesh in its hinge's frame (src/build/interior.ts buildDoorLeaf).
+   */
+  | { type: 'indoors'; mesh: MeshData | null; at: [number, number, number]; indoors: Indoors; leaves: MeshData[]; about: string; ms: number }
   | { type: 'error'; message: string };

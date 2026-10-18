@@ -4,7 +4,7 @@
  * it on the stage, nearest the centre first, so the view fills in from the middle. New in
  * SimWorld (Scale streams cells around the player instead; a town fits whole).
  */
-import { Group } from 'three/webgpu';
+import { Group, type Mesh } from 'three/webgpu';
 import type { MeshData } from '../build/meshBuilder';
 import type { WorkerPool } from '../workers/pool';
 import type { FromTown, ToTown, TownSummary } from '../workers/townProtocol';
@@ -28,6 +28,8 @@ export interface TownView {
   vegetation?: VegetationShown;
   /** The signs: shop names and hours, estate boards, street names, town signs (src/render/signsView.ts), once placed. */
   signs?: SignsShown;
+  /** Each public building's mesh by its index in `macro.landmarks` (= its id), once placed: hidden while you are inside it. */
+  landmarks: (Mesh | undefined)[];
 }
 
 /** `onChimneys`: the chimney tops (x, y, z each) of each piece's buildings, as they come in. */
@@ -45,12 +47,13 @@ export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town:
   for (let i = 0; i < town.landmarks; i++) jobs.push({ msg: { type: 'landmark', index: i }, priority: 20 + i });
   jobs.push({ msg: { type: 'bridges' }, priority: 30 }, { msg: { type: 'country' }, priority: 400 });
 
-  const view: TownView = { root, done: 0, total: jobs.length, ready: Promise.resolve() };
-  const place = async (d: MeshData | null, kind: MaterialKind) => {
+  const view: TownView = { root, done: 0, total: jobs.length, ready: Promise.resolve(), landmarks: [] };
+  const place = async (d: MeshData | null, kind: MaterialKind): Promise<Mesh | undefined> => {
     if (!d || !d.index.length) return;
     const m = meshFromData(d, kind);
     await stage.prepare(m);
     root.add(m);
+    return m;
   };
   // The street props after the cells: their instance lists, then a model each.
   view.total++;
@@ -68,7 +71,7 @@ export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town:
       case 'water': await place(r.mesh, WATER); break;
       case 'cell': case 'country': if (r.chimneys.length) onChimneys(r.chimneys); await place(r.ground, GROUND); await place(r.buildings, FACADE); break;
       case 'bridges': await place(r.ground, GROUND); await place(r.buildings, FACADE); break;
-      case 'landmark': await place(r.mesh, FACADE); break;
+      case 'landmark': { const m = await place(r.mesh, FACADE); if (msg.type === 'landmark') view.landmarks[msg.index] = m; break; }
     }
     onProgress(++view.done, view.total);
   })]).then(() => undefined);

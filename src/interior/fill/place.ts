@@ -137,6 +137,13 @@ export class Filler {
     return d;
   }
 
+  /** Distance from (x, z) to the street door when it opens into this room (`Area.entry`), else to the nearest door, uncapped. SimWorld. */
+  streetDist(x: number, z: number): number {
+    let d = Infinity;
+    for (const [sx, sz] of this.A.entry ? [this.A.entry] : this.seeds) d = Math.min(d, Math.hypot(sx - x, sz - z));
+    return Number.isFinite(d) ? d : 0;
+  }
+
   /** Free floor in front of a candidate of depth d: from its front face to the room's outline. */
   ahead(c: Cand, d: number): number { return this.clearOf(c, d, 1); }
 

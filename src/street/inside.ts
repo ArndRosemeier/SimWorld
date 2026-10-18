@@ -8,7 +8,8 @@
  */
 import { A, ACTOR_PERSON } from '../sim/actors';
 import type { FurnUse } from '../interior/types';
-import { householdOf, type World } from '../sim/world';
+import { householdOf, jobOf, type World } from '../sim/world';
+import { isOpen } from '../sim/schedule';
 
 export interface InsidePerson {
   id: number;
@@ -36,12 +37,27 @@ export function whoIsInside(world: World, building: number): InsidePerson[] {
   return out;
 }
 
+/**
+ * Whether building `building`'s street doors open from outside now: `open` its workplace's door (a place in it is open
+ * to visitors, or the player works there), `resident` its homes' door (the player lives there).
+ */
+export function doorAccess(world: World, building: number): { open: boolean; resident: boolean } {
+  const me = world.player?.id ?? -1, home = me >= 0 ? householdOf(world, me)?.home ?? -1 : -1, job = me >= 0 ? jobOf(world, me)?.place ?? -1 : -1;
+  let open = false, resident = false;
+  for (const p of world.graph.places) {
+    if (p.building !== building) continue;
+    if (p.id === home) resident = true;
+    if (!p.homes && (p.id === job || isOpen(world, p.id, world.clock))) open = true;
+  }
+  return { open, resident };
+}
+
 /** A spot of the building (src/interior/indoors.ts IndoorSpot, any height). */
 interface SpotLike { use: FurnUse; unit: number }
 
 /**
  * Who goes where: for each person (in order) the index of their spot in `spots`, -1 when none is left. Asleep:
- * a bed of their home. At work in a workplace: a desk or counter. Otherwise a seat of their home (a visitor
+ * a bed of their home (or one that is no home's, in a care home). At work in a workplace: a desk or counter. Otherwise a seat of their home (a visitor
  * or a customer: a seat not in a home), then any seat, then anywhere free. No spot is given twice.
  */
 export function spotsFor(people: readonly InsidePerson[], spots: readonly SpotLike[]): number[] {
@@ -56,6 +72,8 @@ export function spotsFor(people: readonly InsidePerson[], spots: readonly SpotLi
   for (const i of order) {
     const p = people[i];
     if (p.activity === A.sleep) out[i] = claim((s) => s.use === 'sleep' && s.unit === p.unit && p.unit >= 0);
+    // (A bed that is nobody's home: a care home's room.)
+    if (out[i] < 0 && p.activity === A.sleep) out[i] = claim((s) => s.use === 'sleep' && s.unit < 0);
     else if (p.activity === A.work && p.unit < 0) out[i] = claim((s) => (s.use === 'work' || s.use === 'serve') && s.unit < 0);
     if (out[i] < 0 && p.activity !== A.sleep) out[i] = claim((s) => s.use === 'sit' && s.unit === p.unit);
     if (out[i] < 0) out[i] = claim((s) => s.use === 'sit');

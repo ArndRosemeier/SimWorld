@@ -21,7 +21,7 @@ import type { Terrain } from '../world/terrain';
 import { CURB_H } from '../world/ground';
 import { baysOf, doorBayOf, flatsDoorBay, type BuildingDesc } from '../plan/building';
 import type { Landmark } from '../plan/landmarks';
-import { landmarkParts, latheClosed, helixFloorAt, HELIX_SLAB, PK, type LmPart, type PartMat } from '../plan/landmarkParts';
+import { landmarkParts, partOutline, latheClosed, helixFloorAt, HELIX_SLAB, PK, type LmPart, type PartMat } from '../plan/landmarkParts';
 import type { MeshBuilder, AttrSpec } from './meshBuilder';
 
 /**
@@ -287,24 +287,65 @@ export function windowOpenings(b: BuildingDesc): WallWindows[] {
         if (ef & FF.FlatsDoor) doors.add(0);
         if (ef & (FF.FlatsDoor << 1)) doors.add(1);
       }
-      const open: WallWindows['open'] = [];
-      for (let f = f0; f < f1; f++) {
-        const v = storeyBottom(b, f), fh = f === 0 ? b.groundH : b.floorH;
-        for (let k = 0; k < bays; k++) {
-          const c = (k + 0.5) * bay;
-          if (ef & FF.Curtain) open.push([k * bay + 0.03, (k + 1) * bay - 0.03, v + 0.9, v + fh - 0.05]);
-          else if (f === 0 && ef & FF.Front && doors.has(k)) continue;
-          else if (f === 0 && ef & FF.Shop) open.push([c - (bay - 0.35) / 2, c + (bay - 0.35) / 2, v + 0.3, v + fh - 0.95]);
-          else if (f === 0) {
-            // The ground floor's sill sits under the window's top, 0.7 m below the ceiling: both window heights.
-            const lo = Math.max(0.9, fh - fh * 0.62 - 0.7), hi = Math.max(0.9, fh - fh * 0.5 - 0.7);
-            open.push([c - bay * 0.3, c + bay * 0.3, v + Math.min(lo, hi), v + Math.max(lo + fh * 0.62, hi + fh * 0.5)]);
-          } else open.push([c - bay * 0.3, c + bay * 0.3, v + fh * 0.3, v + fh * 0.92]);
-        }
-      }
+      const open = edgeOpenings(L, bay, bays, ef, doors, (k) => (k < f1 - f0 ? { v: storeyBottom(b, f0 + k), fh: f0 + k === 0 ? b.groundH : b.floorH, ground: f0 + k === 0 } : null));
       if (open.length) out.push({ ax, az, bx, bz, nx: (bz - az) / L, nz: -(bx - ax) / L, open });
     }
   });
+  return out;
+}
+
+/**
+ * The window openings of one facade wall `L` long with `count` bays `bay` wide (u from its start), facade flags `ef`,
+ * no window in the ground floor's `doors` bays; `storey(k)`: the k-th storey up the wall (its bottom v above the
+ * ground floor level, its height, whether it is the ground floor), null past the top. The rule the facade shader draws by.
+ */
+function edgeOpenings(L: number, bay: number, count: number, ef: number, doors: ReadonlySet<number>, storey: (k: number) => { v: number; fh: number; ground: boolean } | null): WallWindows['open'] {
+  const open: WallWindows['open'] = [];
+  for (let f = 0, st = storey(0); st; st = storey(++f)) {
+    const { v, fh, ground } = st;
+    for (let k = 0; k < count; k++) {
+      const c = (k + 0.5) * bay;
+      if (ef & FF.Curtain) open.push([k * bay + 0.03, (k + 1) * bay - 0.03, v + 0.9, v + fh - 0.05]);
+      else if (ground && ef & FF.Front && doors.has(k)) continue;
+      else if (ground && ef & FF.Shop) open.push([c - (bay - 0.35) / 2, c + (bay - 0.35) / 2, v + 0.3, v + fh - 0.95]);
+      else if (ground) {
+        // The ground floor's sill sits under the window's top, 0.7 m below the ceiling: both window heights.
+        const lo = Math.max(0.9, fh - fh * 0.62 - 0.7), hi = Math.max(0.9, fh - fh * 0.5 - 0.7);
+        open.push([c - bay * 0.3, c + bay * 0.3, v + Math.min(lo, hi), v + Math.max(lo + fh * 0.62, hi + fh * 0.5)]);
+      } else open.push([c - bay * 0.3, c + bay * 0.3, v + fh * 0.3, v + fh * 0.92]);
+    }
+  }
+  // (A last bay cut short by the wall's end draws what fits of its window.)
+  return open.filter((o) => o[0] < L - 0.3).map((o) => [o[0], Math.min(o[1], L), o[2], o[3]]);
+}
+
+/**
+ * The window openings of a landmark's walk-in body (the box part marked `LmPart.body` among `parts`), its walls as the
+ * part shell draws them: u from each corner, the material's own bay width (not fitted), v above the body's bottom. A
+ * glass front standing against the body (the supermarket's, the petrol kiosk's) opens the wall behind it too.
+ */
+export function bodyOpenings(parts: readonly LmPart[]): WallWindows[] {
+  const body = parts.find((p) => p.body);
+  if (!body) return [];
+  // (Against it: its centre within the body's footprint grown by its own thickness and 0.4 m.)
+  const glass = parts.filter((q) => q !== body && q.m.flags & FF.Curtain && Math.abs(q.y0 - body.y0) < 0.5 && Math.abs(Math.cos(q.a - body.a)) > 0.99
+    && pointInPoly(partOutline(body, Math.min(q.hx, q.hz) + 0.4)!, q.x, q.z));
+  return [body, ...glass].flatMap((q) => partOpenings(q, q.y0 - body.y0));
+}
+
+/** One box part's window openings (`dv`: its bottom above the body's, added to v). */
+function partOpenings(p: LmPart, dv: number): WallWindows[] {
+  const m = p.m, out: WallWindows[] = [];
+  if (!(m.flags & FF.Windows)) return out;
+  const H = p.y1 - p.y0, R = partOutline(p)!;
+  for (let i = 0; i < 4; i++) {
+    const ax = R[i * 2], az = R[i * 2 + 1], bx = R[((i + 1) % 4) * 2], bz = R[((i + 1) % 4) * 2 + 1], L = Math.hypot(bx - ax, bz - az);
+    const open = edgeOpenings(L, m.bay, Math.ceil(L / m.bay), m.flags, new Set(), (k) => {
+      const v = k === 0 ? 0 : m.gh + (k - 1) * m.fh, fh = k === 0 ? m.gh : m.fh;
+      return v + 1 < H ? { v, fh: Math.min(fh, H - v), ground: k === 0 } : null;
+    });
+    if (open.length) out.push({ ax, az, bx, bz, nx: (bz - az) / L, nz: -(bx - ax) / L, open: open.map(([u0, u1, v0, v1]) => [u0, u1, v0 + dv, v1 + dv]) });
+  }
   return out;
 }
 

@@ -23,6 +23,7 @@ import { InteriorMat } from './texgen/interior';
 import type { AttrSpec, MeshBuilder } from './meshBuilder';
 import type { Interior } from '../interior/building';
 import { landingBox, type Indoors } from '../interior/indoors';
+import { LEAF_T, type DoorLeaf } from '../interior/doors';
 import type { FloorMat, FloorPlan, Furn, IWall, Room } from '../interior/types';
 
 /** The attributes of the `INTERIOR` material kind (src/render/materials.ts): uv in metres, texture layer, tint. */
@@ -717,4 +718,29 @@ function buildFurniture(g: Geo, f: Furn, y: number, cut = false): void {
     default:
       B(0, h / 2, 0, w, h / 2, d, c);
   }
+}
+
+/** Street doors' paint, and the room doors' (white paint, or oiled wood). */
+const STREET_DOOR: C3[] = [[0.42, 0.12, 0.1], [0.12, 0.22, 0.32], [0.16, 0.3, 0.2], [0.85, 0.83, 0.78], [0.3, 0.2, 0.13], [0.1, 0.1, 0.1]];
+const ROOM_DOOR: C3[] = [[0.94, 0.93, 0.9], [0.94, 0.93, 0.9], [0.62, 0.45, 0.3]];
+
+/**
+ * A door leaf (src/interior/doors.ts) in its hinge's frame: the hinge at the origin, the leaf along +x, its faces
+ * across z, with a panel moulding and a handle on each side. The game turns it about the hinge to open it.
+ */
+export function buildDoorLeaf(mb: MeshBuilder, l: DoorLeaf): void {
+  const g = new Geo(mb), r = seeded(l.x, l.z, l.street + 2);
+  const c = l.street >= 0 ? STREET_DOOR[Math.floor(r() * STREET_DOOR.length)] : ROOM_DOOR[Math.floor(r() * ROOM_DOOR.length)];
+  const w = l.w - 0.02, h = l.h, wood = c[0] - c[2] > 0.15;
+  g.on(wood ? InteriorMat.Wood : InteriorMat.Paint);
+  g.box(0.01 + w / 2, h / 2, 0, LEAF_T, h / 2, w / 2, Math.PI / 2, c);
+  // Two raised panels a side, the handles at the free edge.
+  const pc: C3 = [c[0] * 0.92, c[1] * 0.92, c[2] * 0.92];
+  for (const sz of [1, -1]) {
+    for (const [y0, y1] of [[0.18, 0.92], [1.08, h - 0.18]]) g.box(0.01 + w / 2, (y0 + y1) / 2, sz * (LEAF_T + 0.006), 0.006, (y1 - y0) / 2, w / 2 - 0.12, Math.PI / 2, pc);
+    g.free().box(w - 0.08, 1.0, sz * (LEAF_T + 0.045), 0.012, 0.012, 0.065, Math.PI / 2, [0.75, 0.72, 0.62]);
+    g.box(w - 0.08, 1.0, sz * (LEAF_T + 0.02), 0.025, 0.04, 0.025, 0, [0.75, 0.72, 0.62]);
+    g.on(wood ? InteriorMat.Wood : InteriorMat.Paint);
+  }
+  g.free();
 }
