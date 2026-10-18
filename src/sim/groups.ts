@@ -26,6 +26,7 @@ import { closeTo } from './life';
 import { remember } from './memory';
 import { T_CONSC, T_EXTRA, V_AMBITION, V_FAITH } from './people';
 import { popcount, type DayMask, type PlaceId, type PlaceKind } from './places';
+import { clubWords, fillName } from '../lang/words';
 import { dayOf, MINUTES_PER_DAY } from './time';
 import { ageOf, isPerson, placesOf, tickRng, traitOf, valueOf, weighed, type Weights, type World } from './world';
 
@@ -103,6 +104,9 @@ interface BigDay {
   result?: string[];
 }
 
+/** A group kind's rules without its words. */
+type Rules = Omit<Spec, 'name' | 'offices' | 'big'> & { big?: Omit<BigDay, 'name' | 'prize' | 'result'> };
+
 interface Spec {
   name: string;
   venue: PlaceKind[];
@@ -148,101 +152,100 @@ function liking(world: World, id: ActorId, age: number, l: Liking): number {
   return Math.max(0, x);
 }
 
-const SPECS: Record<GroupKind, Spec> = {
+/** How each kind of group works; its words (name, office titles, big day) come from `clubWords` (src/lang/words.ts). */
+const RULES: Record<GroupKind, Rules> = {
   football: {
-    name: 'the football club', venue: ['sports'], ages: [6, 45], perHead: 0.045, min: 14, topic: 'event',
+    venue: ['sports'], ages: [6, 45], perHead: 0.045, min: 14, topic: 'event',
     like: { base: 0.3, extra: 1, ages: [[17, 1.3], [31, 1], [120, 0.5]], women: 0.4 },
-    offices: ['chair', 'treasurer', 'secretary', 'coach'], jobs: { coach: 'coach' },
+    jobs: { coach: 'coach' },
     meets: [
       { kind: 'club', days: TUE | THU, from: 18, to: 19.5, months: NOT_SUMMER, pull: 1.6 },
       { kind: 'match', days: SAT, from: 15, to: 17, months: NOT_SUMMER, pull: 2, open: 0.25 },
     ],
-    big: { name: 'last home match of the season', month: 5, after: 15, from: 15, to: 19, pull: 0.6, appeal: 'all',
-      result: ['finished top of the league and won promotion', 'finished second in the league', 'finished mid-table in the league', 'finished mid-table in the league', 'only just avoided relegation', 'were relegated'] },
+    big: { month: 5, after: 15, from: 15, to: 19, pull: 0.6, appeal: 'all' },
   },
   choir: {
-    name: 'the town choir', venue: ['church', 'school'], ages: [16, 90], perHead: 0.017, min: 10, topic: 'event',
+    venue: ['church', 'school'], ages: [16, 90], perHead: 0.017, min: 10, topic: 'event',
     like: { base: 0.2, open: 0.5, agree: 0.5, ages: [[39, 0.7], [120, 1.2]], men: 0.6 },
-    offices: ['chair', 'treasurer', 'conductor'],
     meets: [{ kind: 'club', days: TUE, from: 19.5, to: 21, months: NOT_SUMMER, pull: 1.6 }],
-    big: { name: 'Christmas concert', month: 12, after: 9, from: 18, to: 20, pull: 0.5, appeal: 'all', at: 'church' },
+    big: { month: 12, after: 9, from: 18, to: 20, pull: 0.5, appeal: 'all', at: 'church' },
   },
   firebrigade: {
-    name: 'the volunteer fire brigade', venue: ['fire'], ages: [17, 62], perHead: 0.016, min: 10, topic: 'event',
+    venue: ['fire'], ages: [17, 62], perHead: 0.016, min: 10, topic: 'event',
     like: { base: 0.2, consc: 0.5, loyal: 0.6, ages: [[49, 1], [120, 0.6]], women: 0.5 },
-    offices: ['chief', 'deputy chief', 'treasurer'], jobs: { chief: 'firefighter' },
+    jobs: { chief: 'firefighter' },
     meets: [{ kind: 'club', days: WED, from: 19, to: 21, pull: 1.4 }],
-    big: { name: 'open day', month: 7, after: 1, from: 10, to: 17, pull: 0.7, appeal: 'all' },
+    big: { month: 7, after: 1, from: 10, to: 17, pull: 0.7, appeal: 'all' },
   },
   rifle: {
-    name: 'the rifle club', venue: ['sports', 'field'], ages: [16, 80], perHead: 0.012, min: 8, topic: 'event',
+    venue: ['sports', 'field'], ages: [16, 80], perHead: 0.012, min: 8, topic: 'event',
     like: { base: 0.7, loyal: 0.6, open: -0.5, women: 0.4 },
-    offices: ['chair', 'treasurer', 'range officer'],
     meets: [{ kind: 'club', days: FRI, from: 19, to: 21.5, pull: 1.3 }],
-    big: { name: 'summer shoot and barbecue', month: 7, after: 15, from: 11, to: 20, pull: 0.4, appeal: 'adults', prize: '{subject} won the rifle club\'s summer shoot' },
+    big: { month: 7, after: 15, from: 11, to: 20, pull: 0.4, appeal: 'adults' },
   },
   allotment: {
-    name: 'the community garden club', venue: ['park', 'field'], ages: [25, 90], perHead: 0.012, min: 8, topic: 'event',
+    venue: ['park', 'field'], ages: [25, 90], perHead: 0.012, min: 8, topic: 'event',
     like: { base: 0.2, consc: 1, ages: [[49, 0.7], [120, 1.3]], flat: [1.6, 0.5] },
-    offices: ['chair', 'treasurer', 'secretary'],
     meets: [{ kind: 'club', days: SAT, from: 9, to: 12, months: GROWING, pull: 1 }],
-    big: { name: 'produce show', month: 9, after: 1, from: 11, to: 16, pull: 0.4, appeal: 'adults', prize: '{subject} won best in show at the community garden club\'s produce show' },
+    big: { month: 9, after: 1, from: 11, to: 16, pull: 0.4, appeal: 'adults' },
   },
   churchgroup: {
-    name: 'the church coffee circle', venue: ['church'], ages: [55, 99], perHead: 0.01, min: 6, topic: 'event',
+    venue: ['church'], ages: [55, 99], perHead: 0.01, min: 6, topic: 'event',
     like: { base: -0.9, faith: 1.8, agree: 0.5 },
-    offices: ['organiser'],
     meets: [{ kind: 'club', days: WED, from: 15, to: 17, pull: 1.5 }],
-    big: { name: 'rummage sale', month: 11, after: 1, from: 10, to: 14, pull: 0.35, appeal: 'adults' },
+    big: { month: 11, after: 1, from: 10, to: 14, pull: 0.35, appeal: 'adults' },
   },
   youth: {
-    name: 'the youth club', venue: ['school', 'townhall', 'church'], ages: [12, 17], perHead: 0.016, min: 8, topic: 'event',
+    venue: ['school', 'townhall', 'church'], ages: [12, 17], perHead: 0.016, min: 8, topic: 'event',
     like: { base: 0.3, extra: 1 },
-    offices: ['youth leader'], jobs: { 'youth leader': 'teacher' },
+    jobs: { 'youth leader': 'teacher' },
     meets: [{ kind: 'club', days: FRI, from: 18, to: 21, pull: 1.4 }],
-    big: { name: 'disco', month: 2, after: 1, from: 19, to: 22, pull: 0.5, appeal: 'children' },
+    big: { month: 2, after: 1, from: 19, to: 22, pull: 0.5, appeal: 'children' },
   },
   books: {
-    name: 'the book club', venue: ['library', 'cafe'], ages: [22, 90], perHead: 0.006, min: 5, topic: 'event',
+    venue: ['library', 'cafe'], ages: [22, 90], perHead: 0.006, min: 5, topic: 'event',
     like: { open: 1.4, men: 0.5 },
-    offices: ['organiser'],
     meets: [{ kind: 'club', days: THU, from: 19.5, to: 21.5, nth: -1, pull: 2 }],
   },
   running: {
-    name: 'the running club', venue: ['park', 'sports'], ages: [16, 65], perHead: 0.012, min: 6, topic: 'event',
+    venue: ['park', 'sports'], ages: [16, 65], perHead: 0.012, min: 6, topic: 'event',
     like: { base: 0.2, consc: 1, neuro: -0.4, ages: [[49, 1], [120, 0.6]] },
-    offices: ['organiser'],
     meets: [{ kind: 'club', days: WED, from: 18.5, to: 19.5, pull: 1.2 }, { kind: 'club', days: SUN, from: 9, to: 10.5, pull: 1.2 }],
-    big: { name: 'fun run', month: 5, after: 1, from: 10, to: 12, pull: 0.4, appeal: 'all', prize: '{subject} won the fun run' },
+    big: { month: 5, after: 1, from: 10, to: 12, pull: 0.4, appeal: 'all' },
   },
   cards: {
-    name: 'the card club', venue: ['pub'], ages: [45, 95], perHead: 0.007, min: 6, topic: 'event',
+    venue: ['pub'], ages: [45, 95], perHead: 0.007, min: 6, topic: 'event',
     like: { base: 0.7, extra: 0.5, open: -0.5, ages: [[59, 0.8], [120, 1.3]] },
-    offices: ['organiser'],
     meets: [{ kind: 'club', days: MON, from: 19.5, to: 22.5, pull: 1.8 }],
-    big: { name: 'winter tournament', month: 1, after: 15, from: 14, to: 20, pull: 0.15, appeal: 'adults', prize: '{subject} won the card club\'s winter tournament' },
+    big: { month: 1, after: 15, from: 14, to: 20, pull: 0.15, appeal: 'adults' },
   },
   history: {
-    name: 'the local history society', venue: ['library', 'townhall'], ages: [40, 95], perHead: 0.008, min: 6, topic: 'event',
+    venue: ['library', 'townhall'], ages: [40, 95], perHead: 0.008, min: 6, topic: 'event',
     like: { open: 0.7, loyal: 0.5, ages: [[54, 0.6], [120, 1.3]] },
-    offices: ['chair', 'secretary'],
     meets: [{ kind: 'club', days: TUE, from: 19.5, to: 21, nth: 2, pull: 2 }],
-    big: { name: 'exhibition on the town\'s past', month: 10, after: 1, from: 11, to: 17, pull: 0.25, appeal: 'adults' },
+    big: { month: 10, after: 1, from: 11, to: 17, pull: 0.25, appeal: 'adults' },
   },
   congregation: {
-    name: 'the congregation', venue: ['church'], ages: [0, 120], perHead: 0, min: 5, topic: 'event',
+    venue: ['church'], ages: [0, 120], perHead: 0, min: 5, topic: 'event',
     like: { faith: 1 },
-    offices: ['priest', 'church elder', 'treasurer'], jobs: { priest: 'priest' },
+    jobs: { priest: 'priest' },
     meets: [],
-    big: { name: 'church fair', month: 7, after: 1, from: 12, to: 17, pull: 0.5, appeal: 'all' },
+    big: { month: 7, after: 1, from: 12, to: 17, pull: 0.5, appeal: 'all' },
   },
   council: {
-    name: 'the town council', venue: ['townhall'], ages: [21, 85], perHead: 0, min: 5, topic: 'politics',
+    venue: ['townhall'], ages: [21, 85], perHead: 0, min: 5, topic: 'politics',
     like: { ambition: 0.8, extra: 0.4, consc: 0.3, ages: [[34, 0.6], [120, 1.2]] },
-    offices: ['mayor', 'deputy mayor'], jobs: { mayor: 'mayor' },
+    jobs: { mayor: 'mayor' },
     meets: [{ kind: 'meeting', days: MON, from: 19, to: 21.5, nth: 1, months: months(1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12), pull: 3, open: 0.04 }],
   },
 };
+
+const SPECS = Object.fromEntries(GROUP_KINDS.map((kind) => {
+  const r = RULES[kind], w = clubWords(kind);
+  for (const title of Object.keys(r.jobs ?? {})) if (!w.offices.includes(title)) throw new Error(`groups: ${kind} has no office "${title}"`);
+  const big = r.big && w.big ? { ...r.big, name: w.big, prize: w.prize, result: w.result } : undefined;
+  return [kind, { ...r, name: w.name, offices: [...w.offices], big }];
+})) as Record<GroupKind, Spec>;
 
 /** Clubs (not the congregation or the council) one person belongs to at most. */
 const CLUB_CAP = 3;
@@ -302,7 +305,7 @@ export function foundGroups(world: World, rng: Rng): void {
   for (const kind of GROUP_KINDS) {
     if (kind === 'congregation') {
       for (const church of placesOf(world, ['church'])) {
-        const g = newGroup(world, kind, church, day - rng.int(36500, 73000), `the congregation of ${world.graph.places[church].name}`);
+        const g = newGroup(world, kind, church, day - rng.int(36500, 73000), fillName(clubWords('congregation').of!, { place: world.graph.places[church].name }));
         for (const id of everyone) if (nearestChurch(world, id) === church && belongs(world, id)) join(world, g, id, day - rng.int(0, ageOf(world, id) * 365), true);
         elect(world, g, rng, true, false);
       }

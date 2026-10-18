@@ -344,7 +344,7 @@
     "reason": "Texture generators round a feature size to a whole count per tile (Math.round(W / size)) so the pattern wraps, then loop Tex.each; the tiling contract, not a copy."
   },
   {
-    "key": "idiom: [.fromEntries .map Object] in simworld/audio/engine.ts + simworld/audio/soundMap.ts + simworld/llm/appraisal.ts",
+    "key": "idiom: [.fromEntries .map Object] in simworld/audio/engine.ts + simworld/audio/soundMap.ts + simworld/sim/groups.ts",
     "reason": "Building a record keyed by a fixed list of ids (sound categories, sound-map channels, LLM appraisal fields): one line of plain JavaScript each, with a different list and value per place."
   },
   {
@@ -525,6 +525,6 @@
   },
   {
     "key": "idiom: [.int .pick] in simworld/plan/cell.ts + simworld/traffic/townTraffic.ts + simworld/traffic/visitors.ts",
-    "reason": "A seeded draw of a count and a choice (Rng.int, Rng.pick) in three unrelated generators (cell lots, town traffic, region visitors); the Rng API itself, not a copy. Surfaced when region.ts lost its own draws to the neutral names."
+    "reason": "The seeded Rng's own vocabulary (r.int, r.pick from @futuremagic/core): each caller draws its own thing (a prop variant, a car trip, a visitor), there is no shared helper to fold."
   }
 ]

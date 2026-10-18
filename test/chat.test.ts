@@ -5,7 +5,8 @@ import { createWorld } from '../src/sim/synth';
 import { ACTOR_PERSON, A } from '../src/sim/actors';
 import { addFact, beliefAbout, believe, witness } from '../src/sim/knowledge';
 import { memoriesOf } from '../src/sim/memory';
-import { chatOp } from '../src/chat/ops';
+import { chatOp, TALK_MIN_AGE } from '../src/chat/ops';
+import { ageOf } from '../src/sim/world';
 import { chatContext } from '../src/chat/context';
 import { stopToTalk } from '../src/sim/mind/chat';
 import type { Turn } from '../src/llm';
@@ -63,4 +64,11 @@ test('chat: a walker stops to talk, and both remember the talk once it ends', ()
   assert.equal(memoriesOf(w, npc).length, before[0] + 1);
   assert.equal(memoriesOf(w, player).length, before[1] + 1);
   assert.match(memoriesOf(w, player).at(-1)!.summary, /Tom is moving/);
+});
+
+test('chat: nobody holds a conversation with a toddler', () => {
+  const tot = people.find((id) => ageOf(w, id) < TALK_MIN_AGE);
+  if (tot === undefined) return;
+  const r = chatOp(w, { op: 'start', npc: tot, player });
+  assert.ok(r.op === 'start' && r.header === null);
 });
