@@ -88,6 +88,7 @@ const BOARD = {
   welcome: 'Welcome to', driveCarefully: 'Please drive carefully', thanks: 'thanks you for your visit',
   stop: 'STOP', bus: 'BUS', telephone: 'TELEPHONE', news: 'NEWS', post: 'POST', sewer: 'SEWER', central: 'CENTRAL',
   townHall: 'Town Hall', market: 'MARKET', summer: 'SUMMER',
+  departures: 'Departures', schoolDays: 'School days', towards: 'to {place}',
 } as const;
 
 export type BoardWord = keyof typeof BOARD;

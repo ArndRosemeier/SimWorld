@@ -219,6 +219,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   /** The media the signs last got (the sim's view brings a new one each game minute). */
   let shownMedia: MediaView | undefined;
   let shownFace: TownFace | undefined, lookedFace: TownFace | undefined;
+  /** Whether the bus stops (from the sim) have joined the signs. */
+  let stopsShown = false;
   const fwd = { x: 0, y: 0, z: 0 };
   shell.add({ label: 'Map', group: 'Town', open: mapOpener(
     async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
@@ -256,6 +258,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       shownFace = sim.town;
       view.signs.setFacts({ kind: shownFace.kind, name: shownFace.name, flags: shownFace.looks.flags, hours: shownFace.hours });
     }
+    if (view.signs && !stopsShown) { stopsShown = true; void view.signs.addStops(sim.stops); }
     view.signs?.setTime(minuteOfDay(sim.clock));
     view.signs?.update(camera);
     if (sim.town && sim.town !== lookedFace) {

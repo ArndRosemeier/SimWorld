@@ -5,7 +5,7 @@ import { testTown } from '../src/sim/testTown';
 import { createWorld } from '../src/sim/synth';
 import { schoolDay, runsLike } from '../src/sim/calendar';
 import { MINUTES_PER_DAY, atMinute, dayOf } from '../src/sim/time';
-import { departures, nextRide, runsAt, runsOnDay, transitOf } from '../src/sim/transit';
+import { departures, nextRide, runsAt, runsOnDay, stopTimetables, transitOf } from '../src/sim/transit';
 
 const region = planRegion({
   seed: 5, town: 'Testford', coastal: false, seaBearing: 0, hilliness: 0.4, warmth: 0.5, oldWorld: 0.7,
@@ -71,4 +71,24 @@ test('transit: on a branch line every train goes towards the city; no railway, n
   const lines = (rail: 'terminus' | null) => transitOf(createWorld(testTown(5, 1200), 5, { region: { ...region, rail } })).lines;
   assert.deepEqual(lines('terminus').filter((l) => l.mode === 'train').map((l) => l.name), [`Trains to ${city.name}`]);
   assert.equal(lines(null).filter((l) => l.mode === 'train').length, 0);
+});
+
+test('transit: each town stop has its printed timetable, the times it leaves there by line, way and kind of day', () => {
+  const tables = stopTimetables(world);
+  assert.ok(tables.length >= 2, `${tables.length} stops in town`);
+  for (const t of tables) {
+    const st = T.stops.find((s) => s.place === t.place)!;
+    assert.equal(st.name, t.name);
+    for (const r of t.rows) {
+      assert.ok(r.times.length > 0 && r.times.every((m, i) => m >= 0 && m < MINUTES_PER_DAY && (i === 0 || m >= r.times[i - 1])), `${t.name}: ${r.code} to ${r.to}`);
+      assert.notEqual(r.to, t.name, 'nothing leaves a stop for itself');
+    }
+  }
+  // What the timetable prints is what leaves: tomorrow's first departures from the stop are on it.
+  const t = tables[0], st = T.stops.find((s) => s.place === t.place)!;
+  const day = dayWhere((c) => runsLike(world, c) < 5 && !schoolDay(world, c), 0);
+  for (const d of departures(world, st.id, day, 4)) {
+    const line = T.lines[d.run.line];
+    assert.ok(t.rows.some((r) => r.code === line.code && r.days === d.run.days && r.times.includes(d.run.times[d.at] % MINUTES_PER_DAY)), `${line.code} at ${d.clock % MINUTES_PER_DAY}`);
+  }
 });
