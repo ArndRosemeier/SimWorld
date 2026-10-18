@@ -162,10 +162,18 @@ export class Street {
     for (const p of people) this.indoors.set(p.w.id, p);
   }
 
+  /** The person `id` as drawn near you: out of doors, or in the building you are in (undefined when neither). */
+  walkerOf(id: number): Walker | undefined {
+    return this.sim.walkers.get(id) ?? this.indoors.get(id)?.w;
+  }
+
   /** Hold `id` where they stand now, turned toward (tx, tz) (they stopped to talk); false if they are not in view. */
   pin(id: number, tx: number, tz: number): boolean {
-    const f = this.where(id), w = this.sim.walkers.get(id) ?? this.indoors.get(id)?.w;
+    const f = this.where(id), w = this.walkerOf(id);
     if (!f || !w) return false;
+    // Sitting indoors (at the table, on the sofa): they stay in their seat and talk from there.
+    const held = this.indoors.get(id);
+    if (held?.rest) { this.pins.set(id, held); return true; }
     this.pins.set(id, { x: f.x, y: f.y, z: f.z, face: yawToward(f.x, f.z, tx, tz), w });
     return true;
   }
@@ -175,9 +183,9 @@ export class Street {
     this.pins.delete(id);
   }
 
-  /** The people out of doors within `r` metres of (x, z), nearest first. */
-  peopleNear(x: number, z: number, r: number): { id: number; d: number; x: number; z: number }[] {
-    return this.figuresNow().map((f) => ({ id: f.id, d: Math.hypot(f.x - x, f.z - z), x: f.x, z: f.z })).filter((n) => n.d <= r).sort((a, b) => a.d - b.d);
+  /** The people drawn within `r` metres of (x, z) (out of doors, or in the building you are in), nearest first. */
+  peopleNear(x: number, z: number, r: number): { id: number; d: number; x: number; y: number; z: number }[] {
+    return this.figuresNow().map((f) => ({ id: f.id, d: Math.hypot(f.x - x, f.z - z), x: f.x, y: f.y, z: f.z })).filter((n) => n.d <= r).sort((a, b) => a.d - b.d);
   }
 
   /** Who was picked lately (`next`), so that asking again goes on to someone else. */
@@ -203,7 +211,7 @@ export class Street {
 
   /** One HUD line about the person followed. */
   describe(id: number): string {
-    const w = this.sim.walkers.get(id) ?? this.indoors.get(id)?.w;
+    const w = this.walkerOf(id);
     if (!w) return '';
     const age = Math.floor((this.sim.clock / 1440 - w.info.birth) / 365);
     return `${w.info.name}, ${age}${w.info.role ? `, ${w.info.role}` : ''}: ${w.doing}`;

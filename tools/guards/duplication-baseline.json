@@ -28,7 +28,7 @@
     "reason": "One designer per public building (the Designer contract from Scale): the same closure shape, each with its own sizes and parameters for its parts; a table would hide the drawing rules."
   },
   {
-    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/politics.ts + simworld/sim/synth.ts",
+    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/politics.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts",
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
@@ -206,10 +206,6 @@
   {
     "key": "idiom: [.P] in simworld/interior/cores.ts + simworld/interior/fill/split.ts + simworld/plan/landmarkParts.ts",
     "reason": "Each reads its own record's point list `P`; a field name, not a copied step (tipped over the threshold by the traffic sounds' new files)."
-  },
-  {
-    "key": "idiom: [.fillRect] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
-    "reason": "Canvas 2D fills for three different drawings (map, sign faces, text atlas); the canvas API used, not copied."
   },
   {
     "key": "idiom: [.overlap] in simworld/build/decorProps.ts + simworld/street/clearance.ts + simworld/street/streetMap.ts",
@@ -436,7 +432,7 @@
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
   {
-    "key": "idiom: [.save .translate] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "key": "idiom: [.save .translate] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
   {
@@ -521,23 +517,23 @@
   },
   {
     "key": "idiom: [.ax .az .bx .bz] in simworld/build/interior.ts + simworld/interior/doors.ts + simworld/interior/indoors.ts + simworld/interior/storey.ts",
-    "reason": "A wall is a segment a→b with its own fields (Wall); reading its ends is the data shape, not a copied computation."
+    "reason": "A wall is a segment a\u2192b with its own fields (Wall); reading its ends is the data shape, not a copied computation."
   },
   {
     "key": "idiom: [.pool .run] in simworld/game/SimClient.ts + simworld/render/interiorView.ts + simworld/render/people/bodies.ts",
     "reason": "WorkerPool.run is the one seam for worker requests; each caller asks its own op."
   },
   {
-    "key": "idiom: [.fillRect .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
-    "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
+    "key": "idiom: [.fillRect .fillStyle] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the title's town at dusk, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
   },
   {
     "key": "idiom: [.find .kind .landmarks] in simworld/plan/signs.ts + simworld/plan/town.ts + simworld/street/streetMap.ts",
     "reason": "Finding a landmark of a kind in the town's list is one Array.find; the town plan, the walkers' map and the signs (the sports ground's works board) each look up the one they need, and a helper would only rename find."
   },
   {
-    "key": "idiom: [.beginPath .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
-    "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the map, the signs' painters (a clock's dial) and the atlas pictures each paint their own shapes; a wrapper would only rename the canvas API."
+    "key": "idiom: [.arc .beginPath .fillStyle] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/render/signPaint.ts",
+    "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the map, the title's moon and trees and the signs' painters (a clock's dial) each paint their own round shapes; a wrapper would only rename the canvas API."
   },
   {
     "key": "idiom: [.lineWidth .strokeStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
@@ -545,11 +541,7 @@
   },
   {
     "key": "idiom: [.actors .count .row] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts",
-    "reason": "A pass over every actor reading their person row: the World's own column layout (actors → people rows), each pass doing its own work."
-  },
-  {
-    "key": "same name: simworld/app/chatPanel.ts#describe + simworld/game/street.ts#describe",
-    "reason": "Unrelated: the chat panel's line for a change a conversation made, and the street's HUD line about the person followed."
+    "reason": "A pass over every actor reading their person row: the World's own column layout (actors \u2192 people rows), each pass doing its own work."
   },
   {
     "key": "idiom: [.ElseIf .assign] in simworld/render/tsl/decor.ts + simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts",
@@ -634,5 +626,9 @@
   {
     "key": "same name: simworld/game/inside.ts#update + simworld/traffic/traffic.ts#update",
     "reason": "Unrelated per-frame updates: the building you are in (people, light, doors), and the traffic."
+  },
+  {
+    "key": "idiom: [.addColorStop .createLinearGradient] in simworld/app/title.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar for a gradient: the title's dusk sky and the signs' and atlas pictures' shading each make their own; a wrapper would only rename the canvas API."
   }
 ]
