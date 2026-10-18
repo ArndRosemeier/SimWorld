@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.058 — Front doors open onto the street
+
+- No front door opens into the house next door any more: on corner plots and narrow wedges the front was sometimes put on the shared wall.
+- Oddly pinched building outlines are gone.
+
 ## v0.057 — The town map
 
 - A "Map" button opens a map of the town in the style of a printed town plan: every street with its name, the main roads in yellow, buildings, parks, the river or sea, the woods, the railway, and the town's landmarks by name.
