@@ -61,6 +61,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | How big is the town, how many households? | `townRadius(size)` (`src/world/settings.ts`), `dwellingTarget(size)`, `PEOPLE_PER_HOME`; `town.dwellings` | `src/plan/town.ts` |
 | How many households live in a building? | `dwellingsOf(b)` (a block too small for a flat beside its stairs, under `MIN_FLAT_FLOOR`, is one home) | `src/plan/building.ts` |
 | Where is a building's street door? | `streetDoor(b)` (edge, span, centre): the one door the facade, the terraces and the interior agree on | `src/plan/building.ts` |
+| Where do the people living over a shop go in? | `flatsDoor(b)` (null when none) and `flatsDoorBay(b, bays)`: their own door in bay 0 or 1 of the front; the facade (`FF.FlatsDoor`), the interior (its hall to the stairs) and the place graph (`frontDoor(b, flatsDoor(b))`) agree on it | `src/plan/building.ts` |
 | Ground height, water, rivers, lakes, the coast | `Terrain` (`height`, `isWater`, `water`, `lakeAt`, `coastDistance`) | `src/world/terrain.ts` |
 | Where does a road or the railway bridge a river? | `riverSpans(terrain, pts, margin)` | `src/world/terrain.ts` |
 | Forest, fields, meadow at a point | `LandUse.sample`; the town's outline `LandUse.edge` | `src/world/landuse.ts` |
@@ -83,7 +84,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | What is inside a building: rooms, homes, furniture, stairs; where its people sleep, sit and work | `planInterior(b, place?)` → `Interior` (`storeys: FloorPlan[]`, `units` with `sleeps`, `spots: Spot[]`); `place` (the sim's staff and capacity) sizes a workplace; outlines `storeyPoly`, `storeyFacade`; `workOf(b)`; `peakStaff(slots)` | `src/interior/building.ts` |
 | Cut a storey into rooms, walls and doors by a program | `splitStorey(storey, program, rng)` (`Program`: reservations, rooms, corridors, flats `units`, `musts`, `rank`) | `src/interior/fill/split.ts` |
 | Furnish a room | `new Filler(roomArea(...), rng, cell, accept).fill(items)` (`Item`: wall or free pieces, kids, clearances, score, `or` fallbacks); what a room holds: `homeItems`, `workItems` | `src/interior/fill/place.ts`, `src/interior/fill/home.ts`, `src/interior/fill/work.ts` |
-| Stairs and lifts through a building | `planCores(b, groundPoly, maxH, door)` → stair core and lift shaft; `stairsOf` (flights, landings, the hole above) | `src/interior/cores.ts` |
+| Stairs and lifts through a building | `planCores(b, groundPoly, maxH, door, flatsDoor?)` → stair core, lift shaft and, for homes over a shop, `entry` (the hall from their door to the stairs, closed to the shop); `stairHall`; `stairsOf` (flights, landings, the hole above) | `src/interior/cores.ts` |
 | Interior meshes: a storey, or the cutaway of one | `buildStorey(mb, plan, opts)`, `buildCutaway(mb, interior, floor, base, facades)` with `INTERIOR_SPECS` (the `VERTEX_COLOR_SOLID` kind) | `src/build/interior.ts` |
 | Look at interiors without the game | `?inside=<cell>/<building>&floor=<n>` in the browser; floor plans as SVG: `npx tsx tools/interior/plans.ts` | `src/main.ts`, `tools/interior/plans.ts` |
 | 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |

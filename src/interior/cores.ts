@@ -8,7 +8,7 @@
  * stairsOf and the local Frame).
  */
 import { minAreaRect, polyArea, pointInPoly, type Poly } from '../geom/geom2';
-import { intersection } from '../geom/clip';
+import { intersection, largest, unionPos } from '../geom/clip';
 import type { BuildingDesc } from '../plan/building';
 import type { FloorPlan } from './types';
 
@@ -107,6 +107,12 @@ export type Door = { x: number; z: number };
  * nearest the door), or null when the door is not on the outline.
  */
 export function doorWay(poly: Poly, door: Door, depth: number, half: number): Poly | null {
+  const f = doorFrame(poly, door);
+  return f && hallway(door, f, -half, half, depth);
+}
+
+/** A door's frame: along the outline edge nearest it (e) and into the storey (n); null when the door is not on the outline. */
+function doorFrame(poly: Poly, door: Door): DoorFrame | null {
   const n = poly.length >> 1;
   let best = Infinity, ex = 0, ez = 0;
   for (let i = 0; i < n; i++) {
@@ -122,8 +128,7 @@ export function doorWay(poly: Poly, door: Door, depth: number, half: number): Po
   // Inward: the side of the edge the storey lies on.
   let nx = -ez, nz = ex;
   if (!pointInPoly(poly, door.x + nx * (best + 0.3), door.z + nz * (best + 0.3))) { nx = -nx; nz = -nz; }
-  const P = (s: number, d: number): [number, number] => [door.x + ex * s + nx * d, door.z + ez * s + nz * d];
-  return [...P(-half, -0.3), ...P(half, -0.3), ...P(half, depth), ...P(-half, depth)];
+  return { ex, ez, nx, nz };
 }
 
 /** Do two convex quads overlap? */
@@ -150,10 +155,17 @@ export function planStair(b: BuildingDesc, poly: Poly, lift: LiftShaft | null, m
 
 /**
  * Lift and stairs of a building together, both clear of the way in from the street door: when the
- * stairs only keep it clear without the lift, the building goes without the lift.
+ * stairs only keep it clear without the lift, the building goes without the lift. With `flats`
+ * (src/plan/building.ts flatsDoor: homes over a shop) the stairs go where a hall from that door
+ * reaches them without crossing the shop, and `entry` is that hall (the ground floor's stair hall
+ * with the hallway from the door); such a building has no lift.
  */
-export function planCores(b: BuildingDesc, poly: Poly, maxH: number, door: Door | null): { lift: LiftShaft | null; stair: StairCore | null } {
+export function planCores(b: BuildingDesc, poly: Poly, maxH: number, door: Door | null, flats: Door | null = null): { lift: LiftShaft | null; stair: StairCore | null; entry: Poly | null } {
   const stairs = b.floors >= 2 && b.style !== 'church';
+  if (stairs && flats) {
+    const got = entryCores(poly, maxH, door, flats);
+    if (got) return { lift: null, ...got };
+  }
   // A roomy way in first, then (small and oddly cut houses) narrower ones that still let one walk
   // in. Where even a step inside the door would run into the stairs, the house goes without them
   // (the lift alone takes people up when it fits).
@@ -162,25 +174,167 @@ export function planCores(b: BuildingDesc, poly: Poly, maxH: number, door: Door 
     const way = door && doorWay(poly, door, depth, half);
     if (!way) break;
     const lift = liftAt(b, poly, way);
-    if (!stairs) return { lift, stair: null };
+    if (!stairs) return { lift, stair: null, entry: null };
     const st = stairAt(poly, lift, maxH, way);
-    if (st) return { lift, stair: st };
+    if (st) return { lift, stair: st, entry: null };
     const alone = lift && stairAt(poly, null, maxH, way);
-    if (alone) return { lift: null, stair: alone };
+    if (alone) return { lift: null, stair: alone, entry: null };
     liftOnly ??= lift;
-    if (depth === 1) return { lift: liftOnly, stair: null };
+    if (depth === 1) return { lift: liftOnly, stair: null, entry: null };
   }
   const lift = planLift(b, poly);
-  return { lift, stair: planStair(b, poly, lift, maxH) };
+  return { lift, stair: planStair(b, poly, lift, maxH), entry: null };
+}
+
+/** Floor area (m²) under which the stair hall is only the landing at the foot of the flights. */
+export const SMALL_FLOOR = 70;
+
+/**
+ * The stair hall of a storey (core-local quad, world coordinates): the landing at the foot of the
+ * flights and, on a floor of SMALL_FLOOR or more (and `strip`), a strip along the core's open
+ * side; the core itself included.
+ */
+export function stairHall(c: StairCore, poly: Poly, strip = true): Poly {
+  const small = !strip || Math.abs(polyArea(poly)) < SMALL_FLOOR;
+  const bw = c.w + c.g / 2, side = small ? 0 : 1.2, foot = small ? 1.1 : 1.4;
+  const v0 = c.open > 0 ? -bw : -bw - side, v1 = c.open > 0 ? bw + side : bw;
+  return [...coreP(c, -foot, v0), ...coreP(c, c.len, v0), ...coreP(c, c.len, v1), ...coreP(c, -foot, v1)];
+}
+
+/** Hallway from the flats' door: as wide as the door and as the stair hall needs, at most this long (m). */
+const ENTRY_HALF = 0.6, ENTRY_MAX = 16;
+
+/**
+ * The stair core whose hall the shortest hallway from the flats' door reaches (straight in from
+ * the door, not through the core, clear of the shop's way in), and the hall with that hallway.
+ * The hallway runs along the side wall when the door is close to it (no sliver of shop beside it).
+ */
+function entryCores(poly: Poly, maxH: number, door: Door | null, flats: Door): { stair: StairCore; entry: Poly } | null {
+  const f = doorFrame(poly, flats);
+  if (!f) return null;
+  // (The shop's way in roomy, else narrower, as for the stairs of any building.)
+  for (const [depth, half] of [[2.2, 0.75], [1.6, 0.5], [1.0, 0.4]]) {
+    const got = entryFor(poly, maxH, door && doorWay(poly, door, depth, half), flats, f);
+    if (got) return got;
+  }
+  return null;
+}
+
+function entryFor(poly: Poly, maxH: number, way: Poly | null, flats: Door, f: DoorFrame): { stair: StairCore; entry: Poly } | null {
+  // The hallway's span along the facade: the door's width, out to the corner when that is near.
+  let sl = -ENTRY_HALF, sr = ENTRY_HALF;
+  for (const sgn of [-1, 1]) {
+    let reach = 0;
+    while (reach < 2.4 && pointInPoly(poly, flats.x + f.ex * sgn * (ENTRY_HALF + reach + 0.2) + f.nx * 0.3, flats.z + f.ez * sgn * (ENTRY_HALF + reach + 0.2) + f.nz * 0.3)) reach += 0.1;
+    if (reach < 1.9) { if (sgn < 0) sl = -ENTRY_HALF - reach - 0.3; else sr = ENTRY_HALF + reach + 0.3; }
+  }
+  const front = frontStair(poly, maxH, way, flats, f, sl, sr);
+  if (front) return front;
+  // Else the stairs where they fit, and a hallway straight in from the door to their hall.
+  const S = (x: number, z: number): [number, number] => [(x - flats.x) * f.ex + (z - flats.z) * f.ez, (x - flats.x) * f.nx + (z - flats.z) * f.nz];
+  const lines = [sl + 0.4, (sl + sr) / 2, sr - 0.4];
+  // Lines down the hallway: where each meets the hall (it must, for all) and the core (it must not, before).
+  const span = (q: Poly, sv: number) => lineSpan(q, S, sv);
+  let best: { stair: StairCore; depth: number; hall: Poly } | null = null;
+  for (const c of stairSpots(poly, null, maxH)) {
+    const core = coreRect(c, 0, 0.1);
+    if (way && overlaps(core, way)) continue;
+    const hall = stairHall(c, poly);
+    let depth = 0, ok = true;
+    for (const sv of lines) {
+      const h = span(hall, sv), k = span(core, sv);
+      if (!h || h[0] > ENTRY_MAX) { ok = false; break; }
+      if (k && k[0] < h[0] + 0.4) { ok = false; break; }
+      depth = Math.max(depth, h[0] + 0.4);
+    }
+    if (!ok || (best && depth >= best.depth)) continue;
+    // The hallway stays inside the storey (an L-shaped floor) and clear of the shop's way in.
+    const corridor = hallway(flats, f, sl, sr, depth);
+    if (way && overlaps(corridor, way)) continue;
+    let inside = true;
+    for (let d = 0.3; d < depth && inside; d += 1) for (const sv of [sl + 0.2, sr - 0.2]) {
+      const x = flats.x + f.ex * sv + f.nx * d, z = flats.z + f.ez * sv + f.nz * d;
+      if (!pointInPoly(poly, x, z)) inside = false;
+    }
+    if (inside) best = { stair: c, depth, hall };
+  }
+  if (!best) return null;
+  const entry = largest(intersection(unionPos([hallway(flats, f, sl, sr, best.depth), best.hall]).map((u) => u.outer), [poly]));
+  return !entry || (way && overlaps(entry, way)) ? null : { stair: best.stair, entry };
+}
+
+/**
+ * The stairs straight behind the flats' door: the core along the side wall the door is nearer,
+ * its flights running in from the front, the landing at their foot just inside the door (the
+ * town house's way up beside the shop).
+ */
+function frontStair(poly: Poly, maxH: number, way: Poly | null, flats: Door, f: DoorFrame, sl: number, sr: number): { stair: StairCore; entry: Poly } | null {
+  // The corner side: where the hallway reached the side wall (else the nearer one).
+  const sgn = -sl > sr ? -1 : 1, wall = sgn < 0 ? -sl - 0.1 : sr - 0.1;
+  const vAlong = -f.nz * f.ex + f.nx * f.ez; // core v (perpendicular to u = n) along the facade: ±1
+  for (const [w, g, near, far, rise, tread] of CORE_SIZES) {
+    const run = Math.max(2.2, Math.ceil(maxH / 2 / rise) * tread);
+    const len = near + run + far, band = 2 * w + g;
+    // Off the side wall as little as the outline lets it (a lot's side walls are seldom square to its front).
+    // Close to the side wall first: square to the front, else turned a little to follow a side wall that is not.
+    for (let off = 0.15; off < 3; off += 0.1) for (const deg of [0, 5, -5, 10, -10, 15, -15, 20, -20, 25, -25]) for (const foot of [1.4, 1.1]) {
+      const sc = sgn * (wall - off - band / 2);
+      // (The landing at its foot opens onto the door's hallway.)
+      if (Math.min(sr, sc + band / 2) - Math.max(sl, sc - band / 2) < 0.7) continue;
+      const a = (deg * Math.PI) / 180, ux = f.nx * Math.cos(a) - f.nz * Math.sin(a), uz = f.nx * Math.sin(a) + f.nz * Math.cos(a);
+      const cx = flats.x + f.ex * sc + f.nx * foot, cz = flats.z + f.ez * sc + f.nz * foot;
+      const c: StairCore = { cx, cz, ux, uz, len, w, g, near, run, open: -sgn * vAlong };
+      const r = coreRect(c, 0, 0.1);
+      let ok = true;
+      for (let k = 0; k < 8 && ok; k += 2) {
+        const n = (k + 2) % 8;
+        if (!pointInPoly(poly, r[k], r[k + 1]) || !pointInPoly(poly, (r[k] + r[n]) / 2, (r[k + 1] + r[n + 1]) / 2)) ok = false;
+      }
+      if (!ok || (way && overlaps(r, way))) continue;
+      const entry = largest(intersection(unionPos([hallway(flats, f, sl, sr, foot + 0.2 + Math.abs(Math.tan(a)) * band), stairHall(c, poly, false)]).map((u) => u.outer), [poly]));
+      if (!entry || (way && overlaps(entry, way))) continue;
+      return { stair: c, entry };
+    }
+  }
+  return null;
+}
+
+type DoorFrame = { ex: number; ez: number; nx: number; nz: number };
+
+/** The hallway quad from just outside the door to `depth` in, between sl and sr along the facade. */
+function hallway(door: Door, f: DoorFrame, sl: number, sr: number, depth: number): Poly {
+  const P = (sv: number, d: number): [number, number] => [door.x + f.ex * sv + f.nx * d, door.z + f.ez * sv + f.nz * d];
+  return [...P(sl, -0.3), ...P(sr, -0.3), ...P(sr, depth), ...P(sl, depth)];
+}
+
+/** Where the line s = sv (door frame) crosses a convex quad: its [near, far] depth, or null. */
+function lineSpan(q: Poly, S: (x: number, z: number) => [number, number], sv: number): [number, number] | null {
+  let lo = Infinity, hi = -Infinity;
+  const n = q.length >> 1;
+  for (let i = 0; i < n; i++) {
+    const [s0, d0] = S(q[i * 2], q[i * 2 + 1]), j = (i + 1) % n, [s1, d1] = S(q[j * 2], q[j * 2 + 1]);
+    if ((s0 - sv) * (s1 - sv) > 0 || s0 === s1) continue;
+    const d = d0 + ((sv - s0) / (s1 - s0)) * (d1 - d0);
+    lo = Math.min(lo, d); hi = Math.max(hi, d);
+  }
+  return lo <= hi ? [lo, hi] : null;
 }
 
 function stairAt(poly: Poly, lift: LiftShaft | null, maxH: number, way: Poly | null): StairCore | null {
+  for (const c of stairSpots(poly, lift, maxH)) if (!way || !overlaps(coreRect(c, 0, 0.1), way)) return c;
+  return null;
+}
+
+/** Core sizes, best first: lane width, gap, near and far landing, rise, tread, hall in front (a comfortable core, then a compact one). */
+const CORE_SIZES = [[1.1, 0.12, 1.3, 1.25, RISE, TREAD, 1.2], [0.9, 0.08, 1.0, 1.0, 0.19, 0.25, 0.9]] as const;
+
+/** Every place the stair core fits (inside the outline, room for its hall, clear of the lift), best first. */
+function* stairSpots(poly: Poly, lift: LiftShaft | null, maxH: number): Generator<StairCore> {
   const F = new Frame(poly);
   // The end away from the lift (the lift sits at the -u end when there is one).
   const liftEnd = lift ? Math.sign((lift.cx - F.cx) * F.ux + (lift.cz - F.cz) * F.uz) || -1 : 0;
   const lr = lift ? liftRect(lift, LANDING + 0.6) : null;
-  // A comfortable core first, then a compact one for narrow houses (narrower, steeper, shorter landings).
-  for (const [w, g, near, far, rise, tread, hall] of [[1.1, 0.12, 1.3, 1.25, RISE, TREAD, 1.2], [0.9, 0.08, 1.0, 1.0, 0.19, 0.25, 0.9]]) {
+  for (const [w, g, near, far, rise, tread, hall] of CORE_SIZES) {
     const run = Math.max(2.2, Math.ceil(maxH / 2 / rise) * tread);
     const len = near + run + far, band = 2 * w + g;
     if (F.hu * 2 < len + hall + 1 || F.hv * 2 < band + 0.5) continue;
@@ -201,13 +355,11 @@ function stairAt(poly: Poly, lift: LiftShaft | null, maxH: number, way: Poly | n
           const h = coreP(c, -hall, 0);
           if (!pointInPoly(poly, h[0], h[1])) ok = false;
           if (ok && lr) for (let k = 0; k < 8; k += 2) if (pointInPoly(lr, r[k], r[k + 1]) || pointInPoly(r, lr[k], lr[k + 1])) ok = false;
-          if (ok && way && overlaps(r, way)) ok = false;
-          if (ok) return c;
+          if (ok) yield c;
         }
       }
     }
   }
-  return null;
 }
 
 /** Does the stair core lie inside a storey's outline? */

@@ -19,7 +19,7 @@ import { type Poly, frameToWorld, minAreaRect, polyArea, ensureCCW, polyCentroid
 import { offset, shapesToPolys } from '../geom/clip';
 import type { Terrain } from '../world/terrain';
 import { CURB_H } from '../world/ground';
-import { doorBayOf, type BuildingDesc } from '../plan/building';
+import { doorBayOf, flatsDoorBay, type BuildingDesc } from '../plan/building';
 import type { Landmark } from '../plan/landmarks';
 import { landmarkParts, latheClosed, helixFloorAt, HELIX_SLAB, PK, type LmPart, type PartMat } from '../plan/landmarkParts';
 import type { MeshBuilder, AttrSpec } from './meshBuilder';
@@ -42,6 +42,8 @@ export const enum FF {
   DoorBay = 512,
   Eatery = 2048,   // café / restaurant shop front: warm light while open, no generic sign band
   Glow = 4096,     // stained glass (landmarks): the day shines through it
+  // 8192, 16384: the flats' own door in bay 0 or bay 1 of the front's ground floor (plan/building flatsDoor)
+  FlatsDoor = 8192,
 }
 
 /**
@@ -226,6 +228,8 @@ function edgeFlags(flags: number, b: BuildingDesc, footprint: boolean, poly: Pol
     if (b.shopfront) f |= FF.Shop;
     if (b.eatery) f |= FF.Eatery;
     f |= FF.Front + doorBayOf(b.seed, bays) * FF.DoorBay;
+    const fd = flatsDoorBay(b, bays);
+    if (fd >= 0) f |= FF.FlatsDoor << fd;
   }
   return f;
 }

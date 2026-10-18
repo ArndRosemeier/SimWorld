@@ -12,7 +12,7 @@ import { polyArea, polyCentroid, pointInPoly, type Poly } from '../geom/geom2';
 import type { Place, PlaceGraph, PlaceKind, RoadEdge, RoadNode } from '../sim/places';
 import { KINDS, defaultHours, defaultStaff } from '../sim/placeKinds';
 import { RoadKind } from '../world/rural';
-import { dwellingsOf } from './building';
+import { dwellingsOf, flatsDoor } from './building';
 import { eateryName, type Eatery } from './eatery';
 import { AMENITY_LABEL, PLACE_KIND_OF } from './amenities';
 import { ROOTS, cityName, shopName, streetName } from './names';
@@ -283,8 +283,10 @@ export function placeGraphOf(town: Town): PlaceGraph {
       placeOf(kind, name, at.street, door.x, door.z, at.node, code, 0, scale);
     }
     if (homes) {
+      // Homes over a shop have their own door (src/plan/building.ts flatsDoor).
+      const fd = flatsDoor(b), hd = fd ? frontDoor(b, fd) : door;
       const n = houseNumber(at.street, at.s, at.side);
-      placeOf(homes > 1 ? 'apartments' : 'house', `${n} ${street(at.street)}`, at.street, door.x, door.z, at.node, code, homes);
+      placeOf(homes > 1 ? 'apartments' : 'house', `${n} ${street(at.street)}`, at.street, hd.x, hd.z, at.node, code, homes);
     }
   }));
   // Farms: the farmhouse, the farm (work) and its fields.
