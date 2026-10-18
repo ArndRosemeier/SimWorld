@@ -226,23 +226,23 @@ export function believe(world: World, holder: ActorId, fact: number, confidence:
  * Retelling may change a detail (plan §2.2 distortion): usually it grows in the telling, sometimes the wrong person
  * or place gets attached. Careless, imaginative tellers distort more. Returns the fact actually told.
  */
-function maybeDistort(world: World, teller: ActorId, fact: Fact, roll: () => number): Fact {
+function maybeDistort(world: World, teller: ActorId, fact: Fact, roll: Roll): Fact {
   const p = 0.05 * (1.5 - traitOf(world, teller, T_CONSC)) * (0.5 + traitOf(world, teller, T_OPEN));
-  if (roll() >= p) return fact;
+  if (roll.float() >= p) return fact;
   const v: Fact = { ...fact, id: world.knowledge.facts.length, parent: fact.id, truth: false, originator: fact.originator };
-  const kind = roll();
+  const kind = roll.float();
   if (kind < 0.6 || (fact.subject < 0 && fact.place < 0)) v.magnitude = clamp(fact.magnitude + 0.15, 0, 1);
   else if (kind < 0.8 && fact.subject >= 0 && fact.text.includes('{subject}')) {
     // Pin it on someone the teller knows who is "the type": another person they know.
     const known = world.relations.known(teller);
     if (known.length === 0) return fact;
-    const other = world.relations.t.cols.to[known[Math.floor(roll() * known.length)]];
+    const other = world.relations.t.cols.to[known[Math.floor(roll.float() * known.length)]];
     if (other === fact.subject || !isPerson(world, other)) return fact;
     v.subject = other;
   } else if (fact.place >= 0 && fact.text.includes('{place}')) {
     const same = world.graph.places.filter((p) => p.kind === world.graph.places[fact.place].kind && p.id !== fact.place);
     if (same.length === 0) return fact;
-    v.place = same[Math.floor(roll() * same.length)].id;
+    v.place = same[Math.floor(roll.float() * same.length)].id;
   } else return fact;
   world.knowledge.facts.push(v);
   return v;
@@ -259,7 +259,7 @@ export function tell(world: World, teller: ActorId, listener: ActorId, fact: num
   const c = world.knowledge.beliefs.cols;
   const rng = tickRng(world, 'tell', teller, listener);
   const held = world.knowledge.facts[c.fact[r]];
-  const told = maybeDistort(world, teller, held, () => rng.float());
+  const told = maybeDistort(world, teller, held, rng);
   hear(world, teller, listener, told, c.confidence[r], held.secret);
   c.told[r] = Math.min(65535, c.told[r] + 1);
   c.salience[r] *= 0.92; // old news to the teller, a little more each time
@@ -272,7 +272,7 @@ export function tell(world: World, teller: ActorId, listener: ActorId, fact: num
  * trust, and a promised secret needs more (and a less agreeable, less conscientious teller). Returns the fact told
  * or -1.
  */
-export function exchange(world: World, teller: ActorId, listener: ActorId, hub: number, roll: () => number): number {
+export function exchange(world: World, teller: ActorId, listener: ActorId, hub: number, roll: Roll): number {
   const k = world.knowledge;
   const list = k.byHolder[teller];
   if (!list || list.length === 0) return -1;
@@ -283,32 +283,37 @@ export function exchange(world: World, teller: ActorId, listener: ActorId, hub: 
   const trust = rr >= 0 ? rel.t.cols.trust[rr] : 0.3;
   let best = -1, bestScore = 0;
   for (const r of list) {
+    const s = c.salience[r] * c.confidence[r] * (0.75 + 0.5 * roll.float());
+    if (s <= bestScore) continue; // cheap test first: most stories lose here
     const f = k.facts[c.fact[r]];
     if (f.subject === listener) continue; // you don't gossip to someone about themselves
-    const lr = k.byStory.get(f.root * STORY + listener);
-    if (lr !== undefined && c.fact[lr] === f.id) continue; // they already have this version
     if (f.secret) {
       const need = c.flags[r] & F_PROMISED ? 0.85 + 0.15 * (traitOf(world, teller, T_AGREE) + traitOf(world, teller, T_CONSC)) / 2 : 0.7;
       if (trust < need) continue;
     }
-    const s = c.salience[r] * c.confidence[r] * (0.75 + 0.5 * roll());
-    if (s > bestScore) { bestScore = s; best = r; }
+    const lr = k.byStory.get(f.root * STORY + listener);
+    if (lr !== undefined && c.fact[lr] === f.id) continue; // they already have this version
+    bestScore = s; best = r;
   }
   if (best < 0) return -1;
   const p = clamp(bestScore * (0.3 + traitOf(world, teller, T_EXTRA)) * (0.4 + familiarity) * hub, 0, 0.9);
-  if (roll() >= p) return -1;
+  if (roll.float() >= p) return -1;
   return tell(world, teller, listener, c.fact[best]);
 }
 
-/** Nightly: salience fades (slower for what touches the holder), the faint is forgotten. */
-export function forget(world: World): void {
+/** A source of random numbers in [0, 1) (an `Rng`; tests pass a fixed one). */
+export type Roll = { float(): number };
+
+/** Nightly (or over `days`): salience fades (slower for what touches the holder), the faint is forgotten. */
+export function forget(world: World, days = 1): void {
   const k = world.knowledge, c = k.beliefs.cols;
+  const keep = Math.pow(0.97, days), fade = Math.pow(0.85, days);
   for (let r = 0; r < k.beliefs.count; r++) {
     const holder = c.holder[r];
     if (holder < 0) continue;
     const f = k.facts[c.fact[r]];
     const personal = f.subject === holder || f.object === holder || c.source[r] === SOURCE_WITNESSED;
-    c.salience[r] *= personal ? 0.97 : 0.85;
+    c.salience[r] *= personal ? keep : fade;
     if (c.salience[r] < FORGET_BELOW && f.subject !== holder) dropBelief(world, r);
   }
 }
