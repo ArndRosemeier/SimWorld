@@ -10,6 +10,7 @@
 import type { ActorId } from './actors';
 import { agendaOn, type OccasionKind } from './agenda';
 import { dateOf, type GameDate } from './calendar';
+import { mediaView, type MediaView } from './media';
 import { MINUTES_PER_DAY } from './time';
 import type { Mode, Trip } from './travel';
 import { weatherAt, type Weather } from './weather';
@@ -55,6 +56,8 @@ export interface SimView {
   trips: TripRows;
   /** Today's agenda at a place (bin day and trick-or-treating, which happen on every street, are left out). */
   occasions: ViewOccasion[];
+  /** The town's media: the newest weekly paper and the notices up on boards, lamp posts and windows (src/sim/media.ts). */
+  media: MediaView;
 }
 
 /** The view of `world` now. */
@@ -73,6 +76,7 @@ export function viewOf(world: World): SimView {
     morning: weatherAt(world, Math.floor(world.clock / MINUTES_PER_DAY) * MINUTES_PER_DAY + 7 * 60),
     place: a.place.slice(0, n), dest: a.dest.slice(0, n), activity: a.activity.slice(0, n), trips,
     occasions: occasionsOf(world),
+    media: mediaView(world),
   };
 }
 

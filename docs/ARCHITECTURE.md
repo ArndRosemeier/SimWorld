@@ -144,6 +144,8 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Question | The one way | Where |
 |---|---|---|
 | Which version is this build, what changed? | `VERSION` and `whatsNewButton()` / `openWhatsNew()` (read CHANGELOG.md at build time via `parseChangelog`); versions are given only by the changelog fold after each merge (`changes/README.md`) | `src/app/whatsNew.ts`, `src/app/changelog.ts`, `tools/changelog.mjs` |
+| Open a modal panel over the game (What's new, the paper): backdrop, Escape and click-outside to close | `openDialog(prefix, label, closeButton)` → the panel to fill; small elements with `el(tag, cls, text)` | `src/app/dom.ts` |
+| Read the town's weekly paper in play | `paperButton(() => sim.view)`: the newest edition and the board notices from `SimView.media` (`mediaView`, src/sim/media.ts) | `src/app/paperPanel.ts` |
 
 ### The street (`src/street`)
 

@@ -45,6 +45,7 @@ import { formatDate } from './sim/calendar';
 import { TownAudio } from './audio/townAudio';
 import { soundEnvFromSim, soundEnvOf, soundOverrides } from './audio/env';
 import { soundButton } from './app/soundPanel';
+import { paperButton } from './app/paperPanel';
 
 const HAZE = 0xa9c8e4;
 
@@ -144,6 +145,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const sim = await simulated;
   if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);
   sim.keepSaved();
+  document.body.append(paperButton(() => sim.view));
   const street = new Street(sim, people, settings.seed);
 
   // The drone drift: a slow circle around the town, high enough to see it whole (or fixed by ?at=…).
