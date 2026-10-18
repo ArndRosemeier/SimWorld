@@ -69,7 +69,7 @@ test('a workplace has a place to work for everyone on shift at once, and a café
     if (b.amenity === 'cafe') assert.ok(I.spots.filter((p) => p.use === 'sit').length >= 8, 'café seats');
   }
   // The sim's own staff and capacity, when given, size the workplace.
-  const office = works[2];
+  const office = all.filter((b) => b.amenity === 'office').sort((a, b) => Math.abs(polyArea(b.poly)) * b.floors - Math.abs(polyArea(a.poly)) * a.floors)[0];
   const big = planInterior(office, { staff: [{ role: 'clerk', count: 30, days: 0x1f, start: 540, end: 1020, minAge: 18 }], capacity: 40 });
   assert.ok(big.spots.filter((p) => p.use === 'work' || p.use === 'serve').length >= 30);
 });

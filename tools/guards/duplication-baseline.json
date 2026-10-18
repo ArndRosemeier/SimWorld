@@ -136,10 +136,6 @@
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
   {
-    "key": "idiom: [.Path .cls .streets] in simworld/build/ground.ts + simworld/build/streetProps.ts + simworld/plan/terrace.ts",
-    "reason": "Each reads the plan's street segments (path, class) for its own job: ground strips, signal approaches, terrace frontage."
-  },
-  {
     "key": "idiom: [.add .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vegetation.ts",
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
@@ -328,7 +324,7 @@
     "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
   },
   {
-    "key": "idiom: [.junctions .length] in simworld/build/ground.ts + simworld/plan/cell.ts + simworld/plan/terrace.ts",
+    "key": "idiom: [.junctions .length] in simworld/plan/cell.ts + simworld/plan/crossings.ts + simworld/plan/terrace.ts",
     "reason": "A loop over a cell plan's flat junction list (x, z, degree triples), the plan's own format; each use asks something different of it."
   },
   {

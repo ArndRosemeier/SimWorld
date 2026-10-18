@@ -20,7 +20,7 @@ import { difference, intersection, offset, strokePolylines, union, shapesToPolys
 import type { Terrain } from '../world/terrain';
 import { RoadClass, type CellInfo, type District, type MacroPlan } from './types';
 import { ROAD_SPEC } from './macro';
-import { STYLES, pickStyle, type BuildingDesc, type StyleId } from './building';
+import { STYLES, asLockUp, isSliver, pickStyle, type BuildingDesc, type StyleId } from './building';
 import type { EateryPlan } from './terrace';
 import { landmarksOfCell, siteRect, siteToWorld, siteZones, worldToSite, SITE_STREET_CLEAR, type Landmark, type ZoneKind } from './landmarks';
 import { landmarkParts, solidFootprints } from './landmarkParts';
@@ -792,7 +792,7 @@ function makeBuilding(lot: Lot, index: number, cell: CellInfo, r: Rng, terrain: 
   const fpArea = Math.abs(polyArea(poly));
   const units = rule.use === 'residential' || rule.use === 'mixed' ? Math.max(1, Math.round(fpArea / r.range(70, 110))) : 0;
   void c;
-  return {
+  const desc: BuildingDesc = {
     id: index,
     poly,
     front,
@@ -815,6 +815,14 @@ function makeBuilding(lot: Lot, index: number, cell: CellInfo, r: Rng, terrain: 
     units,
     landmark: style === 'church' || floors > 45,
   };
+  // A sliver of a lot (a corner wedge, a thin strip) carries a single storey: a kiosk where it
+  // has a shop front, a bungalow or a shed where it is a house or a hall, else a lock-up garage.
+  if (style !== 'church' && isSliver(poly)) {
+    desc.floors = 1;
+    desc.setbacks = [];
+    if (!shopfront && style !== 'house' && style !== 'warehouse' && style !== 'shop') asLockUp(desc);
+  }
+  return desc;
 }
 
 function polyInside(inner: Poly, outer: Poly, margin: number): boolean {
@@ -1166,6 +1174,21 @@ function placeLandmarkProps(plan: CellPlan, lm: Landmark, terrain: Terrain): voi
       const v1 = hv - 4 - L.bd - 3;
       for (let u = -hu + 4; u < hu - 4; u += 2.8) for (const v of [-hv + 6, -hv + 12, -hv + 18]) if (v < v1 && r.chance(0.55)) put(PropType.ParkedCar, u, v, face(0, 1) + (r.chance(0.5) ? Math.PI : 0), 1.2, 1, r.int(0, 1 << 20));
       for (let u = -hu + 8; u < hu - 4; u += 18) put(PropType.Lamp, u, -hv + 9, 0, 1.2, 1, 1);
+      break;
+    }
+    case 'carehome': {
+      // Benches and trees in the garden behind, a lamp and a few visitors' cars on the forecourt.
+      for (let k = 0; k < 6; k++) put(PropType.Bench, r.range(-hu + 4, hu - 4), r.range(hv - L.garden + 2, hv - 3), r.range(0, 6.28), 1.6);
+      for (let u = -hu + 3; u <= hu - 3; u += 8) put(PropType.Tree, u, hv - 2, r.range(0, 6.28), 3, r.range(0.85, 1.15), 2);
+      for (let u = -hu + 4; u < hu - 4; u += 2.8) if (r.chance(0.3)) put(PropType.ParkedCar, u, -hv + 2.8, face(0, 1) + (r.chance(0.5) ? Math.PI : 0), 1.2, 1, r.int(0, 1 << 20));
+      put(PropType.Lamp, -hu + 3, -hv + 1.5, 0, 1.2, 1, 1);
+      break;
+    }
+    case 'petrol': {
+      // Lamps at the forecourt's front corners, a car or two at the pumps.
+      for (const su of [-1, 1]) put(PropType.Lamp, su * (hu - 1.5), -hv + 1.5, 0, 1.2, 1, 1);
+      const cv = -hv + 5 + L.cd / 2;
+      for (let i = 0; i < L.islands; i++) if (r.chance(0.4)) put(PropType.ParkedCar, (i - (L.islands - 1) / 2) * (L.cw / L.islands) + 2.2, cv, face(0, 1), 1.2, 1, r.int(0, 1 << 20));
       break;
     }
     case 'sports': {

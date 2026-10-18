@@ -10,13 +10,13 @@
 import { Rng, deriveSeed, clamp } from '@futuremagic/core';
 import { alongLine, polyArea, polyCentroid, pointInPoly, slicePolyline, upperBound, type Poly } from '../geom/geom2';
 import type { Place, PlaceGraph, PlaceKind, RoadEdge, RoadNode } from '../sim/places';
-import { KINDS, defaultHours, defaultStaff } from '../sim/placeKinds';
+import { CARE_ROOMS_PER_PERSON, KINDS, defaultHours, defaultStaff } from '../sim/placeKinds';
 import { dwellingsOf, flatsDoor } from './building';
 import { eateryName, type Eatery } from './eatery';
 import { AMENITY_LABEL, PLACE_KIND_OF } from './amenities';
 import { ROOTS, cityName, shopName } from './names';
 import { LineSource, townRoads } from './roads';
-import { siteToWorld, inSite, type LandmarkKind } from './landmarks';
+import { careHomeRooms, siteToWorld, inSite, type LandmarkKind } from './landmarks';
 import { frontDoor } from './terrace';
 import { PEOPLE_PER_HOME, type Town } from './town';
 
@@ -36,10 +36,10 @@ export function buildingRef(code: number): { cell: number; index: number } | { s
 
 const SITE_KIND: Record<LandmarkKind, PlaceKind> = {
   townhall: 'townhall', church: 'church', school: 'school', kindergarten: 'kindergarten', clinic: 'doctor',
-  fire: 'fire', supermarket: 'supermarket', sports: 'sports', station: 'station',
+  fire: 'fire', supermarket: 'supermarket', sports: 'sports', station: 'station', carehome: 'carehome', petrol: 'petrol',
 };
 /** Kinds whose staff and capacity grow with the town (one school for the whole town). */
-const BY_TOWN: ReadonlySet<PlaceKind> = new Set(['school', 'kindergarten', 'townhall', 'supermarket', 'doctor', 'police', 'fire']);
+const BY_TOWN: ReadonlySet<PlaceKind> = new Set(['school', 'kindergarten', 'townhall', 'supermarket', 'doctor', 'police', 'fire', 'carehome']);
 
 /** Share of the town's inhabitants employed by each kind of workplace without customers. */
 const JOBS: Partial<Record<PlaceKind, number>> = { factory: 0.1, office: 0.08, workshop: 0.04 };
@@ -146,7 +146,10 @@ export function placeGraphOf(town: Town): PlaceGraph {
     const kind = SITE_KIND[lm.kind];
     const [x, z] = siteToWorld(lm, 0, -lm.hv);
     const at = attach(x, z);
-    placeOf(kind, lm.name, at.street, x, z, at.node, SITE + lm.id, 0, BY_TOWN.has(kind) ? townScale : 1);
+    // The care home's rooms are homes of its own (residents move in, src/sim/economy.ts), sized
+    // to the town and to what the building holds.
+    const homes = lm.kind === 'carehome' ? Math.min(careHomeRooms(lm), Math.max(8, Math.round(pop * CARE_ROOMS_PER_PERSON))) : 0;
+    placeOf(kind, lm.name, at.street, x, z, at.node, SITE + lm.id, homes, BY_TOWN.has(kind) ? townScale : 1);
   }
   // Workplaces share out the town's jobs of their kind by floor area: a town of 1000 has about
   // 100 factory, 80 office and 40 workshop jobs, however many halls the planner built.
