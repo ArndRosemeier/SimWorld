@@ -3,7 +3,30 @@
  * and is cached, so a town with a few hundred distinct entrance nodes answers every query from typed arrays.
  */
 import { MinHeap } from '@futuremagic/core';
+import type { ActorId } from './actors';
 import type { PlaceGraph, PlaceId } from './places';
+
+/** How someone travels. Bike, bus and train come with transit (src/sim/transit.ts). */
+export type Mode = 'foot' | 'car' | 'bike' | 'bus' | 'train';
+
+/**
+ * A journey under way (`world.trips`): filled by `go`, dropped on arrival. Traffic spawns its cars from the car trips
+ * and the street view its walkers from the rest; companions (children, the dog) have their own trip with `leader`
+ * set to the one they travel with, so a family is one car.
+ */
+export interface Trip {
+  who: ActorId;
+  from: PlaceId;
+  to: PlaceId;
+  /** Clock minutes. */
+  depart: number;
+  arrive: number;
+  mode: Mode;
+  /** The traveller they go with (driver or companion), -1 when travelling on their own account. */
+  leader: ActorId;
+  /** The bus or train run they ride (`transitOf(world).runs`), -1 when none. */
+  run: number;
+}
 
 /** Walking speed, metres per game minute (4.8 km/h). */
 export const WALK_M_PER_MIN = 80;
@@ -13,6 +36,11 @@ export const DRIVE_M_PER_MIN = 500;
 export const PARK_MIN = 3;
 /** People with a car drive when walking would take longer than this. */
 export const DRIVE_IF_WALK_OVER = 12;
+/** Out of town (a place's `beyond`): driving on the open road, metres per minute (60 km/h). */
+export const ROAD_M_PER_MIN = 1000;
+/** Out of town by train or bus, metres per minute, plus the wait at the stop. */
+export const TRANSIT_M_PER_MIN = 700;
+export const TRANSIT_WAIT_MIN = 8;
 /** Detour factor when two places have no road connection (straight-line fallback). */
 const OFFROAD = 1.4;
 
@@ -24,9 +52,12 @@ export class Travel {
   private readonly cost: Float32Array;
   private readonly cache = new Map<number, Float32Array>();
   private readonly heap = new MinHeap();
+  /** Does the town have a railway station (people without a car leave town by train, else by bus)? */
+  private readonly station: boolean;
 
   constructor(graph: PlaceGraph) {
     this.graph = graph;
+    this.station = graph.places.some((p) => p.kind === 'station');
     const n = graph.nodes.length;
     const deg = new Int32Array(n + 1);
     for (const e of graph.edges) { deg[e.a]++; deg[e.b]++; }
@@ -87,10 +118,29 @@ export class Travel {
     return best;
   }
 
+  /** Metres off the map between a and b (one of them out of town, or both in different directions). */
+  private far(a: PlaceId, b: PlaceId): number {
+    return (this.graph.places[a].beyond ?? 0) + (this.graph.places[b].beyond ?? 0);
+  }
+
+  /**
+   * How someone with or without a car goes from a to b: in town they drive when walking would take too long; out of
+   * town they drive, or take the train (the bus when the town has no station).
+   */
+  mode(a: PlaceId, b: PlaceId, car = false): Mode {
+    if (a === b) return 'foot';
+    if (this.far(a, b) > 0) return car ? 'car' : this.station ? 'train' : 'bus';
+    return car && this.metres(a, b) / WALK_M_PER_MIN > DRIVE_IF_WALK_OVER ? 'car' : 'foot';
+  }
+
   /** Whole game minutes from a to b, walking or (with a car, when worth it) driving. At least 1 between places. */
   minutes(a: PlaceId, b: PlaceId, car = false): number {
     if (a === b) return 0;
-    const m = this.metres(a, b);
+    const m = this.metres(a, b), far = this.far(a, b);
+    if (far > 0) {
+      const t = car ? m / DRIVE_M_PER_MIN + far / ROAD_M_PER_MIN + PARK_MIN : m / WALK_M_PER_MIN + far / TRANSIT_M_PER_MIN + TRANSIT_WAIT_MIN;
+      return Math.max(1, Math.round(t));
+    }
     let t = m / WALK_M_PER_MIN;
     if (car && t > DRIVE_IF_WALK_OVER) t = Math.min(t, m / DRIVE_M_PER_MIN + PARK_MIN);
     return Math.max(1, Math.round(t));

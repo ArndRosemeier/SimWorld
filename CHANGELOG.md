@@ -1,5 +1,82 @@
 # Changelog
 
+## v0.028 — Commuters and the secondary school
+
+- About one worker in five now commutes. They drive or take the train to the city or the next town in the morning and come back in the evening. While they are away they are out of town.
+- Children go to the town's primary school until they are ten. From eleven they ride the school bus to the secondary school in the next town.
+- The city, the next town and the school take their names from the region around the town.
+
+## v0.027 — Money in town: wages, rent, and shops that open and close
+
+- Every household now has a monthly budget: wages from their real jobs, pensions, child benefit and support coming in; rent or mortgage, bills, groceries and the car going out. Money worries show as stress and as couples bickering, and the rare household that falls far behind has to leave.
+- Shops, pubs and cafés earn from the people who actually buy there, plus the villages around and passing traffic. One that keeps losing money closes: its staff lose their jobs, its regulars find another local, and the whole town talks about it.
+- Empty shop units reopen as what the town is missing, often run by a local with savings and ambition, and the street hears about the new place.
+- New kinds of places the town can have: petrol station, hardware store, clothes shop, florist, newsagent, charity shop, takeaway, hotel, estate agent, beauty salon, physiotherapist, gym, funeral home and a care home, where the town's oldest live.
+
+## v0.026 — Chat models picked by live tests
+
+- NPCs now answer in chat with GLM by default (fast, natural, cheap), falling back to Gemini Flash and Mistral Large 4. The big, expensive models are no longer defaults; you can still add any OpenRouter model and choose models per task.
+- What a conversation changes in an NPC's mind is read by Claude Haiku, then GPT Luna, then Mistral Large 4. Memories of conversations use GPT Luna first, the time-skip recap Claude Haiku. Defaults follow each vendor's newest model automatically.
+- Fixed: models that think before answering sometimes returned nothing, because their thinking used up the reply's room.
+- Fixed: people named as "Tom Brandt [P2]" or by name only were dropped from what an NPC remembers, and names could appear doubled ("Tom Tom Brandt").
+- The time-skip recap now talks to you as your character ("Tom asked you to the dance") and sticks to what happened.
+
+## v0.025 — Market day, Sunday service, weddings and funerals
+
+- The town has a weekly market on the square, on Thursday or Saturday depending on the town. People come to shop in the morning.
+- Each church holds a Sunday service at ten, and the faithful go. Public holidays have one too.
+- Every street has its bin day, one weekday each. You can't see it yet; the bins will follow.
+- The calendar brings its own occasions: the summer festival weekend on the square, the Christmas market from late November, a full church on Christmas Eve, trick-or-treating children on Halloween, and fireworks on New Year's Eve.
+- Couples now get engaged first. The wedding follows a few months later on a Saturday, in the church or the town hall, with a party afterwards. Family and friends take the afternoon off to be there. A break-up or a death calls it off.
+- A week or so after someone dies there is a funeral, and the mourners go and remember it.
+
+## v0.024 — Buses, the school bus and trains on a timetable
+
+- The town has a bus line from the station through the centre to the nearby town: hourly on weekdays, every two hours on Saturdays, none on Sundays and public holidays.
+- A school bus picks up pupils at three stops round the town on school days and has them at the secondary school in the nearby town before eight, back in the afternoon.
+- Trains run hourly from the station to the city, twice an hour in the rush hours, and out into the country the other way unless the town sits at the end of a branch line.
+- The simulation can now ask for the next departures from a stop and the soonest ride between two places; nothing rides yet, and the vehicles are not drawn yet.
+
+## v0.023 — The town has weather
+
+- The town has weather of its own, the same for everyone in it: sunny spells, cloud, drizzle, rain, thunderstorms on summer afternoons, morning fog in autumn and winter, and snow in winter that stays on the ground until it thaws.
+- Streets stay wet for a while after rain, and wet streets freeze to ice on cold nights.
+- Not on screen yet: the sky and the people start reacting to it in the next changes.
+
+## v0.022 — Traffic: the town's cars, driven by its people
+
+- The town has a road network for cars: right-hand lanes, speed limits in km/h (50 on the main roads, 30 in the side streets, 80 out of town), traffic lights where main roads cross, and side roads that give way to the main road.
+- Cars come from the inhabitants: when someone sets off by car, their household's car pulls out of its kerbside bay, drives there and parks in a free bay near where they are going. A car out with one person is not there for the rest of the family.
+- A few cars from the region pass through on the country roads, more in the rush hours.
+- Not on screen yet: the cars are drawn in the next change, on top of the car models.
+
+## v0.021 — Every journey is recorded
+
+- The simulation now keeps a list of everyone who is on their way somewhere: where from, where to, when they left and arrive, and whether they walk or drive. Children and the dog travel with whoever takes them, in the same car.
+- Nothing new is visible yet. The traffic and the people on the street will be drawn from this list.
+
+## v0.020 — The town keeps a real calendar
+
+- Game days are real dates now: play starts in the current week, and the season, the length of the day and the holidays follow the real calendar.
+- On Christmas Day and New Year's Day almost everything is shut. On Good Friday, Easter, Boxing Day and the other public holidays the town runs like a Sunday. The shops close at two on Christmas Eve and New Year's Eve.
+- The school keeps terms: half-terms, Easter, six weeks in summer and two at Christmas. Children stay home during them.
+- People go to the park while it is light, so on winter afternoons the park empties early.
+- The calendar already knows Halloween, the town's summer festival weekend in July and the Christmas market from late November. The events themselves come next.
+
+## v0.019 — Plan: the agreed town realism and who builds what
+
+- The realism checklist is now part of the design docs, with Arnd's answers recorded: drive on the right, the real calendar with snowy winters, a simple real economy, phones, the holidays, and the school bus to the nearby town.
+- The plan names the eight realism tracks, the thread that owns each, and the shared pieces they build on.
+- Guards: only the app, game, render, audio, save and worker code may read the wall clock, and sound gets one audio engine.
+
+## v0.018 — Buildings have insides
+
+- Every building now has rooms and furniture: homes get a living room, kitchen, bathroom and bedrooms; shops, cafés, bakeries, offices, garages and the other workplaces get counters, tables, ovens, desks and work benches sized to their staff and guests.
+- Houses keep the living rooms downstairs and the bedrooms upstairs; blocks of flats are split into separate homes off a shared stair hall; small flats become studios with a kitchenette.
+- Each interior also knows where its people sleep, sit and work, for the simulation to use.
+- Look inside a building with `?inside=<cell>/<building>&floor=<n>` (a cutaway of one floor).
+- Very narrow town houses on lots too small for flats now count as one home.
+
 ## v0.017 — Buildings with windows, doors and shop fronts
 
 - Buildings now have textured walls and roofs: brick, stone, plaster, timber siding, glass, tiles, slate and more, all generated from the seed while the loading screen shows.

@@ -21,8 +21,12 @@ export interface SoundEnv {
   /** Rain and wind 0 … 1. */
   rain: number;
   wind: number;
-  /** Is there school today? Defaults to Monday … Friday (terms and holidays come with the town calendar). */
+  /** Is there school today? (the calendar's terms and holidays; Monday … Friday when not given) */
   schoolDay?: boolean;
+  /** A feast day (Christmas, Easter …): the bells ring as on a Sunday. */
+  feast?: boolean;
+  /** Lightning 0 … 1 (a storm): thunder rolls in now and then. */
+  lightning?: number;
 }
 
 /** Where the listener is: position and the ground height under it; `indoor` 0 … 1. */
@@ -90,7 +94,7 @@ export class Soundscape {
     const clock = env.clock, mod = minuteOfDay(clock), wd = weekdayOf(clock), day = dayOf(clock);
     const dry = env.rain < 0.05;
     for (const src of this.sources(l)) {
-      if (src.kind === 'church' && wd === SUNDAY && mod >= SUNDAY_PEAL[0] && mod < SUNDAY_PEAL[1]) {
+      if (src.kind === 'church' && (wd === SUNDAY || env.feast) && mod >= SUNDAY_PEAL[0] && mod < SUNDAY_PEAL[1]) {
         const fade = smoothstep(SUNDAY_PEAL[0], SUNDAY_PEAL[0] + 0.3, mod) * (1 - smoothstep(SUNDAY_PEAL[1] - 0.4, SUNDAY_PEAL[1], mod));
         out.push({ key: `peal:${src.x | 0}:${src.z | 0}`, id: 'bell_peal', x: src.x, y: src.y, z: src.z, gain: fade, rate: 1, refDist: 70 });
       }
@@ -145,6 +149,9 @@ export class Soundscape {
     const mod = minuteOfDay(m), h = Math.floor(mod / 60), min = mod % 60;
     const dayTime = 1 - env.night;
     const school = Soundscape.schoolDay({ ...env, clock: m });
+    for (const t of strikesIn(this.seed, m, env.lightning ?? 0)) {
+      out.push({ id: t.distance < 1200 ? 'thunder_near' : 'thunder_far', x: l.x + Math.cos(t.angle) * t.distance, y: l.y + 300, z: l.z + Math.sin(t.angle) * t.distance, gain: 1, pitch: 1, refDist: t.distance < 1200 ? 300 : 900, delay: t.at });
+    }
     for (const src of this.sources(l)) {
       const r = new Rng(deriveSeed(this.seed, 'minute', m, Math.round(src.x), Math.round(src.z)));
       switch (src.kind) {
@@ -179,6 +186,22 @@ export class Soundscape {
       }
     }
   }
+}
+
+/** A lightning strike: `at` seconds into the minute, `distance` (m) and direction (radians) from the town. */
+export interface Strike { at: number; distance: number; angle: number }
+
+/**
+ * The lightning strikes of game minute `m` at a lightning level 0 … 1 (a storm: about one strike a
+ * minute). Pure and seeded so the sky's flashes and the thunder can agree on the same strikes.
+ */
+export function strikesIn(seed: number, m: number, lightning: number): Strike[] {
+  if (lightning <= 0.05) return [];
+  const r = new Rng(deriveSeed(seed, 'lightning', m));
+  const out: Strike[] = [];
+  const n = r.chance(lightning * 0.9) ? (r.chance(0.3) ? 2 : 1) : 0;
+  for (let i = 0; i < n; i++) out.push({ at: r.float() * 55, distance: 400 + r.float() * r.float() * 6000, angle: r.float() * Math.PI * 2 });
+  return out;
 }
 
 function shot(id: string, at: { x: number; y: number; z: number }, gain: number, pitch: number, refDist: number, delay: number): Shot {

@@ -109,8 +109,6 @@ export class AudioEngine {
   /** Start (or resume) the audio context now: allowed once the page has had a user gesture. */
   wake: () => void = () => {};
 
-  has(id: string): boolean { return id in this.manifest; }
-
   private load(id: string): Promise<AudioBuffer[]> {
     this.used.set(id, performance.now() / 1000);
     const m = this.manifest[id];

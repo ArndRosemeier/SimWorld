@@ -22,12 +22,20 @@ export const PLACE_KINDS = [
   'bakery', 'butcher', 'supermarket', 'grocer', 'cafe', 'pub', 'restaurant',
   // services
   'pharmacy', 'doctor', 'dentist', 'hairdresser', 'garage', 'bank', 'post', 'shop',
+  // more shops and services (Track F): petrol station, DIY, clothes, florist, newsagent, charity shop, takeaway,
+  // hotel, estate agent, beauty salon, physiotherapist, gym, funeral home
+  'petrol', 'hardware', 'clothes', 'florist', 'newsagent', 'charity', 'takeaway', 'hotel', 'estateagent', 'beauty',
+  'physio', 'gym', 'funeral',
+  // an empty shop unit: a closed business waiting for a new one (src/sim/economy.ts)
+  'vacant',
   // institutions
-  'school', 'kindergarten', 'townhall', 'police', 'fire', 'church', 'library', 'station', 'vet',
+  'school', 'kindergarten', 'townhall', 'police', 'fire', 'church', 'library', 'station', 'vet', 'carehome',
   // work without customers
   'office', 'workshop', 'factory', 'farm',
   // outdoors
   'park', 'square', 'sports', 'cemetery', 'street', 'woods', 'field',
+  // off the map: the city, the next town, the secondary school there (added by the sim, never by the planner)
+  'away',
 ] as const;
 export type PlaceKind = (typeof PLACE_KINDS)[number];
 
@@ -72,13 +80,18 @@ export interface Place {
   node: number;
   /** People who fit at once (a café 30, a house 8, a park 300). */
   capacity: number;
-  /** Households that live here (house 1, apartments n). 0 for non-homes. */
+  /** Households that live here (house 1, apartments n; residents' rooms in a care home). 0 for other places. */
   homes: number;
   /** Opening windows; empty means always open (homes, streets, parks). */
   hours: Hours[];
   staff: StaffSlot[];
   /** The planner's building or lot id, so the views can find the geometry. -1 when none. */
   building: number;
+  /**
+   * Metres of road beyond the entrance, off the map (kind 'away' only): the entrance is where the road leaves town,
+   * and the place itself lies this far along it. People there are out of town and not drawn.
+   */
+  beyond?: number;
 }
 
 /** A road-network junction. */

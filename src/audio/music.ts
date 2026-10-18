@@ -29,7 +29,7 @@ export function moodOf(env: SoundEnv): Mood {
   const h = minuteOfDay(env.clock) / 60;
   if (env.rain > 0.25) return 'rain';
   if (env.night > 0.6 || h < 5) return 'night';
-  if (weekdayOf(env.clock) === 6 && h >= 7 && h < 12) return 'sunday';
+  if ((weekdayOf(env.clock) === 6 || env.feast) && h >= 7 && h < 12) return 'sunday';
   if (h >= 18) return 'evening';
   return 'day';
 }

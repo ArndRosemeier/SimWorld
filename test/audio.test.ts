@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { CHANNELS, type SoundMap, type SoundSource } from '../src/audio/soundMap';
 import { Soundscape, SCHOOL_BELLS, type Listener, type SoundEnv } from '../src/audio/soundscape';
 import { moodOf, nextPiece, parseTracks } from '../src/audio/music';
+import { LiveClock } from '../src/audio/env';
+import { strikesIn } from '../src/audio/soundscape';
 
 /** A 1 km square town: built in the middle, a river along the east edge, gardens, a church, a school, a farm. */
 function testMap(): SoundMap {
@@ -20,7 +22,7 @@ function testMap(): SoundMap {
     { kind: 'farm', x: -450, y: 1, z: 0 },
   ];
   for (let i = 0; i < 40; i++) sources.push({ kind: 'garden', x: -200 + (i % 8) * 25, y: 1, z: 150 + Math.floor(i / 8) * 25 });
-  return { x0, z0, step, n, grid, height: new Float32Array(n * n), sources };
+  return { x0, z0, step, n, grid, height: new Float32Array(n * n), sources, coastal: false };
 }
 
 const map = testMap();
@@ -122,4 +124,24 @@ test('music: the piece fits the hour and the weather, falls back to a day piece,
   for (let i = 0; i < 20; i++) assert.notEqual(nextPiece(tracks, env(at(1, 14)), 1, i, 'd1').id, 'd1');
   const g = nextPiece(tracks, env(at(1, 14)), 1, 0, null).gap;
   assert.ok(g >= 240 && g <= 600);
+});
+
+test('the environment comes from the calendar and the weather: night by the sun, Christmas rings like a Sunday, no school then', () => {
+  const at = (date: string, time: string) => new LiveClock(7, new URLSearchParams({ date, time })).now();
+  const xmas = at('2026-12-25', '09:45');
+  assert.equal(xmas.feast, true);
+  assert.equal(xmas.schoolDay, false);
+  assert.equal(xmas.month, 11);
+  assert.ok(new Soundscape(map, 1).loops(here, xmas).some((c) => c.id === 'bell_peal'), 'a Christmas morning peal');
+  const tue = at('2026-10-20', '12:00');
+  assert.equal(tue.schoolDay, true);
+  assert.ok(tue.night < 0.05 && at('2026-10-20', '02:00').night > 0.95);
+  assert.ok(at('2026-06-20', '21:00').night < at('2026-12-20', '21:00').night + 1e-9 && at('2026-12-20', '17:30').night > 0.9, 'December dusk comes early');
+  const wet = new LiveClock(7, new URLSearchParams({ date: '2026-10-20', time: '12:00', rain: '0.8' })).now();
+  assert.equal(wet.rain, 0.8);
+  assert.deepEqual(strikesIn(3, 100, 0), []);
+  assert.deepEqual(strikesIn(3, 100, 1), strikesIn(3, 100, 1));
+  let n = 0;
+  for (let m = 0; m < 200; m++) n += strikesIn(3, m, 1).length;
+  assert.ok(n > 120 && n < 320, `${n} strikes in 200 storm minutes`);
 });

@@ -22,7 +22,9 @@ export type ToTown =
   /** The town's river bridges: deck (ground) and structure (massing). */
   | { type: 'bridges' }
   /** What the town sounds like where (src/audio/soundMap.ts). */
-  | { type: 'sound' };
+  | { type: 'sound' }
+  /** The cutaway of one storey of a building (`building`: its id in the cell). */
+  | { type: 'interior'; cell: number; building: number; floor: number };
 
 /** What the main thread needs to know about the town to lay out the view. */
 export interface TownSummary {
@@ -50,4 +52,6 @@ export type FromTown =
   | { type: 'country'; ground: MeshData | null; buildings: MeshData | null; ms: number }
   | { type: 'bridges'; ground: MeshData | null; buildings: MeshData | null; ms: number }
   | { type: 'sound'; map: SoundMap; ms: number }
+  /** `at`: the storey's centre (floor level), `radius` its reach; `about`: what the building is, for the HUD. */
+  | { type: 'interior'; mesh: MeshData | null; at: [number, number, number]; radius: number; floors: number; about: string; ms: number }
   | { type: 'error'; message: string };

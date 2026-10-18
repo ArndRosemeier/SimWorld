@@ -51,7 +51,7 @@ export class TownAudio {
    * Once a frame: the listener at the camera (position, forward and up), the frame time (s), the
    * game's time and weather.
    */
-  update(dt: number, cam: { x: number; y: number; z: number; fx: number; fy: number; fz: number; ux?: number; uy?: number; uz?: number }, env: SoundEnv): void {
+  frame(dt: number, cam: { x: number; y: number; z: number; fx: number; fy: number; fz: number; ux?: number; uy?: number; uz?: number }, env: SoundEnv): void {
     const e = this.engine;
     e.setListener(cam.x, cam.y, cam.z, cam.fx, cam.fy, cam.fz, cam.ux ?? 0, cam.uy ?? 1, cam.uz ?? 0);
     this.music.tick(dt, env);
@@ -85,10 +85,5 @@ export class TownAudio {
   /** A sound of another system (traffic, trains, people, doors) at a point; see the manifest for ids. */
   play(id: string, x: number, y: number, z: number, gain = 1, pitch = 1, refDist = 6): void {
     this.engine.play(id, x, y, z, gain, pitch, refDist);
-  }
-
-  /** Thunder for a lightning strike at (x, z): near or far by distance; it arrives after distance / 343 m/s. */
-  thunder(x: number, y: number, z: number, distance: number): void {
-    this.engine.play(distance < 1200 ? 'thunder_near' : 'thunder_far', x, y, z, 1, 1, distance < 1200 ? 300 : 900);
   }
 }

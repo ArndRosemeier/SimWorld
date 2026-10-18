@@ -27,6 +27,8 @@ export interface SoundMap {
   /** Ground height at each cell centre (m): how high above the town the listener is. */
   height: Float32Array;
   sources: SoundSource[];
+  /** A coastal town (its weather is milder and foggier). */
+  coastal: boolean;
 }
 
 /** What one spot sounds like, every channel 0 … 1. */
@@ -101,7 +103,7 @@ export function soundMapOf(town: Town): SoundMap {
   for (const f of rural.farms) sources.push({ kind: 'farm', x: f.x, y: terrain.height(f.x, f.z) + 1.5, z: f.z });
   const stride = Math.max(1, Math.ceil(gardens.length / MAX_GARDENS));
   for (let i = 0; i < gardens.length; i += stride) sources.push(gardens[i]);
-  return { x0, z0, step: STEP, n, grid, height, sources };
+  return { x0, z0, step: STEP, n, grid, height, sources, coastal: terrain.profile.coastal };
 }
 
 const q = (v: number): number => Math.round(clamp(v, 0, 1) * 255);
