@@ -23,7 +23,7 @@ import { ROAD_SPEC } from './macro';
 import { STYLES, asLockUp, isSliver, pickStyle, streetDoor, type BuildingDesc, type StyleId } from './building';
 import type { EateryPlan } from './terrace';
 import { crossingsOf } from './crossings';
-import { planDrives, DRIVE_W, type Driveway } from './drives';
+import { planDrives, dressFronts, DRIVE_W, type Driveway } from './drives';
 import { landmarksOfCell, siteRect, siteToWorld, siteZones, worldToSite, SITE_STREET_CLEAR, type Landmark, type ZoneKind } from './landmarks';
 import { landmarkParts, solidFootprints } from './landmarkParts';
 
@@ -109,6 +109,10 @@ export const enum PropType {
   Yew = 31,
   /** A car parked at the kerb of a street (ParkedCar is one in a car park): left out when the traffic draws the household cars in those bays. */
   KerbCar = 32,
+  /** A house's front fence (variant 0 pickets, 1 a low wall), a 2.5 m stretch along its yaw's x (plan/drives.ts). */
+  GardenFence = 33,
+  /** At a driveway's end: variant 0 a garage, 1 a carport, its open front facing the street. */
+  Garage = 34,
 }
 
 export interface CellPlan {
@@ -321,13 +325,14 @@ export function planCell(macro: MacroPlan, cell: CellInfo, terrain: Terrain): Ce
     if (bd) plan.buildings.push(bd);
   });
   frontsOutdoors(plan.buildings);
-  planDrives(plan, rng.fork('drives'));
+  const fronts = planDrives(plan, rng.fork('drives'));
 
   // Junctions (for traffic lights/stop signs and crossings).
   plan.junctions = findJunctions(plan.streets);
 
   // --------------------------------------------------------- 5. props
   placeProps(plan, cell, macro, g, rng.fork('props'), terrain);
+  dressFronts(plan, fronts);
   // ------------------------------------------------------ 5b. landmark props
   for (const lm of sites) placeLandmarkProps(plan, lm, terrain);
   // ------------------------------------------------------ 5c. landmark ground
