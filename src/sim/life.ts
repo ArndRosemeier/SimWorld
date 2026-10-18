@@ -12,7 +12,8 @@ import { clamp, hashCombine, type Rng } from '@futuremagic/core';
 import { A, ACTOR_ANIMAL, ACTOR_PERSON, EMOTION_COUNT, FEMALE, MALE, type ActorId } from './actors';
 import { intend } from './intentions';
 import { addOccasion, cancelOccasion, type Occasion } from './agenda';
-import { addFact, broadcast, witness } from './knowledge';
+import { addFact, witness } from './knowledge';
+import type { LostPet } from './lostPets';
 import { remember } from './memory';
 import { EMOTIONS, type Emotion } from './mind/proposal';
 import { PET_NAMES } from './names';
@@ -23,7 +24,7 @@ import { bond, bondBit, FAMILY_MASK, liking, unbond } from './relations';
 import { SPECIES, speciesId } from './species';
 import { addHousehold, adoptPet, fitRoutine, newAnimal, newPerson, settle, type HouseholdType } from './synth';
 import { regionDestination, type RegionPlace } from './region';
-import { careHomeRoom, jobOpen, moveToCareHome } from './economy';
+import { careHomeRoom, hireable, moveToCareHome } from './economy';
 import { DAYS_PER_YEAR, MINUTES_PER_DAY, weekdayOf } from './time';
 import { dateOf, termOn } from './calendar';
 import { ageOf, commute, firstName, householdOf, isPerson, jobOf, nameOf, placesOf, tickRng, traitOf, valueOf, type World } from './world';
@@ -31,7 +32,7 @@ import { ageOf, commute, firstName, householdOf, isPerson, jobOf, nameOf, places
 export const LIFE_EVENTS = [
   'birthday', 'schoolStart', 'schoolEnd', 'illness', 'recovery', 'death', 'dating', 'moveIn', 'marriage', 'breakup',
   'divorce', 'affair', 'pregnancy', 'birth', 'hired', 'fired', 'quit', 'retired', 'leftHome', 'arrived', 'departed',
-  'petAdopted', 'theft', 'burglary', 'vandalism', 'fight', 'engagement', 'funeral', 'holiday',
+  'petAdopted', 'theft', 'burglary', 'vandalism', 'fight', 'engagement', 'funeral', 'holiday', 'petLost', 'petFound',
 ] as const;
 export type LifeEventKind = (typeof LIFE_EVENTS)[number];
 
@@ -62,11 +63,13 @@ export interface Life {
   engaged: Map<number, Engagement>;
   /** Households away on holiday → the day they come back and where they went ("in the mountains"). */
   away: Map<number, { back: number; where: string }>;
+  /** Missing pets (src/sim/lostPets.ts; made on first use, so older saves load). */
+  lost?: Map<ActorId, LostPet>;
 }
 
 export interface Engagement { x: ActorId; y: ActorId; wedding: number; reception: number }
 
-export const newLife = (): Life => ({ events: [], pregnant: new Map(), together: new Map(), engaged: new Map(), away: new Map() });
+export const newLife = (): Life => ({ events: [], pregnant: new Map(), together: new Map(), engaged: new Map(), away: new Map(), lost: new Map() });
 
 /** Who moves to a small town: mostly young people and families (work, a cheaper house, a garden). */
 const NEWCOMERS_HOUSE: [HouseholdType, number][] = [['coupleYoung', 0.25], ['family', 0.55], ['singleParent', 0.05], ['coupleMid', 0.1], ['multiGen', 0.05]];
@@ -331,7 +334,6 @@ function personDies(world: World, day: number, id: ActorId, rng: Rng): void {
   const mourners = closeTo(world, id).filter((m) => m !== id);
   const age = ageOf(world, id);
   const fact = news(world, mourners, { topic: 'family', text: '{subject} died', subject: id, magnitude: age >= 75 ? 0.6 : 0.85 });
-  broadcast(world, fact, 0.04); // the notice in the paper
   for (const m of mourners) {
     const close = Math.max(0.2, liking(world.relations, m, id));
     feel(world, m, 'sadness', 0.4 + close * 0.6);
@@ -610,7 +612,7 @@ function work(world: World, day: number, rng: Rng): void {
   const a = world.actors.cols, pc = world.people.cols;
   for (let id = 0; id < world.actors.count; id++) {
     const job = isPerson(world, id) ? jobOf(world, id) : null;
-    if (!job) continue;
+    if (!job || job.role === 'mayor') continue; // elected for a term (src/sim/politics.ts)
     // Let go (rarely, likelier for the careless) or moving on to something else.
     if (rng.chance(happens(0.02 * (1.6 - traitOf(world, id, T_CONSC))))) {
       vacate(world, id);
@@ -619,7 +621,7 @@ function work(world: World, day: number, rng: Rng): void {
       remember(world, id, { who: [], summary: `I lost my job at ${world.graph.places[job.place].name}`, importance: 0.9, emotion: 'sadness', fact });
       log(world, day, 'fired', id, -1, job.place, fact);
     } else if (rng.chance(happens(0.05 * (0.5 + traitOf(world, id, T_OPEN))))) {
-      const options = world.jobs.filter((j) => j.holder < 0 && j.place !== job.place && ageOf(world, id) >= j.minAge && jobOpen(world, j));
+      const options = world.jobs.filter((j) => hireable(world, j) && j.place !== job.place && ageOf(world, id) >= j.minAge);
       if (options.length === 0) continue;
       const next = options[rng.int(0, options.length - 1)];
       vacate(world, id);
@@ -628,7 +630,7 @@ function work(world: World, day: number, rng: Rng): void {
     }
   }
   // Vacancies fill in about three weeks, from the people in town without work.
-  const open = world.jobs.filter((j) => j.holder < 0 && jobOpen(world, j) && rng.chance(happens(18)));
+  const open = world.jobs.filter((j) => hireable(world, j) && rng.chance(happens(18)));
   if (open.length === 0) return;
   const seekers: ActorId[] = [];
   for (let id = 0; id < world.actors.count; id++) {
@@ -821,7 +823,6 @@ function commit(world: World, day: number, kind: keyof typeof CRIME_RATES, offen
     const staff = colleaguesOf(world, place, -1);
     const text = kind === 'theft' ? 'someone stole from {place}' : 'someone sprayed graffiti at {place}';
     const fact = news(world, staff, { topic: 'crime', text, place, magnitude: 0.5 });
-    if (kind === 'vandalism') broadcast(world, fact, 0.03);
     const secret = news(world, [offender], { topic: 'crime', text: kind === 'theft' ? '{subject} stole from {place}' : '{subject} sprayed graffiti at {place}', subject: offender, place, magnitude: 0.8, secret: true });
     remember(world, offender, { who: [], summary: kind === 'theft' ? `I stole something from ${world.graph.places[place].name}` : `I sprayed graffiti at ${world.graph.places[place].name}`, importance: 0.6, emotion: 'fear', fact: secret });
     log(world, day, kind, -1, offender, place, fact);

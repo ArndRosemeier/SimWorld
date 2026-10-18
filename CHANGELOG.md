@@ -1,5 +1,69 @@
 # Changelog
 
+## v0.051 — The bin lorry, the post van and deliveries
+
+- On bin day the bin lorry works its way along every street whose bins are out, early in the morning.
+- The post van does its round from Monday to Saturday, out to the farms as well.
+- A delivery lorry brings the morning goods to the food shops, pubs and cafés that open that day, and a parcel van calls at a few homes on weekdays.
+- Vans and lorries pull in to the kerb while they unload, so traffic goes past them. A bus that finds another bus at its stop now pulls in behind it instead of waiting in the road.
+
+## v0.050 — The town's weekly paper, notice boards and lost pets
+
+- The town has its own weekly paper. Each Thursday or Friday it prints what really happened that week: deaths with the funeral time, births, weddings, burglaries and shoplifting, shops opening and closing, and what's on in the coming week.
+- Notice boards at the town hall, church, supermarket, library, post office, newsagent and square carry posters for the festival, the Christmas market, matches, club nights and council meetings, plus funeral notices. A new shop puts a "Grand opening" poster in its window; a closed one says thank you to its customers.
+- People who read the paper or walk past a poster come to know what it says, so news spreads through the town the way it would in real life.
+- Pets sometimes go missing. The family puts up "Lost cat" or "Lost dog" posters, and the more people know, the sooner someone finds it and brings it home. Some come home on their own; a few never do.
+
+## v0.049 — Lightning and thunder together
+
+- Each lightning flash in the sky now has its thunder: the sky and the sound draw the same strikes, and the thunder follows the flash after the time sound takes to travel.
+
+## v0.048 — Day and night, sun and moon, clouds and storms
+
+- The sky follows the real date and time: the sun rises and sets where and when it really would, with sunsets, twilight and a starry night.
+- The moon shows its real phase and rides high on winter nights.
+- The town's weather is in the sky: clear, fair, cloudy, overcast, grey rain, fog and thunderstorms with lightning; the distant haze matches the sky.
+- Windows light up after dusk and go dark late at night.
+- For looking around: `?date=2026-12-24&time=18:30` picks the moment, `?speed=60` runs time faster, `?wx=storm` picks the weather.
+
+## v0.047 — Rain and snow
+
+- Rain falls as thin streaks slanted by the wind; snow drifts down in flakes; sleet is a mix of both.
+- After rain the streets turn dark and glossy and puddles gather; lawns darken a little.
+- In winter snow lies on fields, lawns, roofs and ledges, thinner under the forest and on steep roofs; roads turn to grey slush.
+- The weather belongs to the date: Christmas looks the same whatever day you start the town.
+- The trees turn in autumn by the date (from mid-September, full colour late October), and their branches move with the weather's wind.
+
+## v0.046 — People take the car like real townsfolk
+
+- People with a car now drive most trips over a kilometre or so, as in a real western town. Each person has their own habit: some walk fifteen minutes, others drive three hundred metres.
+- The weekly shop goes in the car, and so do trips in the rain, the cold or the dark. Older people and parents with small children drive more, and on a fine day people walk further.
+- There is about three times as much traffic in town as before, with a proper rush hour.
+
+## v0.045 — Local politics: the mayor, the council and the town's issues
+
+- The town argues about its own issues: closing the open-air pool, a bypass, a housing estate on the farmland, wind turbines, a 30 km/h limit, parking charges, a skate park, shops open on Sundays, and more.
+- Everyone has their own view, shaped by who they are: parents want to keep the pool, drivers dislike parking charges, the faithful want quiet Sundays.
+- A few months after an issue comes up, the council votes on it at its monthly meeting. The result is news that pleases some people and angers others.
+- Every four years, on a Sunday in May, the town elects its mayor and council. Candidates are announced a month ahead, people go to vote, and each voter picks the candidate they like and agree with most.
+- A mayor who retires, dies or moves away brings a by-election, and the mayor no longer quits for another job mid-term.
+
+## v0.044 — Clubs, a congregation and the council
+
+- The town has its clubs: football, choir, volunteer fire brigade, rifle club, allotment society, church coffee circle, youth club, book club, running club, card club and local history society, each with members, a chair or organiser and its own meeting nights.
+- Members go to their club evenings: the footballers train on Tuesdays and Thursdays and play at home on Saturdays, the choir rehearses on Tuesdays, the council meets on the first Monday of the month.
+- Each church has its congregation, with a churchwarden and a treasurer.
+- People join and drift off over time, friends bring friends along, and teenagers leave the youth club at 18.
+- Office holders are elected at each club's annual meeting, and a new chair is news.
+- Every club has a big day the town hears about a month ahead: the Christmas concert, the fire brigade's open day, the produce show, the fun run, the church fete. The winners and the football club's league finish are talked about afterwards.
+- A club that runs out of members folds, and now and then someone starts a club the town is missing.
+
+## v0.043 — The town sounds its agenda
+
+- The church bells now follow the agenda: a peal before each service, a peal as a wedding couple come out, and a slow knell before a funeral. There are no bells for a town-hall wedding.
+- Market days, the Christmas market, the summer festival and New Year bring a crowd to the square. A football match has its whistles, kicks and cheers, and a wedding party clatters at its restaurant.
+- In play, the sound now follows the sim's own clock and weather, so it matches the sky and the people.
+
 ## v0.042 — The town can be saved and loaded
 
 - The whole town (every person, what they know, their plans, the shops' books) can now be saved and loaded again, and it carries on exactly as it would have. The save and load buttons come with the in-game simulation.

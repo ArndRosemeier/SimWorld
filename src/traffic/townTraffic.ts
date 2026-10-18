@@ -15,7 +15,8 @@ import { Parking } from './parking';
 import { RoadNet } from './roadNet';
 import { Traffic, type Car, type VKind } from './traffic';
 import type { CarTrip } from './trips';
-import { Buses, exitTowardRegion } from './buses';
+import { Buses } from './buses';
+import { ServiceRounds, exitTowardRegion, roundGoal } from './rounds';
 import type { World } from '../sim/world';
 
 /** Household car models, most common first (a small western town). */
@@ -46,11 +47,12 @@ export class TownTraffic {
   private readonly waiting: { go: () => boolean; t: number }[] = [];
   private throughN = 0;
   private buses: Buses | null = null;
+  private services: ServiceRounds | null = null;
   private world: World | null = null;
   /** Game clock (s) minus Traffic time (s), set at every game minute. */
   private clockOffset = 0;
   /** Stats for the HUD and tests. */
-  readonly stats = { trips: 0, walked: 0, parked: 0, through: 0, buses: 0, busStops: 0 };
+  readonly stats = { trips: 0, walked: 0, parked: 0, through: 0, buses: 0, services: 0, stops: 0 };
 
   /** `world` (optional until the view has one) tells the roads to the region towns apart. */
   constructor(town: Town, private readonly places: readonly Place[], private readonly seed: number, world?: World) {
@@ -59,7 +61,7 @@ export class TownTraffic {
     this.parking = new Parking(this.net);
     this.traffic = new Traffic(this.net, this.parking);
     this.traffic.onPark = () => this.stats.parked++;
-    this.traffic.onHalt = () => this.stats.busStops++;
+    this.traffic.onHalt = () => this.stats.stops++;
   }
 
   /** Put every household car at rest: at `at(household)`'s place (home, or where its driver is). */
@@ -91,15 +93,17 @@ export class TownTraffic {
   }
 
   /**
-   * The timetable's buses that come on to the map in the game minutes (since, clock] (call once
-   * per game minute, after `trips`).
+   * The rounds that come on to the map in the game minutes (since, clock]: the timetable's buses,
+   * the bin lorry, the post van, deliveries (call once per game minute, after `trips`).
    */
-  transit(world: World, since: number, clock: number): void {
+  rounds(world: World, since: number, clock: number): void {
     this.world = world;
     this.buses ??= new Buses(world, this.net);
-    for (const b of this.buses.due(since, clock)) {
-      const goal = Buses.goal(b, (c) => c * 60 - this.clockOffset);
-      this.launch(() => !!this.traffic.enter(b.car, b.enter, goal) && ++this.stats.buses > 0);
+    this.services ??= new ServiceRounds(world, this.net);
+    for (const r of [...this.buses.due(since, clock), ...this.services.due(since, clock)]) {
+      const goal = roundGoal(r, (c) => c * 60 - this.clockOffset);
+      const count = r.run ? 'buses' : 'services';
+      this.launch(() => !!this.traffic.enter(r.car, r.enter, goal) && ++this.stats[count] > 0);
     }
   }
 
