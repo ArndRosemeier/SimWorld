@@ -5,7 +5,7 @@ import { Soundscape, SCHOOL_BELLS, type Listener, type SoundEnv } from '../src/a
 import { moodOf, nextPiece, parseTracks } from '../src/audio/music';
 import { soundEnvOf, soundOverrides } from '../src/audio/env';
 import { DEFAULT_LATITUDE, daysOf, epochFor } from '../src/sim/calendar';
-import { strikesIn } from '../src/audio/soundscape';
+import { strikesIn } from '../src/sim/weather';
 
 /** A 1 km square town: built in the middle, a river along the east edge, gardens, a church, a school, a farm. */
 function testMap(): SoundMap {

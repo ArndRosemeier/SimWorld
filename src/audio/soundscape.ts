@@ -9,6 +9,7 @@
 import { Rng, clamp, deriveSeed, dist2, smoothstep } from '@futuremagic/core';
 import { dayOf, minuteOfDay, weekdayOf } from '../sim/time';
 import type { ViewOccasion } from '../sim/view';
+import { strikesIn } from '../sim/weather';
 import { groundAt, newSample, soundAt, type SoundMap, type SoundSample, type SoundSource } from './soundMap';
 
 /** What time it is and what the weather does. */
@@ -95,7 +96,8 @@ export class Soundscape {
   private readonly s = newSample();
   private readonly near: SoundSource[] = [];
 
-  constructor(readonly map: SoundMap, readonly seed: number) {}
+  /** `weatherSeed`: the town's seed, which the weather's lightning strikes are drawn from (src/sim/weather.ts `strikesIn`), so the sky flashes with the same strikes. */
+  constructor(readonly map: SoundMap, readonly seed: number, readonly weatherSeed = seed) {}
 
   /** Is there school on the day of `env`? */
   static schoolDay(env: SoundEnv): boolean {
@@ -238,7 +240,7 @@ export class Soundscape {
     const mod = minuteOfDay(m), h = Math.floor(mod / 60), min = mod % 60;
     const dayTime = 1 - env.night;
     const school = Soundscape.schoolDay({ ...env, clock: m });
-    for (const t of strikesIn(this.seed, m, env.lightning ?? 0)) {
+    for (const t of strikesIn(this.weatherSeed, m, env.lightning ?? 0)) {
       out.push({ id: t.distance < 1200 ? 'thunder_near' : 'thunder_far', x: l.x + Math.cos(t.angle) * t.distance, y: l.y + 300, z: l.z + Math.sin(t.angle) * t.distance, gain: 1, pitch: 1, refDist: t.distance < 1200 ? 300 : 900, delay: t.at });
     }
     this.occasionShots(m, l, env, out);
@@ -276,22 +278,6 @@ export class Soundscape {
       }
     }
   }
-}
-
-/** A lightning strike: `at` seconds into the minute, `distance` (m) and direction (radians) from the town. */
-export interface Strike { at: number; distance: number; angle: number }
-
-/**
- * The lightning strikes of game minute `m` at a lightning level 0 … 1 (a storm: about one strike a
- * minute). Pure and seeded so the sky's flashes and the thunder can agree on the same strikes.
- */
-export function strikesIn(seed: number, m: number, lightning: number): Strike[] {
-  if (lightning <= 0.05) return [];
-  const r = new Rng(deriveSeed(seed, 'lightning', m));
-  const out: Strike[] = [];
-  const n = r.chance(lightning * 0.9) ? (r.chance(0.3) ? 2 : 1) : 0;
-  for (let i = 0; i < n; i++) out.push({ at: r.float() * 55, distance: 400 + r.float() * r.float() * 6000, angle: r.float() * Math.PI * 2 });
-  return out;
 }
 
 function shot(id: string, at: { x: number; y: number; z: number }, gain: number, pitch: number, refDist: number, delay: number): Shot {
