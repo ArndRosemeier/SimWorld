@@ -1,0 +1,52 @@
+{
+  "_comment": "SimWorld's music, generated with Google Lyria 3 through OpenRouter (tools/music/lyria.mjs). brief = what the blind listener's verdict is scored against; prompt = what Lyria gets. See docs/MUSIC.md.",
+  "title": {
+    "model": "google/lyria-3-pro-preview",
+    "mood": "title",
+    "brief": "Title / start screen of a calm life-simulation game set in a modern small western town (church bells, gardens, a railway station, farms). 2-3 minutes, the most melodic piece: a warm, gentle, memorable theme that could be the town's identity. Acoustic, human, a little nostalgic. Not epic or cinematic, no vocals, no heavy drums.",
+    "prompt": "Instrumental only, no vocals, no singing, no humming. A warm, gentle main theme for a cozy small-town life game, about 2 minutes 30 seconds long. Solo felt piano opens with a simple, memorable, slightly nostalgic melody; fingerpicked nylon-string acoustic guitar joins, then soft warm strings, a little clarinet and flute answering the melody; very light brushed snare only in the middle section. Moderate unhurried tempo around 84 BPM, major key, sunny and homely, like a morning in a small town with gardens and a railway station. Builds gently, never epic or cinematic, then returns to solo piano and ends with a soft, natural, complete ending.",
+    "take": 2
+  },
+  "day-1": {
+    "model": "google/lyria-3-pro-preview",
+    "mood": "day",
+    "brief": "In-game daytime ambient piece for a calm small-town life game; plays quietly under birdsong and distant traffic. Light, unhurried, sparse, warm; acoustic piano / guitar / light woodwinds. No vocals, no drums, nothing that demands attention.",
+    "prompt": "Instrumental only, no vocals, no drums, no percussion. Sparse, light ambient background music for a peaceful small-town morning, about 2 minutes long. Gentle acoustic piano playing a few unhurried phrases with plenty of space and silence between them, a soft nylon-string guitar answering now and then, a very quiet warm string pad underneath. Calm, warm, slightly nostalgic, like Minecraft or Stardew Valley ambient music. Slow tempo around 70 BPM, major key, soft dynamics throughout, ends softly.",
+    "take": 1
+  },
+  "day-2": {
+    "model": "google/lyria-3-pro-preview",
+    "mood": "day",
+    "brief": "In-game daytime ambient piece for a calm small-town life game; plays quietly under birdsong and distant traffic. Light, unhurried, sparse, warm; acoustic guitar / piano / light woodwinds. No vocals, no drums, nothing that demands attention.",
+    "prompt": "Instrumental only, no vocals, no drums, no percussion. Light, unhurried daytime background music for a small town with gardens and a market, about 2 minutes long. Fingerpicked steel-string acoustic guitar with a simple pastoral pattern, a soft flute and clarinet trading short gentle phrases, a little celesta, warm pizzicato strings very quietly. Sparse arrangement with room to breathe, relaxed and content, soft dynamics, around 76 BPM, major key, ends gently.",
+    "take": 2
+  },
+  "evening": {
+    "model": "google/lyria-3-pro-preview",
+    "mood": "evening",
+    "brief": "In-game dusk / golden-hour ambient piece for a calm small-town life game, under ambient sounds. A little wistful and warm, sparse and quiet. No vocals, no drums.",
+    "prompt": "Instrumental only, no vocals, no choir, no wordless voices, no drums, no percussion. A quiet, warm golden-hour background piece for a small western town at dusk, about 2 minutes long. Soft felt piano with slow warm chords and a simple tender melody, a gentle nylon-string guitar, a faint warm string pad, an occasional soft cello note. Wistful but content, a little nostalgic, like Stardew Valley or The Sims neighbourhood music. Slow tempo around 64 BPM, sparse with lots of space, stays soft and intimate the whole time: no crescendo, no swelling climax, no dramatic orchestra. Fades out gently at the end.",
+    "take": 4
+  },
+  "night": {
+    "model": "google/lyria-3-pro-preview",
+    "mood": "night",
+    "brief": "In-game night ambient piece for a calm small-town life game; must sit very quietly under night sounds. Very sparse: soft piano, pads. Peaceful, no vocals, no drums, no sudden loud moments.",
+    "prompt": "Instrumental only, no vocals, no drums, no percussion. A very sparse, very quiet night ambient piece for a sleeping small town, about 2 minutes long. Soft felt piano playing single notes and gentle open chords far apart, long pauses, a warm, slow evolving synth pad and faint soft strings underneath. Very slow, around 56 BPM, peaceful and still, intimate and calm, pianissimo throughout, no sudden loud moments, fades out softly.",
+    "take": 3
+  },
+  "rain": {
+    "model": "google/lyria-3-pro-preview",
+    "mood": "rain",
+    "brief": "In-game piece for grey rainy days in a calm small-town life game, under the sound of rain. Contemplative, gentle, a bit melancholy but cozy; sparse. No vocals, no drums.",
+    "prompt": "Instrumental only, no vocals, no drums, no percussion, no rain sound effects. A contemplative, gentle piece for a grey rainy afternoon in a small town, about 2 minutes long. Soft felt piano with slow, thoughtful phrases in a minor-to-major mood, a warm solo viola or cello line, a quiet nylon-string guitar, a faint soft pad. Cozy and introspective, a little melancholy but comforting, slow around 66 BPM, sparse with space between phrases, soft dynamics, ends quietly.",
+    "take": 2
+  },
+  "sunday": {
+    "model": "google/lyria-3-pro-preview",
+    "mood": "sunday",
+    "brief": "In-game Sunday-morning piece for a calm small-town life game: calm, slightly hymn-like, peaceful, warm. No choir, no words, no vocals, no drums.",
+    "prompt": "Instrumental only, no vocals, no choir, no singing, no drums. A calm, slightly hymn-like piece for a quiet Sunday morning in a small village, about 2 minutes long. A soft reed organ or harmonium playing a simple chorale with warm sustained chords, joined by gentle acoustic piano and soft strings, a lone french horn or clarinet carrying the melody in the middle. Peaceful, devotional but homely, slow around 66 BPM, major key, soft dynamics, ends on a gentle sustained chord.",
+    "take": 1
+  }
+}

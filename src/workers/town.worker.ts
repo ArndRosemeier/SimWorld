@@ -15,6 +15,7 @@ import { planInterior, storeyFacade } from '../interior/building';
 import { polyBounds } from '../geom/geom2';
 import { planTown, type Town } from '../plan/town';
 import { parcelParams } from '../world/landuse';
+import { soundMapOf, soundMapTransferables } from '../audio/soundMap';
 import type { FromTown, ToTown } from './townProtocol';
 
 let town: Town | null = null;
@@ -74,6 +75,7 @@ function handle(m: ToTown): FromTown {
       const b = buildBridges(macro.bridges, terrain, macro.edges);
       return { type: 'bridges', ground: out(b.deck), buildings: out(b.structure), ms: ms() };
     }
+    case 'sound': return { type: 'sound', map: soundMapOf(town), ms: ms() };
     case 'interior': {
       const b = cells[m.cell]?.buildings.find((q) => q.id === m.building);
       if (!b) throw new Error(`no building ${m.building} in cell ${m.cell}`);
@@ -104,7 +106,8 @@ self.onmessage = (ev: MessageEvent<ToTown & { job?: number }>) => {
   const job = ev.data.job;
   try {
     const r = handle(ev.data);
-    (self as unknown as Worker).postMessage({ ...r, job }, meshesOf(r).flatMap(meshTransferables));
+    const transfer = r.type === 'sound' ? soundMapTransferables(r.map) : meshesOf(r).flatMap(meshTransferables);
+    (self as unknown as Worker).postMessage({ ...r, job }, transfer);
   } catch (err) {
     (self as unknown as Worker).postMessage({ type: 'error', job, message: err instanceof Error ? `${err.message}\n${err.stack}` : String(err) });
   }

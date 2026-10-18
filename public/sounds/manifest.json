@@ -1,0 +1,396 @@
+{
+ "amb_city_day": {
+  "files": [
+   "amb_city_day.ogg"
+  ],
+  "loop": true,
+  "gain": 0.6,
+  "cat": "ambience",
+  "description": "town street by day: traffic hum, distant horns, footsteps, murmur"
+ },
+ "amb_city_night": {
+  "files": [
+   "amb_city_night.ogg"
+  ],
+  "loop": true,
+  "gain": 0.55,
+  "cat": "ambience",
+  "description": "town at night: faint traffic, a distant siren, crickets"
+ },
+ "amb_park": {
+  "files": [
+   "amb_park.ogg"
+  ],
+  "loop": true,
+  "gain": 0.55,
+  "cat": "ambience",
+  "description": "park: birdsong, leaves in a light wind"
+ },
+ "amb_country_day": {
+  "files": [
+   "amb_country_day.ogg"
+  ],
+  "loop": true,
+  "gain": 0.5,
+  "cat": "ambience",
+  "description": "open country by day: breeze, larks, insects"
+ },
+ "amb_country_night": {
+  "files": [
+   "amb_country_night.ogg"
+  ],
+  "loop": true,
+  "gain": 0.5,
+  "cat": "ambience",
+  "description": "country night: crickets, now and then a frog"
+ },
+ "amb_river": {
+  "files": [
+   "amb_river.ogg"
+  ],
+  "loop": true,
+  "gain": 0.55,
+  "cat": "ambience",
+  "description": "river water flowing along stone banks"
+ },
+ "amb_sea": {
+  "files": [
+   "amb_sea.ogg"
+  ],
+  "loop": true,
+  "gain": 0.55,
+  "cat": "ambience",
+  "description": "waves on the shore, distant gulls"
+ },
+ "amb_interior": {
+  "files": [
+   "amb_interior.ogg"
+  ],
+  "loop": true,
+  "gain": 0.5,
+  "cat": "ambience",
+  "description": "quiet room tone, traffic muffled outside"
+ },
+ "amb_crowd": {
+  "files": [
+   "amb_crowd.ogg"
+  ],
+  "loop": true,
+  "gain": 0.55,
+  "cat": "ambience",
+  "description": "shopping street: people chatting indistinctly"
+ },
+ "amb_rain_light": {
+  "files": [
+   "amb_rain_light.ogg"
+  ],
+  "loop": true,
+  "gain": 0.55,
+  "cat": "weather",
+  "description": "light rain, drizzle"
+ },
+ "amb_rain_heavy": {
+  "files": [
+   "amb_rain_heavy.ogg"
+  ],
+  "loop": true,
+  "gain": 0.7,
+  "cat": "weather",
+  "description": "a downpour"
+ },
+ "amb_wind_gust": {
+  "files": [
+   "amb_wind_gust.ogg"
+  ],
+  "loop": true,
+  "gain": 0.45,
+  "cat": "weather",
+  "description": "wind gusts at street level"
+ },
+ "thunder_near": {
+  "files": [
+   "thunder_near_1.ogg",
+   "thunder_near_2.ogg",
+   "thunder_near_3.ogg"
+  ],
+  "loop": false,
+  "gain": 1.0,
+  "cat": "weather",
+  "description": "a close lightning strike"
+ },
+ "thunder_far": {
+  "files": [
+   "thunder_far_1.ogg",
+   "thunder_far_2.ogg",
+   "thunder_far_3.ogg"
+  ],
+  "loop": false,
+  "gain": 0.9,
+  "cat": "weather",
+  "description": "distant thunder"
+ },
+ "bell_toll": {
+  "files": [
+   "bell_toll.ogg"
+  ],
+  "loop": false,
+  "gain": 0.9,
+  "cat": "bells",
+  "description": "one strike of the church tower bell"
+ },
+ "bell_peal": {
+  "files": [
+   "bell_peal.ogg"
+  ],
+  "loop": true,
+  "gain": 0.8,
+  "cat": "bells",
+  "description": "church bells ringing a peal (Sunday)"
+ },
+ "school_bell": {
+  "files": [
+   "school_bell.ogg"
+  ],
+  "loop": false,
+  "gain": 0.7,
+  "cat": "bells",
+  "description": "an electric school bell"
+ },
+ "crossing_bells": {
+  "files": [
+   "crossing_bells.ogg"
+  ],
+  "loop": true,
+  "gain": 0.6,
+  "cat": "traffic",
+  "description": "level crossing warning bells"
+ },
+ "kids_playground": {
+  "files": [
+   "kids_playground.ogg"
+  ],
+  "loop": true,
+  "gain": 0.55,
+  "cat": "people",
+  "description": "children playing in the schoolyard"
+ },
+ "lawnmower": {
+  "files": [
+   "lawnmower.ogg"
+  ],
+  "loop": true,
+  "gain": 0.6,
+  "cat": "people",
+  "description": "a petrol lawnmower running"
+ },
+ "terrace_clatter": {
+  "files": [
+   "terrace_clatter.ogg"
+  ],
+  "loop": true,
+  "gain": 0.54,
+  "cat": "people",
+  "description": "a cafe terrace: cups, cutlery, chairs"
+ },
+ "crowd_cheer": {
+  "files": [
+   "crowd_cheer.ogg"
+  ],
+  "loop": false,
+  "gain": 0.7,
+  "cat": "people",
+  "description": "a crowd cheering (a goal at the sports ground)"
+ },
+ "ref_whistle": {
+  "files": [
+   "ref_whistle.ogg"
+  ],
+  "loop": false,
+  "gain": 0.6,
+  "cat": "people",
+  "description": "a referee's whistle"
+ },
+ "ball_kick": {
+  "files": [
+   "ball_kick.ogg"
+  ],
+  "loop": false,
+  "gain": 0.7,
+  "cat": "people",
+  "description": "a football kicked"
+ },
+ "dog_bark": {
+  "files": [
+   "dog_bark_1.ogg",
+   "dog_bark_2.ogg",
+   "dog_bark_3.ogg",
+   "dog_bark_4.ogg"
+  ],
+  "loop": false,
+  "gain": 0.8,
+  "cat": "animals",
+  "description": "a dog barking once"
+ },
+ "dog_yap": {
+  "files": [
+   "dog_yap.ogg"
+  ],
+  "loop": false,
+  "gain": 0.7,
+  "cat": "animals",
+  "description": "a small dog yapping"
+ },
+ "rooster_crow": {
+  "files": [
+   "rooster_crow_1.ogg",
+   "rooster_crow_2.ogg"
+  ],
+  "loop": false,
+  "gain": 0.8,
+  "cat": "animals",
+  "description": "a rooster crowing"
+ },
+ "cow_moo": {
+  "files": [
+   "cow_moo_1.ogg",
+   "cow_moo_2.ogg",
+   "cow_moo_3.ogg"
+  ],
+  "loop": false,
+  "gain": 0.8,
+  "cat": "animals",
+  "description": "a cow mooing"
+ },
+ "bird_flutter": {
+  "files": [
+   "bird_flutter.ogg"
+  ],
+  "loop": false,
+  "gain": 0.45,
+  "cat": "animals",
+  "description": "pigeons flushing"
+ },
+ "car_idle": {
+  "files": [
+   "car_idle.ogg"
+  ],
+  "loop": true,
+  "gain": 0.6,
+  "cat": "traffic",
+  "description": "a car engine idling"
+ },
+ "car_passby": {
+  "files": [
+   "car_passby.ogg"
+  ],
+  "loop": false,
+  "gain": 0.8,
+  "cat": "traffic",
+  "description": "a car driving past"
+ },
+ "car_horn_short": {
+  "files": [
+   "car_horn_short_1.ogg",
+   "car_horn_short_2.ogg"
+  ],
+  "loop": false,
+  "gain": 0.7,
+  "cat": "traffic",
+  "description": "a short car horn"
+ },
+ "car_horn_long": {
+  "files": [
+   "car_horn_long.ogg"
+  ],
+  "loop": false,
+  "gain": 0.7,
+  "cat": "traffic",
+  "description": "a long car horn"
+ },
+ "bus_airbrake": {
+  "files": [
+   "bus_airbrake.ogg"
+  ],
+  "loop": false,
+  "gain": 0.7,
+  "cat": "traffic",
+  "description": "a bus's air brakes"
+ },
+ "train_horn": {
+  "files": [
+   "train_horn_1.ogg",
+   "train_horn_2.ogg"
+  ],
+  "loop": false,
+  "gain": 0.9,
+  "cat": "traffic",
+  "description": "a train horn, one blast"
+ },
+ "train_pass": {
+  "files": [
+   "train_pass.ogg"
+  ],
+  "loop": false,
+  "gain": 0.9,
+  "cat": "traffic",
+  "description": "a train passing"
+ },
+ "ambulance_siren": {
+  "files": [
+   "ambulance_siren.ogg"
+  ],
+  "loop": true,
+  "gain": 0.8,
+  "cat": "traffic",
+  "description": "an ambulance siren"
+ },
+ "door_open": {
+  "files": [
+   "door_open.ogg"
+  ],
+  "loop": false,
+  "gain": 0.6,
+  "cat": "steps",
+  "description": "a door opening"
+ },
+ "door_close": {
+  "files": [
+   "door_close.ogg"
+  ],
+  "loop": false,
+  "gain": 0.65,
+  "cat": "steps",
+  "description": "a door closing"
+ },
+ "step_concrete": {
+  "files": [
+   "step_concrete_1.ogg",
+   "step_concrete_2.ogg",
+   "step_concrete_3.ogg",
+   "step_concrete_4.ogg"
+  ],
+  "loop": false,
+  "gain": 0.45,
+  "cat": "steps",
+  "description": "a footstep on pavement"
+ },
+ "step_grass": {
+  "files": [
+   "step_grass_1.ogg",
+   "step_grass_2.ogg"
+  ],
+  "loop": false,
+  "gain": 0.45,
+  "cat": "steps",
+  "description": "a footstep on grass"
+ },
+ "splash_small": {
+  "files": [
+   "splash_small.ogg"
+  ],
+  "loop": false,
+  "gain": 0.6,
+  "cat": "steps",
+  "description": "a small splash"
+ }
+}
