@@ -39,6 +39,11 @@ const LANDMARK = {
   petrol: ['{root} Fuel Station', '{city} Fuel', 'QuickFuel', 'Roadside Fuel', '{root} Fuel Station'],
 } as const satisfies Record<string, readonly string[]>;
 
+/** The weekly paper's section headings, by `Section` (src/sim/media.ts); the front page has none. */
+const PAPER_SECTION = {
+  town: 'Around town', business: 'Business', police: 'Police news', family: 'Family notices', whatson: 'Coming up',
+} as const;
+
 export type SignKind = keyof typeof SIGN;
 export type LandmarkNameKind = keyof typeof LANDMARK;
 
@@ -54,3 +59,6 @@ export const landmarkPatterns = (kind: LandmarkNameKind): readonly string[] => L
 /** Fill a name pattern's `{key}` slots. */
 export const fillName = (pattern: string, slots: Readonly<Record<string, string>>): string =>
   pattern.replace(/\{(\w+)\}/g, (_, k: string) => slots[k] ?? '');
+
+/** A heading of the paper ("Family notices"). */
+export const paperSection = (section: keyof typeof PAPER_SECTION): string => PAPER_SECTION[section];
