@@ -68,8 +68,16 @@ export class CameraControl {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
-    window.addEventListener('pointerdown', (e) => { if (e.target instanceof HTMLCanvasElement) this.drag = { x: e.clientX, y: e.clientY }; });
+    window.addEventListener('pointerdown', (e) => {
+      if (!(e.target instanceof HTMLCanvasElement)) return;
+      // The drag is the camera's: no text selection starting, no middle-click autoscroll, and it carries on outside the window.
+      e.preventDefault();
+      e.target.setPointerCapture(e.pointerId);
+      this.drag = { x: e.clientX, y: e.clientY };
+    });
     window.addEventListener('pointerup', () => { this.drag = null; });
+    window.addEventListener('pointercancel', () => { this.drag = null; });
+    blockBrowserDefaults();
     window.addEventListener('pointermove', (e) => {
       if (!this.drag || this.mode === 'drone') return;
       if (this.mode === 'play') {
@@ -254,4 +262,24 @@ function turn(a: number, b: number, k: number): number {
   while (d > Math.PI) d -= Math.PI * 2;
   while (d < -Math.PI) d += Math.PI * 2;
   return a + d * Math.min(1, k);
+}
+
+/** Keys the browser would scroll a page with. */
+const SCROLL_KEYS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
+
+/**
+ * The browser's own reactions to the mouse and keys over the game, off: the right-click menu, middle-click
+ * autoscroll, wheel scrolling and zooming, dragging the canvas as an image, keys scrolling the page. Text fields
+ * and the panels (chat, menus, lists) keep theirs: only what happens on the canvas or with no field focused.
+ */
+function blockBrowserDefaults(): void {
+  const onCanvas = (e: Event) => e.target instanceof HTMLCanvasElement;
+  window.addEventListener('contextmenu', (e) => { if (onCanvas(e)) e.preventDefault(); });
+  window.addEventListener('auxclick', (e) => { if (onCanvas(e)) e.preventDefault(); });
+  window.addEventListener('dragstart', (e) => { if (onCanvas(e)) e.preventDefault(); });
+  window.addEventListener('wheel', (e) => { if (onCanvas(e)) e.preventDefault(); }, { passive: false });
+  window.addEventListener('keydown', (e) => {
+    const t = e.target;
+    if (SCROLL_KEYS.has(e.code) && (t === document.body || t === document.documentElement || t instanceof HTMLCanvasElement)) e.preventDefault();
+  });
 }
