@@ -5,6 +5,8 @@
 import type { TownMap } from '../plan/townMap';
 import type { MeshData } from '../build/meshBuilder';
 import type { PropGroup } from '../build/streetProps';
+import type { SignsData } from '../build/signs';
+import type { SignFacts } from '../render/signFacts';
 import type { TreeModelData } from '../build/vegetation';
 import type { TownSettings } from '../world/settings';
 import type { ParcelParams } from '../world/landuse';
@@ -36,6 +38,8 @@ export type ToTown =
   | { type: 'vegModel'; index: number }
   /** What the town sounds like where (src/audio/soundMap.ts). */
   | { type: 'sound' }
+  /** Every sign (shop names, hours, estate boards, street names, town signs) as instance lists, with the planner's places as the signs' first facts (src/build/signs.ts). */
+  | { type: 'signs' }
   /** The town map (src/plan/townMap.ts). */
   | { type: 'map' }
   /** The cutaway of one storey of a building (`building`: its id in the cell). */
@@ -75,6 +79,8 @@ export type FromTown =
   | { type: 'forest'; recs: Float32Array; ms: number }
   | { type: 'vegModel'; model: TreeModelData; ms: number }
   | { type: 'sound'; map: SoundMap; ms: number }
+  /** `facts`: what the planner made each place (kind as a PLACE_KINDS index, name, the kind's default hours) until the sim's town face comes. */
+  | { type: 'signs'; signs: SignsData; facts: SignFacts; ms: number }
   | { type: 'map'; map: TownMap; ms: number }
   /** `at`: the storey's centre (floor level), `radius` its reach; `about`: what the building is, for the HUD. */
   | { type: 'interior'; mesh: MeshData | null; at: [number, number, number]; radius: number; floors: number; about: string; ms: number }

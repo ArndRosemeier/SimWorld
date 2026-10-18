@@ -1,21 +1,22 @@
 /**
- * The one text atlas: all lettering and signage pictures in the world, drawn on a canvas at load
- * in the layout of src/build/textAtlasLayout.ts (which the build layer bakes uvs from). The
- * pictures: the street furniture's signage (stop sign, metro disc, bus stop, posters, newspapers,
- * pedestrian signal masks, manhole cover, kiosk band, mail labels, timetable, name plate, street
- * name blade), ported from Scale (src/props/furniture.ts getSignAtlas). The text slots: every run
- * of TEXT_RUNS, fitted into its strip. Main thread (a DOM canvas).
+ * The one text atlas: all lettering and signage pictures in the world, drawn on a canvas in the
+ * layout of src/build/textAtlasLayout.ts. The pictures, drawn once at load (the build layer bakes
+ * their uvs): the street furniture's signage (stop sign, metro disc, bus stop, posters,
+ * newspapers, pedestrian signal masks, manhole cover, kiosk band, mail labels, timetable, name
+ * plate, street name blade), ported from Scale (src/props/furniture.ts getSignAtlas). The
+ * lettering: slots handed out and redrawn at run time (`lettering()`): shop names and hours,
+ * street names, the town sign, notices; a sign carries its slot's rect per instance. Main thread
+ * (a DOM canvas).
  */
 import { CanvasTexture, LinearMipmapLinearFilter, SRGBColorSpace } from 'three/webgpu';
 import { Rng } from '@futuremagic/core';
-import { ATLAS_H, ATLAS_W, PICTURE_PX, TEXT_H, TEXT_RUNS, TEXT_W, picturePx, textPx, textRects, type TextRun } from '../build/textAtlasLayout';
+import { ATLAS_H, ATLAS_W, PICTURE_PX, SlotPacker, picturePx, slotRect, type AtlasRect, type Slot, type SlotSize } from '../build/textAtlasLayout';
 
 let atlas: CanvasTexture | null = null;
+let lettered: Lettering | null = null;
 
-const FONTS = { sans: 'Arial, Helvetica, sans-serif', serif: 'Georgia, serif' };
-
-/** The atlas texture with these runs in its text slots (made once, on first use: later calls get the same texture). */
-export function textAtlas(runs: readonly TextRun[] = TEXT_RUNS): CanvasTexture {
+/** The atlas texture (made once, on first use: later calls get the same texture). */
+export function textAtlas(): CanvasTexture {
   if (atlas) return atlas;
   const C = PICTURE_PX;
   const cv = document.createElement('canvas');
@@ -190,29 +191,78 @@ export function textAtlas(runs: readonly TextRun[] = TEXT_RUNS): CanvasTexture {
     gg.strokeStyle = '#ffffff'; gg.lineWidth = 6; gg.strokeRect(6, 90, 244, 76);
     text(gg, 'MAIN ST', 128, 128, 54, '#ffffff', 'Arial, Helvetica, sans-serif', 'bold', 0.85);
   });
-  textRects(runs); // (checks they fit)
-  runs.forEach((r, i) => {
-    const [x, y] = textPx(i);
-    g.save();
-    g.fillStyle = r.background;
-    g.fillRect(x, y, TEXT_W, TEXT_H);
-    const size = TEXT_H * 0.72;
-    g.font = `bold ${size}px ${FONTS[r.font ?? 'sans']}`;
-    // Squeezed to fit the strip (never stretched).
-    const sx = Math.min(1, (TEXT_W - 16) / Math.max(1, g.measureText(r.text).width));
-    g.translate(x + TEXT_W / 2, y + TEXT_H / 2);
-    g.scale(sx, 1);
-    g.fillStyle = r.color;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillText(r.text, 0, 0);
-    g.restore();
-  });
   const t = new CanvasTexture(cv);
   t.colorSpace = SRGBColorSpace;
   t.anisotropy = 8;
   t.generateMipmaps = true;
   t.minFilter = LinearMipmapLinearFilter;
   atlas = t;
+  lettered = new Lettering(t, g);
   return t;
+}
+
+/** Draws a slot's lettering: the context is translated to the slot's top left and clipped to it, `w` × `h` px. */
+export type Painter = (g: CanvasRenderingContext2D, w: number, h: number) => void;
+
+/**
+ * The atlas's lettering slots, by key: `put` gives a key its slot (the same one while it keeps
+ * it) and draws it when what it says (`said`) has changed; `drop` frees it for another key;
+ * `flush` once a frame uploads the atlas if anything was drawn. The one way to put words into the
+ * world.
+ */
+export class Lettering {
+  private readonly packer = new SlotPacker();
+  private readonly held = new Map<string, { slot: Slot; said: string; rect: AtlasRect }>();
+  private dirty = false;
+
+  constructor(private readonly tex: CanvasTexture, private readonly g: CanvasRenderingContext2D) {}
+
+  /** The slot of `key` saying `said` (drawn by `paint` if new or changed), or null when the atlas is full. */
+  put(key: string, size: SlotSize, said: string, paint: Painter): AtlasRect | null {
+    let h = this.held.get(key);
+    if (h && h.slot.size !== size) { this.drop(key); h = undefined; }
+    if (!h) {
+      const slot = this.packer.take(size);
+      if (!slot) return null;
+      h = { slot, said: '\u0000', rect: slotRect(slot) };
+      this.held.set(key, h);
+    }
+    if (h.said !== said) {
+      const { x, y, w, h: hh } = h.slot, g = this.g;
+      g.save();
+      g.translate(x, y);
+      g.beginPath(); g.rect(0, 0, w, hh); g.clip();
+      g.clearRect(0, 0, w, hh);
+      paint(g, w, hh);
+      g.restore();
+      h.said = said;
+      this.dirty = true;
+    }
+    return h.rect;
+  }
+
+  /** Does `key` hold a slot? */
+  holds(key: string): boolean { return this.held.has(key); }
+
+  /** Free `key`'s slot. */
+  drop(key: string): void {
+    const h = this.held.get(key);
+    if (!h) return;
+    this.held.delete(key);
+    this.packer.give(h.slot);
+  }
+
+  /** Upload the atlas if a slot was drawn since the last flush (true then). */
+  flush(): boolean {
+    if (!this.dirty) return false;
+    this.dirty = false;
+    this.tex.needsUpdate = true;
+    return true;
+  }
+}
+
+/** The atlas's lettering (makes the atlas if it is not made yet). */
+export function lettering(): Lettering {
+  textAtlas();
+  return lettered!;
 }

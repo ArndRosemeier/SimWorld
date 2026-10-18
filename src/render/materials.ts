@@ -119,13 +119,14 @@ export const FACADE = defineKind('facade', facadeSpecs(), () => {
 /**
  * Street furniture (src/build/furniture.ts: uv into the sign atlas, aFurn material id / emissive
  * / sub-material, aColor), instanced (INSTANCE_SPECS, and iTint: the paint override, rgb sRGB, 0 =
- * the model's, and a noise offset; src/render/propsView.ts).
+ * the model's, and a noise offset; iSign: a sign's own lettering slot in the text atlas;
+ * src/render/propsView.ts, src/render/signsView.ts).
  */
 export const FURNITURE = defineKind('furniture', FURNITURE_SPECS, () => {
   const m = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
   furnitureLook(m, textAtlas());
   return m;
-}, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iTint', size: 4 }]);
+}, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iTint', size: 4 }, { name: 'iSign', size: 4 }]);
 
 /**
  * Vehicles (src/build/vehicles.ts: uv, aPart), instanced (INSTANCE_SPECS, iPaint: the paint, sRGB,
