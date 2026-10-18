@@ -15,9 +15,11 @@ import type { Intention } from './intentions';
 import type { Knowledge } from './knowledge';
 import type { Economy } from './economy';
 import type { Life } from './life';
+import type { Media } from './media';
 import type { Memories } from './memory';
 import type { MindLedger } from './mind/apply';
 import type { Household, Job, PersonTable } from './people';
+import { T_AGREE, T_CONSC, T_EXTRA, T_NEURO, T_OPEN, V_AMBITION, V_FAITH, V_HONEST, V_LOYAL } from './people';
 import type { Place, PlaceGraph, PlaceId } from './places';
 import { PLACE_KINDS, type PlaceKind } from './places';
 import { KINDS, type Service } from './placeKinds';
@@ -34,6 +36,12 @@ import { fadeRelations } from './relations';
 import { lifeDay } from './life';
 import { phoneCalls } from './phone';
 import { economyDay } from './economy';
+import type { Groups } from './groups';
+import { groupsDay } from './groups';
+import type { Politics } from './politics';
+import { politicsDay } from './politics';
+import { lostPetsDay } from './lostPets';
+import { mediaDay } from './media';
 
 export interface World {
   readonly seed: number;
@@ -75,6 +83,12 @@ export interface World {
   region: RegionKnowledge | null;
   /** Household budgets, business ledgers, openings and closures (src/sim/economy.ts). */
   readonly economy: Economy;
+  /** Clubs, congregations and the council: members, office holders, big days (src/sim/groups.ts). */
+  readonly groups: Groups;
+  /** Issues, council votes, elections (src/sim/politics.ts). */
+  readonly politics: Politics;
+  /** The weekly paper, notice boards and posters (src/sim/media.ts). */
+  readonly media: Media;
 }
 
 /** The fixed parts of a world for a place graph (the population comes from `synthesize`, src/sim/synth.ts). */
@@ -116,6 +130,10 @@ export function tick(world: World, minutes = 1): void {
 export function passDays(world: World, days: number): void {
   lifeDay(world, days);
   economyDay(world, days);
+  groupsDay(world);
+  politicsDay(world, days);
+  lostPetsDay(world, days);
+  mediaDay(world, days);
   pruneAgenda(world, world.clock);
   forget(world, days);
   fadeRelations(world.relations, world.clock, days);
@@ -150,6 +168,21 @@ export const traitOf = (world: World, id: ActorId, t: number): number => world.p
 
 /** Value `v` (V_*) of a person. */
 export const valueOf = (world: World, id: ActorId, v: number): number => world.people.cols.values[world.actors.cols.row[id] * 4 + v];
+
+/** Weights on a person's traits and values, for appeal and opinion formulas (src/sim/groups.ts, src/sim/politics.ts). */
+export interface Weights {
+  open?: number; consc?: number; extra?: number; agree?: number; neuro?: number;
+  honest?: number; loyal?: number; ambition?: number; faith?: number;
+}
+
+/** The weighted sum of `id`'s traits and values (each 0..1); `centre` measures them from the middle (x − 0.5). */
+export function weighed(world: World, id: ActorId, w: Weights, centre = false): number {
+  const c = centre ? 0.5 : 0;
+  const tx = (k: number) => traitOf(world, id, k) - c, vx = (k: number) => valueOf(world, id, k) - c;
+  return (w.open ?? 0) * tx(T_OPEN) + (w.consc ?? 0) * tx(T_CONSC) + (w.extra ?? 0) * tx(T_EXTRA) + (w.agree ?? 0) * tx(T_AGREE)
+    + (w.neuro ?? 0) * tx(T_NEURO) + (w.honest ?? 0) * vx(V_HONEST) + (w.loyal ?? 0) * vx(V_LOYAL) + (w.ambition ?? 0) * vx(V_AMBITION)
+    + (w.faith ?? 0) * vx(V_FAITH);
+}
 
 /** The household a person or animal belongs to, or null (wildlife). */
 export function householdOf(world: World, id: ActorId): Household | null {

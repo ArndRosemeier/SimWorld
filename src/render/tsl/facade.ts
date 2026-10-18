@@ -17,7 +17,7 @@ import {
 } from 'three/tsl';
 import { h_noise2 as vnoise } from '@futuremagic/humanoid/three/nodes/peopleNoise';
 import type { MaterialArrays } from '../textures';
-import { h11, h21, LIGHT, perturbNormalUV } from './common';
+import { h11, h21, LIGHT, SNOW_ALBEDO, perturbNormalUV } from './common';
 import { setDiffuse } from './ground';
 
 const Surf = struct({
@@ -65,7 +65,7 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
   const tiles = arrays.tileMeters.slice(0, 24).concat(new Array(Math.max(0, 24 - arrays.tileMeters.length)).fill(2));
   const uTile = uniformArray(tiles, 'float').setName('uTile');
   const albTex = arrays.albedo, nrmTex = arrays.normal;
-  const { night: uNight, dayLight: uDayLight, litFrac: uLitFrac, shopLit: uShopLit, eatLit: uEatLit, wet: uWet } = LIGHT;
+  const { night: uNight, dayLight: uDayLight, litFrac: uLitFrac, shopLit: uShopLit, eatLit: uEatLit, wet: uWet, snow: uSnow } = LIGHT;
 
   const vMUv = attribute('uv', 'vec2');
   const vLayer = attribute('aLayer', 'float');
@@ -326,6 +326,16 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
       const wW = uWet.mul(add(0.55, mul(0.45, vnoise(vec2(positionWorld.x.add(positionWorld.z), positionWorld.y.mul(0.25)).mul(0.6)))));
       albedo.mulAssign(sub(1.0, mul(0.25, wW)));
       rough.mulAssign(sub(1.0, mul(0.35, wW)));
+    });
+    If(uSnow.greaterThan(0.001).and(frontFacing).and(glass.lessThan(0.5)), () => {
+      // Snow on roofs (sliding off the steep ones) and on ledges.
+      const lie = smoothstep(0.35, 0.65, nW.y);
+      const patchy = smoothstep(0.1, 0.5, uSnow.mul(1.2).add(vnoise(positionWorld.xz.mul(0.35)).sub(0.5).mul(0.45)));
+      const s = lie.mul(patchy);
+      albedo.assign(mix(albedo, vec3(...SNOW_ALBEDO), s));
+      rough.assign(mix(rough, 0.75, s));
+      metal.assign(mix(metal, 0.0, s));
+      tn.assign(mix(tn, tn.mul(0.2), s));
     });
     return Surf(albedo, rough, metal, tn, nStr, emis, ao, glass, door);
   });

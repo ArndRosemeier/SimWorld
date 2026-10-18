@@ -33,7 +33,7 @@ export class TownAudio {
 
   /** What the town sounds like where (from a town worker). */
   setTown(map: SoundMap): void {
-    this.scape = new Soundscape(map, deriveSeed(this.seed, 'soundscape'));
+    this.scape = new Soundscape(map, deriveSeed(this.seed, 'soundscape'), this.seed);
   }
 
   /** The start screen is gone: the town's sounds start and the title music gives way. */

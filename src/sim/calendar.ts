@@ -69,13 +69,18 @@ export function dateOf(world: Dated, clock: number): GameDate {
 }
 
 /** Game day of a real date. */
+/** A running month number (year × 12 + month − 1), for processes that close their books by calendar month. */
+export const monthKey = (world: Dated, clock: number): number => { const d = dateOf(world, clock); return d.year * 12 + d.month - 1; };
+
 export const gameDayOf = (world: Dated, y: number, m: number, d: number): number => daysOf(y, m, d) - world.epoch;
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 /** "Monday 19 October 2026" */
-export const formatDate = (d: GameDate): string => `${WEEKDAYS[d.weekday]} ${d.day} ${MONTHS[d.month - 1]} ${d.year}`;
+export const formatDate = (d: GameDate): string => `${dayAndMonth(d)} ${d.year}`;
+/** "Saturday 12 July": a date in a notice or a paper's What's on. */
+export const dayAndMonth = (d: GameDate): string => `${WEEKDAYS[d.weekday]} ${d.day} ${MONTHS[d.month - 1]}`;
 /** "Monday" */
 export const weekdayName = (weekday: number): string => WEEKDAYS[weekday];
 

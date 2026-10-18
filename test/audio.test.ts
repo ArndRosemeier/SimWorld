@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { CHANNELS, type SoundMap, type SoundSource } from '../src/audio/soundMap';
 import { Soundscape, SCHOOL_BELLS, type Listener, type SoundEnv } from '../src/audio/soundscape';
 import { moodOf, nextPiece, parseTracks } from '../src/audio/music';
-import { LiveClock } from '../src/audio/env';
-import { strikesIn } from '../src/audio/soundscape';
+import { soundEnvOf, soundOverrides } from '../src/audio/env';
+import { DEFAULT_LATITUDE, daysOf, epochFor } from '../src/sim/calendar';
+import { strikesIn } from '../src/sim/weather';
 
 /** A 1 km square town: built in the middle, a river along the east edge, gardens, a church, a school, a farm. */
 function testMap(): SoundMap {
@@ -127,7 +128,14 @@ test('music: the piece fits the hour and the weather, falls back to a day piece,
 });
 
 test('the environment comes from the calendar and the weather: night by the sun, Christmas rings like a Sunday, no school then', () => {
-  const at = (date: string, time: string) => new LiveClock(7, new URLSearchParams({ date, time })).now();
+  // The world as the screen hands it to the sound (src/game/SimClient.ts screenWorld): the date's week, the minute.
+  const hear = (q: URLSearchParams) => {
+    const [y, mo, d] = q.get('date')!.split('-').map(Number), [hh, mm] = q.get('time')!.split(':').map(Number);
+    const epoch = epochFor({ year: y, month: mo, day: d }, 0);
+    const world = { seed: 7, epoch, latitude: DEFAULT_LATITUDE, clock: (daysOf(y, mo, d) - epoch) * 1440 + hh * 60 + mm };
+    return soundEnvOf(world, undefined, soundOverrides(q));
+  };
+  const at = (date: string, time: string) => hear(new URLSearchParams({ date, time }));
   const xmas = at('2026-12-25', '09:45');
   assert.equal(xmas.feast, true);
   assert.equal(xmas.schoolDay, false);
@@ -137,11 +145,47 @@ test('the environment comes from the calendar and the weather: night by the sun,
   assert.equal(tue.schoolDay, true);
   assert.ok(tue.night < 0.05 && at('2026-10-20', '02:00').night > 0.95);
   assert.ok(at('2026-06-20', '21:00').night < at('2026-12-20', '21:00').night + 1e-9 && at('2026-12-20', '17:30').night > 0.9, 'December dusk comes early');
-  const wet = new LiveClock(7, new URLSearchParams({ date: '2026-10-20', time: '12:00', rain: '0.8' })).now();
+  const wet = hear(new URLSearchParams({ date: '2026-10-20', time: '12:00', rain: '0.8' }));
   assert.equal(wet.rain, 0.8);
   assert.deepEqual(strikesIn(3, 100, 0), []);
   assert.deepEqual(strikesIn(3, 100, 1), strikesIn(3, 100, 1));
   let n = 0;
   for (let m = 0; m < 200; m++) n += strikesIn(3, m, 1).length;
   assert.ok(n > 120 && n < 320, `${n} strikes in 200 storm minutes`);
+});
+
+test('the agenda rings the bells: the peal before each service, after a wedding, the knell before a funeral; none at the town hall', () => {
+  const s = new Soundscape(map, 4);
+  const church = { x: 30, z: 10 }, hall = { x: -200, z: -300 };
+  const service = { kind: 'service' as const, start: at(6, 10), end: at(6, 11), ...church };
+  const peal = (clock: number, occasions: SoundEnv['occasions']) => s.loops(here, env(clock, { occasions })).filter((c) => c.id === 'bell_peal');
+  assert.equal(peal(at(6, 9, 45), [service]).length, 1, 'before the service');
+  assert.equal(peal(at(6, 9, 45), [service])[0].y, 25, 'from the tower');
+  assert.equal(peal(at(6, 9, 56), [service]).length, 0, 'quiet once it starts');
+  assert.equal(peal(at(6, 9, 45), []).length, 0, 'no service today: no peal');
+  const wedding = { kind: 'wedding' as const, start: at(5, 13), end: at(5, 14), ...church };
+  assert.equal(peal(at(5, 13, 30), [wedding]).length, 0);
+  assert.equal(peal(at(5, 14, 3), [wedding]).length, 1, 'as the couple come out');
+  assert.equal(peal(at(5, 14, 3), [{ ...wedding, ...hall }]).length, 0, 'the town hall has no bells');
+  assert.ok(minuteShots(new Soundscape(map, 4), at(5, 14), { occasions: [wedding] }).some((x) => x.id === 'crowd_cheer'));
+  const funeral = { kind: 'funeral' as const, start: at(2, 11), end: at(2, 12, 30), ...church };
+  const knell = minuteShots(new Soundscape(map, 4), at(2, 10, 55), { occasions: [funeral] }).filter((x) => x.id === 'bell_toll');
+  assert.deepEqual(knell.map((x) => x.delay), [0, 20, 40]);
+  assert.ok(knell.every((x) => x.pitch < 1), 'a deeper, slower stroke');
+  assert.equal(minuteShots(new Soundscape(map, 4), at(2, 11, 5), { occasions: [funeral] }).filter((x) => x.id === 'bell_toll').length, 0);
+});
+
+test('the agenda fills the square: the market crowd while it runs, the match with its whistles, nothing out of earshot', () => {
+  const s = new Soundscape(map, 5);
+  const market = { kind: 'market' as const, start: at(5, 7, 30), end: at(5, 13), x: 0, z: 60 };
+  const crowd = (clock: number, l = here) => s.loops(l, env(clock, { occasions: [market] })).filter((c) => c.id === 'amb_crowd');
+  assert.equal(crowd(at(5, 10)).length, 1);
+  assert.equal(crowd(at(5, 14)).length, 0, 'packed up');
+  assert.equal(crowd(at(5, 10), { x: 2000, y: 2, z: 0, ground: 0 }).length, 0, 'out of earshot');
+  assert.ok(s.loops(here, env(at(5, 10), { occasions: [market], rain: 1 })).find((c) => c.id === 'amb_crowd')!.gain < crowd(at(5, 10))[0].gain, 'fewer people in the rain');
+  const match = { kind: 'match' as const, start: at(5, 15), end: at(5, 16, 45), x: 50, z: -40 };
+  const whistles = [at(5, 15), at(5, 15, 45), at(5, 16), at(5, 16, 45)];
+  for (const m of whistles) assert.ok(minuteShots(new Soundscape(map, 5), m, { occasions: [match] }).some((x) => x.id === 'ref_whistle'), `whistle at ${m}`);
+  assert.ok(!minuteShots(new Soundscape(map, 5), at(5, 15, 20), { occasions: [match] }).some((x) => x.id === 'ref_whistle'));
+  assert.ok(minuteShots(new Soundscape(map, 5), at(5, 15, 20), { occasions: [match] }).some((x) => x.id === 'ball_kick'));
 });
