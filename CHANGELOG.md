@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.014 — Plan catches up
+
+- The design plan now records automatic merging, versioning with What's new, the surroundings as lore only, and standing knowledge.
+
 ## v0.013 — The country around the town
 
 - Every town now has surroundings its people know about: the nearest big city and how to get there, a larger town nearby with the hospital, four to seven villages with their own character (farms, a lake, vineyards, a harbour, a ruined castle), the river, the hills and woods, the highway, and a few things people like to say about the neighbours.
