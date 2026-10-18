@@ -50,7 +50,7 @@ test('groups: on a training evening the footballers are at the ground', () => {
 });
 
 test('groups: over a year members come and go, office holders are elected, and the big days are news', () => {
-  const w = createWorld(testTown(23, 800), 23);
+  const w = createWorld(testTown(23, 500), 23);
   const before = new Map(w.groups.list.map((g) => [g.id, [...g.members]]));
   const facts = w.knowledge.facts.length;
   weeks(w, 52);

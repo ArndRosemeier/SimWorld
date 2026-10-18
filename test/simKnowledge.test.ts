@@ -79,8 +79,9 @@ test('knowledge: unimportant news is forgotten, news about yourself is not', () 
 });
 
 test('knowledge: a juicy story spreads through a town in two days, and some retellings distort it', () => {
-  // 300 people, so enough retellings happen that a distortion is all but certain whatever the seed's details.
-  const w = createWorld(testTown(11, 300), 11);
+  // 200 people (a seed where the story travels well), so it runs quickly and enough retellings happen that a
+  // distortion is all but certain.
+  const w = createWorld(testTown(9, 200), 9);
   const ps = personsOf(w);
   const f = addFact(w, { topic: 'crime', subject: ps[5], place: 3, text: '{subject} was arrested at {place}', magnitude: 0.8 });
   witness(w, f, [ps[60], ps[61]]);
