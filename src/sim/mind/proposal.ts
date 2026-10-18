@@ -59,6 +59,12 @@ export type ProposalChange =
       claimText?: string;
       reason: string;
     }
+  /**
+   * Something the NPC itself said that is not among its beliefs (the epistemic firewall, plan §3.2).
+   * A lie enters the town as a false story sourced from the NPC (the partner heard it); speculation is only
+   * remembered by the NPC and never becomes a fact.
+   */
+  | { kind: 'utterance'; claim: Claim; form: 'speculation' | 'lie' }
   | { kind: 'memory'; summary: string; importance: number; emotion?: Emotion }
   | { kind: 'endConversation'; reason: string };
 

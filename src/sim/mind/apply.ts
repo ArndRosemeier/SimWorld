@@ -191,6 +191,30 @@ export function applyProposal(world: World, npc: ActorId, proposal: Proposal): A
         done(change, note ? 'softened' : 'applied', note);
         break;
       }
+      case 'utterance': {
+        const claim = change.claim;
+        if (!claim || typeof claim.text !== 'string' || claim.text.trim() === '') { done(change, 'rejected', 'empty claim'); break; }
+        if (claim.about !== undefined && !isPerson(world, claim.about)) { done(change, 'rejected', 'claim about an unknown person'); break; }
+        if (claim.place !== undefined && !validPlace(world, claim.place)) { done(change, 'rejected', 'claim about an unknown place'); break; }
+        const text = claim.text.slice(0, 200);
+        if (change.form === 'speculation') {
+          remember(world, npc, { who: [partner], summary: `guessed out loud that ${text}`, importance: 0.2 });
+          done(change, 'applied', 'remembered only; not a fact');
+          break;
+        }
+        if (change.form !== 'lie') { done(change, 'rejected', 'unknown form'); break; }
+        const topic: FactTopic = (FACT_TOPICS as readonly string[]).includes(claim.topic) ? (claim.topic as FactTopic) : 'other';
+        const f = addFact(world, { topic, subject: claim.about, place: claim.place, magnitude: 0.5, text, secret: !!claim.secret, originator: npc, truth: false });
+        // The partner heard it, as sure as they trust the liar. The liar keeps no belief in it.
+        if (isPerson(world, partner) && partner !== npc) {
+          const pr = world.relations.row(partner, npc);
+          const trust = pr >= 0 ? world.relations.t.cols.trust[pr] : 0.3;
+          believe(world, partner, f, 0.8 * (0.35 + 0.65 * trust), npc, trust);
+        }
+        remember(world, npc, { who: [partner], summary: `told ${world.people.first[world.actors.cols.row[partner]] ?? 'them'} that ${text} (not true)`, importance: 0.5, fact: f });
+        done(change, 'applied', 'a false story sourced from the NPC');
+        break;
+      }
       case 'memory': {
         if (typeof change.summary !== 'string' || change.summary.trim() === '') { done(change, 'rejected', 'empty memory'); break; }
         const importance = clamp(change.importance, 0, 1);

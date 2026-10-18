@@ -80,6 +80,24 @@ test('applyProposal: a promised secret and family loyalty gate "tell" intentions
   assert.equal(intentionsOf(w, npc)[0].fact, f);
 });
 
+test('applyProposal: a lie becomes a false story the partner believes; speculation stays a memory', () => {
+  const w = fresh();
+  const [npc, player, victim] = people(w).slice(40, 43);
+  w.relations.t.cols.trust[w.relations.ensure(player, npc)] = 0.8;
+  const res = applyProposal(w, npc, turn(npc, player, [
+    { kind: 'utterance', claim: { text: 'the baker waters down the milk', about: victim, topic: 'business', secret: false }, form: 'lie' },
+    { kind: 'utterance', claim: { text: 'the pool will close', topic: 'politics', secret: false }, form: 'speculation' },
+  ]));
+  assert.deepEqual(res.map((r) => r.outcome), ['applied', 'applied']);
+  const heard = beliefsOf(w, player).find((b) => b.fact.text === 'the baker waters down the milk')!;
+  assert.equal(heard.source, npc);
+  assert.equal(heard.fact.truth, false);
+  assert.equal(heard.fact.originator, npc);
+  assert.ok(!beliefsOf(w, npc).some((b) => b.fact.text.includes('milk')), 'the liar does not believe it');
+  assert.ok(!w.knowledge.facts.some((f) => f.text === 'the pool will close'), 'speculation is not a fact');
+  assert.ok(memoriesOf(w, npc).some((m) => m.summary.includes('pool')));
+});
+
 test('applyProposal: quitting is carried out (after notice for conscientious people) and the town hears of it', () => {
   const w = fresh();
   const worker = people(w).find((id) => w.people.cols.job[w.actors.cols.row[id]] >= 0)!;
