@@ -113,6 +113,8 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain, opts
         case PropType.Gravestone: furn('gravestone', v, x, z, yaw, sc); break;
         case PropType.Grave: furn('grave', v, x, z, yaw, sc); break;
         case PropType.Tomb: furn('tomb', v, x, z, yaw, sc); break;
+        case PropType.GardenFence: furn('gardenFence', v, x, z, yaw, sc); break;
+        case PropType.Garage: furn('garage', v, x, z, yaw, sc); break;
         case PropType.ParkedCar: case PropType.KerbCar: {
           // Kerbside bays hold the traffic's household cars instead when it draws them (`kerbCars` false).
           if (t === PropType.ParkedCar || kerbCars) {

@@ -136,7 +136,7 @@
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
   {
-    "key": "idiom: [.mul .toVar] in simworld/render/tsl/ground.ts + simworld/render/tsl/interior.ts + simworld/render/tsl/vegetation.ts",
+    "key": "idiom: [.mul .toVar] in simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vegetation.ts",
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
   {

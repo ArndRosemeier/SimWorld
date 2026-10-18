@@ -30,9 +30,10 @@ import {
 export type FurnitureKind = 'lampModern' | 'lampClassic' | 'lampDouble' | 'trafficLight' | 'bench' | 'bin' | 'hydrant' | 'mailbox' | 'bollard' | 'planter' | 'busStop' | 'fountain' | 'statue' | 'kiosk' | 'stopSign' | 'playground' | 'manhole' | 'newsStand' | 'bikeRack' | 'phoneBooth' | 'evCharger'
   | 'cafeTable' | 'cafeChair' | 'parasol' | 'awning' | 'menuBoard' | 'terraceRail' | 'parklet'
   | 'cemWall' | 'gravestone' | 'grave' | 'tomb'
+  | 'gardenFence' | 'garage'
   | 'signBoard' | 'signPost' | 'signFrame' | 'signBracket';
 
-export const FURNITURE_KINDS: FurnitureKind[] = ['lampModern', 'lampClassic', 'lampDouble', 'trafficLight', 'bench', 'bin', 'hydrant', 'mailbox', 'bollard', 'planter', 'busStop', 'fountain', 'statue', 'kiosk', 'stopSign', 'playground', 'manhole', 'newsStand', 'bikeRack', 'phoneBooth', 'evCharger', 'cafeTable', 'cafeChair', 'parasol', 'awning', 'menuBoard', 'terraceRail', 'parklet', 'cemWall', 'gravestone', 'grave', 'tomb', 'signBoard', 'signPost', 'signFrame', 'signBracket'];
+export const FURNITURE_KINDS: FurnitureKind[] = ['lampModern', 'lampClassic', 'lampDouble', 'trafficLight', 'bench', 'bin', 'hydrant', 'mailbox', 'bollard', 'planter', 'busStop', 'fountain', 'statue', 'kiosk', 'stopSign', 'playground', 'manhole', 'newsStand', 'bikeRack', 'phoneBooth', 'evCharger', 'cafeTable', 'cafeChair', 'parasol', 'awning', 'menuBoard', 'terraceRail', 'parklet', 'cemWall', 'gravestone', 'grave', 'tomb', 'gardenFence', 'garage', 'signBoard', 'signPost', 'signFrame', 'signBracket'];
 
 /** The vertex attributes of furniture meshes besides position and normal (the `FURNITURE` kind's). */
 export const FURNITURE_SPECS: AttrSpec[] = [{ name: 'uv', size: 2 }, { name: 'aFurn', size: 3 }, { name: 'aColor', size: 3 }];
@@ -1219,6 +1220,50 @@ function tomb(fb: FB, v: number): number {
 const furnCache = new Map<string, FurnitureModel>();
 
 /** A furniture model (`variant` 0 or 1), built once and cached. */
+// ---------------------------------------------------------------------------------------------
+// House fronts (src/plan/drives.ts): a 2.5 m stretch of garden fence or low wall along x, and a
+// single garage or a carport over a driveway, 6.2 m deep along z, its open front facing −Z.
+// ---------------------------------------------------------------------------------------------
+
+const BRICK: PO = { m: FMat.Stone, c: [0.55, 0.33, 0.26] };
+
+function gardenFence(fb: FB, v: number): number {
+  if (v === 0) {
+    // White wooden pickets on two rails, a post at each end.
+    const white: PO = { m: FMat.Wood, c: [0.88, 0.87, 0.82] };
+    for (const x of [-1.22, 1.22]) fb.box(white, 0.09, 1.0, 0.09, x, 0.5, 0);
+    for (const y of [0.3, 0.72]) fb.box(white, 2.44, 0.07, 0.03, 0, y, 0.04);
+    for (let x = -1.1; x <= 1.11; x += 0.14) {
+      fb.box(white, 0.075, 0.82, 0.022, x, 0.41, 0);
+      fb.box(white, 0.05, 0.05, 0.022, x, 0.83, 0, 0, 0, Math.PI / 4);
+    }
+    return 1.0;
+  }
+  // A low brick wall with a stone coping.
+  fb.box(BRICK, 2.5, 0.75, 0.24, 0, 0.225, 0);
+  fb.box({ m: FMat.Stone, c: [0.62, 0.6, 0.55] }, 2.52, 0.07, 0.3, 0, 0.635, 0);
+  return 0.67;
+}
+
+function garage(fb: FB, v: number): number {
+  const D = 6.2;
+  if (v === 0) {
+    // A rendered single garage with an up-and-over door and a flat roof (its plinth reaches into a slope).
+    const wall: PO = { m: FMat.Concrete, c: [0.78, 0.75, 0.68] };
+    fb.box(wall, 3.3, 2.9, D, 0, 1.05, 0);
+    fb.box({ m: FMat.Concrete, c: [0.3, 0.3, 0.3] }, 3.45, 0.14, D + 0.2, 0, 2.57, 0.05);
+    fb.box(paint([0.82, 0.82, 0.8]), 2.5, 2.05, 0.05, 0, 1.03, -D / 2 - 0.02);
+    for (let y = 0.25; y < 2.0; y += 0.32) fb.box(paint([0.7, 0.7, 0.68]), 2.5, 0.03, 0.02, 0, y, -D / 2 - 0.05);
+    return 2.64;
+  }
+  // A carport: four timber posts and a gently sloping roof.
+  const timber: PO = { m: FMat.Wood, c: [0.45, 0.32, 0.2] };
+  for (const x of [-1.6, 1.6]) for (const z of [-2.8, 2.8]) fb.box(timber, 0.12, 2.3, 0.12, x, 1.15, z);
+  for (const x of [-1.6, 1.6]) fb.box(timber, 0.1, 0.2, D, x, 2.3, 0);
+  fb.box({ m: FMat.PaintedMetal, c: [0.35, 0.37, 0.38] }, 3.6, 0.05, D + 0.3, 0, 2.43, 0, 0, 0.03);
+  return 2.5;
+}
+
 export function furnitureModel(kind: FurnitureKind, variant = 0): FurnitureModel {
   const key = kind + ':' + (Math.abs(variant | 0) % 2);
   let m = furnCache.get(key);
@@ -1267,6 +1312,8 @@ export function buildFurniture(kind: FurnitureKind, variant = 0): FurnitureModel
     case 'gravestone': height = gravestone(fb, v); radius = 0.35; breakable = 'topple'; break;
     case 'grave': height = grave(fb, v); radius = v === 0 ? 0.6 : 0.4; breakable = v === 0 ? 'solid' : 'topple'; break;
     case 'tomb': height = tomb(fb, v); radius = v === 0 ? 2.0 : 1.0; breakable = 'solid'; break;
+    case 'gardenFence': height = gardenFence(fb, v); radius = 1.25; breakable = 'solid'; break;
+    case 'garage': height = garage(fb, v); radius = 3.1; breakable = 'solid'; break;
     case 'signBoard': height = signBoard(fb, v); radius = 0.5; breakable = 'solid'; break;
     case 'signPost': height = signPost(fb, v); radius = 0.06; breakable = 'bend'; break;
     case 'signFrame': height = signFrame(fb, v); radius = v === 0 ? 1.3 : 0.9; breakable = 'solid'; break;
