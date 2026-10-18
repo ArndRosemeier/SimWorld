@@ -11,7 +11,9 @@
  *    or on the wall when the house stands at the back of the pavement);
  *  - sites: a name board in front of each public building;
  *  - corners: a street-name post at each junction of two differently named streets;
- *  - gateways: a town sign beside each road where it enters the town.
+ *  - gateways: a town sign beside each road where it enters the town;
+ *  - posters: a few lamp posts per street where posters for the street's notices go up (on the
+ *    pavement side of the post).
  *
  * Heights are above the building's floor level (`buildingBase`) for wall mounts and above the
  * ground for free-standing ones; the build layer adds the terrain. Yaw is the instance yaw of the
@@ -22,6 +24,7 @@
  */
 import { alongLine } from '../geom/geom2';
 import { dwellingsOf, flatsDoorBay, streetDoor, type BuildingDesc } from './building';
+import { PropType } from './cell';
 import { siteToWorld } from './landmarks';
 import { eachBuilding } from './placeGraph';
 import { LineSource, type TownRoads } from './roads';
@@ -55,18 +58,27 @@ export interface CornerSign { x: number; z: number; blades: { street: number; ya
 /** A town sign facing the traffic coming in (`street`: the road's street index, -1 unnamed). */
 export interface GatewaySign { x: number; z: number; yaw: number; street: number }
 
+/** A poster on a lamp post (`street`: the street's index, `k`: the post's number on that street, 0..). Its centre, facing the pavement. */
+export interface PosterSpot { street: number; k: number; x: number; z: number; yaw: number }
+
 export interface SignSpots {
   fronts: FrontSign[];
   homes: HomeSign[];
   sites: SiteSign[];
   corners: CornerSign[];
   gateways: GatewaySign[];
+  posters: PosterSpot[];
 }
 
 /** Instance yaw whose model front (-Z) faces along (nx, nz). */
 export const facing = (nx: number, nz: number): number => Math.atan2(-nx, -nz);
 /** Instance yaw whose model +X runs along (dx, dz). */
 export const along = (dx: number, dz: number): number => Math.atan2(-dz, dx);
+/** The axes of instance yaw `yaw`: where model +X runs (ax, az) and where its front faces (nx, nz). */
+export const yawAxes = (yaw: number) => {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  return { ax: c, az: -s, nx: -s, nz: -c };
+};
 
 /** How far a hanging sign's centre stands out from its wall (m). */
 export const HANG_OUT = 0.55;
@@ -79,7 +91,44 @@ export function signSpots(town: Town, roads: TownRoads): SignSpots {
     if (b.amenity && b.amenity !== 'vacant' || b.shopfront) fronts.push(frontSign(b, code));
     if (dwellingsOf(b) > 0) homes.push(homeSign(b, code, roads));
   });
-  return { fronts, homes, sites: siteSigns(town), corners: cornerSigns(roads), gateways: gatewaySigns(town, roads) };
+  return { fronts, homes, sites: siteSigns(town), corners: cornerSigns(roads), gateways: gatewaySigns(town, roads), posters: posterSpots(town, roads) };
+}
+
+/** Lamp posts per street that carry posters, and how far apart along the street they are at least (m). */
+const POSTERS_PER_STREET = 3, POSTER_GAP = 40;
+/** A poster's centre: out from the post's axis (m), and its height above the ground. */
+export const POSTER_OUT = 0.09, POSTER_Y = 1.75;
+
+function posterSpots(town: Town, roads: TownRoads): PosterSpot[] {
+  // The planner's street lamps (props: type, x, z, yaw, scale, variant) by the named street they light.
+  const byStreet = new Map<number, { s: number; x: number; z: number; yaw: number }[]>();
+  for (const plan of town.cells) {
+    const P = plan.props;
+    for (let o = 0; o < P.length; o += 6) {
+      if (P[o] !== PropType.Lamp) continue;
+      const hit = roads.nearest(P[o + 1], P[o + 2], 12, -1, true);
+      const street = hit ? roads.lines[hit.li].street : -1;
+      if (street < 0) continue;
+      let list = byStreet.get(street);
+      if (!list) byStreet.set(street, (list = []));
+      list.push({ s: hit!.s + hit!.li * 1e5, x: P[o + 1], z: P[o + 2], yaw: P[o + 3] });
+    }
+  }
+  const out: PosterSpot[] = [];
+  for (const [street, lamps] of [...byStreet].sort((a, b) => a[0] - b[0])) {
+    // Spread along the street: every n-th lamp in street order, apart from the last one taken.
+    lamps.sort((a, b) => a.s - b.s);
+    const step = Math.max(1, Math.floor(lamps.length / POSTERS_PER_STREET));
+    let k = 0;
+    for (let i = Math.floor(step / 2); i < lamps.length && k < POSTERS_PER_STREET; i += step) {
+      const l = lamps[i];
+      if (out.some((p) => p.street === street && Math.hypot(p.x - l.x, p.z - l.z) < POSTER_GAP)) continue;
+      // The lamp faces the pavement (its yaw's front); the poster goes on that side of the post.
+      const { nx, nz } = yawAxes(l.yaw);
+      out.push({ street, k: k++, x: l.x + nx * POSTER_OUT, z: l.z + nz * POSTER_OUT, yaw: l.yaw });
+    }
+  }
+  return out;
 }
 
 /** The front edge: its start, unit direction, length and the outward normal. */

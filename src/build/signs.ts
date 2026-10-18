@@ -9,7 +9,7 @@
 import { hash32, hashToFloat } from '@futuremagic/core';
 import { CURB_H } from '../world/ground';
 import { SITE } from '../plan/placeGraph';
-import { HANG_OUT, signSpots, type FrontSign } from '../plan/signs';
+import { HANG_OUT, POSTER_Y, signSpots, yawAxes, type FrontSign } from '../plan/signs';
 import type { TownRoads } from '../plan/roads';
 import type { Town } from '../plan/town';
 import { buildingBase } from './massing';
@@ -26,7 +26,10 @@ export const SIGN_STRIDE = 10;
  *  - front: the business's name in its style; hours: its opening hours; estate: "for sale" / "to
  *    let" (shown only when the place has that look); site: a public building's name; street: a
  *    street's name; town: the town's name (the back: "thank you for visiting"); post: the
- *    street-name post itself (always shown).
+ *    street-name post itself (always shown); cork: a notice board's cork (`stand`: the
+ *    free-standing one, else the one on a wall); notice: pin `k` of the notices up at `place` (a
+ *    board place's board, a shop's window, a street's lamp posts; `every`: the street's posts show
+ *    its notices in turn, so post k shows notice k mod n).
  */
 export type SignWhat =
   | { t: 'front'; place: number; style: FrontSign['style']; slot: SlotSize }
@@ -35,7 +38,9 @@ export type SignWhat =
   | { t: 'site'; place: number; slot: SlotSize }
   | { t: 'street'; name: string; slot: SlotSize }
   | { t: 'town'; back: boolean; slot: SlotSize }
-  | { t: 'post'; slot: null };
+  | { t: 'post'; slot: null }
+  | { t: 'cork'; stand: boolean; slot: SlotSize }
+  | { t: 'notice'; place: number; k: number; every: boolean; slot: SlotSize };
 
 /** One model's instances (`model`: 'f:<FurnitureKind>:<variant>', as street props). */
 export type SignGroup = ModelInstances;
@@ -49,8 +54,15 @@ export interface SignsData {
 
 const BOARD = 'f:signBoard:0', BOARD2 = 'f:signBoard:1';
 
-/** The planner's places as far as signs need them (`placeGraphOf(town).places`). */
-export type SignPlaces = readonly { id: number; kind: string; building: number }[];
+/** The planner's places as far as signs need them (`placeGraphOf(town).places`; `board`: it has a notice board, BOARD_KINDS). */
+export type SignPlaces = readonly { id: number; kind: string; name: string; building: number; x: number; z: number; board?: boolean }[];
+
+/** Notice boards: the wall one and the free-standing one (width, height m; pins across, in two rows under a header). */
+const WALL_BOARD = { w: 1.0, h: 0.75, cols: 3 }, STAND_BOARD = { w: 1.4, h: 0.8, cols: 4 };
+/** A notice's width to its height (the `sheet` slot's). */
+const SHEET = 256 / 352;
+/** A board's face stands this far out from its origin (the signBoard model's depth); pinned notices just in front of it. */
+const PIN_OUT = 0.022;
 
 /** Every sign of the town; `places` are the planner's (`placeGraphOf`), `name` the town's. */
 export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, name: string): SignsData {
@@ -83,7 +95,7 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
     addSign(f.style === 'hanging' ? BOARD2 : BOARD, f.x, y0 + f.y, f.z, f.style === 'hanging' ? f.yaw + Math.PI / 2 : f.yaw, f.width, f.height, say({ t: 'front', place, style: f.style, slot }), paint);
     if (f.style === 'hanging') {
       // The bracket it hangs from, out of the wall above it (its +X along the wall's normal).
-      const nx = -Math.sin(f.yaw), nz = -Math.cos(f.yaw);
+      const { nx, nz } = yawAxes(f.yaw);
       addSign('f:signBracket:0', f.x - nx * HANG_OUT, y0 + f.y + f.height / 2 + 0.08, f.z - nz * HANG_OUT, f.yaw + Math.PI / 2, 1, 1, say({ t: 'post', slot: null }));
     }
     addSign(BOARD, f.hours.x, y0 + f.hours.y, f.hours.z, f.yaw, 0.24, 0.24, say({ t: 'hours', place, slot: 'card' }), [0.92, 0.92, 0.9]);
@@ -96,7 +108,7 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
     else {
       const y = terrain.height(h.x, h.z);
       // Sideways to the street, so both faces read from the pavement; the board hangs from the arm.
-      const yaw = h.yaw + Math.PI / 2, ax = Math.cos(yaw), az = -Math.sin(yaw);
+      const yaw = h.yaw + Math.PI / 2, { ax, az } = yawAxes(yaw);
       addSign('f:signPost:1', h.x, y, h.z, yaw, 1, 1, w);
       addSign(BOARD2, h.x + ax * 0.35, y + 1.45, h.z + az * 0.35, yaw, 0.6, 0.6, w, ESTATE_PAINT);
     }
@@ -118,6 +130,66 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
       if (w === undefined) streets.set(b.street, (w = say({ t: 'street', name: roads.streets[b.street].name, slot: 'strip' })));
       addSign(BOARD2, c.x, y + 2.55 + k * 0.24, c.z, b.yaw, 0.96, 0.12, w, [0.95, 0.95, 0.95]);
     });
+  }
+  // Notice boards: beside a public building's name board, in a shop's window (or on the wall by its door), on a square.
+  const corks = [say({ t: 'cork', stand: false, slot: 'board' }), say({ t: 'cork', stand: true, slot: 'board' })];
+  const board = (place: number, x: number, y: number, z: number, yaw: number, stand: boolean) => {
+    const B = stand ? STAND_BOARD : WALL_BOARD;
+    addSign(BOARD, x, y, z, yaw, B.w, B.h, corks[stand ? 1 : 0], [0.35, 0.24, 0.14]);
+    const { ax, az, nx, nz } = yawAxes(yaw);
+    const head = B.h * 0.15, rowH = (B.h - head - 0.04) / 2, sh = rowH * 0.9, colW = (B.w - 0.08) / B.cols;
+    for (let r = 0; r < 2; r++) for (let c = 0; c < B.cols; c++) {
+      // (Model +X runs to the reader's left: pins read left to right.)
+      const u = ((B.cols - 1) / 2 - c) * colW, v = B.h / 2 - head - (r + 0.5) * rowH;
+      addSign(BOARD, x + ax * u + nx * PIN_OUT, y + v, z + az * u + nz * PIN_OUT, yaw, sh * SHEET, sh, say({ t: 'notice', place, k: r * B.cols + c, every: false, slot: 'sheet' }), [0.96, 0.96, 0.94]);
+    }
+  };
+  const boarded = new Set<number>();
+  const frontOf = new Map(spots.fronts.map((f) => [f.code, f])), siteOf = new Map(spots.sites.map((g) => [SITE + g.site, g]));
+  for (const p of places) {
+    if (!p.board) continue;
+    boarded.add(p.id);
+    const site = siteOf.get(p.building), f = frontOf.get(p.building);
+    if (site) {
+      // Beside the name board (along its +X), on the same kind of legs.
+      const { ax, az } = yawAxes(site.yaw), x = site.x + ax * 1.9, z = site.z + az * 1.9, y = terrain.height(x, z) + CURB_H;
+      addSign('f:signFrame:1', x, y, z, site.yaw, 1, 1, post);
+      board(p.id, x, y + 0.85, z, site.yaw, true);
+    } else if (f) {
+      const { ax, az, nx, nz } = yawAxes(f.yaw);
+      const side = (f.hours.x - f.x) * ax + (f.hours.z - f.z) * az >= 0 ? 1 : -1;
+      if (f.style === 'fascia') {
+        // A shop's cards in its window, away from the door (against the glass: the window's room behind it is painted on the glass).
+        const off = -side * Math.min(1.2, Math.max(0, f.width / 2 - 0.7));
+        board(p.id, f.x + ax * off - nx * 0.04, base(p.building) + 1.25, f.z + az * off - nz * 0.04, f.yaw, false);
+      } else board(p.id, f.hours.x + ax * side * 0.75, base(p.building) + 1.55, f.hours.z + az * side * 0.75, f.yaw, false);
+    } else if (p.building < 0) {
+      // A square's: at its edge by the street, facing the pavement.
+      const hit = roads.nearest(p.x, p.z, 120);
+      if (!hit) continue;
+      const L = roads.lines[hit.li], d = Math.hypot(hit.px - p.x, hit.pz - p.z) || 1, nx = (hit.px - p.x) / d, nz = (hit.pz - p.z) / d;
+      const back = L.width / 2 + Math.max(L.sidewalk, 0) + 1.2;
+      if (d < back) continue;
+      const x = hit.px - nx * back, z = hit.pz - nz * back, y = terrain.height(x, z) + CURB_H, yaw = Math.atan2(-nx, -nz);
+      addSign('f:signFrame:1', x, y, z, yaw, 1, 1, post);
+      board(p.id, x, y + 0.85, z, yaw, true);
+    }
+  }
+  // Notices in shop windows (a shop's opening or closing): low in the window, away from the door.
+  for (const f of spots.fronts) {
+    const place = work.get(f.code);
+    if (place === undefined || f.style !== 'fascia' || boarded.has(place)) continue;
+    const { ax, az, nx, nz } = yawAxes(f.yaw);
+    const side = (f.hours.x - f.x) * ax + (f.hours.z - f.z) * az >= 0 ? -1 : 1, off = Math.min(0.6, f.width / 4) * side;
+    addSign(BOARD, f.x + ax * off - nx * 0.04, base(f.code) + 1.3, f.z + az * off - nz * 0.04, f.yaw, 0.58 * SHEET, 0.58, say({ t: 'notice', place, k: 0, every: false, slot: 'sheet' }), [0.96, 0.96, 0.94]);
+  }
+  // Posters on the streets' lamp posts.
+  const streetPlace = new Map<string, number>();
+  for (const p of places) if (p.kind === 'street') streetPlace.set(p.name, p.id);
+  for (const ps of spots.posters) {
+    const place = streetPlace.get(roads.streets[ps.street].name);
+    if (place === undefined) continue;
+    addSign(BOARD, ps.x, terrain.height(ps.x, ps.z) + POSTER_Y, ps.z, ps.yaw, 0.42 * SHEET, 0.42, say({ t: 'notice', place, k: ps.k, every: true, slot: 'sheet' }), [0.96, 0.96, 0.94]);
   }
   const front = say({ t: 'town', back: false, slot: 'board' }), back = say({ t: 'town', back: true, slot: 'board' });
   for (const g of spots.gateways) {

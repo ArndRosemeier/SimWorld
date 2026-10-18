@@ -10,6 +10,10 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -33,4 +37,23 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+        env:
+          CI_TIMES_OUT: suite-times.json
+      # What the tests cost: main keeps its timings, each PR is compared with main's last green run (report only).
+      - name: Keep main's suite timings
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-times
+          path: suite-times.json
+          retention-days: 30
+      - name: What this PR's tests cost
+        if: github.event_name == 'pull_request' && !cancelled()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(gh run list --repo "$GITHUB_REPOSITORY" --branch main --workflow CI --status success -L 1 --json databaseId -q '.[0].databaseId')
+          [ -n "$id" ] && gh run download "$id" --repo "$GITHUB_REPOSITORY" -n suite-times -D base || echo "no timings from main yet"
+          node tools/ci/suite-diff.mjs base/suite-times.json suite-times.json | tee -a "$GITHUB_STEP_SUMMARY"
       - run: npx vite build
