@@ -4,12 +4,15 @@
  * A `Transport` turns a wire request into a stream of chunks. The real one is `openRouterTransport`;
  * tests use the recorded one from `recorded.ts`, so the fast suite never touches the network.
  */
+import type { DecisionRequest, DecisionResponse } from './decide';
 import { sseData, type WireChunk, type WireRequest } from './wire';
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
 export interface Transport {
   stream(req: WireRequest, signal?: AbortSignal): AsyncIterable<WireChunk>;
+  /** A decision model's typed answers (src/llm/decide.ts); absent on transports that only chat. */
+  decide?(req: DecisionRequest, signal?: AbortSignal): Promise<DecisionResponse>;
 }
 
 /**
@@ -121,6 +124,19 @@ export function openRouterTransport(opts: OpenRouterOptions): Transport {
         if (e instanceof LlmError) throw e;
         throw asAbort(e, signal);
       }
+    },
+    async decide(req, signal) {
+      if (!opts.apiKey) throw new LlmError('no_key', 'no OpenRouter key set');
+      let res;
+      try {
+        res = await doFetch(`${base.replace(/\/v1$/, '')}/alpha/decisions`, { method: 'POST', headers, body: JSON.stringify(req), signal });
+      } catch (e) {
+        throw asAbort(e, signal);
+      }
+      let body: unknown;
+      try { body = await res.json(); } catch (e) { if (res.ok) throw asAbort(e, signal); }
+      if (!res.ok) throw errorFromStatus(res.status, (body as { error?: { message?: string } } | undefined)?.error?.message ?? `HTTP ${res.status}`);
+      return body as DecisionResponse;
     },
   };
 }

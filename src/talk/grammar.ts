@@ -9,37 +9,40 @@
 import type { Rng } from '@futuremagic/core';
 
 /**
- * Which phrasings were used lately, per speaker and overall, so the same person does not say the same thing twice in
- * a row and the street does not sound like a loop. Plain data, kept by whoever calls the engine (the sim worker),
- * never in the World: it is presentation state, not something the town remembers.
+ * Which phrasings were used lately, so the street does not sound like a loop. Plain data, kept by whoever calls the
+ * engine (the sim worker), never in the World: it is presentation state, not something the town remembers.
+ *
+ * Two memories: what each person said or heard lately (about a day of their talk), so nobody hears the same line
+ * twice in a day; and when each phrasing was last used anywhere, so a bank is used in rotation (least recently
+ * used first) and a phrase comes round again only after the rest of its bank.
  */
 export class TalkMemory {
-  private readonly bySpeaker = new Map<number, string[]>();
-  /** Recent phrasings on the street, oldest first, and how often each is in that window. */
-  private readonly recent: string[] = [];
-  private readonly counts = new Map<string, number>();
+  private readonly byPerson = new Map<number, string[]>();
+  private readonly lastUse = new Map<string, number>();
+  private tick = 0;
 
-  /** A speaker remembers their last `perSpeaker` phrasings (about a day of their talk); the street its last `overall`. */
-  constructor(readonly perSpeaker = 80, readonly overall = 400) {}
+  /** A person remembers the last `perPerson` phrasings they said or heard. */
+  constructor(readonly perPerson = 120) {}
 
-  used(speaker: number, key: string): boolean {
-    return this.counts.has(key) || (this.bySpeaker.get(speaker)?.includes(key) ?? false);
+  /** Whether `person` said or heard `key` lately. */
+  used(person: number, key: string): boolean {
+    return this.byPerson.get(person)?.includes(key) ?? false;
   }
 
-  note(speaker: number, key: string): void {
-    let l = this.bySpeaker.get(speaker);
-    if (!l) this.bySpeaker.set(speaker, (l = []));
-    l.push(key);
-    if (l.length > this.perSpeaker) l.shift();
-    this.recent.push(key);
-    this.counts.set(key, (this.counts.get(key) ?? 0) + 1);
-    if (this.recent.length > this.overall) {
-      const old = this.recent.shift()!;
-      const n = this.counts.get(old)! - 1;
-      if (n) this.counts.set(old, n); else this.counts.delete(old);
+  /** When `key` was last used anywhere (-1: never), for rotation. */
+  age(key: string): number { return this.lastUse.get(key) ?? -1; }
+
+  note(people: readonly number[], key: string): void {
+    this.lastUse.set(key, ++this.tick);
+    for (const p of people) {
+      if (p < 0) continue;
+      let l = this.byPerson.get(p);
+      if (!l) this.byPerson.set(p, (l = []));
+      l.push(key);
+      if (l.length > this.perPerson) l.shift();
     }
-    // Forget speakers once there are many (the street moves on).
-    if (this.bySpeaker.size > 4096) this.bySpeaker.delete(this.bySpeaker.keys().next().value!);
+    // Forget people once there are many (the street moves on).
+    if (this.byPerson.size > 4096) this.byPerson.delete(this.byPerson.keys().next().value!);
   }
 
   /** Per pair of people, today: how often they have talked and what about. */
@@ -57,30 +60,35 @@ export class TalkMemory {
   }
 }
 
-/** What a pick needs: the random stream, the memory (optional) and who is speaking. */
+/** What a pick needs: the random stream, the memory (optional), who is speaking and who hears it. */
 export interface PickContext {
   rng: Rng;
   memory: TalkMemory | null;
   speaker: number;
+  listener?: number;
 }
 
 /**
- * One phrase of `bank`, avoiding what this speaker or the street said lately (a few tries, then anything).
- * `id` names the bank in the memory.
+ * One phrase of `bank`: among those neither the speaker nor the listener said or heard lately, the one used least
+ * recently anywhere (ties at random); without a memory, any. `id` names the bank in the memory.
  */
 export function pick(bank: readonly string[], ctx: PickContext, id: string): string {
   if (bank.length === 0) return '';
   let i = ctx.rng.int(0, bank.length - 1);
-  if (ctx.memory) {
-    // Among the phrases nobody used lately (this speaker or the street); when all were, any.
-    const mem = ctx.memory;
-    if (mem.used(ctx.speaker, `${id}#${i}`)) {
-      const fresh: number[] = [];
-      for (let k = 0; k < bank.length; k++) if (!mem.used(ctx.speaker, `${id}#${k}`)) fresh.push(k);
-      if (fresh.length) i = fresh[ctx.rng.int(0, fresh.length - 1)];
+  const mem = ctx.memory;
+  if (mem && bank.length > 1) {
+    const lis = ctx.listener ?? -1;
+    let best = Infinity, n = 0;
+    for (let pass = 0; pass < 2 && n === 0; pass++) {
+      for (let k = 0; k < bank.length; k++) {
+        const key = `${id}#${bank[k]}`;
+        if (pass === 0 && (mem.used(ctx.speaker, key) || (lis >= 0 && mem.used(lis, key)))) continue;
+        const a = mem.age(key);
+        if (a < best) { best = a; i = k; n = 1; } else if (a === best && ctx.rng.int(0, n++) === 0) i = k;
+      }
     }
-    mem.note(ctx.speaker, `${id}#${i}`);
   }
+  if (mem) mem.note([ctx.speaker, ctx.listener ?? -1], `${id}#${bank[i]}`);
   return expand(bank[i], ctx.rng);
 }
 

@@ -102,8 +102,11 @@ export interface DigestInput {
 
 // --- talk.judge -----------------------------------------------------------------------------------
 
-/** Overheard exchanges to score, each as plain "Name: line" text. */
-export interface JudgeInput { exchanges: string[] }
+/**
+ * Overheard exchanges to score, each as plain "Name: line" text. `repeated`: lines that recur across the whole
+ * sample the batch was drawn from, with their counts (the judge sees one batch, but sameness shows across all).
+ */
+export interface JudgeInput { exchanges: string[]; repeated?: { line: string; count: number }[]; sampleSize?: number }
 
 export interface JudgeScore {
   /** 1-5: every reply answers the line before it, nothing contradicts. */
@@ -300,8 +303,11 @@ export const TASKS: { [K in TaskName]: TaskSpec<TaskIO[K]['input'], TaskIO[K]['o
       return {
         refs: new RefTable(),
         messages: [
-          { role: 'system', content: 'You review short conversations overheard in the street of a small modern town; a game generates them. People greet, pass on gossip (which may be wrong or exaggerated, and listeners may doubt it or know another version), make small talk and part. Score each exchange. Coherence: does every line answer the line before it (an answer fits its question, a reaction fits the news, nobody contradicts themselves, the topic does not jump without reason)? Naturalness: would people say it like this? Short and plain is fine; do not mark down brevity, small talk or a quick goodbye. Be strict and specific.' },
-          { role: 'user', content: input.exchanges.map((x, i) => `Exchange ${i + 1}:\n${x}`).join('\n\n') },
+          { role: 'system', content: 'You review short conversations overheard in the street of a small modern town; a game generates them. People greet, pass on gossip (which may be wrong or exaggerated, and listeners may doubt it or know another version), make small talk and part. Score each exchange. Coherence: does every line answer the line before it (an answer fits its question, a reaction fits the news, nobody contradicts themselves, the topic does not jump without reason)? Naturalness: would people say it like this? Short and plain is fine; do not mark down brevity, small talk or a quick goodbye. Mark down: a reaction whose tone does not fit the news or the relationship (glee at a burglary, a child talking like an adult, sympathy followed at once by a breezy goodbye), stock phrases tacked on where they mean nothing, robotic names for places or people, and anything that reads like a template. Be strict and specific: a 5 is rare and means you could not tell it from real people.' },
+          { role: 'user', content: [
+            ...(input.repeated?.length ? [`These lines recur across the whole sample of ${input.sampleSize ?? 'many'} exchanges the batch comes from (count in brackets). Real townspeople do not repeat themselves like this: give naturalness at most 3 to an exchange that uses one of them that recurs 3 or more times.\n${input.repeated.map((r) => `- (${r.count}) ${r.line}`).join('\n')}`] : []),
+            input.exchanges.map((x, i) => `Exchange ${i + 1}:\n${x}`).join('\n\n'),
+          ].join('\n\n') },
         ],
       };
     },
