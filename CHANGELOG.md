@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.046 — People take the car like real townsfolk
+
+- People with a car now drive most trips over a kilometre or so, as in a real western town. Each person has their own habit: some walk fifteen minutes, others drive three hundred metres.
+- The weekly shop goes in the car, and so do trips in the rain, the cold or the dark. Older people and parents with small children drive more, and on a fine day people walk further.
+- There is about three times as much traffic in town as before, with a proper rush hour.
+
 ## v0.045 — Local politics: the mayor, the council and the town's issues
 
 - The town argues about its own issues: closing the open-air pool, a bypass, a housing estate on the farmland, wind turbines, a 30 km/h limit, parking charges, a skate park, shops open on Sundays, and more.
