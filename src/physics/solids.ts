@@ -38,3 +38,6 @@ export function rampBox(r: { x0: number; y0: number; z0: number; x1: number; y1:
   // The board's centre lies half its thickness under the middle of its top.
   return { x: (r.x0 + r.x1) / 2 + (dx / Math.max(run, 1e-6)) * Math.sin(pitch) * RAMP_T / 2, y: (r.y0 + r.y1) / 2 - c * RAMP_T / 2, z: (r.z0 + r.z1) / 2 + (dz / Math.max(run, 1e-6)) * Math.sin(pitch) * RAMP_T / 2, hx: r.width / 2, hy: RAMP_T / 2, hz: len / 2, yaw: Math.atan2(dx, dz), pitch };
 }
+
+/** A box's edges as pairs of corner numbers (bit 0: +x, bit 1: +y, bit 2: +z). */
+export const EDGES: readonly (readonly [number, number])[] = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];

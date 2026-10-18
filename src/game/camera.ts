@@ -12,11 +12,13 @@
 import type { PerspectiveCamera } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
 
-export type CameraMode = 'drone' | 'street' | 'follow' | 'play';
+export type CameraMode = 'drone' | 'street' | 'follow' | 'play' | 'free';
 
 /** Eye height when walking (m). */
 const EYE = 1.65;
 const WALK = 1.6, HURRY = 6;
+/** The free camera's speed (m/s), with Shift. */
+const FLY = 8, FLY_FAST = 40;
 
 export interface Followed { x: number; y: number; z: number; vx: number; vz: number }
 
@@ -62,6 +64,8 @@ export class CameraControl {
   private lookPitch = -0.22;
   /** Steering last frame (to carry the view over when it starts). */
   private steering = false;
+  /** The free camera (debug menu): its height, and the mode it came from (Escape or `freeCamera(false)` goes back). */
+  private fly = { y: 0, from: 'drone' as CameraMode };
   /** Asks the game for someone to follow near (x, z), someone else each time (-1: none found). */
   pickNear: (x: number, z: number) => number = () => -1;
 
@@ -74,6 +78,7 @@ export class CameraControl {
       if (e.target instanceof HTMLElement && /input|textarea/i.test(e.target.tagName)) return;
       this.keys.add(e.code);
       if (this.mode === 'play') return;
+      if (this.mode === 'free') { if (e.code === 'Escape') this.freeCamera(false); return; }
       if (e.code === 'Enter' && this.mode === 'drone') this.toStreet(this.drone.cx, this.drone.cz);
       else if (e.code === 'KeyF') this.follow(this.pickNear(this.x, this.z));
       else if (e.code === 'Escape') this.goUp();
@@ -140,7 +145,24 @@ export class CameraControl {
     if (this.mode === 'play') this.mode = 'drone';
   }
 
+  /**
+   * The free camera (debug menu): from where the camera is, W A S D along the view (Shift faster), Q and E down
+   * and up, drag to look, through walls and floors; off (or Escape) goes back to the mode it came from.
+   */
+  freeCamera(on: boolean): void {
+    if (on === (this.mode === 'free')) return;
+    if (!on) { this.mode = this.fly.from; if (this.mode === 'play') this.play(); return; }
+    const p = this.camera.position, e = this.camera.matrixWorld.elements;
+    this.fly = { y: p.y, from: this.mode };
+    this.x = p.x; this.z = p.z;
+    this.yaw = Math.atan2(e[8], e[10]);
+    this.pitch = clamp(Math.asin(clamp(-e[9], -1, 1)), -1.2, 1.0);
+    this.mode = 'free';
+    this.following = -1;
+  }
+
   goUp(): void {
+    if (this.mode === 'free') return this.freeCamera(false);
     if (this.mode === 'follow') this.mode = 'street';
     else this.mode = 'drone';
     this.following = -1;
@@ -278,6 +300,7 @@ export class CameraControl {
       this.x = target.x; this.z = target.z; this.yaw = look;
       return;
     }
+    if (this.mode === 'free') return this.flyFrame(dt);
     // Walking: forward is where the camera looks, flattened.
     const k = this.keys, sp = (k.has('ShiftLeft') || k.has('ShiftRight') ? HURRY : WALK) * dt;
     const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
@@ -291,6 +314,22 @@ export class CameraControl {
     cam.position.set(this.x, y, this.z);
     const cp = Math.cos(this.pitch);
     cam.lookAt(this.x + fx * cp, y + Math.sin(this.pitch), this.z + fz * cp);
+  }
+
+  /** A frame of the free camera: along the view, up and down, never held by the ground. */
+  private flyFrame(dt: number): void {
+    const k = this.keys, sp = (k.has('ShiftLeft') || k.has('ShiftRight') ? FLY_FAST : FLY) * dt;
+    const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    const s = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
+    const u = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
+    this.yaw += ((k.has('ArrowLeft') ? 1 : 0) - (k.has('ArrowRight') ? 1 : 0)) * dt * 1.6;
+    const cp = Math.cos(this.pitch), fx = -Math.sin(this.yaw) * cp, fy = Math.sin(this.pitch), fz = -Math.cos(this.yaw) * cp;
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    this.x += (fx * f + rx * s) * sp;
+    this.fly.y += (fy * f + u) * sp;
+    this.z += (fz * f + rz * s) * sp;
+    this.camera.position.set(this.x, this.fly.y, this.z);
+    this.camera.lookAt(this.x + fx, this.fly.y + fy, this.z + fz);
   }
 }
 

@@ -248,7 +248,7 @@
     "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
   },
   {
-    "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/place.ts + simworld/interior/storey.ts",
+    "key": "idiom: [.cos .sin .yaw Math] in simworld/build/debugBars.ts + simworld/interior/building.ts + simworld/interior/fill/place.ts + simworld/interior/storey.ts",
     "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
   },
   {

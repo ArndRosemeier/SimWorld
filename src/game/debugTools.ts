@@ -16,6 +16,7 @@ import { describeWeather } from '../sim/weather';
 import type { TownSettings } from '../world/settings';
 import type { CameraControl } from './camera';
 import type { Playing } from './playing';
+import type { DebugView } from './debugView';
 import type { SimClient } from './SimClient';
 import { reportText, type ReportFacts } from './report';
 
@@ -28,6 +29,8 @@ export interface DebugContext {
   settings: TownSettings;
   /** The real date play began on. */
   start: CivilDate;
+  /** The overlays (colliders, doors, walks). */
+  view: DebugView;
 }
 
 const iso = (d: CivilDate): string => `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`;
@@ -61,8 +64,14 @@ export function addDebugTools(debug: DebugMenu, c: DebugContext): void {
 
   debug.add({ label: 'Date and time', group: 'Time', custom: () => dateTimeForm(sim) });
 
-  debug.add({ label: 'Autopilot', group: 'Play', on: () => sim.player?.autopilot ?? false, set: (on) => playing.setAutopilot(on) });
+  debug.add({ label: 'Autopilot', group: 'Play', isOn: () => sim.player?.autopilot ?? false, set: (on) => playing.setAutopilot(on) });
   debug.add({ label: 'Choose who to be', group: 'Play', run: () => void playing.choose() });
+
+  debug.add({ label: 'Go to', group: 'Go', custom: () => goForm(c) });
+  debug.add({ label: 'Free camera', group: 'Show', note: () => 'W A S D, Q E, drag, Esc', isOn: () => c.cam.mode === 'free', set: (on) => c.cam.freeCamera(on) });
+  debug.add({ label: 'Colliders', group: 'Show', isOn: () => c.view.colliders, set: (on) => { c.view.colliders = on; } });
+  debug.add({ label: 'Door boxes and reach', group: 'Show', isOn: () => c.view.doors, set: (on) => { c.view.doors = on; } });
+  debug.add({ label: 'Walk lines', group: 'Show', isOn: () => c.view.walks, set: (on) => { c.view.walks = on; } });
 
   debug.add({ label: 'Shader report to the console', group: 'Render', run: () => console.info(stage.monitor.report()) });
 }
@@ -89,6 +98,39 @@ function dateTimeForm(sim: SimClient): HTMLElement {
     location.assign(u);
   });
   return f;
+}
+
+/**
+ * Go somewhere (the body moves there; you take the wheel if on autopilot): `#123` a person (beside them, or in their
+ * building), `b 65539` a building (just inside its street door; the code as reports show it), `x, z` a point.
+ */
+function goForm(c: DebugContext): HTMLElement {
+  const f = el('form', 'dbg-form');
+  const what = el('input', '');
+  what.placeholder = '#person, b building, or x, z';
+  const said = el('span', 'dbg-note');
+  const go = button('', 'Go', () => {});
+  go.type = 'submit';
+  f.append(what, go, said);
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void goTo(c, what.value.trim()).then((s) => { said.textContent = s; });
+  });
+  return f;
+}
+
+async function goTo(c: DebugContext, v: string): Promise<string> {
+  const person = /^#?\s*(\d+)$/.exec(v), building = /^b\s*(\d+)$/i.exec(v), point = /^(-?[\d.]+)\s*[, ]\s*(-?[\d.]+)$/.exec(v);
+  if (person && v.startsWith('#')) {
+    const r = await c.sim.ask({ op: 'locate', id: Number(person[1]) });
+    const l = r.located;
+    if (!l) return 'nobody by that number';
+    const ok = l.building >= 0 ? await c.playing.teleport(l.x, l.z, l.building) : await c.playing.teleport(l.x + 1.5, l.z, -1);
+    return ok ? `at ${l.name}` : 'could not move';
+  }
+  if (building) return (await c.playing.teleport(0, 0, Number(building[1]))) ? 'inside' : 'could not move (no interior?)';
+  if (point) return (await c.playing.teleport(Number(point[1]), Number(point[2]))) ? 'there' : 'could not move';
+  return 'say #id, b code or x, z';
 }
 
 /** The GPU as the browser names it (WebGL 2's unmasked renderer where it tells). */
