@@ -13,6 +13,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | `src/plan`, `src/world` | The town planner and terrain (ported from Scale). Pure data. | core; from `src/sim` only `import type` (the place graph contract) and the per-kind defaults in `src/sim/placeKinds.ts` |
 | `src/build` | Mesh data from the plan: terrain tiles, water, the town's ground, building shells with facade attributes, landmarks, country roads, the procedural material textures (ported from Scale). Typed arrays, runs in workers. | core, `src/geom`, `src/plan`, `src/world` (no three.js, guarded) |
 | `src/workers` | The worker pool and the workers (town workers, texture workers; the sim worker, planned). | everything pure |
+| `src/traffic` | The town's traffic: the road network for cars, the cars driving and parking, the car trips out of the sim. Pure, runs on the main thread for the visible town and in headless tests. | core, `src/plan`, `src/world`, `src/build`, `src/sim` (reads the world, never writes it) |
 | `src/talk` | The procedural text engine (background chatter, fallback answers). Pure. | core, `src/sim` types |
 | `src/llm` | OpenRouter, the model roster, task routing, usage ledger, prompt building, response contracts. No state of its own about NPCs. | core, `src/sim` types |
 | `src/render` | three.js: renderer, Stage, materials, lights, meshes, views. | everything pure |
@@ -71,6 +72,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Which ground-floor uses does a town have, which sim place kind is each? | `AmenityKind`, `amenityCounts(pop, warm)`, `PLACE_KIND_OF`, `EATERY_OF`, `AMENITY_LABEL` (hours, staff and capacity are the sim's `placeKinds`) | `src/plan/amenities.ts` |
 | What is this shop front / workplace? | `b.amenity` (set by `planTown`), `b.eatery` for the terrace kind | `src/plan/town.ts`, `src/plan/eatery.ts` |
 | The country around the town (big city, larger town, villages, river, roads), as lore | `regionOf(town)` → `Region` (sim contract in `src/sim/region.ts`); `planRegion(hints)` without planning a town | `src/plan/region.ts` |
+| The town's roads as one network of lines (arterials, streets, footpaths, country roads, tracks) cut at their junctions, with street names | `townRoads(town)` → `TownRoads` (`lines`, `nodes`, `streets`, `nearest`); `alongLine`, `slicePolyline`. The place graph and the traffic network are both built from it | `src/plan/roads.ts` |
 | The town as the sim sees it (places, addresses, road network) | `placeGraphOf(town)` → `PlaceGraph`; `buildingRef(place.building)` back to the cell building, site or farm | `src/plan/placeGraph.ts` |
 | Build mesh data (any kind) | `MeshBuilder(specs)` → `build(): MeshData`; the specs are the material kind's `attributes` | `src/build/meshBuilder.ts` |
 | A procedural material texture layer (facade, roof, ground; tileable RGBA8 albedo+roughness, normal+height+AO) | `generateFacadeLayer(i, size)`, `generateGroundLayer(i, size)`, `FACADE_TILE_METERS`, `GROUND_TILE_METERS`, `TEX_SIZE`; building blocks `TNoise`, `worley`, `Tex`, `Layout`, `brickWall`, `stoneBlocks` | `src/build/texgen/` |
@@ -80,6 +82,18 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Buildings and public buildings as shells for the facade shader (walls, roofs; layer, tint, bay, storeys, flags `FF`) | `buildBuildings(mb, buildings, terrain)`, `buildLandmark(mb, lm, terrain)`, `facadeSpecs()`, `paint(mb, layer, tint, flags?, bay?, fh?, gh?)`; a building's floor level and plinth bottom `buildingBase(b, terrain)`, its tiers `buildingTiers(b)` | `src/build/massing.ts` |
 | 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |
 | Polygon union, difference, intersection, offset | `src/geom/clip.ts` (clipper) | `src/geom/clip.ts` |
+
+### Traffic (`src/traffic`)
+
+| Question | The one way | Where |
+|---|---|---|
+| The roads cars use: edges, lanes, speed limit (km/h), junction rules (lights, give way), surface height (bridge decks), routes | `new RoadNet(town)`: `edges` (`kmh`, `rule`, `park`), `nodes` (`signal`, `exit`), `carRoute`, `laneOffset` (right-hand, lane 0 at the kerb), `lanePoint`, `heightAt`, `nearestEdge`, `ruleAt`, `rank`; the limits `LIMITS` | `src/traffic/roadNet.ts` |
+| Height of a country road or a bridged main road where cars drive on it | `countryRoadSurface(road, terrain)`, `bridgeDeckSurface(bridge, terrain)` (RoadNet samples them per edge) | `src/build/rural.ts`, `src/build/bridges.ts` |
+| Where do parked cars stand? Is there a free bay near here? | `Parking`: kerbside bays and farm yards (`spots`), `parkNear`, `nearestFree`, `reserve`/`arrive`/`release`, `spotOf`, `restAt`, `occupied()`; no bay near: off the street (not drawn) | `src/traffic/parking.ts` |
+| Make a car drive somewhere, park, leave the map; may a person cross here? | `Traffic`: `depart(car, goal)` (a parked car), `enter(car, exit, goal)` (from the region), `place(car, edge, fwd, s, goal)` (scripted: buses, rounds); `update(dt)`; `vehicles`, `onPark`, `onGone`; `obstacles` (people on the road), `safeToCross(x, z)`; `weatherK`, `daylight` | `src/traffic/traffic.ts` |
+| Which inhabitants are driving now? | `TripWatcher.poll(world)` → `CarTrip[]`; `drives(world, id, from, to)`; where a household's car stands at load: `carPlace(world, household)` (stand-in until the sim logs its trips itself) | `src/traffic/trips.ts` |
+| The town's traffic from the sim (household cars, through traffic) | `TownTraffic(town, places, seed)`: `placeCars`, `trips(trips, clock)` once per game minute, `update(dt)` per frame; a household's car model `householdCar(seed, household)` | `src/traffic/townTraffic.ts` |
+| Draw the cars | the vehicle view *planned* (instanced `VEHICLE` kind, per-instance lights) | `src/render/vehiclesView.ts` *planned* |
 
 ### The app (`src/app`)
 

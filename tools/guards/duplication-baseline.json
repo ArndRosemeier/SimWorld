@@ -40,15 +40,15 @@
     "reason": "Axis vectors of a frame (cos, sin of its angle) computed once for a loop; the point transforms go through geom2 frameToWorld / worldToFrame."
   },
   {
-    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/sim/travel.ts",
+    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/sim/travel.ts + simworld/traffic/townTraffic.ts + simworld/traffic/traffic.ts",
     "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
   },
   {
-    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/placeGraph.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
+    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/placeGraph.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/traffic/parking.ts + simworld/traffic/traffic.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
     "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
   },
   {
-    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/placeGraph.ts",
+    "key": "idiom: [.hypot .x .z Math] in simworld/plan/macro.ts + simworld/render/townView.ts + simworld/traffic/traffic.ts",
     "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
   },
   {
