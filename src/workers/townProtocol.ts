@@ -5,6 +5,7 @@
 import type { MeshData } from '../build/meshBuilder';
 import type { TownSettings } from '../world/settings';
 import type { ParcelParams } from '../world/landuse';
+import type { SoundMap } from '../audio/soundMap';
 
 import type { TerrainTileSpec as TileSpec } from '../build/terrainMesh';
 
@@ -19,7 +20,9 @@ export type ToTown =
   /** The countryside: roads, farmyards and the railway (ground), the farms' buildings. */
   | { type: 'country' }
   /** The town's river bridges: deck (ground) and structure (massing). */
-  | { type: 'bridges' };
+  | { type: 'bridges' }
+  /** What the town sounds like where (src/audio/soundMap.ts). */
+  | { type: 'sound' };
 
 /** What the main thread needs to know about the town to lay out the view. */
 export interface TownSummary {
@@ -46,4 +49,5 @@ export type FromTown =
   | { type: 'landmark'; mesh: MeshData | null; ms: number }
   | { type: 'country'; ground: MeshData | null; buildings: MeshData | null; ms: number }
   | { type: 'bridges'; ground: MeshData | null; buildings: MeshData | null; ms: number }
+  | { type: 'sound'; map: SoundMap; ms: number }
   | { type: 'error'; message: string };

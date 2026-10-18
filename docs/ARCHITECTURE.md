@@ -15,6 +15,8 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | `src/workers` | The worker pool and the workers (town workers, texture workers; the sim worker, planned). | everything pure |
 | `src/talk` | The procedural text engine (background chatter, fallback answers). Pure. | core, `src/sim` types |
 | `src/llm` | OpenRouter, the model roster, task routing, usage ledger, prompt building, response contracts. No state of its own about NPCs. | core, `src/sim` types |
+| `src/audio` | Sound: the sound map (made in a town worker), the soundscape (pure: what plays when and where), the music choice, and the Web Audio engine that plays them (no three.js). | core, `src/sim` (time), `src/plan`, `src/world`, `src/geom`, `src/persist` |
+| `src/persist` | Preferences now, saves later: the one place that touches `localStorage` (guarded). | nothing of ours |
 | `src/render` | three.js: renderer, Stage, materials, lights, meshes, views. | everything pure |
 | `src/app` | DOM UI: loading/selector, chat panel, HUD, settings. | everything |
 | `src/game` | Glue: the main loop, input, wiring the sim worker to the views. | everything |
@@ -87,6 +89,17 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 |---|---|---|
 | Which version is this build, what changed? | `VERSION` and `whatsNewButton()` / `openWhatsNew()` (read CHANGELOG.md at build time via `parseChangelog`); versions are given only by the changelog fold after each merge (`changes/README.md`) | `src/app/whatsNew.ts`, `src/app/changelog.ts`, `tools/changelog.mjs` |
 
+### Sound (`src/audio`)
+
+| Question | The one way | Where |
+|---|---|---|
+| Play a sound (a car passing, a train horn, a door, a dog) | `townAudio.play(id, x, y, z, gain?, pitch?, refDist?)`; ids and their files, gains and mix categories in `public/sounds/manifest.json`; thunder for a strike: `townAudio.thunder(x, y, z, distance)`. Never a second `AudioContext`. | `src/audio/townAudio.ts` |
+| The Web Audio engine: one-shots, positioned loops, ambience beds, the ambience low-pass, music streams, volume, mute and the mix | `AudioEngine` (`play`, `loop`, `setAmbience`, `setMuffle`, `streamMusic`, `setVolume`, `setMuted`, `setMix`; `SOUND_CATEGORIES`) | `src/audio/engine.ts` |
+| What does the town sound like here (built-up, busy, green, water, sea, country; ground height) and where do sounds come from (bell towers, schools, farms, gardens)? | `soundMapOf(town)` in a town worker (`{ type: 'sound' }`), `soundAt(map, x, z)`, `groundAt` | `src/audio/soundMap.ts` |
+| Which beds play how loud, which bells, school bells, dogs, mowers, roosters sound now? | `Soundscape` (`ambience`, `shots`, `loops`) from the sound map, the game clock and the weather (`SoundEnv`); the rhythms' times `BELL_HOURS`, `SUNDAY_PEAL`, `SCHOOL_BELLS`, `SCHOOLYARD` | `src/audio/soundscape.ts` |
+| Which music piece plays, and when | `MusicPlayer`; the choice `nextPiece` / `moodOf`; the pieces in `public/music/tracks.json` (docs/MUSIC.md) | `src/audio/music.ts` |
+| Make or replace a sound clip or a music piece | sounds: `tools/sounds/studio.mjs` (Seed Audio takes, blind listening), `tools/sounds/build.mjs` (cuts), docs/SOUNDS.md; music: `tools/music/lyria.mjs`, docs/MUSIC.md | `tools/sounds/`, `tools/music/` |
+
 ### Workers and persistence
 
 | Question | The one way | Where |
@@ -95,7 +108,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Plan the town and build its mesh data off the main thread | the town workers (`ToTown` / `FromTown`, `TownSummary`) | `src/workers/town.worker.ts`, `src/workers/townProtocol.ts` |
 | Generate the material texture layers off the main thread | the texture workers (`ToTex` / `FromTex`) | `src/workers/tex.worker.ts`, `src/workers/texProtocol.ts` |
 | Run the society simulation | the sim worker, talked to through `SimClient` | `src/workers/sim.worker.ts`, `src/game/SimClient.ts` *planned* |
-| Save or load anything | `src/persist` (guarded: `localStorage` only there) | `src/persist/` *planned* |
+| Save or load anything | `src/persist` (guarded: `localStorage` only there); the player's small preferences: `readPref`, `writePref`, `readNumPref`, `readJsonPref` (saves of the world, planned) | `src/persist/prefs.ts` |
 
 ### The society (`src/sim`)
 

@@ -138,5 +138,25 @@
   {
     "key": "same name: simworld/build/texgen/facade.ts#extra + simworld/build/texgen/ground.ts#extra",
     "reason": "Two implementations of the one StoneOpts.extra hook (per-layer stone detail), not two copies of a helper."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops. (Listed again in this grouping since src/audio joined the corpus and the finder regrouped the sim's files.)"
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops. (Listed again in this grouping since src/audio joined the corpus and the finder regrouped the sim's files.)"
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops. (Listed again in this grouping since src/audio joined the corpus and the finder regrouped the sim's files.)"
+  },
+  {
+    "key": "idiom: [.fromEntries .map Object] in simworld/audio/engine.ts + simworld/audio/soundMap.ts + simworld/llm/appraisal.ts",
+    "reason": "Building a record keyed by a fixed list of ids (sound categories, sound-map channels, LLM appraisal fields): one line of plain JavaScript each, with a different list and value per place."
+  },
+  {
+    "key": "idiom: [.x .y .z] in simworld/audio/soundscape.ts + simworld/audio/townAudio.ts + simworld/main.ts",
+    "reason": "Reading a 3D position (the camera, a sound source, a listener) field by field into plain numbers at the boundary between three.js and the audio layer, which takes no three.js types by design (rules.json, src/audio)."
   }
 ]

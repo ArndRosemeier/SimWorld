@@ -15,6 +15,7 @@ import { placeGraphOf, buildingRef } from '../src/plan/placeGraph';
 import { PLACE_KINDS } from '../src/sim/places';
 import { createWorld } from '../src/sim/synth';
 import { regionOf } from '../src/plan/region';
+import { groundAt, soundAt, soundMapOf } from '../src/audio/soundMap';
 
 // One small town shared by the file (planning it is the expensive part).
 const town = planTown({ seed: 1, size: 0 });
@@ -137,4 +138,23 @@ test('the region follows the town: the big city lies along the railway, nothing 
   const cityBearing = { north: 0, 'north-east': 45, east: 90, 'south-east': 135, south: 180, 'south-west': 225, west: 270, 'north-west': 315 }[region.places[0].dir];
   const off = Math.abs(((cityBearing - railBearing + 540) % 360) - 180);
   assert.ok(off <= 45, `city ${region.places[0].dir}, rail at ${railBearing.toFixed(0)}°`);
+});
+
+test('the sound map hears the town: bells at the church tower, gardens in the suburbs, water by the river, country outside', () => {
+  const map = soundMapOf(town);
+  for (const lm of macro.landmarks.filter((l) => l.kind === 'church')) {
+    assert.ok(map.sources.some((s) => s.kind === 'church' && s.x === lm.x && s.z === lm.z && s.y > lm.base + 10), 'bells up in the tower');
+  }
+  assert.equal(map.sources.filter((s) => s.kind === 'farm').length, rural.farms.length);
+  assert.ok(map.sources.some((s) => s.kind === 'garden'));
+  const centre = soundAt(map, macro.centres[0].x, macro.centres[0].z);
+  assert.ok(centre.built > 0.2 && centre.rural < 0.2, `centre ${JSON.stringify(centre)}`);
+  const far = soundAt(map, terrain.profile.radius + 2000, 0);
+  assert.ok(far.rural > 0.8 && far.built < 0.05, `country ${JSON.stringify(far)}`);
+  for (const river of terrain.rivers) {
+    let best = 0;
+    for (let i = 0; i < river.pts.length; i += 2) if (Math.hypot(river.pts[i], river.pts[i + 1]) < Math.hypot(river.pts[best], river.pts[best + 1])) best = i;
+    if (Math.hypot(river.pts[best], river.pts[best + 1]) < terrain.profile.radius + 1000) assert.ok(soundAt(map, river.pts[best], river.pts[best + 1]).water > 0.5, 'river heard');
+  }
+  assert.ok(Math.abs(groundAt(map, 0, 0) - terrain.height(0, 0)) < 3);
 });

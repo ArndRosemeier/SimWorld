@@ -28,6 +28,15 @@
       .wn-version { margin-right: 4px; color: #e9b85c; font-weight: 400; }
       .wn-release ul { margin: 0; padding-left: 18px; color: #cfd6dc; }
       .wn-release li { margin: 3px 0; }
+      /* The sound control (src/app/soundPanel.ts), above What's new. */
+      .snd-button { position: fixed; right: 12px; bottom: 44px; z-index: 25; padding: 5px 10px; border: 1px solid #4f4232aa; border-radius: 3px; background: #050607cc; color: #b9ad96; font: 12px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.06em; cursor: pointer; }
+      .snd-button:hover, .snd-button:focus-visible { color: #ece3d0; border-color: #e9b85c; outline: none; }
+      .snd-panel { position: fixed; right: 12px; bottom: 78px; z-index: 30; width: min(300px, calc(100vw - 24px)); padding: 12px 16px 14px; background: #0d0f11f2; border: 1px solid #4f4232; box-shadow: 0 8px 40px #000a; color: #cfd6dc; font: 13px/1.3 'Alegreya Sans', system-ui, sans-serif; }
+      .snd-panel h2 { margin: 0 0 8px; font: 400 18px/1 'IM Fell English', Georgia, serif; letter-spacing: 0.08em; color: #ece3d0; }
+      .snd-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0; }
+      .snd-row span { flex: 1; }
+      .snd-row input[type=range] { flex: none; width: 130px; accent-color: #e9b85c; }
+      .snd-mute input { accent-color: #e9b85c; }
       #hud { position: fixed; left: 12px; top: 10px; pointer-events: none; white-space: pre; text-shadow: 0 1px 2px #000; }
     </style>
   </head>

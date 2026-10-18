@@ -5,10 +5,12 @@
  * game come in their own changes (docs/design/simworld-plan.md R2).
  *
  * `?seed=…&size=…` (0 … 1) pick the town; `?tex=…` the texture size in texels (256 default, 512 sharper and slower); `?at=x,z&r=…&h=…&a=…` fix the drone's centre, distance,
- * height and angle (radians) instead of circling, for screenshots.
+ * height and angle (radians) instead of circling, for screenshots. Sound: `?time=HH:MM`, `?day=0…6` (0 Monday),
+ * `?month=0…11`, `?rain=0…1`, `?wind=0…1` set what the soundscape hears instead of the real clock;
+ * `?mute` keeps it silent.
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
-import { clamp } from '@futuremagic/core';
+import { clamp, smoothstep } from '@futuremagic/core';
 import { createRenderer, GraphicsUnavailable } from './render/renderer';
 import { Stage } from './render/stage';
 import { fitSunShadow, makeLights } from './render/lights';
@@ -23,6 +25,10 @@ import { useTextures } from './render/materials';
 import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
+import { TownAudio } from './audio/townAudio';
+import type { SoundEnv } from './audio/soundscape';
+import type { FromTown as Reply } from './workers/townProtocol';
+import { soundButton } from './app/soundPanel';
 
 const SKY = 0xa9c8e4;
 
@@ -33,6 +39,23 @@ function settingsFromUrl(): TownSettings {
   return { seed: Number.isFinite(seed) ? seed >>> 0 : DEFAULT_SETTINGS.seed, size: Number.isFinite(size) ? clamp(size, 0, 1) : DEFAULT_SETTINGS.size };
 }
 
+/**
+ * What time it is for the soundscape: the real clock (D3: game time = real time) until the sim's
+ * clock runs in the game, and fair weather until the weather does (both: track B, "Sky, weather and
+ * seasons"). The URL can set them for listening tests.
+ */
+function soundEnvNow(q: URLSearchParams): SoundEnv {
+  const now = new Date();
+  const [hh, mm] = (q.get('time') ?? '').split(':').map(Number);
+  // A set time runs on from the page load, like the real one.
+  const mod = Number.isFinite(hh) ? (hh * 60 + (Number.isFinite(mm) ? mm : 0) + (performance.now() / 60000)) % 1440 : now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const day = q.has('day') ? clamp(Math.floor(Number(q.get('day'))), 0, 6) : (now.getDay() + 6) % 7;
+  const h = mod / 60;
+  const night = 1 - smoothstep(5.5, 7.5, h) * (1 - smoothstep(18.5, 20.5, h));
+  const num = (k: string, d: number): number => (q.has(k) && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : d);
+  return { clock: day * 1440 + mod, month: clamp(Math.floor(num('month', now.getMonth())), 0, 11), night, rain: clamp(num('rain', 0), 0, 1), wind: clamp(num('wind', 0.15), 0, 1) };
+}
+
 function step(text: string, frac?: number): void {
   const el = document.querySelector('#loading .step');
   if (el) el.textContent = text;
@@ -40,7 +63,7 @@ function step(text: string, frac?: number): void {
   if (bar && frac !== undefined) bar.style.width = `${Math.round(frac * 100)}%`;
 }
 
-async function start(): Promise<void> {
+async function start(audio: TownAudio): Promise<void> {
   const settings = settingsFromUrl();
   const cores = Math.max(1, (navigator.hardwareConcurrency || 4) - 1);
   // The town workers start planning at once; the texture workers generate the facade textures
@@ -78,6 +101,8 @@ async function start(): Promise<void> {
   const town = ready.town;
   setParcels(town.parcels);
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
+  // What the town sounds like where: one worker works it out alongside the meshes.
+  void pool.run<Extract<Reply, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => audio.setTown(r.map));
   const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total));
 
   // The drone drift: a slow circle around the town, high enough to see it whole.
@@ -86,14 +111,20 @@ async function start(): Promise<void> {
   const [cx, cz] = (q.get('at') ?? `${town.x},${town.z}`).split(',').map(Number);
   const R = num('r', town.radius * 1.35), H = town.y + num('h', town.radius * 0.55), fixed = q.has('a') ? num('a', 0) : null;
   const hud = document.getElementById('hud');
-  let shown = false;
+  let shown = false, lastT = 0;
+  const fwd = { x: 0, y: 0, z: 0 };
   renderer.setAnimationLoop((t: number) => {
+    const dt = lastT ? Math.min(0.25, (t - lastT) / 1000) : 0;
+    lastT = t;
     stage.frame();
     const a = fixed ?? t * 0.00002;
     camera.position.set(cx + Math.cos(a) * R, H, cz + Math.sin(a) * R);
     camera.lookAt(cx, town.y, cz);
     renderer.render(scene, camera);
-    if (!shown && view.done > 0) { shown = true; document.getElementById('loading')?.remove(); }
+    const e = camera.matrixWorld.elements;
+    fwd.x = -e[8]; fwd.y = -e[9]; fwd.z = -e[10];
+    audio.update(dt, { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: fwd.x, fy: fwd.y, fz: fwd.z, ux: e[4], uy: e[5], uz: e[6] }, soundEnvNow(q));
+    if (!shown && view.done > 0) { shown = true; document.getElementById('loading')?.remove(); audio.startTown(); }
     if (hud) hud.textContent = `${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}`;
   });
   await view.ready;
@@ -101,8 +132,18 @@ async function start(): Promise<void> {
 
 // The version and What's new sit on the start screen and stay in the corner once the town is up.
 document.body.append(whatsNewButton());
+// Sound starts with the first click or key (browsers allow nothing earlier): the title music on the
+// start screen, then the town.
+const audio = new TownAudio(settingsFromUrl().seed);
+document.body.append(soundButton(audio.engine));
+void audio.init();
+// The title music runs while the start screen is up; the render loop takes over once it starts.
+const startScreen = setInterval(() => {
+  if (document.getElementById('loading')) audio.tickMusic(0.1, soundEnvNow(new URLSearchParams(location.search)));
+  else clearInterval(startScreen);
+}, 100);
 
-start().catch((err) => {
+start(audio).catch((err) => {
   const el = document.querySelector('#loading .step');
   if (el) el.textContent = err instanceof GraphicsUnavailable ? 'This browser cannot draw 3D graphics (WebGL 2 needed).' : `Start failed: ${err instanceof Error ? err.message : String(err)}`;
   throw err;

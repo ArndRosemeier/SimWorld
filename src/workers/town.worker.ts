@@ -12,6 +12,7 @@ import { buildBridges } from '../build/bridges';
 import { facadeSpecs, buildBuildings, buildLandmark } from '../build/massing';
 import { planTown, type Town } from '../plan/town';
 import { parcelParams } from '../world/landuse';
+import { soundMapOf, soundMapTransferables } from '../audio/soundMap';
 import type { FromTown, ToTown } from './townProtocol';
 
 let town: Town | null = null;
@@ -71,6 +72,7 @@ function handle(m: ToTown): FromTown {
       const b = buildBridges(macro.bridges, terrain, macro.edges);
       return { type: 'bridges', ground: out(b.deck), buildings: out(b.structure), ms: ms() };
     }
+    case 'sound': return { type: 'sound', map: soundMapOf(town), ms: ms() };
   }
 }
 
@@ -87,7 +89,8 @@ self.onmessage = (ev: MessageEvent<ToTown & { job?: number }>) => {
   const job = ev.data.job;
   try {
     const r = handle(ev.data);
-    (self as unknown as Worker).postMessage({ ...r, job }, meshesOf(r).flatMap(meshTransferables));
+    const transfer = r.type === 'sound' ? soundMapTransferables(r.map) : meshesOf(r).flatMap(meshTransferables);
+    (self as unknown as Worker).postMessage({ ...r, job }, transfer);
   } catch (err) {
     (self as unknown as Worker).postMessage({ type: 'error', job, message: err instanceof Error ? `${err.message}\n${err.stack}` : String(err) });
   }

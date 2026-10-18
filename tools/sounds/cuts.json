@@ -1,0 +1,148 @@
+{
+ "_doc": "What tools/sounds/build.mjs cuts from the chosen takes (raw takes: /mnt/project-files/simworld/sounds/raw/<id>/<take>.wav). from/to in seconds; loop: crossfade the tail into the head (xf seconds).",
+ "bell_toll": [
+  {
+   "take": "bell_toll/seed1",
+   "from": 0,
+   "to": 8.5
+  }
+ ],
+ "bell_peal": [
+  {
+   "take": "bell_peal/seed5",
+   "from": 0.5,
+   "to": 15.0,
+   "loop": true,
+   "xf": 2.0
+  }
+ ],
+ "school_bell": [
+  {
+   "take": "school_bell/seed2",
+   "from": 0,
+   "to": 4.5
+  }
+ ],
+ "lawnmower": [
+  {
+   "take": "lawnmower/seed2",
+   "from": 1.5,
+   "to": 12.8,
+   "loop": true,
+   "xf": 1.5
+  }
+ ],
+ "kids_playground": [
+  {
+   "take": "kids_playground/seed2",
+   "from": 0.3,
+   "to": 23.4,
+   "loop": true,
+   "xf": 2.0
+  }
+ ],
+ "dog_bark": [
+  {
+   "take": "dog_bark/seed1",
+   "from": 0.3,
+   "to": 0.8
+  },
+  {
+   "take": "dog_bark/seed2",
+   "from": 1.75,
+   "to": 2.3
+  },
+  {
+   "take": "dog_bark/seed3",
+   "from": 0.25,
+   "to": 0.8
+  },
+  {
+   "take": "dog_bark/seed4",
+   "from": 1.5,
+   "to": 2.05
+  }
+ ],
+ "dog_yap": [
+  {
+   "take": "dog_yap/seed2",
+   "from": 0,
+   "to": 2.4
+  }
+ ],
+ "rooster_crow": [
+  {
+   "take": "rooster_crow/seed1",
+   "from": 0,
+   "to": 2.5
+  },
+  {
+   "take": "rooster_crow/seed3",
+   "from": 0,
+   "to": 3.0
+  }
+ ],
+ "cow_moo": [
+  {
+   "take": "cow_moo/seed1",
+   "from": 0,
+   "to": 2.0
+  },
+  {
+   "take": "cow_moo/seed2",
+   "from": 0,
+   "to": 2.5
+  },
+  {
+   "take": "cow_moo/seed4",
+   "from": 0,
+   "to": 2.0
+  }
+ ],
+ "train_horn": [
+  {
+   "take": "train_horn/seed3",
+   "from": 0,
+   "to": 5.0
+  },
+  {
+   "take": "train_horn/seed2",
+   "from": 0,
+   "to": 4.5
+  }
+ ],
+ "train_pass": [
+  {
+   "take": "train_pass/seed1",
+   "from": 0,
+   "to": 19.5
+  }
+ ],
+ "crossing_bells": [
+  {
+   "take": "crossing_bells/seed4",
+   "from": 0.5,
+   "to": 11.5,
+   "loop": true,
+   "xf": 1.0
+  }
+ ],
+ "amb_country_day": [
+  {
+   "take": "amb_country_day/seed5",
+   "from": 0,
+   "to": 22.0,
+   "loop": true,
+   "xf": 2.5
+  }
+ ],
+ "amb_country_night": [
+  {
+   "take": "amb_country_night/seed9",
+   "from": 0,
+   "to": 26.5,
+   "loop": true,
+   "xf": 2.5
+  }
+ ]
+}
