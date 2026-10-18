@@ -11,23 +11,55 @@ import { performIntention } from './actions';
 import { activeIntention, avoids } from './intentions';
 import { urgentNeed } from './needs';
 import { HABITS, HABIT_COUNT, T_CONSC, T_EXTRA, T_OPEN, V_FAITH } from './people';
-import type { Service } from './placeKinds';
-import type { PlaceId, PlaceKind } from './places';
+import { KINDS, type Service } from './placeKinds';
+import type { Trip } from './travel';
+import type { DayMask, PlaceId, PlaceKind } from './places';
+import type { Job } from './people';
 import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIES, speciesId } from './species';
-import { atMinute, MINUTES_PER_DAY, minuteOfDay, onDay, weekdayOf } from './time';
+import { atMinute, dayOf, MINUTES_PER_DAY, minuteOfDay, weekdayOf } from './time';
+import { drawingOn } from './agenda';
+import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
 import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, type World } from './world';
 
-/** Is a place open to visitors at `clock`? Places without hours are always open. */
+/** Does a weekday mask include weekday `wd`? */
+const onMask = (mask: DayMask, wd: number) => ((mask >> wd) & 1) === 1;
+
+/** Kinds that open on Christmas Day and New Year's Day (with their Sunday hours); everything else with hours is shut. */
+const FEAST_OPEN = new Set<PlaceKind>(['church', 'cemetery', 'pub', 'restaurant', 'park', 'square']);
+/** Kinds that close at 14:00 on Christmas Eve and New Year's Eve. */
+const EVE_EARLY = new Set(['food', 'service']);
+
+/** Does the place open at all on the day of `clock` (holidays and school terms considered)? */
+function opensOn(world: World, place: PlaceId, clock: number): boolean {
+  const kind = world.graph.places[place].kind;
+  if (feast(world, clock) && !FEAST_OPEN.has(kind)) return false;
+  return kind !== 'school' || schoolDay(world, clock);
+}
+
+/**
+ * Is a place open to visitors at `clock`? Places without hours are always open. The week is read through the
+ * calendar: public holidays keep Sunday hours, Christmas Day and New Year's Day shut nearly everything, the eves close
+ * the shops early, and the school is shut in the holidays.
+ */
 export function isOpen(world: World, place: PlaceId, clock: number): boolean {
-  const hours = world.graph.places[place].hours;
-  if (hours.length === 0) return true;
+  const pl = world.graph.places[place];
+  if (pl.hours.length === 0) return true;
   const m = minuteOfDay(clock);
-  for (const h of hours) {
-    if (onDay(h.days, clock) && m >= h.open && m < h.close) return true;
+  const prev = clock - MINUTES_PER_DAY;
+  for (const h of pl.hours) {
+    if (m >= h.open && m < h.close && onMask(h.days, runsLike(world, clock)) && opensOn(world, place, clock)) {
+      return !(m >= 840 && EVE_EARLY.has(KINDS[pl.kind].category) && pl.kind !== 'pub' && pl.kind !== 'restaurant' && eve(world, clock));
+    }
     // A window that runs past midnight, started yesterday.
-    if (h.close > MINUTES_PER_DAY && onDay(h.days, clock - MINUTES_PER_DAY) && m + MINUTES_PER_DAY < h.close) return true;
+    if (h.close > MINUTES_PER_DAY && m + MINUTES_PER_DAY < h.close && onMask(h.days, runsLike(world, prev)) && opensOn(world, place, prev)) return true;
   }
   return false;
+}
+
+/** Is the day of `clock` a working day of `job`? Holidays run like Sundays; staff of places shut for a feast stay home. */
+export function worksOn(world: World, job: Job, clock: number): boolean {
+  if (!onMask(job.days, runsLike(world, clock))) return false;
+  return world.graph.places[job.place].hours.length === 0 || opensOn(world, job.place, clock);
 }
 
 /** Activities that take dependents (small children, the dog) along. */
@@ -43,6 +75,11 @@ export function arrive(world: World): void {
       a.activity[id] = a.planned[id];
     }
   }
+  // Drop the trips that are over: arrived, or replaced by a new plan on the way.
+  const trips = world.trips;
+  let n = 0;
+  for (const t of trips) if (a.dest[t.who] === t.to && a.arrive[t.who] === t.arrive && a.alive[t.who]) trips[n++] = t;
+  trips.length = n;
 }
 
 /** Everyone whose activity has ended decides what to do next. */
@@ -72,7 +109,9 @@ export function go(world: World, id: ActorId, place: PlaceId, activity: number, 
     a.activity[id] = activity;
     a.until[id] = Math.max(until, now + 5);
   } else {
-    const t = world.travel.minutes(from, place, hasCar(world, id));
+    const car = hasCar(world, id);
+    const t = world.travel.minutes(from, place, car);
+    world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode: world.travel.mode(from, place, car), leader: -1 });
     a.dest[id] = place;
     a.arrive[id] = now + t;
     const street = world.streetOf[place];
@@ -91,9 +130,13 @@ function leadFollowers(world: World, leader: ActorId): void {
   const hh = householdOf(world, leader);
   if (!hh) return;
   const outing = OUTINGS.has(a.dest[leader] >= 0 ? a.planned[leader] : a.activity[leader]);
+  let trip: Trip | undefined;
+  if (a.dest[leader] >= 0) for (let i = world.trips.length - 1; i >= 0 && !trip; i--) if (world.trips[i].who === leader) trip = world.trips[i];
   for (const list of [hh.members, hh.animals]) for (const f of list) {
     if (a.with[f] !== leader) continue;
     if (!outing) { a.with[f] = -1; a.until[f] = world.clock; continue; }
+    // They ride or walk along: one car, one group on the pavement.
+    if (trip && a.dest[f] !== trip.to) world.trips.push({ ...trip, who: f, leader });
     a.place[f] = a.place[leader]; a.dest[f] = a.dest[leader]; a.arrive[f] = a.arrive[leader];
     a.activity[f] = a.activity[leader]; a.planned[f] = a.planned[leader]; a.until[f] = a.until[leader];
   }
@@ -153,23 +196,23 @@ interface Day { wake: number; sleep: number; shift: [number, number] | null; sch
 function anchors(world: World, id: ActorId): Day {
   const a = world.actors.cols, pc = world.people.cols, p = a.row[id];
   const now = world.clock;
-  const weekend = weekdayOf(now) >= 5;
+  const weekend = runsLike(world, now) >= 5;
   const job = jobOf(world, id);
   let wake = pc.wake[p];
   // Lie-in on days off.
-  if (!job || !onDay(job.days, now)) { if (weekend && ageOf(world, id) >= 10) wake += 60; }
+  if (!job || !worksOn(world, job, now)) { if (weekend && ageOf(world, id) >= 10) wake += 60; }
   let shift: [number, number] | null = null;
   if (job && pc.leaveUntil[p] <= now) {
     const travelTime = commute(world, id, job.place);
     for (const d of [0, -1]) {
       const day = now + d * MINUTES_PER_DAY;
-      if (!onDay(job.days, day)) continue;
+      if (!worksOn(world, job, day)) continue;
       const s = atMinute(day, job.start), e = atMinute(day, job.end);
       if (now >= s - travelTime - 5 && now < e) { shift = [s, e]; break; }
     }
   }
   let school: [number, number] | null = null;
-  if (pc.school[p] >= 0 && weekdayOf(now) < 5 && pc.leaveUntil[p] <= now) {
+  if (pc.school[p] >= 0 && pc.leaveUntil[p] <= now && (world.graph.places[pc.school[p]].kind === 'school' ? schoolDay(world, now) : runsLike(world, now) < 5)) {
     const kg = world.graph.places[pc.school[p]].kind === 'kindergarten';
     const age = ageOf(world, id);
     const s = atMinute(now, kg ? 450 : 465), e = atMinute(now, kg ? 870 : age < 10 ? 780 : 915);
@@ -253,7 +296,7 @@ function decidePerson(world: World, id: ActorId): void {
   let limit = bedtime;
   if (job) for (const d of [0, 1]) {
     const day2 = now + d * MINUTES_PER_DAY;
-    if (!onDay(job.days, day2)) continue;
+    if (!worksOn(world, job, day2)) continue;
     const s = atMinute(day2, job.start) - world.travel.minutes(home, job.place, hasCar(world, id)) - 5;
     if (s > now) { limit = Math.min(limit, s); break; }
   }
@@ -281,6 +324,28 @@ export function nearestWith(world: World, from: PlaceId, service: Service, id: A
 
 interface Option { place: PlaceId; activity: number; minutes: [number, number]; weight: number }
 
+/**
+ * What is on in town (src/sim/agenda.ts) that this person might go to now: the market, the service, the festival,
+ * a club evening. Each occasion still under way for a while is offered, weighted by its pull and whom it appeals to.
+ */
+function occasions(world: World, id: ActorId, age: number, offer: (place: PlaceId, activity: number, minutes: [number, number], weight: number, occasion: boolean) => void): void {
+  const now = world.clock;
+  const list = drawingOn(world, dayOf(now));
+  if (list.length === 0) return;
+  const faith = world.people.cols.values[world.actors.cols.row[id] * 4 + V_FAITH];
+  for (const o of list) {
+    if (o.start > now + 45 || o.end < now + 30) continue;
+    if (o.guests && !o.guests.includes(id)) continue;
+    const fit = o.appeal === 'faith' ? faith * faith * 2.5 : o.appeal === 'children' ? (age < 13 ? 1 : 0) : o.appeal === 'adults' ? (age >= 16 ? 1 : 0.2) : 1;
+    if (fit <= 0) continue;
+    const left = o.end - now;
+    const place = o.place >= 0 ? o.place : world.streetOf[world.actors.cols.home[id]];
+    // Arriving for the start pulls hardest; an occasion well under way still draws, but less.
+    const fresh = now <= o.start + 30 ? 1 : 0.5;
+    offer(place, o.activity, [Math.min(left, 60), Math.min(left, 180)], o.pull * fit * fresh * 4, true);
+  }
+}
+
 /** Pick a free-time activity from needs, habits and personality (plan §1.3). */
 function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rng): void {
   const a = world.actors.cols, pc = world.people.cols, p = a.row[id];
@@ -289,16 +354,20 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
   const here = a.place[id] >= 0 ? a.place[id] : home;
   const t = (k: number) => pc.traits[p * 5 + k];
   const need = (n: number) => 1 - a.needs[id * NEED_COUNT + n];
-  const daylight = m >= 420 && m < 1230;
+  // The park while it is light; the dog goes out in the dark too, but not in the small hours.
+  const sun = sunAt(world, now);
+  const daylight = m >= sun.rise + 30 && m < sun.set;
+  const dogHours = m >= 390 && m < 1290;
   const options: Option[] = [];
-  const offer = (place: PlaceId, activity: number, minutes: [number, number], weight: number) => {
+  const offer = (place: PlaceId, activity: number, minutes: [number, number], weight: number, occasion = false) => {
     if (place < 0 || weight <= 0 || avoids(world, id, -1, place)) return;
-    if (place !== home && !isOpen(world, place, now + 15)) return;
+    if (place !== home && !occasion && !isOpen(world, place, now + 15)) return;
     // Do not start an outing that would barely fit.
     if (place !== here && world.travel.minutes(here, place) * 2 + minutes[0] > limit - now) return;
     options.push({ place, activity, minutes, weight });
   };
   const evening = m >= 1200;
+  occasions(world, id, age, offer);
   offer(home, A.idle, [30, 90], 1 + need(N_REST) * 2 + (1 - t(T_EXTRA)) * 0.8 + (evening ? 2 : 0) + (age < 10 ? 4 : 0));
   if (age >= 10) {
     const habit = (h: string) => pc.habits[p * HABIT_COUNT + HABITS.indexOf(h as never)];
@@ -309,8 +378,7 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
     if (daylight) offer(habit('park'), A.leisure, [30, 90], (0.2 + fun * 1.2) * (0.5 + t(T_OPEN)));
     offer(habit('sports'), A.exercise, [45, 100], (0.1 + fun) * t(T_CONSC) * (age < 70 ? 1 : 0.2));
     const faith = pc.values[p * 4 + V_FAITH];
-    const service = weekdayOf(now) === 6 && m >= 540 && m < 600;
-    offer(habit('church'), A.worship, service ? [70, 90] : [20, 40], service ? 8 * faith : 0.05 * faith);
+    offer(habit('church'), A.worship, [20, 40], 0.05 * faith);
     offer(habit('library'), A.leisure, [30, 90], 0.4 * t(T_OPEN));
     if (age >= 16 && m >= 480 && m < 1170) offer(habit('shop'), A.shop, [20, 45], 0.5);
     // A bakery run in the morning.
@@ -327,7 +395,7 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
     }
     // Walk the dog.
     const hh = householdOf(world, id);
-    if (hh && daylight) {
+    if (hh && dogHours) {
       const dog = speciesId('dog');
       for (const an of hh.animals) {
         if (a.species[an] !== dog || a.place[an] !== hh.home || a.with[an] >= 0) continue;

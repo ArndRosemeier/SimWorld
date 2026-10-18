@@ -11,9 +11,8 @@ import { remember } from './memory';
 import type { PlaceId } from './places';
 import { go, nearestWith } from './schedule';
 import { atMinute, minuteOfDay } from './time';
-import { jobOf, nameOf, type World } from './world';
+import { firstName, jobOf, nameOf, type World } from './world';
 
-const first = (world: World, id: ActorId) => (world.actors.cols.kind[id] === 0 ? world.people.first[world.actors.cols.row[id]] : nameOf(world, id));
 
 /**
  * Act on an intention now. Returns true if the actor is now busy with it (moving or doing), false if it was
@@ -34,6 +33,14 @@ export function performIntention(world: World, id: ActorId, i: Intention): boole
       const place = i.place >= 0 ? i.place : i.person >= 0 ? a.home[i.person] : i.kind === 'eat' ? nearestWith(world, here, 'eat', id) : -1;
       if (place < 0 || here === place) { dropIntention(world, id, i); return false; }
       return stay(place, i.kind === 'eat' ? A.eat : i.kind === 'visit' ? A.visit : A.errand, Math.min(90, Math.max(20, i.until - now)));
+    }
+    case 'attend': {
+      // A wedding, a funeral, a meeting: be there until it ends, doing what it is for.
+      const occ = world.agenda.once.find((o) => o.id === i.fact);
+      if (!occ || i.place < 0) { dropIntention(world, id, i); return false; }
+      dropIntention(world, id, i);
+      go(world, id, i.place, occ.activity, i.until);
+      return true;
     }
     case 'seeDoctor': {
       const place = i.place >= 0 ? i.place : nearestWith(world, here, 'doctor', id);
@@ -59,7 +66,7 @@ export function performIntention(world: World, id: ActorId, i: Intention): boole
       if (here === place && i.item === '\u0000waited') {
         // Waited and they never came.
         if (i.person >= 0) {
-          remember(world, id, { who: [i.person], summary: `${first(world, i.person)} didn't show up`, importance: 0.5, emotion: 'sadness' });
+          remember(world, id, { who: [i.person], summary: `${firstName(world, i.person)} didn't show up`, importance: 0.5, emotion: 'sadness' });
           const r = world.relations.ensure(id, i.person);
           world.relations.t.cols.affection[r] = Math.max(-1, world.relations.t.cols.affection[r] - 0.08);
           world.relations.t.cols.trust[r] = Math.max(0, world.relations.t.cols.trust[r] - 0.05);
@@ -119,7 +126,7 @@ export function fulfil(world: World, id: ActorId, i: Intention, e: Encounter): v
     const told = tell(world, id, i.person, i.fact);
     if (told >= 0) {
       e.told = told;
-      remember(world, id, { who: [i.person], summary: `told ${first(world, i.person)} that ${factText(world, world.knowledge.facts[told])}`, importance: 0.4, fact: told });
+      remember(world, id, { who: [i.person], summary: `told ${firstName(world, i.person)} that ${factText(world, world.knowledge.facts[told])}`, importance: 0.4, fact: told });
     }
   } else if (i.kind === 'give') {
     const amount = Number.parseFloat(i.item);
@@ -128,10 +135,10 @@ export function fulfil(world: World, id: ActorId, i: Intention, e: Encounter): v
       pc.money[a.row[id]] -= give;
       pc.money[a.row[i.person]] += give;
     }
-    remember(world, id, { who: [i.person], summary: `gave ${first(world, i.person)} ${i.item || 'something'}`, importance: 0.4 });
-    remember(world, i.person, { who: [id], summary: `${first(world, id)} gave me ${i.item || 'something'}`, importance: 0.5, emotion: 'joy' });
+    remember(world, id, { who: [i.person], summary: `gave ${firstName(world, i.person)} ${i.item || 'something'}`, importance: 0.4 });
+    remember(world, i.person, { who: [id], summary: `${firstName(world, id)} gave me ${i.item || 'something'}`, importance: 0.5, emotion: 'joy' });
   } else if (i.kind === 'meet') {
-    remember(world, id, { who: [i.person], summary: `met ${first(world, i.person)} at ${world.graph.places[e.place].name}`, importance: 0.4 });
+    remember(world, id, { who: [i.person], summary: `met ${firstName(world, i.person)} at ${world.graph.places[e.place].name}`, importance: 0.4 });
     a.until[id] = Math.max(a.until[id], world.clock + 30);
   }
   dropIntention(world, id, i);
