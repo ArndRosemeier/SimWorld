@@ -32,11 +32,12 @@ const OWNED: Readonly<Record<string, string>> = {
 const LANDMARK = {
   church: ["St {saint}'s Church", "St {saint}'s Church", "St {saint}'s Church", "St {saint}'s Church", 'Holy Trinity Church', 'Christ Church', 'All Saints Church'],
   school: ['{root} School', '{city} School', '{root} Road School', '{root} Lane School'],
-  kindergarten: ['{root} Kindergarten', 'Little Acorns Kindergarten', 'Rainbow Kindergarten', 'Busy Bees Kindergarten', "{root} Children's House"],
+  kindergarten: ['{root} Kindergarten', 'Little Acorns Kindergarten', 'Rainbow Kindergarten', 'Little Wrens Kindergarten', "{root} Children's House"],
   clinic: ['{city} Medical Practice', '{root} Medical Practice', '{root} Clinic', '{city} Clinic'],
   sports: ['{root} Park', '{root} Field', '{city} Sports Park', '{root} Fields', '{city} Sports Field'],
   carehome: ['{root} House', '{root} Court', '{root} Lodge', '{root} Manor', 'The Willows', 'Evergreen House'],
   petrol: ['{root} Fuel Station', '{city} Fuel', 'QuickFuel', 'Roadside Fuel', '{root} Fuel Station'],
+  supermarket: ['Harvest Market', 'DailyFare', 'Corner Basket', 'Pantry Lane', 'Brightcart', 'Fieldgate Foods'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type SignKind = keyof typeof SIGN;
