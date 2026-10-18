@@ -12,7 +12,7 @@
  * When the talk ends, `memory.summary` gives the person their memory of it and both remember it (`end`); they go back
  * to their day. The world keeps running while you talk.
  */
-import type { ChatHeader, ChatRequest } from '../chat/ops';
+import { TALK_MIN_AGE, type ChatHeader, type ChatRequest } from '../chat/ops';
 import { LlmError, type AppraisalResult, type NpcPromptInput, type Turn } from '../llm';
 import { ChatPanel, type PastChat } from '../app/chatPanel';
 import { openLlmSettings } from '../app/llmSettings';
@@ -21,7 +21,7 @@ import type { LlmSetup } from './llmSetup';
 import type { SimClient } from './SimClient';
 import type { Street } from './street';
 import { formatDate } from '../sim/calendar';
-import { hhmm, minuteOfDay } from '../sim/time';
+import { DAYS_PER_YEAR, hhmm, MINUTES_PER_DAY, minuteOfDay } from '../sim/time';
 
 /** How close you must be to talk to someone (m). */
 export const TALK_RANGE = 6;
@@ -46,6 +46,8 @@ interface Conversation {
   procedural: boolean;
   busy: boolean;
   over: boolean;
+  /** Lines typed while they were still answering, sent in turn. */
+  queued: string[];
 }
 
 export class Chat {
@@ -81,9 +83,15 @@ export class Chat {
   /** Who T would talk to now: the person followed, or the nearest one in reach on the street; -1 if nobody. */
   target(): number {
     if (this.cam.mode === 'drone') return -1;
-    if (this.cam.mode === 'follow' && this.cam.following >= 0) return this.cam.following;
+    if (this.cam.mode === 'follow' && this.cam.following >= 0) return this.canTalk(this.cam.following) ? this.cam.following : -1;
     const p = this.here();
-    return this.street.peopleNear(p.x, p.z, TALK_RANGE).find((n) => n.id !== this.me)?.id ?? -1;
+    return this.street.peopleNear(p.x, p.z, TALK_RANGE).find((n) => n.id !== this.me && this.canTalk(n.id))?.id ?? -1;
+  }
+
+  /** Old enough to hold a conversation (the sim checks again on `start`). */
+  private canTalk(id: number): boolean {
+    const w = this.sim.walkers.get(id);
+    return !!w && (this.sim.clock / MINUTES_PER_DAY - w.info.birth) / DAYS_PER_YEAR >= TALK_MIN_AGE;
   }
 
   /** A HUD line: who you could talk to, or who you are talking to. */
@@ -117,7 +125,7 @@ export class Chat {
     const clock = this.sim.clock;
     this.talk = {
       id: `chat-${npc}-${header.player}-${Math.floor(clock)}`, header, turns: [], began: clock, told: [], last: null,
-      pending: Promise.resolve(), abort: new AbortController(), procedural: !this.setup.hasKey, busy: false, over: false,
+      pending: Promise.resolve(), abort: new AbortController(), procedural: !this.setup.hasKey, busy: false, over: false, queued: [],
     };
     // Face to face: they stop and turn to you. On the street the camera steps up to them; while you play someone the
     // camera stays with your inhabitant, and the person turns to them.
@@ -135,7 +143,8 @@ export class Chat {
 
   private async send(text: string): Promise<void> {
     const c = this.talk;
-    if (!c || c.busy || c.over) return;
+    if (!c || c.over) return;
+    if (c.busy) { c.queued.push(text); return; }
     c.busy = true;
     this.panel.busy(true);
     c.turns.push({ speaker: 'partner', text });
@@ -181,6 +190,8 @@ export class Chat {
     } finally {
       c.busy = false;
       if (!c.over) this.panel.busy(false);
+      const next = c.queued.shift();
+      if (next !== undefined && this.talk === c && !c.over) void this.send(next);
     }
   }
 

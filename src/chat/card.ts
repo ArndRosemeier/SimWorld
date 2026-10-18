@@ -23,12 +23,12 @@ import { ageOf, firstName, householdOf, nameOf, traitOf, valueOf, type World } f
 export const occupationText = (world: World, id: ActorId): string => lowerFirst(occupationOf(world, id));
 const lowerFirst = (s: string): string => s.charAt(0).toLowerCase() + s.slice(1);
 
-/** "a house on Elm Street", "a flat on Mill Lane". */
+/** "a house on Elm Street", "an apartment on Mill Lane". */
 export function homeOf(world: World, id: ActorId): string {
   const home = world.actors.cols.home[id];
   if (home < 0) return '';
   const p = world.graph.places[home];
-  const what = p.kind === 'carehome' ? 'a room at the care home' : p.kind === 'farmhouse' ? 'a farmhouse' : p.kind === 'house' ? 'a house' : 'a flat';
+  const what = p.kind === 'carehome' ? 'a room at the care home' : p.kind === 'farmhouse' ? 'a farmhouse' : p.kind === 'house' ? 'a house' : 'an apartment';
   return p.street ? `${what} on ${p.street}` : what;
 }
 
@@ -39,10 +39,10 @@ export function traitsOf(world: World, id: ActorId): Traits {
 }
 
 const VERBAL_HABITS = [
-  'says "right then" when changing the subject', 'starts answers with "Well,"', 'says "honestly" a lot', 'calls people "love"',
+  'says "anyway" when changing the subject', 'starts answers with "Well,"', 'says "honestly" a lot', 'calls people "friend"',
   'trails off with "anyway..."', 'answers questions with a question now and then', 'uses "to be fair" when disagreeing',
   'says "you know what I mean?"', 'laughs at their own jokes', 'sighs before bad news', 'says "fair enough"',
-  'swears mildly when surprised', 'says "mind you" before a second thought', 'likes a good proverb',
+  'swears mildly when surprised', 'says "then again" before a second thought', 'likes a good proverb',
 ];
 
 /**

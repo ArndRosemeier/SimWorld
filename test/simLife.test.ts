@@ -117,7 +117,7 @@ test('life: someone ill stays home in bed', () => {
 });
 
 test('life: with a region, people move away to real places and newcomers come from them', () => {
-  const region = planRegion({ seed: 4, town: 'Testford', coastal: false, seaBearing: 0, hilliness: 0.4, warmth: 0.5, american: false, oldWorld: 0.7, railBearing: 90, railTerminus: false, downstreamBearing: 200 });
+  const region = planRegion({ seed: 4, town: 'Testford', coastal: false, seaBearing: 0, hilliness: 0.4, warmth: 0.5, oldWorld: 0.7, railBearing: 90, railTerminus: false, downstreamBearing: 200 });
   const world = createWorld(testTown(4, 300), 4, { region });
   live(world, 2 * 365, 7);
   const names = region.places.map((p) => p.name);
