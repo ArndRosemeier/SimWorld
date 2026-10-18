@@ -13,7 +13,8 @@ import { lampsOf, propFar, propInstances, propModel } from '../build/streetProps
 import { ForestGen, townTrees } from '../build/forest';
 import { buildVegModel } from '../build/vegetation';
 import { facadeSpecs, buildBuildings, buildLandmark, buildingBase, buildingTiers } from '../build/massing';
-import { INTERIOR_SPECS, buildCutaway } from '../build/interior';
+import { INTERIOR_SPECS, buildCutaway, buildIndoors } from '../build/interior';
+import { indoorsOf } from '../interior/indoors';
 import { planInterior, storeyFacade } from '../interior/building';
 import { polyBounds } from '../geom/geom2';
 import { planTown, type Town } from '../plan/town';
@@ -32,6 +33,8 @@ import type { SignFacts } from '../render/signFacts';
 let town: Town | null = null;
 let water: WaterSources | null = null;
 let forest: ForestGen | null = null;
+/** The planner's places (made on first need): a workplace's staff and capacity size its interior. */
+let places: ReturnType<typeof placeGraphOf> | null = null;
 
 const out = (mb: MeshBuilder | null): MeshData | null => (mb && !mb.empty ? mb.build() : null);
 
@@ -118,6 +121,21 @@ function handle(m: ToTown): FromTown {
       const about = `${b.style} ${b.use}${b.amenity ? ` (${b.amenity})` : ''}, floor ${f} of ${I.storeys.length}${homes}`;
       return { type: 'interior', mesh: out(mb), at: [cx, base + I.storeys[f].y, cz], radius: Math.hypot(x1 - x0, z1 - z0) / 2, floors: I.storeys.length, about, ms: ms() };
     }
+    case 'indoors': {
+      const b = cells[m.cell]?.buildings[m.index];
+      if (!b) throw new Error(`no building ${m.index} in cell ${m.cell}`);
+      places ??= placeGraphOf(town);
+      const code = m.cell * 65536 + m.index, work = places.places.find((p) => p.building === code && !p.homes);
+      const I = planInterior(b, work ? { staff: work.staff, capacity: work.capacity } : undefined);
+      const { base } = buildingBase(b, terrain);
+      const ind = indoorsOf(I, base);
+      const [x0, z0, x1, z1] = polyBounds(b.poly), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+      const mb = new MeshBuilder(INTERIOR_SPECS);
+      mb.setOrigin(cx, base, cz);
+      buildIndoors(mb, I, ind);
+      const about = `${b.style} ${b.use}${b.amenity ? ` (${b.amenity})` : ''}, ${I.storeys.length} floor${I.storeys.length > 1 ? 's' : ''}, ${I.units.length} home${I.units.length === 1 ? '' : 's'}`;
+      return { type: 'indoors', mesh: out(mb), at: [cx, base, cz], indoors: ind, about, ms: ms() };
+    }
   }
 }
 
@@ -125,7 +143,7 @@ function meshesOf(r: FromTown): MeshData[] {
   switch (r.type) {
     case 'cell': case 'country': case 'bridges': return [r.ground, r.buildings].filter((x): x is MeshData => !!x);
     case 'terrain': return [r.mesh];
-    case 'water': case 'landmark': case 'interior': return r.mesh ? [r.mesh] : [];
+    case 'water': case 'landmark': case 'interior': case 'indoors': return r.mesh ? [r.mesh] : [];
     case 'vegModel': return [r.model.wood, r.model.leaves, r.model.far];
     // (propModel: copied, not transferred: the models stay cached in this worker)
     default: return [];

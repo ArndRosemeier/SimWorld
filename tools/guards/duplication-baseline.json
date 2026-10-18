@@ -224,7 +224,7 @@
     "reason": "Callers of LandUse.sample (the one land-use query) asking it different questions: where forest grows, where places go, where farms are."
   },
   {
-    "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/fill/area.ts + simworld/interior/storey.ts",
+    "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/fill/area.ts + simworld/interior/indoors.ts + simworld/interior/storey.ts",
     "reason": "The length of a wall segment ({ax, az, bx, bz}, the interior's IWall and the filler's Edge) before walking along it."
   },
   {
@@ -520,8 +520,16 @@
     "reason": "Looking up a place by id in the place graph inside a describer (card, belief, paper, profile); the one way to read a place, not a copy."
   },
   {
-    "key": "idiom: [.atan2 .x .z Math] in simworld/build/streetProps.ts + simworld/game/street.ts + simworld/plan/terrace.ts",
-    "reason": "A heading from one point to another (atan2 of the x/z difference) in three unrelated places: prop rotation, a person turning to face you, a terrace's orientation."
+    "key": "idiom: [.ax .az .bx .bz] in simworld/build/interior.ts + simworld/interior/indoors.ts + simworld/interior/storey.ts",
+    "reason": "A wall is a segment a\u2192b with its own fields (Wall); reading its ends is the data shape, not a copied computation."
+  },
+  {
+    "key": "idiom: [.pool .run] in simworld/game/SimClient.ts + simworld/render/interiorView.ts + simworld/render/people/bodies.ts",
+    "reason": "WorkerPool.run is the one seam for worker requests; each caller asks its own op."
+  },
+  {
+    "key": "same name: simworld/render/interiorView.ts#enter + simworld/traffic/traffic.ts#enter",
+    "reason": "Unrelated: going inside a building vs. a vehicle joining the traffic."
   },
   {
     "key": "idiom: [.fillRect .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
@@ -530,5 +538,13 @@
   {
     "key": "idiom: [.lineWidth .strokeStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D's own grammar (set the line colour and width, stroke): the map, the signs' painters and the atlas pictures each draw their own outlines; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.actors .count .row] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts",
+    "reason": "A pass over every actor reading their person row: the World's own column layout (actors \u2192 people rows), each pass doing its own work."
+  },
+  {
+    "key": "same name: simworld/app/chatPanel.ts#describe + simworld/game/street.ts#describe",
+    "reason": "Unrelated: the chat panel's line for a change a conversation made, and the street's HUD line about the person followed."
   }
 ]
