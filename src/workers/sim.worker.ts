@@ -72,7 +72,7 @@ function simJob(m: ToSim): FromSim {
   if (!world || !map || !traffic) throw new Error('sim worker: not initialised');
   if (m.type === 'save') return { type: 'saved', clock: world.clock, bytes: saveWorld(world), ms: took() };
   if (m.type === 'skip') {
-    skip(world, m.to);
+    skipTo(world, m.to);
     forget();
     // The days skipped: the cars stand where the world now says, the traffic starts afresh.
     traffic = new TrafficFeed(roads!, world);
@@ -167,7 +167,7 @@ function runTo(clock: number): void {
  * day). A day or more is whole days to the same time of day: the chronicle runs to midnight that many days on
  * (the rest of today counts as the first), and the live tick runs the morning up to the hour it was.
  */
-function skip(w: World, to: number): void {
+function skipTo(w: World, to: number): void {
   const n = Math.round(to) - w.clock;
   if (n < MINUTES_PER_DAY) return runTo(Math.max(w.clock + 1, Math.round(to)));
   const at = Math.round(to) % MINUTES_PER_DAY;

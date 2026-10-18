@@ -18,6 +18,7 @@ import type { WindowSlots } from '../street/windows';
 import type { StopBoard } from '../street/stops';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
+import { MINUTES_PER_DAY } from '../sim/time';
 import { dropSave, packSave, readSave, storeSave, unpackSave } from '../persist/saves';
 
 /** Real milliseconds between street updates (the plan's L1 rate, ~5 Hz). */
@@ -139,7 +140,7 @@ export class SimClient {
 
   /** Whether play went on from a save (then seed, start and clock alone do not give this world). */
   resumed = false;
-  /** Days skipped with the time skip so far (the skip's chronicle is not the live tick: no repro from the clock). */
+  /** Days skipped with the day-long time skips so far (their chronicle is not the live tick: no repro from the clock). */
   skipped = 0;
 
   /** The world as save bytes, gzipped (a save file). */
@@ -184,7 +185,8 @@ export class SimClient {
       if (m.view.town) this.town = m.view.town;
       this.walkers.clear();
       this.restart(m.clock);
-      this.skipped += days;
+      // (Under a day the skip is the live tick, as in play: the clock alone still repeats it.)
+      if (minutes >= MINUTES_PER_DAY) this.skipped += Math.round(minutes / MINUTES_PER_DAY);
     } finally {
       this.busy = false;
     }
