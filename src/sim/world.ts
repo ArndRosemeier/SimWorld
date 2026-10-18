@@ -101,6 +101,8 @@ export interface World {
 export interface Player {
   id: ActorId;
   autopilot: boolean;
+  /** Where the player is walking them out of doors with their own hands (null: in a place, or on autopilot). */
+  at?: { x: number; z: number } | null;
 }
 
 /** Is `id` the player with their own hands on the wheel (no routine deciding for them)? */

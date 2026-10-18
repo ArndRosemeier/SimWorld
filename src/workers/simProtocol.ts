@@ -12,6 +12,7 @@ import type { PlayerAction, PlayerStatus } from '../sim/player';
 import type { InhabitantCard } from '../sim/profile';
 import type { SimView } from '../sim/view';
 import type { WindowSlots } from '../street/windows';
+import type { NearSolids } from '../street/streetMap';
 import type { TownSettings } from '../world/settings';
 import type { TrafficMsg } from '../traffic/feed';
 
@@ -43,7 +44,8 @@ export type ToSim =
 /**
  * The player's requests (plan R2, R5): every inhabitant's card for the picker; become someone (autopilot on or
  * off); hand them to their routine or take over; what they could do now; send them somewhere; what they know
- * of the time since `since` (the digest after a skip).
+ * of the time since `since` (the digest after a skip); while you steer them: where they are now (`steer`, out of
+ * doors at x, z) and what stands around a point for their body to walk against (`near`).
  */
 export type PlayerOp =
   | { op: 'cards' }
@@ -51,14 +53,21 @@ export type PlayerOp =
   | { op: 'autopilot'; on: boolean }
   | { op: 'actions' }
   | { op: 'go'; place: number; activity: number }
-  | { op: 'digest'; since: number };
+  | { op: 'digest'; since: number }
+  | { op: 'steer'; x: number; z: number }
+  | { op: 'near'; x: number; z: number; r: number };
 
 /** The answer to a `PlayerOp` (empty lists where the op asks for nothing), with the player's status after it. */
+export type { NearSolids };
+
 export interface PlayerReply {
   type: 'player';
   cards: InhabitantCard[];
   actions: PlayerAction[];
   digest: DigestItem[];
+  near: NearSolids | null;
+  /** The player's person's looks and name (after `become`), for drawing them while the player walks them. */
+  info: ActorInfo | null;
   status: PlayerStatus | null;
   ms: number;
 }

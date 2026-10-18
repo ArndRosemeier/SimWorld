@@ -12,11 +12,11 @@ import { chronicle, digest, historyDays } from '../sim/chronicle';
 import { loadWorld, saveWorld } from '../sim/save';
 import { dayOf, MINUTES_PER_DAY } from '../sim/time';
 import { tick, nameOf, jobOf, householdOf, type World } from '../sim/world';
-import { becomePlayer, doingOf, playerActions, playerGo, playerStatus, setAutopilot } from '../sim/player';
+import { becomePlayer, doingOf, playerActions, playerGo, playerStatus, setAutopilot, steerPlayer } from '../sim/player';
 import { cardsOf } from '../sim/profile';
 import { ACTOR_PERSON } from '../sim/actors';
 import { viewOf, viewTransfers } from '../sim/view';
-import { StreetMap } from '../street/streetMap';
+import { OUTDOOR, StreetMap } from '../street/streetMap';
 import { windowSlots } from '../street/windows';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
@@ -86,16 +86,18 @@ function simJob(m: ToSim): FromSim {
 
 /** A player request (src/sim/player.ts), answered with their status after it. */
 function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
-  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], status: null, ms: 0 };
+  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], near: null, info: null, status: null, ms: 0 };
   if (op.op === 'cards') out.cards = cardsOf(w);
-  else if (op.op === 'become') becomePlayer(w, op.id, op.autopilot);
+  else if (op.op === 'become') { becomePlayer(w, op.id, op.autopilot); out.info = infoOf(w, op.id); known.add(op.id); }
   else if (op.op === 'autopilot') setAutopilot(w, op.on);
   else if (op.op === 'go') playerGo(w, op.place, op.activity);
   else if (op.op === 'digest' && w.player) out.digest = digest(w, w.player.id, op.since);
+  else if (op.op === 'steer') steerPlayer(w, op.x, op.z);
+  else if (op.op === 'near') out.near = map!.solidsNear(op.x, op.z, op.r);
   // The menu is wanted after a move too (what is there to do where they are going).
   if (op.op === 'actions' || op.op === 'go' || op.op === 'become') out.actions = playerActions(w);
   // Their track changes at once: drop it, so the next street update makes and sends the new one.
-  if (op.op !== 'cards' && op.op !== 'digest' && w.player) tracks.delete(w.player.id);
+  if (op.op !== 'cards' && op.op !== 'digest' && op.op !== 'near' && w.player) tracks.delete(w.player.id);
   out.status = playerOut(w, map!, w.clock);
   out.ms = took();
   return out;
@@ -104,7 +106,13 @@ function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
 /** The player's status, placed on the street when they are out of doors (wherever the camera is). */
 function playerOut(w: World, map: StreetMap, clock: number): ReturnType<typeof playerStatus> {
   const s = playerStatus(w);
-  if (!s || !s.alive) return s;
+  if (!s || !s.alive || s.steered) return s;
+  // Indoors: the way out, where they step out when the player takes over.
+  const a = w.actors.cols, here = a.place[s.id];
+  if (a.dest[s.id] < 0 && here >= 0 && !OUTDOOR.has(w.graph.places[here].kind)) {
+    const [dx, dz] = map.door(here), [sx, sz] = map.doorStep(here);
+    s.exit = { x: sx, z: sz, yaw: Math.atan2(-(sx - dx), -(sz - dz)) };
+  }
   let t = tracks.get(s.id);
   if (!t || t.sig !== signature(w, s.id) || clock >= t.validUntil) {
     const fresh = trackOf(w, map, s.id, clock);

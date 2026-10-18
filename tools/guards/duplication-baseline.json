@@ -508,7 +508,7 @@
     "reason": "Looking up a place by id in the place graph inside a describer (card, belief, paper, profile); the one way to read a place, not a copy."
   },
   {
-    "key": "idiom: [.atan2 .x .z Math] in simworld/build/streetProps.ts + simworld/game/street.ts + simworld/plan/terrace.ts",
-    "reason": "A heading from one point to another (atan2 of the x/z difference) in three unrelated places: prop rotation, a person turning to face you, a terrace's orientation."
+    "key": "idiom: [.home .place] in simworld/chat/context.ts + simworld/sim/actions.ts + simworld/sim/player.ts + simworld/sim/schedule.ts",
+    "reason": "Reads of the actor columns home and place (where someone lives, where they are): the table API itself, each system asking its own question of it."
   }
 ]

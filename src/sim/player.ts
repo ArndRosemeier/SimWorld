@@ -20,9 +20,40 @@ import { hasCar, isPerson, jobOf, nameOf, placesWith, type World } from './world
 export function becomePlayer(world: World, id: ActorId, autopilot = true): void {
   if (!isPerson(world, id)) throw new Error(`becomePlayer: ${id} is not a living person`);
   const was = world.player;
-  world.player = { id, autopilot };
+  world.player = { id, autopilot, at: null };
+  const a = world.actors.cols;
   // The one left behind carries on with their own day from here.
-  if (was && was.id !== id && !was.autopilot) world.actors.cols.until[was.id] = world.clock;
+  if (was && was.id !== id && !was.autopilot) a.until[was.id] = world.clock;
+  // Taken over in bed or in an armchair: they get up, ready for whatever the player does.
+  if (!autopilot && a.dest[id] < 0 && a.place[id] >= 0 && a.activity[id] !== A.work) go(world, id, a.place[id], A.idle, world.clock + MINUTES_PER_DAY);
+}
+
+/**
+ * The player walks their person themselves, out of doors at (x, z): the sim has them on the nearest street, not
+ * heading anywhere, until the player walks into somewhere or hands them back to their routine.
+ */
+export function steerPlayer(world: World, x: number, z: number): void {
+  const p = world.player;
+  if (!p || !isPerson(world, p.id)) return;
+  p.autopilot = false;
+  p.at = { x, z };
+  const a = world.actors.cols, id = p.id, street = nearestStreet(world, x, z);
+  if (street < 0 || (a.place[id] === street && a.dest[id] < 0)) return;
+  a.dest[id] = -1;
+  a.place[id] = street;
+  go(world, id, street, A.leisure, world.clock + MINUTES_PER_DAY);
+}
+
+/** The street place nearest (x, z) (-1 when the town has none). */
+function nearestStreet(world: World, x: number, z: number): PlaceId {
+  let best = -1, bd = Infinity;
+  const places = world.graph.places;
+  for (let i = 0; i < places.length; i++) {
+    if (places[i].kind !== 'street') continue;
+    const d = Math.hypot(places[i].x - x, places[i].z - z);
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
 }
 
 /** Hand the person back to their routine (true) or take the wheel (false). */
@@ -30,6 +61,7 @@ export function setAutopilot(world: World, on: boolean): void {
   const p = world.player;
   if (!p) return;
   p.autopilot = on;
+  if (on) p.at = null;
   // Back on autopilot: they decide again at once rather than finishing whatever the player last picked.
   if (on && world.actors.cols.dest[p.id] < 0) world.actors.cols.until[p.id] = world.clock;
 }
@@ -118,6 +150,8 @@ export function playerActions(world: World): PlayerAction[] {
 export function playerGo(world: World, place: PlaceId, activity: number, hours = 2): void {
   const p = world.player;
   if (!p || !isPerson(world, p.id)) return;
+  // Sent somewhere: the sim walks them there (the player can take over again on the way).
+  p.at = null;
   go(world, p.id, place, activity, p.autopilot ? world.clock + hours * 60 : world.clock + MINUTES_PER_DAY);
 }
 
@@ -146,6 +180,10 @@ export interface PlayerStatus {
   travelling: boolean;
   /** Out of doors: (x, z) is then where they are on the street (the sim worker fills this in from their track). */
   outdoors: boolean;
+  /** Walked by the player out of doors (`steerPlayer`): (x, z) is where the player last said they are. */
+  steered: boolean;
+  /** Indoors: the doorstep of the place and the way out (yaw, 0 facing −z), where they step out when taken over. */
+  exit: { x: number; z: number; yaw: number } | null;
   /** Needs 0..1 (food, rest, social, hygiene, fun: NEEDS order), and mood -1..1. */
   needs: number[];
   mood: number;
@@ -157,10 +195,10 @@ export function playerStatus(world: World): PlayerStatus | null {
   if (!p) return null;
   const id = p.id, a = world.actors.cols, alive = isPerson(world, id);
   const place = a.dest[id] >= 0 ? a.dest[id] : a.place[id] >= 0 ? a.place[id] : a.home[id];
-  const pl = world.graph.places[Math.max(0, place)];
+  const pl = world.graph.places[Math.max(0, place)], at = !p.autopilot ? p.at : null;
   return {
-    id, name: nameOf(world, id), alive, autopilot: p.autopilot, doing: alive ? doingOf(world, id) : 'gone',
-    place, placeName: pl.name, x: pl.x, z: pl.z, travelling: a.dest[id] >= 0, outdoors: false,
+    id, name: nameOf(world, id), alive, autopilot: p.autopilot, doing: alive ? (at ? 'out and about' : doingOf(world, id)) : 'gone',
+    place, placeName: pl.name, x: at ? at.x : pl.x, z: at ? at.z : pl.z, travelling: a.dest[id] >= 0, outdoors: !!at, steered: !!at, exit: null,
     needs: Array.from(a.needs.subarray(id * NEED_COUNT, id * NEED_COUNT + NEED_COUNT)), mood: a.mood[id],
   };
 }

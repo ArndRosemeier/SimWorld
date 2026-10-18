@@ -11,7 +11,8 @@
     { "id": "indexedDB", "pattern": "\\bindexedDB\\b", "only": ["src/persist/"], "why": "persistence goes through src/persist (saves of the world: src/persist/saves.ts)" },
     { "id": "fetch openrouter", "pattern": "openrouter\\.ai", "flags": "gi", "only": ["src/llm/"], "why": "every LLM call goes through src/llm (model roster, task routing, usage tracking)" },
     { "id": "wall clock", "pattern": "\\bDate\\.now\\s*\\(|\\bnew\\s+Date\\s*\\(", "only": ["src/app/", "src/game/", "src/render/", "src/audio/", "src/persist/", "src/workers/", "src/llm/llm.ts"], "why": "the pure layers are deterministic: the real date enters through createWorld (src/sim/calendar.ts), timings are injected" },
-    { "id": "AudioContext", "pattern": "\\bnew\\s+(webkit)?AudioContext\\s*\\(", "only": ["src/audio/"], "why": "one audio engine (src/audio)" }
+    { "id": "AudioContext", "pattern": "\\bnew\\s+(webkit)?AudioContext\\s*\\(", "only": ["src/audio/"], "why": "one audio engine (src/audio)" },
+    { "id": "rapier", "pattern": "@dimforge/rapier", "only": ["src/physics/"], "why": "one physics world (src/physics/physics.ts)" }
   ],
   "layers": [
     { "from": "src/sim", "deny": ["three", "src/render", "src/app", "src/game", "src/llm", "src/plan", "src/world"], "why": "the society simulation is pure data: it runs in a worker and in headless tests, and takes the town only through the PlaceGraph (the planner depends on the sim, never the reverse)" },
