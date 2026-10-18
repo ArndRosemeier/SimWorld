@@ -14,7 +14,10 @@ import { ownerOf } from './economy';
 import { groupsOf } from './groups';
 import { bonded, type LifeEvent } from './life';
 import { bondBit, FAMILY_MASK, type Bond } from './relations';
-import { DAYS_PER_YEAR, MINUTES_PER_DAY } from './time';
+import { agendaOn } from './agenda';
+import { intentionsOf } from './intentions';
+import { schoolHours, worksOn } from './schedule';
+import { dayOf, DAYS_PER_YEAR, hhmm, MINUTES_PER_DAY } from './time';
 import { SPECIES } from './species';
 import { ageOf, firstName, householdOf, isPerson, jobOf, nameOf, type World } from './world';
 
@@ -316,6 +319,42 @@ function secretsOf(world: World): Map<ActorId, string[]> {
 }
 
 /** One person's card. For many at once use `cardsOf`, which indexes the events once. */
+/**
+ * What `id` has on for the rest of today, as short phrases without a subject ("work at Fern Bakery 09:00-17:00",
+ * "school until 15:15", "Mara and Tom's wedding at 14:00"): their shift, school, the occasions they are invited to
+ * and the plans they made (intentions with a time). Empty when the day holds nothing fixed. For the chat prompt:
+ * a person's own day, and what their household knows of each other's.
+ */
+export function plansToday(world: World, id: ActorId, clock = world.clock): string[] {
+  const out: string[] = [];
+  const places = world.graph.places, today = dayOf(clock), end = (today + 1) * MINUTES_PER_DAY;
+  const span = (what: string, s: number, e: number): void => {
+    if (e <= clock) return;
+    out.push(s > clock ? `${what} ${hhmm(s)}-${hhmm(e)}` : `${what} until ${hhmm(e)}`);
+  };
+  const job = jobOf(world, id);
+  if (job && world.people.cols.leaveUntil[world.actors.cols.row[id]] <= clock && worksOn(world, job, clock)) {
+    const s = today * MINUTES_PER_DAY + job.start, e = today * MINUTES_PER_DAY + job.end + (job.end <= job.start ? MINUTES_PER_DAY : 0);
+    span(`work at ${places[job.place].name}`, s, e);
+  }
+  const school = schoolHours(world, id, clock);
+  if (school) span(places[world.people.cols.school[world.actors.cols.row[id]]].kind === 'kindergarten' ? 'kindergarten' : 'school', school[0], school[1]);
+  const invited = new Set<number>();
+  for (const o of agendaOn(world, today)) {
+    if (o.end <= clock || !(o.guests?.includes(id) || o.about.includes(id))) continue;
+    invited.add(o.id);
+    out.push(`${o.name}${o.start > clock ? ` at ${hhmm(o.start)}` : ' (now)'}`);
+  }
+  for (const i of intentionsOf(world, id)) {
+    if (i.origin === 'routine' || i.at >= end || i.until <= clock || (i.kind === 'attend' && invited.has(i.fact))) continue;
+    const where = i.place >= 0 && places[i.place] ? ` at ${places[i.place].name}` : '';
+    const who = i.person >= 0 && isPerson(world, i.person) ? ` ${firstName(world, i.person)}` : '';
+    const what = i.reason || `${i.kind === 'meet' ? 'meet' : i.kind === 'visit' ? 'visit' : i.kind}${who}${where}`;
+    out.push(i.at > clock ? `${what} at ${hhmm(i.at)}` : what);
+  }
+  return out.slice(0, 5);
+}
+
 export function profileOf(world: World, id: ActorId): InhabitantCard {
   return cardOf(world, id, indexEvents(world), secretsOf(world));
 }

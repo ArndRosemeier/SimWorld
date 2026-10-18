@@ -296,14 +296,21 @@ function anchors(world: World, id: ActorId): Day {
     }
   }
   let school: [number, number] | null = null;
-  if (pc.school[p] >= 0 && pc.leaveUntil[p] <= now && (world.graph.places[pc.school[p]].kind === 'kindergarten' ? runsLike(world, now) < 5 : schoolDay(world, now))) {
-    const kg = world.graph.places[pc.school[p]].kind === 'kindergarten';
-    const age = ageOf(world, id);
-    const s = atMinute(now, kg ? 450 : 465), e = atMinute(now, kg ? 870 : age < 10 ? 780 : 915);
+  const hours = schoolHours(world, id, now);
+  if (hours) {
     const commute = world.travel.minutes(a.home[id], pc.school[p]);
-    if (now >= s - commute - 5 && now < e) school = [s, e];
+    if (now >= hours[0] - commute - 5 && now < hours[1]) school = hours;
   }
   return { wake, sleep: pc.sleep[p], shift, school };
+}
+
+/** When `id` is at school or kindergarten on the day of `clock` (absolute clocks), null on a day without it. */
+export function schoolHours(world: World, id: ActorId, clock: number): [number, number] | null {
+  const pc = world.people.cols, p = world.actors.cols.row[id], school = pc.school[p];
+  if (school < 0 || pc.leaveUntil[p] > clock) return null;
+  const kg = world.graph.places[school].kind === 'kindergarten';
+  if (kg ? runsLike(world, clock) >= 5 : !schoolDay(world, clock)) return null;
+  return [atMinute(clock, kg ? 450 : 465), atMinute(clock, kg ? 870 : ageOf(world, id) < 10 ? 780 : 915)];
 }
 
 function decidePerson(world: World, id: ActorId): void {
