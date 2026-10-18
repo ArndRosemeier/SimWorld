@@ -12,11 +12,12 @@ import { Rng, deriveSeed } from '@futuremagic/core';
 import { runsLike } from '../sim/calendar';
 import { isOpen } from '../sim/schedule';
 import { rulesOf } from '../sim/politics';
+import { regionPlaces } from '../sim/region';
 import { MINUTES_PER_DAY } from '../sim/time';
 import type { World } from '../sim/world';
 import type { RoadNet } from './roadNet';
 import { exitTowardRegion } from './rounds';
-import type { Car, VKind } from './traffic';
+import { regionCar, type Car, type VKind } from './traffic';
 
 /** Keys of visitors' cars start here (through traffic at 1 << 24, buses at 1 << 26). */
 export const VISITOR_KEY = 1 << 25;
@@ -38,7 +39,7 @@ const CARS: VKind[] = ['sedan', 'hatch', 'suv', 'wagon', 'sedan', 'hatch', 'suv'
 
 /** The visitors who come into town in a game minute. */
 export function visitorsAt(world: World, net: RoadNet, clock: number): Visit[] {
-  const places = world.region?.region.places ?? [];
+  const places = regionPlaces(world);
   if (!places.length) return [];
   const r = new Rng(deriveSeed(world.seed, 'visitors', clock));
   const h = Math.floor((clock % MINUTES_PER_DAY) / 60), wd = runsLike(world, clock), work = wd < 5;
@@ -60,7 +61,7 @@ export function visitorsAt(world: World, net: RoadNet, clock: number): Visit[] {
     if (!to || exit < 0) return;
     const kinds = why === 'trade' ? VANS : CARS;
     const stay = why === 'trade' ? r.int(60, 240) : why === 'errand' ? r.int(15, 60) : r.int(90, 240);
-    out.push({ car: { key: VISITOR_KEY + ((clock * 4) % (1 << 24)) + out.length, kind: r.pick(kinds), variant: r.int(0, 3) }, exit, x: to.x, z: to.z, stay, why });
+    out.push({ car: regionCar(r, VISITOR_KEY + ((clock * 4) % (1 << 24)) + out.length, kinds), exit, x: to.x, z: to.z, stay, why });
   };
   if (work) come(TRADE[h], 'trade');
   come(ERRAND[h] * (wd === 5 ? SATURDAY_ERRAND : wd === 6 ? SUNDAY_ERRAND : 1) * (rulesOf(world).parkingCharges ? CHARGED_ERRAND : 1), 'errand');
