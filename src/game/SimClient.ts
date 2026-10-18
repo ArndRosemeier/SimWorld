@@ -9,6 +9,7 @@
 import { WorkerPool } from '../workers/pool';
 import simWorkerUrl from '../workers/sim.worker.ts?worker&url';
 import type { ActorInfo, FromSim, HeightGrid, ToSim } from '../workers/simProtocol';
+import type { ChatRequest, ChatResponse } from '../chat/ops';
 import { DEFAULT_LATITUDE, daysOf, epochFor, weekdayOfDays, type CivilDate } from '../sim/calendar';
 import type { SimView } from '../sim/view';
 import type { TownSettings } from '../world/settings';
@@ -156,6 +157,12 @@ export class SimClient {
   /** Where a walker is at `clock` (x, y, z), into `out`. */
   where(w: Walker, clock: number, out: [number, number, number]): [number, number, number] {
     return sample(w.keys, clock, out);
+  }
+
+  /** One step of a conversation (src/chat/ops.ts), answered by the worker against the live world, ahead of street updates. */
+  async chat<K extends ChatRequest['op']>(req: Extract<ChatRequest, { op: K }>): Promise<Extract<ChatResponse, { op: K }>> {
+    const m = await this.pool.run<Extract<FromSim, { type: 'chat' }>>({ type: 'chat', req }, -1);
+    return m.res as Extract<ChatResponse, { op: K }>;
   }
 
   /** Call every frame: asks the worker for the street around (x, z) when the last answer is old enough. */

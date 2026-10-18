@@ -58,6 +58,11 @@ export class CameraControl {
     });
   }
 
+  /** Where the camera stands (the player, on the street). */
+  position(): { x: number; z: number } {
+    return { x: this.camera.position.x, z: this.camera.position.z };
+  }
+
   toStreet(x: number, z: number, yaw = this.yaw): void {
     this.mode = 'street';
     this.following = -1;

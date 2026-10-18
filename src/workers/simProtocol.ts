@@ -4,6 +4,7 @@
  * to run up to a clock and to say who is out of doors near the camera, and where they walk (tracks). With
  * each new game minute it also sends the sim's view snapshot (`SimView`), which every view reads.
  */
+import type { ChatRequest, ChatResponse } from '../chat/ops';
 import type { CivilDate } from '../sim/calendar';
 import type { SimView } from '../sim/view';
 import type { TownSettings } from '../world/settings';
@@ -26,7 +27,9 @@ export type ToSim =
    * Skip `days` whole days (the time skip, `chronicle`), to the same time of day; the street starts afresh, so
    * the main thread drops everyone it has.
    */
-  | { type: 'skip'; days: number };
+  | { type: 'skip'; days: number }
+  /** A step of a conversation with an inhabitant (src/chat/ops.ts), against the world as it is now. */
+  | { type: 'chat'; req: ChatRequest };
 
 /** What the view needs to know about an actor once (looks, names). */
 export interface ActorInfo {
@@ -69,4 +72,5 @@ export type FromSim =
   | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; ms: number }
   | { type: 'saved'; clock: number; bytes: Uint8Array; ms: number }
   | { type: 'skipped'; clock: number; view: SimView; ms: number }
+  | { type: 'chat'; res: ChatResponse }
   | { type: 'error'; message: string };

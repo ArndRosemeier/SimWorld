@@ -18,6 +18,7 @@ import { StreetMap } from '../street/streetMap';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
+import { chatOp } from '../chat/ops';
 
 let world: World | null = null;
 let map: StreetMap | null = null;
@@ -53,6 +54,7 @@ function simJob(m: ToSim): FromSim {
     sentAt = world.clock;
     return { type: 'skipped', clock: world.clock, view: viewOf(world), ms: took() };
   }
+  if (m.type === 'chat') return { type: 'chat', res: chatOp(world, m.req) };
   runTo(m.clock);
   const view = world.clock !== sentAt ? viewOf(world) : null;
   sentAt = world.clock;

@@ -13,6 +13,7 @@
  * inhabitants out of doors walk their real errands (src/game/street.ts, keys in src/game/camera.ts).
  * `?date=YYYY-MM-DD` starts on that day (default: today), `?time=HH:MM` at that time (default: the time of day now), `?speed=…` runs game time that
  * many times faster than real time (default 1), `?street=x,z&yaw=…` and `?follow=<id>` start on the street.
+ * On the street, T talks to the person nearest you (or the one you follow); `?as=<id>` plays as that inhabitant.
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
@@ -36,6 +37,8 @@ import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
 import { SimClient, followSim, playStart, screenWorld, type ScreenWorld } from './game/SimClient';
 import { Street } from './game/street';
+import { Chat } from './game/chat';
+import { LlmSetup } from './game/llmSetup';
 import { CameraControl } from './game/camera';
 import { PeopleView } from './render/people/peopleView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
@@ -153,6 +156,9 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const cam = new CameraControl(camera, { cx, cz, y: town.y, r: num('r', town.radius * 1.35), h: num('h', town.radius * 0.55), fixed: q.has('a') ? num('a', 0) : null }, (x, z) => sim.standHeight(x, z));
   cam.pickNear = (x, z) => street.next(x, z);
   if (q.has('street')) { const [sx, sz] = q.get('street')!.split(',').map(Number); cam.toStreet(sx, sz, num('yaw', 0)); }
+  // Talking to people (T near someone): the chat panel, the player's key and models (src/game/chat.ts).
+  const chat = new Chat(sim, street, cam, new LlmSetup());
+  if (q.has('as')) chat.setPlayer(num('as', -1));
   const followId = q.has('follow') ? num('follow', -1) : -1;
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
@@ -186,7 +192,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     if (!shown && view.done > 0) { shown = true; document.getElementById('loading')?.remove(); audio.startTown(); }
     if (hud) {
       const c = sim.clock, n = people.counts;
-      const who = cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '\nEnter: down to the street' : '\nW A S D walk, drag to look, F follow someone, Esc up';
+      const talk = cam.mode === 'drone' ? '' : chat.hint();
+      const who = (cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '\nEnter: down to the street' : '\nW A S D walk, drag to look, F follow someone, Esc up') + (talk ? `\n${talk}` : '');
       hud.textContent = `${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(c)))}, ${describeWeather(w)} · ${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${who}`;
     }
   });
