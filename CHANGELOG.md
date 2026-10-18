@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.060 — The seam index names the paper and notices in the sim view
+
+- The SimView row in the architecture notes now lists the town's media (newest paper and board notices).
+
 ## v0.059 — Chimney smoke
 
 - When it is cold, smoke rises from the chimneys of houses with the heating on: none on a mild day, most chimneys near freezing, more in the morning and the evening than in the small hours.
