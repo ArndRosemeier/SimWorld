@@ -19,6 +19,7 @@ import type { StopBoard } from '../street/stops';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
 import { MINUTES_PER_DAY } from '../sim/time';
+import type { Said } from '../street/talk';
 import { dropSave, packSave, readSave, storeSave, unpackSave } from '../persist/saves';
 
 /** Real milliseconds between street updates (the plan's L1 rate, ~5 Hz). */
@@ -114,6 +115,10 @@ export class SimClient {
 
   /** The sim's latest view snapshot (src/sim/view.ts): every view reads the sim from here. */
   view: SimView;
+  /** Called with the talk the player can hear, as it comes with each street update (src/street/talk.ts; the speech bubbles). */
+  onTalk: ((said: Said[]) => void) | null = null;
+  /** Called after a time skip (what was being said is over). */
+  onSkip: (() => void) | null = null;
   /** Called with each new view snapshot (views that redraw per game minute, such as the lit windows). */
   onView: ((v: SimView) => void) | null = null;
   /** The town's face as of today (the latest `view.town`): what each place is now, its looks, the council's rules. */
@@ -184,6 +189,7 @@ export class SimClient {
       this.view = m.view; this.onView?.(m.view);
       if (m.view.town) this.town = m.view.town;
       this.walkers.clear();
+      this.onSkip?.();
       this.restart(m.clock);
       // (Under a day the skip is the live tick, as in play: the clock alone still repeats it.)
       if (minutes >= MINUTES_PER_DAY) this.skipped += Math.round(minutes / MINUTES_PER_DAY);
@@ -254,6 +260,7 @@ export class SimClient {
     this.inflight = this.pool.run<Extract<FromSim, { type: 'street' }>>({ type: 'update', clock: this.clock, x, z, r: STREET_RADIUS }, 0).then((m) => {
       if (m.view) { this.view = m.view; if (m.view.town) this.town = m.view.town; this.onView?.(m.view); }
       this.player = m.player;
+      if (m.talk.length) this.onTalk?.(m.talk);
       this.traffic = m.traffic;
       if (m.traffic.parked) this.parked = { poses: m.traffic.parked, cars: m.traffic.parkedCars! };
       if (m.traffic.posts) this.crossingPosts = m.traffic.posts;
