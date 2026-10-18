@@ -76,6 +76,8 @@ function simJob(m: ToSim): FromSim {
   traffic.run(m.clock);
   const view = world.clock !== sentAt ? viewOf(world, dayOf(world.clock) !== dayOf(sentAt)) : null;
   sentAt = world.clock;
+  // Walks keep clear of the cars standing at the kerb as well as of what the plan put on the street.
+  map.fp.also = traffic.standing;
   return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), player: playerOut(world, map, m.clock), traffic: traffic.message(), ms: took() };
 }
 

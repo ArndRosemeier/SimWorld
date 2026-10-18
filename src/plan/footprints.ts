@@ -56,9 +56,13 @@ export class Footprints {
   readonly kinds: number[] = [];
   /** Building footprints. */
   readonly buildings: Poly[] = [];
+  /**
+   * Another set laid over this one, asked along with it by `overlap` and `insideBuilding`: what comes and goes
+   * (the traffic's parked cars, src/traffic/feed.ts `standing`) over what the plan put there for good.
+   */
+  also: Footprints | null = null;
   private readonly grid = new Map<number, number[]>();
   private readonly bgrid = new Map<number, number[]>();
-  private readonly scratch: number[] = [];
 
   /** Add a circle (`kind`: the PropType it belongs to, -1 for none). */
   circle(x: number, z: number, r: number, kind = -1): void {
@@ -95,15 +99,22 @@ export class Footprints {
     return out;
   }
 
-  /** How far (m) a body of radius `r` at (x, z) overlaps the nearest circle (0: clear). */
+  /** How far (m) a body of radius `r` at (x, z) overlaps the nearest circle, here or in `also` (0: clear). */
   overlap(x: number, z: number, r: number): number {
+    // Straight over the grid cells (a circle met twice changes nothing): this is the hot query of every walk.
     let worst = 0;
     const C = this.circles;
-    for (const i of this.circlesNear(x, z, r, this.scratch)) {
-      const d = r + C[i * 3 + 2] - Math.hypot(C[i * 3] - x, C[i * 3 + 1] - z);
-      if (d > worst) worst = d;
-    }
-    return worst;
+    const gx0 = Math.floor((x - r) / CELL), gx1 = Math.floor((x + r) / CELL), gz0 = Math.floor((z - r) / CELL), gz1 = Math.floor((z + r) / CELL);
+    for (let gx = gx0; gx <= gx1; gx++)
+      for (let gz = gz0; gz <= gz1; gz++) {
+        const l = this.grid.get(key(gx, gz));
+        if (!l) continue;
+        for (let k = 0; k < l.length; k++) {
+          const i = l[k] * 3, d = r + C[i + 2] - Math.hypot(C[i] - x, C[i + 1] - z);
+          if (d > worst) worst = d;
+        }
+      }
+    return this.also ? Math.max(worst, this.also.overlap(x, z, r)) : worst;
   }
 
   /** Is (x, z) inside a building, or within `r` of a wall? */
@@ -112,7 +123,7 @@ export class Footprints {
       const p = this.buildings[i];
       if (pointInPoly(p, x, z) || (r > 0 && distPointPolyEdge(p, x, z) < r)) return true;
     }
-    return false;
+    return this.also?.insideBuilding(x, z, r) ?? false;
   }
 }
 
