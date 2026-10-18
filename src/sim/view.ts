@@ -8,6 +8,7 @@
  * way. A view that needs a fact it lacks adds it here (docs/ARCHITECTURE.md).
  */
 import type { ActorId } from './actors';
+import { agendaOn, type OccasionKind } from './agenda';
 import { dateOf, type GameDate } from './calendar';
 import { MINUTES_PER_DAY } from './time';
 import type { Mode, Trip } from './travel';
@@ -35,6 +36,9 @@ export interface TripRows {
   household: Int32Array;
 }
 
+/** Something on in town today, where it is (the place's entrance). What the sound and the stalls need of the agenda. */
+export interface ViewOccasion { kind: OccasionKind; start: number; end: number; x: number; z: number }
+
 export interface SimView {
   /** Game minutes since day 0 (whole minutes: the sim's tick). */
   clock: number;
@@ -49,6 +53,8 @@ export interface SimView {
   /** Per actor: what they are doing (index into ACTIVITIES). */
   activity: Uint8Array;
   trips: TripRows;
+  /** Today's agenda at a place (bin day and trick-or-treating, which happen on every street, are left out). */
+  occasions: ViewOccasion[];
 }
 
 /** The view of `world` now. */
@@ -66,7 +72,18 @@ export function viewOf(world: World): SimView {
     clock: world.clock, date: dateOf(world, world.clock), weather: weatherAt(world),
     morning: weatherAt(world, Math.floor(world.clock / MINUTES_PER_DAY) * MINUTES_PER_DAY + 7 * 60),
     place: a.place.slice(0, n), dest: a.dest.slice(0, n), activity: a.activity.slice(0, n), trips,
+    occasions: occasionsOf(world),
   };
+}
+
+function occasionsOf(world: World): ViewOccasion[] {
+  const day = Math.floor(world.clock / MINUTES_PER_DAY), places = world.graph.places;
+  const out: ViewOccasion[] = [];
+  // Today only: the agenda caches one day, and the schedule reads today.
+  for (const { kind, start, end, place } of agendaOn(world, day)) {
+    if (place >= 0 && kind !== 'binDay') out.push({ kind, start, end, x: places[place].x, z: places[place].z });
+  }
+  return out;
 }
 
 /** The buffers of a view, for postMessage's transfer list. */

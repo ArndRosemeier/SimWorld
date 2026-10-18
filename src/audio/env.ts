@@ -9,6 +9,7 @@
 import { clamp, smoothstep } from '@futuremagic/core';
 import { dateOf, feast, schoolDay, sunPosition, type Dated } from '../sim/calendar';
 import { weatherAt } from '../sim/weather';
+import type { SimView } from '../sim/view';
 import type { SoundEnv } from './soundscape';
 
 /** What `soundEnvOf` needs of a world: the calendar's and the weather's inputs. */
@@ -44,4 +45,15 @@ export function soundOverrides(q: URLSearchParams): EnvOverrides {
   const o: EnvOverrides = {};
   for (const k of ['rain', 'wind'] as const) if (q.has(k) && Number.isFinite(Number(q.get(k)))) o[k] = clamp(Number(q.get(k)), 0, 1);
   return o;
+}
+
+/**
+ * The sound environment of the running sim at its `clock`: the sim's weather (what the sky shows) and today's
+ * agenda (the bells for services, weddings and funerals; markets, matches). `world` is the screen's dated world
+ * (src/game/SimClient.ts `screenWorld`, on the sim's epoch), so the calendar agrees.
+ */
+export function soundEnvFromSim(world: SoundWorld, view: SimView, clock: number, o: EnvOverrides = {}): SoundEnv {
+  const w = view.weather;
+  const e = soundEnvOf(world, clock, { rain: o.rain ?? w.rain, wind: o.wind ?? w.wind });
+  return { ...e, lightning: o.rain !== undefined ? 0 : w.lightning, occasions: view.occasions };
 }

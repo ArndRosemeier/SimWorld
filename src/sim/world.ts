@@ -34,6 +34,8 @@ import { fadeRelations } from './relations';
 import { lifeDay } from './life';
 import { phoneCalls } from './phone';
 import { economyDay } from './economy';
+import type { Groups } from './groups';
+import { groupsDay } from './groups';
 
 export interface World {
   readonly seed: number;
@@ -75,6 +77,8 @@ export interface World {
   region: RegionKnowledge | null;
   /** Household budgets, business ledgers, openings and closures (src/sim/economy.ts). */
   readonly economy: Economy;
+  /** Clubs, congregations and the council: members, office holders, big days (src/sim/groups.ts). */
+  readonly groups: Groups;
 }
 
 /** The fixed parts of a world for a place graph (the population comes from `synthesize`, src/sim/synth.ts). */
@@ -116,6 +120,7 @@ export function tick(world: World, minutes = 1): void {
 export function passDays(world: World, days: number): void {
   lifeDay(world, days);
   economyDay(world, days);
+  groupsDay(world);
   pruneAgenda(world, world.clock);
   forget(world, days);
   fadeRelations(world.relations, world.clock, days);

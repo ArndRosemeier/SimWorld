@@ -5,6 +5,7 @@ import { placeGraphOf } from '../src/plan/placeGraph';
 import { createWorld } from '../src/sim/synth';
 import { householdOf, tick, tripOf } from '../src/sim/world';
 import { tripRow, viewOf, viewTransfers } from '../src/sim/view';
+import { agendaOn } from '../src/sim/agenda';
 import { ACTOR_PERSON } from '../src/sim/actors';
 import { StreetMap, OUTDOOR } from '../src/street/streetMap';
 import { trackOf, sample, type Track } from '../src/street/tracks';
@@ -109,4 +110,6 @@ test('view: the snapshot carries every trip and everyone\'s whereabouts, in buff
   const buffers = viewTransfers(v);
   assert.equal(new Set(buffers).size, buffers.length, 'no buffer sent twice');
   assert.ok(!buffers.includes(a.dest.buffer), 'not the sim\'s own columns');
+  const today = agendaOn(world, Math.floor(world.clock / 1440)).filter((o) => o.place >= 0 && o.kind !== 'binDay');
+  assert.deepEqual(v.occasions.map((o) => [o.kind, o.start, o.x]), today.map((o) => [o.kind, o.start, world.graph.places[o.place].x]), 'today\'s agenda, placed');
 });
