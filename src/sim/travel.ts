@@ -41,6 +41,8 @@ export const ROAD_M_PER_MIN = 1000;
 /** Out of town by train or bus, metres per minute, plus the wait at the stop. */
 export const TRANSIT_M_PER_MIN = 700;
 export const TRANSIT_WAIT_MIN = 8;
+/** Places closer than this (m) are reached straight across, not round by the road. */
+const NEXT_DOOR = 60;
 /** Detour factor when two places have no road connection (straight-line fallback). */
 const OFFROAD = 1.4;
 
@@ -50,7 +52,9 @@ export class Travel {
   private readonly start: Int32Array;
   private readonly adj: Int32Array;
   private readonly cost: Float32Array;
-  private readonly cache = new Map<number, Float32Array>();
+  private readonly cache = new Map<number, Float64Array>();
+  /** Per source node: the node before each node on its shortest path (-1 at the source and unreached). */
+  private readonly prevs = new Map<number, Int32Array>();
   private readonly heap = new MinHeap();
   /** Does the town have a railway station (people without a car leave town by train, else by bus)? */
   private readonly station: boolean;
@@ -74,10 +78,13 @@ export class Travel {
   }
 
   /** Effective walking metres from road node `from` to every node (cached). */
-  private fromNode(from: number): Float32Array {
+  private fromNode(from: number): Float64Array {
     let d = this.cache.get(from);
     if (d) return d;
-    d = new Float32Array(this.graph.nodes.length).fill(Infinity);
+    // Float64, like the priorities: rounded to float32, a node's stored distance could come out below the
+    // priority it was queued with, and the node was then skipped as stale (most of the town was unreachable).
+    d = new Float64Array(this.graph.nodes.length).fill(Infinity);
+    const prev = new Int32Array(this.graph.nodes.length).fill(-1);
     const heap = this.heap;
     heap.clear();
     d[from] = 0;
@@ -88,10 +95,11 @@ export class Travel {
       if (du > d[u]) continue;
       for (let i = this.start[u]; i < this.start[u + 1]; i++) {
         const v = this.adj[i], nd = du + this.cost[i];
-        if (nd < d[v]) { d[v] = nd; heap.push(nd, v); }
+        if (nd < d[v]) { d[v] = nd; prev[v] = u; heap.push(nd, v); }
       }
     }
     this.cache.set(from, d);
+    this.prevs.set(from, prev);
     return d;
   }
 
@@ -105,7 +113,25 @@ export class Travel {
     const road = this.fromNode(pa.node)[pb.node];
     if (!Number.isFinite(road)) return straight * OFFROAD;
     const viaRoad = Math.hypot(pa.x - na.x, pa.z - na.z) + road + Math.hypot(pb.x - nb.x, pb.z - nb.z);
-    return Math.min(viaRoad, straight * OFFROAD);
+    // Only next-door places are reached straight across; further off, the straight line would run through
+    // houses or over the river, and the street layer walks the roads (`roadPath`).
+    return straight < NEXT_DOOR ? Math.min(viaRoad, straight * OFFROAD) : viaRoad;
+  }
+
+  /**
+   * The road nodes a walk from a to b passes, in order (the shortest path over the roads). Empty when no road
+   * joins them. The street layer walks it, even where `metres` takes the straight line as shorter (that line may
+   * cross a river or a block of houses, which the place graph does not know about).
+   */
+  roadPath(a: PlaceId, b: PlaceId): number[] {
+    if (a === b) return [];
+    const pa = this.graph.places[a], pb = this.graph.places[b];
+    if (pa.node < 0 || pb.node < 0) return [];
+    const road = this.fromNode(pa.node)[pb.node];
+    if (!Number.isFinite(road)) return [];
+    const prev = this.prevs.get(pa.node)!, path: number[] = [];
+    for (let n = pb.node; n >= 0; n = prev[n]) path.push(n);
+    return path.reverse();
   }
 
   /** The candidate place nearest to `from` by travel time, -1 if none. The one "nearest X" helper. */
