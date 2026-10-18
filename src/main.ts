@@ -16,7 +16,9 @@
  * many times faster than real time (default 1), `?street=x,z&yaw=…` and `?follow=<id>` start on the street.
  *
  * Once the town shows, the picker comes up over it (src/game/playing.ts): pick an inhabitant and the camera flies
- * down to them and stays with them while you play as them. `?be=<id>` starts as that inhabitant.
+ * down to them and stays with them while you play as them. `?be=<id>` starts as that inhabitant. `?still` keeps the
+ * drone view without the picker, for screenshots (the looks check, tools/looks/check.mjs): once the town is built the
+ * page's root gets `data-town="built"`.
  * On the street, T talks to the person nearest you (or the one you follow).
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
@@ -277,7 +279,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       shown = true;
       document.getElementById('loading')?.remove();
       audio.startTown();
-      if (q.has('be') || (!q.has('street') && followId < 0)) void playing.takeOver(q.has('be') ? num('be', -1) : null);
+      if (q.has('be') || (!q.has('street') && !q.has('still') && followId < 0)) void playing.takeOver(q.has('be') ? num('be', -1) : null);
     }
     shell.setWhen(`${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(sim.clock)))} · ${describeWeather(w)}`);
     if (hud) {
@@ -289,6 +291,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     }
   });
   await view.ready;
+  document.documentElement.dataset.town = 'built';
 }
 
 /**
