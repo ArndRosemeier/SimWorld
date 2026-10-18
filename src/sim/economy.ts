@@ -26,6 +26,7 @@ import { defaultHours, defaultStaff, isHome, KINDS } from './placeKinds';
 import { PLACE_KINDS, type PlaceId, type PlaceKind } from './places';
 import { Columns, f32, f64, i32, u8 } from './table';
 import { DAYS_PER_YEAR, MINUTES_PER_DAY } from './time';
+import { dateOf } from './calendar';
 import { fitRoutine, pickHabits, settle } from './synth';
 import { ageOf, householdOf, isPerson, jobOf, placesOf, setPlaceKind, tickRng, traitOf, valueOf, type World } from './world';
 
@@ -230,7 +231,8 @@ export function newEconomy(places: number): Economy {
   return { biz, hh: new Columns(HOUSEHOLD_COLUMNS, 256), closedJobs: new Set(), events: [], month: 0, day: 0, liveSeen: false };
 }
 
-const monthOf = (day: number): number => Math.floor((day * 12) / DAYS_PER_YEAR);
+/** The calendar month of a game day, counted from year 0 (paydays and the books follow the real months). */
+const monthOf = (world: World, day: number): number => { const d = dateOf(world, day * MINUTES_PER_DAY); return d.year * 12 + d.month - 1; };
 const DAYS_PER_MONTH = DAYS_PER_YEAR / 12;
 const today = (world: World): number => Math.floor(world.clock / MINUTES_PER_DAY);
 
@@ -246,7 +248,7 @@ export const jobOpen = (world: World, job: Job): boolean => !world.economy.close
 export function settleEconomy(world: World, rng: Rng): void {
   const e = world.economy, b = e.biz.cols;
   e.day = today(world);
-  e.month = monthOf(e.day);
+  e.month = monthOf(world, e.day);
   for (const p of world.graph.places) {
     if (b.status[p.id] !== BIZ_NONE || !TRADES[p.kind]) continue;
     b.status[p.id] = BIZ_OPEN;
@@ -392,10 +394,10 @@ export function economyDay(world: World, days: number): void {
   }
   for (let k = 0; k < world.households.length && k < e.hh.count; k++) h.spent[k] += h.expected[k] * days;
   e.liveSeen = false;
-  const months = monthOf(day) - e.month;
+  const months = monthOf(world, day) - e.month;
   e.day = day;
   for (let m = 0; m < months; m++) reviewMonth(world, tickRng(world, 'economy', m));
-  e.month = monthOf(day);
+  e.month = monthOf(world, day);
 }
 
 /**
