@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { speechMessages, refsFor, parseAppraisal, cleanSpeech, atMinute, TASKS, APPRAISAL_SCHEMA } from '../src/llm';
+import { speechMessages, refsFor, parseAppraisal, cleanSpeech, atMinute, TASKS, APPRAISAL_SCHEMA, SETTING_RULE } from '../src/llm';
 import { replyContains } from '../src/llm/appraisal';
 import { bakeryScene, RUTH, TOM, ANNA, BAKERY, FOUNTAIN } from './fixtures/llm/town';
 
@@ -109,11 +109,13 @@ test('quotes match loosely; speech is cleaned of name prefixes, quotes and echoe
   assert.equal(cleanSpeech('Ruthless times.', 'Ruth Keller'), 'Ruthless times.');
 });
 
-test('digest keeps the most important events, in their original order', () => {
+test('digest keeps the most important events, in their original order; speech and digest carry the setting rule', () => {
   const events = Array.from({ length: 250 }, (_, i) => ({ when: `day ${i}`, text: `event ${i}`, importance: i % 5 === 0 ? 9 : 1 }));
   const { messages } = TASKS['skip.digest'].build({ pov: bakeryScene().npc, from: 'a', to: 'b', events });
   const lines = messages[1].content.split('\n').slice(1);
   assert.equal(lines.length, 200);
   assert.equal(lines[0], '- day 0: event 0');
   assert.ok(lines.includes('- day 245: event 245'));
+  assert.ok(messages[0].content.includes(SETTING_RULE));
+  assert.ok(speechMessages(bakeryScene())[0].content.includes(SETTING_RULE));
 });

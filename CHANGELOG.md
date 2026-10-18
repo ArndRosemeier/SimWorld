@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.080 — NPCs stay in the invented world
+
+- Townspeople in chats and the time-skip summary no longer mention real cities, brands, institutions or currencies, avoid strongly British or American words, and say prices as plain numbers.
+
+## v0.079 — Neutral words for clubs, offices and council issues
+
+- Small offices in former shops are called "Law Office" and "Rentals" now, no longer "Solicitors" and "Lettings".
+- The allotment society is now the community garden club, the jumble sale is a rummage sale, the church fete is a church fair, and the churchwarden is a church elder.
+- The council argues about a housing development and the local property tax, no longer a housing estate and the rates.
+
+## v0.078 — The council's traffic rules on the roads
+
+- When the council passes the 30 km/h limit through the centre, cars on the centre's faster roads slow to 30.
+- Once the bypass round the town is open, most through traffic goes round the town instead of through it.
+- When parking in the centre costs money, fewer people from the region drive in to shop.
+
+## v0.077 — An invented world
+
+- Recorded Arnd's setting rule: the town lies in a made-up, western-adjacent country with right-hand traffic and English names, and nothing in it points to a real region.
+- Prices, licence plates, phone numbers, school grades and words that differ between British and American English all follow one set of conventions.
+
+## v0.076 — Place and business names fit an invented western town
+
+- Shop signs and landmark names no longer point to one country: a Mini Market instead of a Corner Shop, a Second-hand Shop, Food to Go, a Property Agency, Funeral Services, a Fuel Station, and church names without "Parish Church".
+- All of these words now come from one table, so a wording change is made in one place.
+
 ## v0.075 — Snow on the trees
 
 - When snow lies, the conifers carry it on their branches, the bare branches of leafy trees get a dusting on top, and distant crowns show white patches.

@@ -14,6 +14,8 @@ import type { Town } from '../plan/town';
 import { PropType } from '../plan/cell';
 import { Footprints } from '../plan/footprints';
 import type { World } from '../sim/world';
+import { rulesOf } from '../sim/politics';
+import { dayOf } from '../sim/time';
 import { TownTraffic } from './townTraffic';
 import { carPlace, carTripsSince } from './trips';
 
@@ -84,6 +86,7 @@ export class TrafficFeed {
     const from = new Map(under.filter((t) => t.fromRegion === null).map((t) => [t.household, t.from]));
     this.town.placeCars(world.households, (h) => from.get(h) ?? carPlace(world, h));
     this.t0 = world.clock;
+    this.town.obey(rulesOf(world), dayOf(world.clock));
     this.fed = this.last = world.clock;
     this.town.anchor(world.clock);
     this.town.trips(under, world.clock);
@@ -106,6 +109,7 @@ export class TrafficFeed {
   run(clock: number): void {
     const w = this.world;
     if (w.clock > this.fed) {
+      this.town.obey(rulesOf(w), dayOf(w.clock));
       this.town.trips(carTripsSince(w, this.fed), w.clock);
       this.town.rounds(w, this.fed, w.clock);
       this.town.visitors(w, this.fed, w.clock);
