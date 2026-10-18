@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.122 — The traffic can be heard
+
+- Cars rush past you on the street, louder the faster they go.
+- A bus hisses its brakes as it pulls up.
+- Police cars and ambulances on a call sound their sirens; at the scene only the blue lights stay on.
+- A driver stuck in a jam sounds the horn, longer the second time.
+- An engine standing next to you ticks over.
+
 ## v0.121 — A nightly check that every surface still draws
 
 - Every night the build draws each kind of surface in the town (walls, roofs, roads, street furniture, cars, trees, rooms, sky, rain, smoke) in each of its variants, and flags any that come out black, glaring white, broken or missing, so a shader bug like the black street furniture is caught the next morning instead of hours later.
