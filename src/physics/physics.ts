@@ -13,7 +13,7 @@ export type Rapier = typeof RAPIER;
 export type Collider = RAPIER.Collider;
 export type CharacterController = RAPIER.KinematicCharacterController;
 
-import { EDGES, type SolidBox, type SolidFloor, type SolidPost } from './solids';
+import { deckBoxes, EDGES, type SolidBox, type SolidFloor, type SolidPost } from './solids';
 
 export class Physics {
   private readonly sets = new Map<string, RAPIER.Collider[]>();
@@ -36,18 +36,21 @@ export class Physics {
     const size = (n - 1) * g.step;
     const d = this.R.ColliderDesc.heightfield(n - 1, n - 1, h, { x: size, y: 1, z: size }).setTranslation(g.x0 + size / 2, 0, g.z0 + size / 2);
     this.world.createCollider(d);
+    // The bridge decks, kept for good (they are not in the grid).
+    for (const b of deckBoxes(g)) this.world.createCollider(this.boxDesc(b));
+  }
+
+  private boxDesc(b: SolidBox): RAPIER.ColliderDesc {
+    // Turn about y, then tilt about the box's own x: q = q_yaw · q_pitch.
+    const sy = Math.sin(b.yaw / 2), cy = Math.cos(b.yaw / 2), p = -(b.pitch ?? 0) / 2, sp = Math.sin(p), cp = Math.cos(p);
+    return this.R.ColliderDesc.cuboid(b.hx, b.hy, b.hz).setTranslation(b.x, b.y, b.z).setRotation({ x: cy * sp, y: sy * cp, z: -sy * sp, w: cy * cp });
   }
 
   /** Put the set `key` in place (replacing what it held). */
   setSolids(key: string, boxes: readonly SolidBox[], posts: readonly SolidPost[] = [], floors: readonly SolidFloor[] = []): void {
     this.dropSolids(key);
     const R = this.R, out: RAPIER.Collider[] = [];
-    for (const b of boxes) {
-      // Turn about y, then tilt about the box's own x: q = q_yaw · q_pitch.
-      const sy = Math.sin(b.yaw / 2), cy = Math.cos(b.yaw / 2), p = -(b.pitch ?? 0) / 2, sp = Math.sin(p), cp = Math.cos(p);
-      const d = R.ColliderDesc.cuboid(b.hx, b.hy, b.hz).setTranslation(b.x, b.y, b.z).setRotation({ x: cy * sp, y: sy * cp, z: -sy * sp, w: cy * cp });
-      out.push(this.world.createCollider(d));
-    }
+    for (const b of boxes) out.push(this.world.createCollider(this.boxDesc(b)));
     for (const f of floors) {
       const flat = [...f.outer, ...f.holes.flat()], holes: number[] = [];
       let at = f.outer.length / 2;

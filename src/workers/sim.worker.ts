@@ -12,7 +12,7 @@ import { chronicle, digest, historyDays } from '../sim/chronicle';
 import { loadWorld, saveWorld } from '../sim/save';
 import { dayOf, MINUTES_PER_DAY } from '../sim/time';
 import { tick, nameOf, jobOf, householdOf, type World } from '../sim/world';
-import { becomePlayer, doingOf, playerActions, playerGo, playerStatus, setAutopilot, steerPlayer } from '../sim/player';
+import { becomePlayer, doingOf, onTheGround, playerActions, playerGo, playerStatus, setAutopilot, steerPlayer } from '../sim/player';
 import { cardsOf } from '../sim/profile';
 import { ACTOR_PERSON } from '../sim/actors';
 import { viewOf, viewTransfers } from '../sim/view';
@@ -21,7 +21,7 @@ import { windowSlots } from '../street/windows';
 import { stopBoards } from '../street/stops';
 import { doorAccess, whoIsInside } from '../street/inside';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
-import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
+import type { ActorInfo, FromSim, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
 import { chatOp } from '../chat/ops';
 import { TrafficFeed, trafficTransfers } from '../traffic/feed';
@@ -59,6 +59,11 @@ const KEEP = 40;
  * inhabitant cards to have stories (widowed in June, new in town, not speaking to a brother).
  */
 const HISTORY_YEARS = 1;
+/** The ground grid sent to the main thread: half its side and its step (m). The player's body walks only on it. */
+let groundHalf = 0;
+const GROUND_STEP = 4;
+/** How far inside the grid's edge someone travelling out of town is still shown where they are (m). */
+const GROUND_EDGE = 20;
 
 function simJob(m: ToSim): FromSim {
   const t0 = performance.now();
@@ -78,9 +83,10 @@ function simJob(m: ToSim): FromSim {
     traffic = new TrafficFeed((roads = town), world);
     sentAt = world.clock;
     // The bus stops' posts, with their timetables; people walk round the posts.
+    groundHalf = town.terrain.profile.radius * 1.4;
     const stops = stopBoards(town, map.roads, world);
     for (const st of stops) map.fp.circle(st.x, st.z, 0.1);
-    return { type: 'ready', stops, resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world, true), windows: windowSlots(town, graph), ms: took() };
+    return { type: 'ready', stops, resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: map.heightGrid(groundHalf, GROUND_STEP), view: viewOf(world, true), windows: windowSlots(town, graph), ms: took() };
   }
   if (!world || !map || !traffic) throw new Error('sim worker: not initialised');
   if (m.type === 'save') return { type: 'saved', clock: world.clock, bytes: saveWorld(world), ms: took() };
@@ -141,11 +147,12 @@ function locate(w: World, map: StreetMap, id: number): PlayerReply['located'] {
   if (t && clock <= t.hideAfter) {
     const p: [number, number, number] = [0, 0, 0];
     sample(t.keys, clock, p);
-    return { x: p[0], z: p[2], building: -1, name };
+    const [x, z] = onTheGround(w, id, p[0], p[2], groundHalf - GROUND_EDGE);
+    return { x, z, building: -1, name };
   }
   const here = w.actors.cols.place[id];
   if (here < 0) return null;
-  const [x, z] = map.doorStep(here), kind = w.graph.places[here].kind;
+  const [x, z] = onTheGround(w, id, ...map.doorStep(here), groundHalf - GROUND_EDGE), kind = w.graph.places[here].kind;
   return { x, z, building: OUTDOOR.has(kind) ? -1 : w.graph.places[here].building, name };
 }
 
@@ -156,8 +163,8 @@ function playerOut(w: World, map: StreetMap, clock: number): ReturnType<typeof p
   // Indoors: the way out, where they step out when the player takes over.
   const a = w.actors.cols, here = a.place[s.id];
   if (a.dest[s.id] < 0 && here >= 0 && !OUTDOOR.has(w.graph.places[here].kind)) {
-    const [dx, dz] = map.door(here), [sx, sz] = map.doorStep(here);
-    s.exit = { x: sx, z: sz, yaw: Math.atan2(-(sx - dx), -(sz - dz)) };
+    const [dx, dz] = map.door(here), [sx, sz] = onTheGround(w, s.id, ...map.doorStep(here), groundHalf - GROUND_EDGE);
+    s.exit = { x: sx, z: sz, yaw: Math.atan2(-(sx - dx), -(sz - dz)) || 0 };
   }
   let t = tracks.get(s.id);
   if (!t || t.sig !== signature(w, s.id) || clock >= t.validUntil) {
@@ -167,7 +174,8 @@ function playerOut(w: World, map: StreetMap, clock: number): ReturnType<typeof p
   if (t && clock <= t.hideAfter) {
     const p: [number, number, number] = [0, 0, 0];
     sample(t.keys, clock, p);
-    s.x = p[0]; s.z = p[2]; s.outdoors = true;
+    [s.x, s.z] = onTheGround(w, s.id, p[0], p[2], groundHalf - GROUND_EDGE);
+    s.outdoors = true;
   }
   return s;
 }
@@ -271,12 +279,6 @@ function infoOf(w: World, id: number): ActorInfo {
 }
 
 /** Ground heights (sidewalk level) on a square grid around the town, for the camera. */
-function heightGrid(map: StreetMap, half: number, step: number): HeightGrid {
-  const n = Math.ceil((half * 2) / step) + 1, x0 = -half, z0 = -half;
-  const h = new Float32Array(n * n);
-  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) h[j * n + i] = map.groundY(x0 + i * step, z0 + j * step);
-  return { x0, z0, step, n, h };
-}
 
 serve<ToSim, FromSim>(simJob, (r) => {
   if (r.type === 'ready') return [r.ground.h.buffer, ...viewTransfers(r.view)];

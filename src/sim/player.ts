@@ -246,3 +246,19 @@ export function playerStatus(world: World): PlayerStatus | null {
     ...tiesOf(world, id),
   };
 }
+
+/**
+ * (x, z) on `id`'s track, or, when that is off the ground the game has, `lim` metres from the centre either way (travelling to or from the city or
+ * the next town, kilometres out), the town's edge where their road leaves it: nobody is put where there is no
+ * ground to stand on.
+ */
+export function onTheGround(w: World, id: ActorId, x: number, z: number, lim: number): [number, number] {
+  const far = Math.max(Math.abs(x), Math.abs(z));
+  if (far <= lim) return [x, z];
+  const a = w.actors.cols;
+  for (const at of [a.dest[id], a.place[id]]) {
+    const pl = at >= 0 ? w.graph.places[at] : null;
+    if (pl?.kind === 'away' && Math.max(Math.abs(pl.x), Math.abs(pl.z)) <= lim) return [pl.x, pl.z];
+  }
+  return [(x * lim) / far, (z * lim) / far];
+}

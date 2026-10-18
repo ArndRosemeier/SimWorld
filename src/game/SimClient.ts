@@ -8,6 +8,7 @@
  */
 import { WorkerPool } from '../workers/pool';
 import simWorkerUrl from '../workers/sim.worker.ts?worker&url';
+import { heightOnGrid, onGrid } from '../physics/solids';
 import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim } from '../workers/simProtocol';
 import type { PlayerStatus } from '../sim/player';
 import type { ChatRequest, ChatResponse } from '../chat/ops';
@@ -231,13 +232,14 @@ export class SimClient {
     return this.clock0 + ((performance.now() - this.base) / 60000) * this.rate;
   }
 
-  /** Ground height (sidewalk level) at (x, z), bilinear from the worker's grid. */
+  /** Ground height (sidewalk level) at (x, z): the worker's grid as the physics world has it (src/physics/solids.ts `heightOnGrid`). */
   standHeight(x: number, z: number): number {
-    const g = this.ground;
-    const fx = Math.min(g.n - 1.001, Math.max(0, (x - g.x0) / g.step)), fz = Math.min(g.n - 1.001, Math.max(0, (z - g.z0) / g.step));
-    const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
-    const h = g.h, n = g.n;
-    return (h[j * n + i] * (1 - u) + h[j * n + i + 1] * u) * (1 - v) + (h[(j + 1) * n + i] * (1 - u) + h[(j + 1) * n + i + 1] * u) * v;
+    return heightOnGrid(this.ground, x, z);
+  }
+
+  /** Is there ground at (x, z) to stand on (on the grid, `margin` metres inside its edge)? */
+  onGround(x: number, z: number, margin = 2): boolean {
+    return onGrid(this.ground, x, z, margin);
   }
 
   /** Where a walker is at `clock` (x, y, z), into `out`. */

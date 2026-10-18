@@ -41,8 +41,8 @@ test('indoors: the body walks in at the street door and up every flight of stair
 });
 
 test('indoors: every building can be left (a sample of the town): its street doors and every storey join the street, and nearly every room and bed or seat does', () => {
-  // Every sixteenth building of the town, all kinds; whole towns: test/slow/wayOut.slow.test.ts (it takes a while).
-  const sample = town.cells.flatMap((c) => c.buildings).filter((_, i) => i % 16 === 0);
+  // Every twentieth building of the town, all kinds; whole towns: test/slow/wayOut.slow.test.ts (it takes a while).
+  const sample = town.cells.flatMap((c) => c.buildings).filter((_, i) => i % 20 === 0);
   const cut: string[] = [];
   for (const b of sample) {
     const I = planInterior(b), r = cutOff(indoorsOf(I, 0, windowOpenings(b)), I);

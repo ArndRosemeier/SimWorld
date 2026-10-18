@@ -8,6 +8,7 @@
 import type { InsidePerson } from '../street/inside';
 import type { ChatRequest, ChatResponse } from '../chat/ops';
 import type { CivilDate } from '../sim/calendar';
+import type { DeckSpan } from '../world/ground';
 import type { DigestItem } from '../sim/chronicle';
 import type { PlayerAction, PlayerStatus } from '../sim/player';
 import type { InhabitantCard } from '../sim/profile';
@@ -117,6 +118,8 @@ export interface HeightGrid {
   step: number;
   n: number;
   h: Float32Array;
+  /** The bridge decks over the ground (their surface is where people stand on them, plus the curb); none if left out. */
+  decks?: DeckSpan[];
 }
 
 export type FromSim =
