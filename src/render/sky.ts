@@ -1,6 +1,6 @@
 /**
  * The day cycle on screen: the sky dome, the sun and the moon where the calendar puts them (src/sim/calendar.ts),
- * the weather (src/sim/weather.ts) in the clouds, the light and the haze, lightning, and the scene's light state
+ * the weather (src/sim/weather.ts) in the clouds, the light and the haze, lightning (the weather's strikes, the ones the thunder plays), and the scene's light state
  * (`LIGHT`: night, daylight, wet streets, lying snow, lit windows) every look reads. Ported from Scale (src/render/SkySystem.ts,
  * the lightning of src/render/Weather.ts); the sun path is the real one for the date, not Scale's equinox loop.
  *
@@ -13,7 +13,7 @@ import { Rng, clamp, deriveSeed, lerp, smoothstep } from '@futuremagic/core';
 import { MeshBuilder } from '../build/meshBuilder';
 import { dateOf, moonLit, moonPhase, moonPosition, sunAt, sunPosition, type Dated } from '../sim/calendar';
 import { minuteOfDay } from '../sim/time';
-import type { Weather } from '../sim/weather';
+import { strikesIn, type Weather } from '../sim/weather';
 import { aimSun, type Lights } from './lights';
 import { SKY_DOME } from './materials';
 import { meshFromData } from './meshes';
@@ -32,16 +32,13 @@ export class DaySky {
   readonly dome: Mesh;
   readonly sunDir = new Vector3();
   readonly moonDir = new Vector3();
-  /** Lightning flash 0 … ~1.5 now (the audio hooks thunder onto `onStrike`). */
+  /** Lightning flash 0 … ~1.5 now. */
   flash = 0;
   /** Daylight now, 0 night … 1 day. */
   day = 0;
-  /** Called at each strike with its distance (m): thunder follows after distance / 343 m/s. */
-  onStrike: ((distance: number) => void) | null = null;
-  private pulses: { t: number; amp: number }[] = [];
+  private pulses: { t: number; amp: number; angle: number; up: number }[] = [];
   private now = 0;
-  private nextStrike = 6;
-  private strikes = 0;
+  private lastMinute = -1;
   private cloudT = 0;
 
   constructor(private readonly renderer: WebGPURenderer, private readonly scene: Scene, private readonly lights: Lights, private readonly seed: number) {
@@ -74,7 +71,7 @@ export class DaySky {
     const day = (this.day = smoothstep(-0.12, 0.15, sunUp));
     const night = 1 - smoothstep(-0.2, 0.02, sunUp);
     const golden = smoothstep(0.35, 0.02, sunUp) * day;
-    this.lightning(dtReal, w);
+    this.lightning(clock, w);
 
     // The sky dome.
     SKY.sunDir.value.copy(this.sunDir);
@@ -171,27 +168,28 @@ export class DaySky {
     VEG.wind.value = clamp(w.wind * 2, 0.15, 2);
   }
 
-  /** Strikes now and then in a storm: flash pulses (a few flickers each); thunder is the audio's (`onStrike`). */
-  private lightning(dt: number, w: Weather): void {
-    if (w.lightning > 0.02) {
-      this.nextStrike -= dt * w.lightning;
-      if (this.nextStrike <= 0) {
-        const r = new Rng(deriveSeed(this.seed, 'strike', this.strikes++));
-        this.nextStrike = r.range(4, 22);
-        const dist = r.range(300, 6000);
-        const amp = lerp(1.5, 0.35, (dist - 300) / 5700);
-        const a = r.range(0, Math.PI * 2);
-        SKY.flashDir.value.set(Math.cos(a), r.range(0.25, 0.6), Math.sin(a)).normalize();
-        let t = this.now;
-        this.pulses.push({ t, amp });
-        for (let i = r.int(1, 3); i > 0; i--) { t += r.range(0.06, 0.22); this.pulses.push({ t, amp: amp * r.range(0.5, 1.1) }); }
-        this.onStrike?.(dist);
+  /**
+   * The weather's lightning strikes (src/sim/weather.ts `strikesIn`, the same ones the thunder plays): each new
+   * game minute's strikes flash `at` seconds in, as a few flickers, brighter the nearer.
+   */
+  private lightning(clock: number, w: Weather): void {
+    const m = Math.floor(clock);
+    if (this.lastMinute < 0 || m < this.lastMinute) this.lastMinute = m - 1;
+    for (let k = Math.max(this.lastMinute + 1, m - 4); k <= m; k++) {
+      for (const s of strikesIn(this.seed, k, w.lightning)) {
+        const r = new Rng(deriveSeed(this.seed, 'flicker', k, Math.round(s.at * 100)));
+        const amp = lerp(1.5, 0.35, clamp((s.distance - 400) / 5600, 0, 1));
+        let t = this.now + s.at;
+        this.pulses.push({ t, amp, angle: s.angle, up: r.range(0.25, 0.6) });
+        for (let i = r.int(1, 3); i > 0; i--) { t += r.range(0.06, 0.22); this.pulses.push({ t, amp: amp * r.range(0.5, 1.1), angle: s.angle, up: 0 }); }
       }
     }
+    this.lastMinute = m;
     let f = 0;
     for (let i = this.pulses.length - 1; i >= 0; i--) {
       const q = this.pulses[i], t = this.now - q.t;
       if (t > 1.2) { this.pulses.splice(i, 1); continue; }
+      if (t >= 0 && q.up > 0) SKY.flashDir.value.set(Math.cos(q.angle), q.up, Math.sin(q.angle)).normalize();
       if (t >= 0) f = Math.max(f, q.amp * Math.exp(-t * 9));
     }
     this.flash = Math.min(1.6, f);
