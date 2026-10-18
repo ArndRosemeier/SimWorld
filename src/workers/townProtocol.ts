@@ -57,11 +57,12 @@ export interface TownSummary {
 
 export type FromTown =
   | { type: 'ready'; town: TownSummary; ms: number }
-  | { type: 'cell'; ground: MeshData | null; buildings: MeshData | null; ms: number }
+  /** `chimneys`: the chimney tops (x, y, z each, world metres) of the buildings, for the smoke. */
+  | { type: 'cell'; ground: MeshData | null; buildings: MeshData | null; chimneys: number[]; ms: number }
   | { type: 'terrain'; mesh: MeshData; ms: number }
   | { type: 'water'; mesh: MeshData | null; ms: number }
   | { type: 'landmark'; mesh: MeshData | null; ms: number }
-  | { type: 'country'; ground: MeshData | null; buildings: MeshData | null; ms: number }
+  | { type: 'country'; ground: MeshData | null; buildings: MeshData | null; chimneys: number[]; ms: number }
   | { type: 'bridges'; ground: MeshData | null; buildings: MeshData | null; ms: number }
   /** `lamps`: the street lamp heads (`lampsOf`, LAMP_STRIDE floats each). */
   | { type: 'props'; groups: PropGroup[]; lamps: Float32Array; ms: number }

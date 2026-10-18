@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { dateOf, daysOf, gameDayOf, moonPhase, moonPosition, sunPosition, sunTimes } from '../src/sim/calendar';
-import { WeatherModel, describeWeather, weatherAt } from '../src/sim/weather';
+import { WeatherModel, describeWeather, heatingShare, weatherAt } from '../src/sim/weather';
 
 test('sky: the sun stands where the calendar says, the moon has its real phase', () => {
   const w = { epoch: daysOf(2025, 12, 29), seed: 1, latitude: 51 };
@@ -57,4 +57,11 @@ test('weather: keyed to the date, so a town started on any day sees the same Chr
   const wa = new WeatherModel(5, a).weather((xmas - a) * 1440 + 600), wb = new WeatherModel(5, b).weather((xmas - b) * 1440 + 600);
   assert.equal(wa.kind, wb.kind);
   assert.ok(Math.abs(wa.tempC - wb.tempC) < 1e-9 && Math.abs(wa.snowCm - wb.snowCm) < 1e-6 && Math.abs(wa.windDir - wb.windDir) < 1e-9);
+});
+
+test('weather: homes heat when it is cold, most in the morning and the evening', () => {
+  assert.equal(heatingShare(20, 8 * 60), 0);
+  assert.ok(heatingShare(0, 8 * 60) > 0.85);
+  assert.ok(heatingShare(8, 8 * 60) > heatingShare(12, 8 * 60));
+  assert.ok(heatingShare(0, 3 * 60) < heatingShare(0, 19 * 60) / 2);
 });

@@ -52,8 +52,9 @@ function handle(m: ToTown): FromTown {
       const ground = buildGround(plan, terrain, [(x0 + x1) / 2, 0, (z0 + z1) / 2]);
       const mb = new MeshBuilder(facadeSpecs());
       mb.setOrigin((x0 + x1) / 2, 0, (z0 + z1) / 2);
-      buildBuildings(mb, plan.buildings, terrain);
-      return { type: 'cell', ground: out(ground), buildings: out(mb), ms: ms() };
+      const chimneys: number[] = [];
+      buildBuildings(mb, plan.buildings, terrain, chimneys);
+      return { type: 'cell', ground: out(ground), buildings: out(mb), chimneys, ms: ms() };
     }
     case 'terrain': {
       const { x0, z0, size, res } = m.tile;
@@ -73,8 +74,9 @@ function handle(m: ToTown): FromTown {
     }
     case 'country': {
       const mb = new MeshBuilder(facadeSpecs());
-      for (const f of rural.farms) buildBuildings(mb, rural.layout(f.id).buildings, terrain);
-      return { type: 'country', ground: out(buildCountryRoads(rural, macro.rail, terrain)), buildings: out(mb), ms: ms() };
+      const chimneys: number[] = [];
+      for (const f of rural.farms) buildBuildings(mb, rural.layout(f.id).buildings, terrain, chimneys);
+      return { type: 'country', ground: out(buildCountryRoads(rural, macro.rail, terrain)), buildings: out(mb), chimneys, ms: ms() };
     }
     case 'bridges': {
       const b = buildBridges(macro.bridges, terrain, macro.edges);
