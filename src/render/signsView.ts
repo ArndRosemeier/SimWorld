@@ -5,7 +5,7 @@
  * (src/build/signs.ts, the mounts from src/plan/signs.ts); here each model is a geometry-instanced
  * mesh of the `FURNITURE` kind, every instance with its own lettering slot of the text atlas
  * (`iSign`). What a sign says comes from the facts (`SignFacts`: the sim's town face, the planner's
- * places until it comes): a shop that closes shows the agent's TO LET board on its fascia and its
+ * places until it comes): a shop that closes shows the agent's for-rent board on its fascia and its
  * hours go; a new one has its own name; a home for sale gets a board in the garden.
  *
  * Signs near the camera get their words first; when the atlas is full the farthest give their slot
@@ -20,6 +20,7 @@ import type { Notice } from '../sim/media';
 import { PLACE_KINDS } from '../sim/places';
 import { LOOK_FOR_SALE, LOOK_TO_LET } from '../sim/economy';
 import { hoursLines } from '../sim/hours';
+import { boardWord, fillName } from '../lang/words';
 import { FURNITURE } from './materials';
 import { instancedFromData, showInstances } from './meshes';
 import { lettering, type Painter } from './textAtlas';
@@ -96,7 +97,7 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
   let noticesSaid = '';
   const agentName = () => {
     for (let p = 0; p < facts.name.length; p++) if (PLACE_KINDS[facts.kind[p]] === 'estateagent' && facts.name[p]) return facts.name[p];
-    return `${signs.town} Property`;
+    return fillName(boardWord('agent'), { city: signs.town });
   };
   /** What sign `w` (index `i`) says today, or null when it is not there. */
   const sayingOf = (w: SignWhat, i: number, agent: string): Saying | null => {
@@ -118,7 +119,7 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
       case 'estate': {
         const f = facts.flags[w.place];
         if (!(f & (LOOK_FOR_SALE | LOOK_TO_LET))) return null;
-        const what = f & LOOK_FOR_SALE ? 'FOR SALE' : 'TO LET';
+        const what = f & LOOK_FOR_SALE ? 'forSale' : 'forRent';
         return own(`estate|${what}|${agent}`, paint.estateBoard(what, agent));
       }
       case 'site': return own(`site|${facts.name[w.place]}`, paint.siteBoard(facts.name[w.place]));
