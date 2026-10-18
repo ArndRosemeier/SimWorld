@@ -1,0 +1,3 @@
+[submodule "vendor/assetgenerator"]
+	path = vendor/assetgenerator
+	url = https://github.com/ArndRosemeier/AssetGenerator
