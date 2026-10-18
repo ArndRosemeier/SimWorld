@@ -42,6 +42,12 @@ const LANDMARK = {
 export type SignKind = keyof typeof SIGN;
 export type LandmarkNameKind = keyof typeof LANDMARK;
 
+/** Small offices in former shop units, named after the street ("Elm Insurance", "Mill Law Office"). */
+const OFFICES = ['Insurance', 'Tax Advisers', 'Law Office', 'Accountants', 'Architects', 'Travel', 'Rentals', 'Opticians'] as const;
+
+/** The kinds of small office a former shop unit may hold. */
+export const officeWords = (): readonly string[] => OFFICES;
+
 /** A business's sign label ("Pharmacy", "Mini Market"). */
 export const signWord = (kind: SignKind): string => SIGN[kind];
 
