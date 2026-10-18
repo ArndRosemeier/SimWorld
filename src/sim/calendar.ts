@@ -277,3 +277,68 @@ export const schoolDay = (world: Dated, clock: number): boolean => factsOf(world
 
 /** Clock at midnight starting a given count of days since 1970. */
 export const clockOfDays = (world: Dated, days: number): number => (days - world.epoch) * MINUTES_PER_DAY;
+
+// ---- where the sun and the moon stand (the sky view; track B) ------------------------------------------------
+
+/** Where in the year the day of `clock` is: 0 on 1 January … 1, continuous through the day. */
+export function yearPhase(world: { readonly epoch: number }, clock: number): number {
+  const days = world.epoch + clock / MINUTES_PER_DAY;
+  const { year } = civilOf(Math.floor(days));
+  const y0 = daysOf(year, 1, 1);
+  return (days - y0) / (daysOf(year + 1, 1, 1) - y0);
+}
+
+export interface SkyBody {
+  /** Height above the horizon, radians (negative below it). */
+  elevation: number;
+  /** Compass direction, radians from north towards east. */
+  azimuth: number;
+  /** Unit vector towards it in world axes (east +x, up +y, north -z). */
+  dir: [number, number, number];
+}
+
+/** The sun's declination (radians) on a day of the year, the same as `sunTimes`'. */
+const declination = (dayOfYear: number): number => (-23.44 * Math.PI / 180) * Math.cos((2 * Math.PI * (dayOfYear + 10)) / 365.25);
+
+function skyBody(latitude: number, decl: number, hourAngle: number): SkyBody {
+  const phi = (latitude * Math.PI) / 180;
+  const sinEl = Math.sin(phi) * Math.sin(decl) + Math.cos(phi) * Math.cos(decl) * Math.cos(hourAngle);
+  const elevation = Math.asin(Math.max(-1, Math.min(1, sinEl)));
+  const azimuth = Math.atan2(Math.sin(hourAngle), Math.cos(hourAngle) * Math.sin(phi) - Math.tan(decl) * Math.cos(phi)) + Math.PI;
+  const c = Math.cos(elevation);
+  return { elevation, azimuth, dir: [c * Math.sin(azimuth), Math.sin(elevation), -c * Math.cos(azimuth)] };
+}
+
+/** The sun's hour angle (radians) at `clock`: due south at 12:00 standard time, as `sunTimes` has it. */
+function hourAngle(d: GameDate, clock: number): number {
+  const minute = clock - Math.floor(clock / MINUTES_PER_DAY) * MINUTES_PER_DAY;
+  return ((minute - 720 - (summerTime(d) ? 60 : 0)) / 4) * (Math.PI / 180);
+}
+
+/** Where the sun stands at `clock` (fractional minutes are fine): rises and sets at `sunAt`'s times. */
+export function sunPosition(world: Dated & { readonly latitude: number }, clock: number): SkyBody {
+  const d = dateOf(world, clock);
+  return skyBody(world.latitude, declination(d.dayOfYear), hourAngle(d, clock));
+}
+
+/** Days from a new moon to the next, and a new moon: 2000-01-06 18:14 UTC. */
+const SYNODIC = 29.530589;
+const NEW_MOON = daysOf(2000, 1, 6) + (18 * 60 + 14) / MINUTES_PER_DAY;
+
+/** The moon's real phase at `clock`: 0 new, 0.25 first quarter, 0.5 full, 0.75 last quarter. */
+export function moonPhase(world: { readonly epoch: number }, clock: number): number {
+  const p = ((world.epoch + clock / MINUTES_PER_DAY - NEW_MOON) / SYNODIC) % 1;
+  return p < 0 ? p + 1 : p;
+}
+
+/** Lit fraction of the moon's disc, 0 (new) … 1 (full). */
+export const moonLit = (phase: number): number => (1 - Math.cos(phase * 2 * Math.PI)) / 2;
+
+/**
+ * Where the moon stands at `clock`: an approximation good for the sky. It follows the sun's path lagging by its
+ * phase, with the declination the sun has that far round the year, so a winter full moon rides high.
+ */
+export function moonPosition(world: Dated & { readonly latitude: number }, clock: number): SkyBody {
+  const d = dateOf(world, clock), phase = moonPhase(world, clock);
+  return skyBody(world.latitude, declination(d.dayOfYear + phase * 365.25), hourAngle(d, clock) - phase * 2 * Math.PI);
+}
