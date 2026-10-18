@@ -38,8 +38,9 @@ interface Conversation {
   began: number;
   told: string[];
   last: NpcPromptInput | null;
-  /** The appraisal of the previous reply, applied before the next turn is built. */
+  /** The appraisal of the previous reply, applied before the next turn is built (and before the talk ends). */
   pending: Promise<void>;
+  /** Cancels a reply still streaming when the talk ends. */
   abort: AbortController;
   /** The language model gave up for good in this conversation (bad key, no credits): the procedural engine answers. */
   procedural: boolean;
@@ -185,9 +186,10 @@ export class Chat {
   private async appraise(c: Conversation, input: NpcPromptInput, reply: string): Promise<void> {
     let result: AppraisalResult;
     try {
-      result = (await this.setup.llm.run('npc.appraisal', { context: input, reply }, { signal: c.abort.signal })).output;
+      // Not cancelled when the talk ends: what you said last still counts (`close` waits for it).
+      result = (await this.setup.llm.run('npc.appraisal', { context: input, reply })).output;
     } catch (e) {
-      if (!c.abort.signal.aborted) this.panel.changes([], [`appraisal failed: ${why(e as LlmError)}`]);
+      if (this.talk === c) this.panel.changes([], [`appraisal failed: ${why(e as LlmError)}`]);
       return;
     }
     const req: Extract<ChatRequest, { op: 'apply' }> = { op: 'apply', npc: c.header.npc, proposal: result.proposal };
