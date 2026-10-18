@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { planTown, dwellingTarget } from '../src/plan/town';
+import { MAP_WATER, townMapOf } from '../src/plan/townMap';
 import { inSite, siteToWorld, type LandmarkKind } from '../src/plan/landmarks';
 import { EATERY_OF, amenityCounts } from '../src/plan/amenities';
 import { dwellingsOf } from '../src/plan/building';
@@ -39,7 +40,7 @@ test('the town houses about the planned number of households', () => {
 });
 
 test('every public building has a site: in its cell or outside the town with an access road', () => {
-  const kinds: LandmarkKind[] = ['townhall', 'church', 'school', 'kindergarten', 'clinic', 'fire', 'supermarket', 'sports', 'station'];
+  const kinds: LandmarkKind[] = ['townhall', 'church', 'school', 'kindergarten', 'clinic', 'fire', 'supermarket', 'sports', 'station', 'carehome', 'petrol'];
   for (const k of kinds) assert.equal(macro.landmarks.filter((l) => l.kind === k).length, 1, k);
   for (const lm of macro.landmarks) {
     const [x, z] = siteToWorld(lm, 0, 0);
@@ -113,8 +114,9 @@ test('the place graph: every home, workplace and street on one connected road ne
     assert.ok(Math.hypot(g.nodes[p.node].x - p.x, g.nodes[p.node].z - p.z) < 160, `${p.name} near its road`);
     assert.ok(p.street, `${p.name} has an address`);
   }
-  assert.equal(g.places.reduce((s, p) => s + p.homes, 0), town.dwellings);
-  for (const k of ['townhall', 'church', 'school', 'kindergarten', 'doctor', 'fire', 'police', 'supermarket', 'station', 'sports', 'pub', 'farm'] as const)
+  // (The care home's rooms are homes too, but not households the planner counts.)
+  assert.equal(g.places.reduce((s, p) => s + (p.kind === 'carehome' ? 0 : p.homes), 0), town.dwellings);
+  for (const k of ['townhall', 'church', 'school', 'kindergarten', 'doctor', 'fire', 'police', 'supermarket', 'station', 'sports', 'pub', 'farm', 'carehome', 'petrol'] as const)
     assert.ok(g.places.some((p) => p.kind === k), k);
   const ref = buildingRef(g.places.find((p) => p.kind === 'pub')!.building);
   assert.ok(ref && 'cell' in ref && cells[ref.cell].buildings[ref.index].amenity, 'building codes point at the building');
@@ -158,4 +160,17 @@ test('the sound map hears the town: bells at the church tower, gardens in the su
     if (Math.hypot(river.pts[best], river.pts[best + 1]) < terrain.profile.radius + 1000) assert.ok(soundAt(map, river.pts[best], river.pts[best + 1]).water > 0.5, 'river heard');
   }
   assert.ok(Math.abs(groundAt(map, 0, 0) - terrain.height(0, 0)) < 3);
+});
+
+test('the town map: every street in town has its name printed along it, landmarks by name, water where the terrain has it', () => {
+  const m = townMapOf(town);
+  assert.ok(m.roads.length > 20 && m.buildingEnds.length > 100);
+  const named = new Set(m.roads.filter((r) => r.street >= 0).map((r) => r.street));
+  for (const s of named) assert.ok(m.streets[s].length > 0, `${m.streets[s].name} has a place for its name`);
+  assert.equal(m.landmarks.length, town.macro.landmarks.length);
+  const k = m.ground.indexOf(MAP_WATER);
+  if (k >= 0) {
+    const cell = (2 * m.half) / m.n;
+    assert.ok(town.terrain.isWater(m.cx - m.half + ((k % m.n) + 0.5) * cell, m.cz - m.half + (Math.floor(k / m.n) + 0.5) * cell));
+  }
 });

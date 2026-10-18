@@ -57,6 +57,8 @@ export interface REdge {
   ys: Float32Array;
   /** The town road line it is a piece of, and the arc length where it starts on it. */
   line: number;
+  /** Its street (`RoadNet.streets`), -1 for unnamed tracks. */
+  street: number;
   s0: number;
 }
 
@@ -72,10 +74,13 @@ export const LIMITS = { main: 50, street: 30, lane: 20, country: 80, countryLane
 export class RoadNet {
   readonly nodes: RNode[];
   readonly edges: REdge[] = [];
+  /** Street names (the place graph's street places carry the same names). */
+  readonly streets: string[];
   private readonly grid = new Map<number, number[]>();
 
   constructor(town: Town) {
     const roads = townRoads(town);
+    this.streets = roads.streets.map((st) => st.name);
     const { terrain, macro } = town;
     this.nodes = roads.nodes.map((n) => ({ x: n.x, z: n.z, edges: [], signal: false, exit: false }));
     const bridgeOf = new Map(macro.bridges.map((b) => [b.edge, b]));
@@ -100,7 +105,7 @@ export class RoadNet {
         this.edges.push({
           a: A.node, b: B.node, pts, cum, len, width: L.width, sidewalk: L.sidewalk, lanes: Math.max(1, L.lanes), cls: L.cls, source: L.source,
           park: L.source === LineSource.Local && L.cls === RoadClass.Street ? 2 : 0,
-          kmh: limitOf(L, inTown), rule: [Rule.Free, Rule.Free], ys, line: li, s0: A.s,
+          kmh: limitOf(L, inTown), rule: [Rule.Free, Rule.Free], ys, line: li, s0: A.s, street: L.street,
         });
         this.nodes[A.node].edges.push(id);
         this.nodes[B.node].edges.push(id);
@@ -135,7 +140,8 @@ export class RoadNet {
       }
       if (L.source === LineSource.Country || L.source === LineSource.Track) {
         const r = town.rural.roads[L.ref];
-        return r.bridges.length ? countryRoadSurface(r, terrain) : null;
+        // The drawn surface: a little above the ground (more on the bigger roads), decks on bridges.
+        return countryRoadSurface(r, terrain);
       }
       return null;
     }

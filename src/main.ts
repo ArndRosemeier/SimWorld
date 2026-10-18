@@ -21,9 +21,10 @@ import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
 import { createRenderer, GraphicsUnavailable } from './render/renderer';
 import { Stage } from './render/stage';
-import { fitSunShadow, makeLights } from './render/lights';
+import { fitSunShadow, makeLights, placeLamps } from './render/lights';
 import { DaySky } from './render/sky';
 import { Precipitation } from './render/precip';
+import { ChimneySmoke } from './render/smoke';
 import { WEATHER_KINDS, describeWeather, forceWeather, weatherAt, type Weather, type WeatherKind } from './sim/weather';
 import { setParcels } from './render/tsl/ground';
 import { showTown } from './render/townView';
@@ -49,6 +50,8 @@ import { formatDate } from './sim/calendar';
 import { TownAudio } from './audio/townAudio';
 import { soundEnvFromSim, soundEnvOf, soundOverrides } from './audio/env';
 import { soundButton } from './app/soundPanel';
+import { paperButton } from './app/paperPanel';
+import { mapButton } from './app/mapPanel';
 
 const HAZE = 0xa9c8e4;
 
@@ -131,6 +134,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   void stage.add(sky.dome);
   const precip = new Precipitation(settings.seed);
   void stage.add(precip.mesh);
+  const smoke = new ChimneySmoke(settings.seed);
+  void stage.add(smoke.mesh);
   step('Planning the town', 0.15);
 
   const [ready] = await planned;
@@ -142,12 +147,13 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   // What the town sounds like where: one worker works it out alongside the meshes.
   void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { time.region = { region: { coastal: r.map.coastal } }; audio.setTown(r.map); });
-  const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total));
+  const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total), (tops) => smoke.addChimneys(tops));
 
   step('Waking the town', 0.15);
   const sim = await simulated;
   if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);
   sim.keepSaved();
+  document.body.append(paperButton(() => sim.view));
   const street = new Street(sim, people, settings.seed);
 
   // The drone drift: a slow circle around the town, high enough to see it whole (or fixed by ?at=…).
@@ -163,6 +169,10 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
   const fwd = { x: 0, y: 0, z: 0 };
+  document.body.append(mapButton(
+    async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
+    () => (cam.mode === 'drone' ? null : { x: camera.position.x, z: camera.position.z, fx: fwd.x, fz: fwd.z }),
+  ));
   renderer.setAnimationLoop((t: number) => {
     const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
     lastT = t;
@@ -183,7 +193,10 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     view.vegetation?.update(camera);
     view.props?.update(camera);
     sky.update(dt, time, time.clock, w, camera, rate);
+    if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.night);
+    else placeLamps(lights, undefined, 0, 0, 0);
     precip.fall(dt, camera, w, w.windDir, sky.day, sky.flash);
+    smoke.puff(dt, w, minuteOfDay(sim.clock), sky.day);
     renderer.render(scene, camera);
     const e = camera.matrixWorld.elements;
     fwd.x = -e[8]; fwd.y = -e[9]; fwd.z = -e[10];

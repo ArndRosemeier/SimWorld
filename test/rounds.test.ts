@@ -7,7 +7,9 @@ import { createWorld } from '../src/sim/synth';
 import { runsLike } from '../src/sim/calendar';
 import { MINUTES_PER_DAY, dayOf } from '../src/sim/time';
 import { transitOf } from '../src/sim/transit';
-import { BUS_KEY, exitTowardRegion } from '../src/traffic/buses';
+import { BUS_KEY } from '../src/traffic/buses';
+import { SERVICE_KEY, ServiceRounds, exitTowardRegion, roundGoal } from '../src/traffic/rounds';
+import { agendaOn } from '../src/sim/agenda';
 import { carPlace, regionOfPlace, type CarTrip } from '../src/traffic/trips';
 import { TownTraffic } from '../src/traffic/townTraffic';
 
@@ -29,12 +31,12 @@ test('the timetable\'s buses: in from the region, a lay-by stop at every town st
   for (let m = 0; m < 100; m++) {
     tt.trips([], clock);
     const before = tt.stats.buses;
-    tt.transit(world, clock, clock + 1);
+    tt.rounds(world, clock, clock + 1);
     clock++;
     for (let k = 0; k < 60; k++) {
       tt.update(1);
       for (const v of tt.traffic.vehicles) {
-        if (v.car.key < BUS_KEY) continue;
+        if (v.car.key < BUS_KEY || v.car.key >= SERVICE_KEY) continue;
         if (!seen.has(v.car.key)) seen.set(v.car.key, { stops: [], left: [], due: [], gone: false });
         // Pulling out of a stop: not before the timetable says (Traffic time, in game seconds).
         const was = halted.get(v.car.key) ?? -1;
@@ -77,4 +79,34 @@ test('commuters: a car trip to the city leaves town on its road; coming home, th
   assert.ok(parked);
   const at = tr.parking.restAt(hh.id)!, h = graph.places[home];
   assert.ok(Math.hypot(at.x - h.x, at.z - h.z) < 300, 'parked near home');
+});
+
+test('service rounds: the bin lorry on bin day streets, post and deliveries on working days, nothing on Sunday', () => {
+  const tr = new TownTraffic(town, graph.places, 1, world);
+  const sr = new ServiceRounds(world, tr.net);
+  let day = dayOf(world.clock);
+  while (runsLike(world, day * MINUTES_PER_DAY) !== 1) day++;
+  const tue = sr.on(day);
+  assert.equal(sr.on(day), tue, 'planned once per day');
+  const kinds = tue.map((r) => `${r.car.kind}:${r.car.variant}`);
+  assert.ok(kinds.includes('van:2') && kinds.includes('delivery:0') && kinds.includes('delivery:1'), kinds.join(' '));
+  const bins = tue.find((r) => r.car.kind === 'truck');
+  const binStreets = new Set(agendaOn(world, day).filter((o) => o.kind === 'binDay').map((o) => graph.places[o.place].name));
+  if (bins) for (const s of bins.stops) assert.ok(binStreets.has(tr.net.streets[tr.net.edges[s.tag].street]));
+  // The lorry only calls at shops that open today.
+  for (const s of tue.find((r) => r.car.kind === 'delivery' && r.car.variant === 0)!.stops) assert.ok(graph.places[s.tag].hours.length > 0);
+  let sun = day;
+  while (runsLike(world, sun * MINUTES_PER_DAY) !== 6) sun++;
+  assert.equal(sr.on(sun).length, 0);
+
+  // The post van drives its round: every stop, then out of town, nobody stuck.
+  const post = tue.find((r) => r.car.kind === 'van')!;
+  let stops = 0, out = false, stuck = 0;
+  tr.traffic.onHalt = (v) => { if (v.car.key === post.car.key) stops++; };
+  tr.traffic.onGone = (v, why) => { if (why === 'stuck') stuck++; else if (v.car.key === post.car.key) out = true; };
+  assert.ok(tr.traffic.enter(post.car, post.enter, roundGoal(post, () => 0)));
+  // (Out to the farms on the country roads too: a couple of hours.)
+  for (let k = 0; k < 4000 && !out; k++) tr.update(2);
+  assert.equal(stops, post.stops.length);
+  assert.ok(out && stuck === 0);
 });

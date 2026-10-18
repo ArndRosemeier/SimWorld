@@ -195,14 +195,24 @@ export function witness(world: World, fact: number, holders: readonly ActorId[])
   }
 }
 
-/** A newspaper item, the notice board: a low-salience belief for a share of the adults. */
-export function broadcast(world: World, fact: number, reach: number): void {
+/**
+ * A broadcast channel (src/sim/media.ts: the paper, notice boards, posters): a low-salience belief for each reader,
+ * either the people in `reach` (who actually read it) or, given a number, that share of the town.
+ */
+export function broadcast(world: World, fact: number, reach: number | readonly ActorId[]): void {
   const f = world.knowledge.facts[fact];
+  const read = (id: ActorId) => {
+    const r = newBelief(world, id, f, 0.7, SOURCE_BROADCAST);
+    world.knowledge.beliefs.cols.salience[r] *= 0.5;
+  };
+  if (typeof reach !== 'number') {
+    for (const id of reach) if (isPerson(world, id) && beliefAbout(world, id, fact) < 0) read(id);
+    return;
+  }
   const rng = tickRng(world, 'broadcast', fact);
   for (let id = 0; id < world.actors.count; id++) {
     if (!isPerson(world, id) || !rng.chance(reach) || beliefAbout(world, id, fact) >= 0) continue;
-    const r = newBelief(world, id, f, 0.7, SOURCE_BROADCAST);
-    world.knowledge.beliefs.cols.salience[r] *= 0.5;
+    read(id);
   }
 }
 
