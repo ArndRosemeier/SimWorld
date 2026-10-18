@@ -27,6 +27,7 @@ import { PLACE_KINDS, popcount, type PlaceId, type PlaceKind } from './places';
 import { Columns, f32, f64, i32, u8 } from './table';
 import { DAYS_PER_YEAR, MINUTES_PER_DAY } from './time';
 import { monthKey } from './calendar';
+import { businessHours } from './hours';
 import { fitRoutine, pickHabits, settle } from './synth';
 import { ageOf, householdOf, isPerson, jobOf, placesOf, setPlaceKind, tickRng, traitOf, valueOf, type World } from './world';
 
@@ -867,8 +868,8 @@ export function openBusiness(world: World, place: PlaceId, kind: PlaceKind, rng:
   const surname = owner >= 0 ? world.people.last[a.row[owner]] : p.street.split(' ')[0];
   const name = `${surname}${owner >= 0 ? "'s" : ''} ${LABEL[kind] ?? kind}`;
   const capacity = Math.round(KINDS[kind].capacity);
-  setPlaceKind(world, place, kind, { name, hours: defaultHours(kind), staff: defaultStaff(kind), capacity });
-  for (const s of p.staff) for (let i = 0; i < s.count; i++) world.jobs.push({ id: world.jobs.length, place, role: s.role, days: s.days, start: s.start, end: s.end, minAge: s.minAge, holder: -1 });
+  setPlaceKind(world, place, kind, { name, hours: businessHours(kind, defaultHours(kind), rng), staff: defaultStaff(kind), capacity });
+  for (const s of world.graph.places[place].staff) for (let i = 0; i < s.count; i++) world.jobs.push({ id: world.jobs.length, place, role: s.role, days: s.days, start: s.start, end: s.end, minAge: s.minAge, holder: -1 });
   b.status[place] = BIZ_OPEN;
   b.since[place] = day;
   b.red[place] = 0;

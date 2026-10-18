@@ -252,9 +252,9 @@ function maybeDistort(world: World, teller: ActorId, fact: Fact, roll: Roll): Fa
   if (kind < 0.6 || (fact.subject < 0 && fact.place < 0)) v.magnitude = clamp(fact.magnitude + 0.15, 0, 1);
   else if (kind < 0.8 && fact.subject >= 0 && fact.text.includes('{subject}')) {
     // Pin it on someone the teller knows who is "the type": another person they know.
-    const known = world.relations.known(teller);
-    if (known.length === 0) return fact;
-    const other = world.relations.t.cols.to[known[Math.floor(roll.float() * known.length)]];
+    const row = world.relations.anyKnown(teller, roll);
+    if (row < 0) return fact;
+    const other = world.relations.t.cols.to[row];
     if (other === fact.subject || !isPerson(world, other)) return fact;
     v.subject = other;
   } else if (fact.place >= 0 && fact.text.includes('{place}')) {

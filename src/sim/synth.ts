@@ -18,6 +18,7 @@ import { levelMarket, newEconomy, settleEconomy } from './economy';
 import { foundGroups, newGroups } from './groups';
 import { history, historyDays } from './chronicle';
 import { newAgenda, townAgenda } from './agenda';
+import { withLocalHours } from './hours';
 import { withOffsite } from './offsite';
 import { DEFAULT_LATITUDE, epochFor, type CivilDate } from './calendar';
 
@@ -64,7 +65,9 @@ export interface WorldOptions {
 /** Make a world for a place graph: places indexed, population synthesised, relationships seeded (and optionally a history lived), clock at 06:00. */
 export function createWorld(planned: PlaceGraph, seed: number, opts: WorldOptions = {}): World {
   // The city, the next town and the secondary school there join the graph before it is indexed.
-  const { graph, offsite } = withOffsite(planned, opts.region);
+  const offsiteGraph = withOffsite(planned, opts.region);
+  const { offsite } = offsiteGraph;
+  const graph = withLocalHours(offsiteGraph.graph, seed);
   const idx = placeIndex(graph);
   const world: World = {
     seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
