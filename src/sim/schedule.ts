@@ -99,6 +99,9 @@ export function decideAll(world: World): void {
   }
 }
 
+/** Minutes to step out of the door onto one's own street. */
+const STEP_OUT = 2;
+
 /** Where someone is now: their place, or home while between places. */
 export function placeNow(world: World, id: ActorId): PlaceId {
   const a = world.actors.cols;
@@ -121,12 +124,15 @@ export function go(world: World, id: ActorId, place: PlaceId, activity: number, 
     a.activity[id] = activity;
     a.until[id] = Math.max(until, now + 5);
   } else {
-    const car = hasCar(world, id);
+    // Out of the door onto the street they are on, or home from it: a step (the street's place may be far down a long road).
+    const outside = world.streetOf[from] === place || (place === a.home[id] && world.streetOf[place] === from);
+    const car = !outside && hasCar(world, id);
     // Out of town without a car: the next bus or train on the timetable (the school bus for pupils), else a lift.
-    const ride = car ? null : awayRide(world, from, place, now);
+    const ride = car || outside ? null : awayRide(world, from, place, now);
     const walkUpTo = car ? walkLimit(world, id, place, activity) : DRIVE_IF_WALK_OVER;
-    const t = ride ? ride.minutes : world.travel.minutes(from, place, car, walkUpTo);
-    world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode: ride ? ride.mode : world.travel.mode(from, place, car, walkUpTo), leader: -1, run: ride ? ride.run : -1 });
+    const t = outside ? STEP_OUT : ride ? ride.minutes : world.travel.minutes(from, place, car, walkUpTo);
+    const mode = outside ? 'foot' : ride ? ride.mode : world.travel.mode(from, place, car, walkUpTo);
+    world.trips.push({ who: id, from, to: place, depart: now, arrive: now + t, mode, leader: -1, run: ride ? ride.run : -1 });
     a.dest[id] = place;
     a.arrive[id] = now + t;
     const street = world.streetOf[place];

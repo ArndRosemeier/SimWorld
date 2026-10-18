@@ -19,6 +19,7 @@ import { stopBoards } from '../src/street/stops';
 import { planInterior } from '../src/interior/building';
 import { buildingRef } from '../src/plan/placeGraph';
 import { A } from '../src/sim/actors';
+import { go } from '../src/sim/schedule';
 import { pointInPoly, polyCentroid } from '../src/geom/geom2';
 import { TrafficFeed } from '../src/traffic/feed';
 import type { Footprints } from '../src/plan/footprints';
@@ -308,4 +309,28 @@ test('bus stops: a post by the kerb near each stop, its timetable facing the pav
     assert.ok(Math.hypot(hit.px - st.x, hit.pz - st.z) > L.width / 2 - 0.05, `${st.name}: off the carriageway`);
     assert.ok(-Math.sin(st.yaw) * (st.x - hit.px) - Math.cos(st.yaw) * (st.z - hit.pz) > 0, `${st.name}: faces the pavement`);
   }
+});
+
+test('street: out on their own street people stay near their house, even where the street is a long country road', () => {
+  const w = createWorld(graph, 1), c = w.actors.cols;
+  tick(w, 240); // 10:00
+  const far = w.graph.places.filter((p) => p.homes > 0 && w.streetOf[p.id] >= 0 && (() => { const n = w.graph.nodes[w.graph.places[w.streetOf[p.id]].node]; return Math.hypot(n.x - p.x, n.z - p.z) > 1000; })());
+  assert.ok(far.length >= 3, `${far.length} homes far from their street's middle`);
+  let checked = 0;
+  for (const p of far) {
+    const id = Array.from({ length: w.actors.count }, (_, i) => i).find((i) => isPerson(w, i) && c.home[i] === p.id && c.place[i] === p.id && c.dest[i] < 0 && ageOf(w, i) >= 16);
+    if (id === undefined) continue;
+    go(w, id, w.streetOf[p.id], A.roam, w.clock + 60);
+    const near = (t: Track | null, what: string) => {
+      assert.ok(t, what);
+      for (let i = 0; i < t!.keys.length; i += 4) assert.ok(Math.hypot(t!.keys[i + 1] - p.x, t!.keys[i + 3] - p.z) < 250, `${what}: ${Math.hypot(t!.keys[i + 1] - p.x, t!.keys[i + 3] - p.z).toFixed(0)} m from home`);
+    };
+    assert.ok(c.arrive[id] - w.clock <= 2, 'a step out of the door');
+    near(trackOf(w, map, id, w.clock), 'stepping out');
+    w.clock = c.arrive[id];
+    c.place[id] = c.dest[id]; c.dest[id] = -1; c.activity[id] = A.roam;
+    near(trackOf(w, map, id, w.clock), 'out on the street');
+    checked++;
+  }
+  assert.ok(checked >= 2, `${checked} checked`);
 });
