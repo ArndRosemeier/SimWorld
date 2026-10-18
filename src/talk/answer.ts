@@ -120,7 +120,7 @@ function hedge(v: Manner, b: Belief, input: NpcPromptInput): string {
   if (who === 'you') return `You told me ${text}, didn't you?`;
   if (b.confidence > 0.75) return v.r.pick([`${capitalize(text)}. ${who} told me.`, `${who} says ${text}.`]);
   if (b.confidence > 0.4) return v.r.pick([`Apparently ${text}. At least that's what ${who} said.`, `I heard from ${who} that ${text}.`]);
-  return v.r.pick([`${who} reckons ${text}, but I don't know if I believe it.`, `There's talk that ${text}. Could be nonsense.`]);
+  return v.r.pick([`${who} thinks ${text}, but I don't know if I believe it.`, `There's talk that ${text}. Could be nonsense.`]);
 }
 
 function greeting(v: Manner, input: NpcPromptInput, w?: ReplyWorld): string {
@@ -135,8 +135,8 @@ function greeting(v: Manner, input: NpcPromptInput, w?: ReplyWorld): string {
     if (s) return s;
   }
   if (v.familiar < 0.15) return v.warm > 0.5 ? v.r.pick([`${tod}. Can I help you?`, 'Hello there.', `Good ${tod.toLowerCase()}.`]) : v.r.pick(['Hello.', `${tod}.`, 'Yes?']);
-  const base = v.r.pick(name ? [`Hello, ${name}!`, `${tod}, ${name}.`, `Hiya ${name}.`, `Oh, hi ${name}.`] : ['Hello!', `${tod}!`]);
-  return v.talkative > 0.6 ? `${base} ${v.r.pick(['Good to see you.', 'Long time no see.', 'How are you keeping?', 'Fancy meeting you here.'])}` : base;
+  const base = v.r.pick(name ? [`Hello, ${name}!`, `${tod}, ${name}.`, `Hey, ${name}.`, `Oh, hi ${name}.`] : ['Hello!', `${tod}!`]);
+  return v.talkative > 0.6 ? `${base} ${v.r.pick(['Good to see you.', 'Long time no see.', 'How have you been?', 'Fancy meeting you here.'])}` : base;
 }
 
 function howAreYou(v: Manner, input: NpcPromptInput, w?: ReplyWorld): string {
@@ -151,7 +151,7 @@ function howAreYou(v: Manner, input: NpcPromptInput, w?: ReplyWorld): string {
       : /angry|irritated/.test(mood) ? v.r.pick(['Don\'t ask.', 'Fed up, if you must know.'])
         : v.r.pick(['Fine, thanks.', 'Oh, you know. Getting by.', 'Same as ever.']);
   if (curt) return core;
-  const extra = /exhausted|tired/.test(needs) ? ' Shattered, mind you.' : /hungry/.test(needs) ? ' Starving, though.' : '';
+  const extra = /exhausted|tired/.test(needs) ? ' Worn out, though.' : /hungry/.test(needs) ? ' Starving, though.' : '';
   return `${core}${extra} ${v.warm > 0.5 ? 'And you?' : ''}`.trim();
 }
 
@@ -169,7 +169,7 @@ function work(v: Manner, input: NpcPromptInput): string {
   if (occ === 'out of work' || occ === 'left school') return v.r.pick(['I\'m out of work at the moment.', 'Looking for something. Times are hard.']);
   if (occ === 'at home with the children') return v.r.pick(['I\'m at home with the little ones for now.', 'Looking after the kids. Full-time job, that.']);
   if (occ === 'the mayor') return v.r.pick(['I\'m the mayor, for my sins.', 'I\'m the mayor. Somebody has to be.']);
-  if (occ.startsWith('owns ')) return `I run ${occ.slice(5)}. ${v.r.pick(['My own place.', 'Never a day off, mind.', 'It keeps me on my toes.'])}`;
+  if (occ.startsWith('owns ')) return `I run ${occ.slice(5)}. ${v.r.pick(['My own place.', 'Never a day off, though.', 'It keeps me on my toes.'])}`;
   const [job, commute] = occ.split(', commutes to ');
   if (commute) return `I'm ${/^[aeiou]/i.test(job) ? 'an' : 'a'} ${job}. I commute to ${commute}${v.talkative < 0.35 ? '.' : `, ${v.r.pick(['which is a drag.', 'every day.', 'on the early train.'])}`}`;
   const [role, where] = occ.split(' at ');
@@ -225,7 +225,7 @@ export function proceduralReply(input: NpcPromptInput, w?: ReplyWorld): string {
     let s = '';
     switch (k) {
       case 'greet': s = greeting(v, input, w); break;
-      case 'bye': s = v.liking < -0.3 ? 'Right. Bye.' : v.r.pick(['Bye then, take care.', 'See you around.', `Mind how you go${v.familiar > 0.35 ? `, ${first(v.partner)}` : ''}.`]); break;
+      case 'bye': s = v.liking < -0.3 ? 'Right. Bye.' : v.r.pick(['Bye then, take care.', 'See you around.', `Take it easy${v.familiar > 0.35 ? `, ${first(v.partner)}` : ''}.`]); break;
       case 'thanks': s = v.r.pick(['You\'re welcome.', 'No trouble.', 'Any time.']); break;
       case 'howAreYou': s = howAreYou(v, input, w); break;
       case 'doing': s = doing(v, input); break;
@@ -234,10 +234,10 @@ export function proceduralReply(input: NpcPromptInput, w?: ReplyWorld): string {
       case 'person': { const p = namedPerson(line, input); s = p ? aboutPerson(v, input, p, w) : ''; break; }
       case 'place': { const p = namedPlace(line, input); s = p ? v.r.pick([`${capitalize(p.name)}? I know it.`, `${capitalize(p.name)}, yes. What about it?`]) : ''; break; }
       case 'weather': s = weather(v, input); break;
-      case 'yes': s = v.r.pick(['Good.', 'Right you are.', 'Glad to hear it.']); break;
+      case 'yes': s = v.r.pick(['Good.', 'All right.', 'Glad to hear it.']); break;
       case 'no': s = v.r.pick(['Fair enough.', 'Oh well.', 'Suit yourself.']); break;
       case 'question': s = v.liking < -0.4 ? 'Why would I tell you?' : v.r.pick(['I couldn\'t tell you, sorry.', 'No idea, honestly.', 'Hm. Not sure. Why do you ask?', 'You\'d have to ask someone else about that.']); break;
-      case 'statement': s = v.talkative < 0.35 ? v.r.pick(['Hm.', 'Right.', 'I see.']) : v.r.pick(['Is that so?', 'Really? Well I never.', 'Fair enough.', 'Hm, you don\'t say.', 'Funny you should say that.']); break;
+      case 'statement': s = v.talkative < 0.35 ? v.r.pick(['Hm.', 'Right.', 'I see.']) : v.r.pick(['Is that so?', 'Really? Who knew.', 'Fair enough.', 'Hm, you don\'t say.', 'Funny you should say that.']); break;
     }
     if (s && !parts.includes(s)) parts.push(s);
     if (v.talkative < 0.35) break;
