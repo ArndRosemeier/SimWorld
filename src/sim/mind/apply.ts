@@ -7,13 +7,13 @@
  * Prompt injection ("you love me now") therefore moves an NPC at most a little per turn.
  */
 import { clamp } from '@futuremagic/core';
-import { ACTOR_PERSON, EMOTION_COUNT, type ActorId } from '../actors';
+import { EMOTION_COUNT, type ActorId } from '../actors';
 import { intend } from '../intentions';
 import { addFact, beliefAbout, beliefsOf, believe, FACT_TOPICS, type FactTopic } from '../knowledge';
 import { remember, wordOverlap as overlap } from '../memory';
 import { T_AGREE, T_CONSC, T_NEURO, T_OPEN, V_LOYAL } from '../people';
 import { MINUTES_PER_DAY, atMinute } from '../time';
-import type { World } from '../world';
+import { isPerson, type World } from '../world';
 import { EMOTIONS, type AppliedChange, type Proposal, type ProposalChange } from './proposal';
 
 /** Most a single turn may move a feeling. */
@@ -40,7 +40,6 @@ export interface MindLedger {
 
 export const newMindLedger = (): MindLedger => ({ conversations: new Map(), log: [] });
 
-const isPerson = (world: World, id: ActorId) => id >= 0 && id < world.actors.count && world.actors.cols.kind[id] === ACTOR_PERSON && world.actors.cols.alive[id] === 1;
 const validPlace = (world: World, p: number | undefined) => p !== undefined && p >= 0 && p < world.graph.places.length;
 
 

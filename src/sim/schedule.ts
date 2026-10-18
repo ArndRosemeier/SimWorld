@@ -11,11 +11,11 @@ import { performIntention } from './actions';
 import { activeIntention, avoids } from './intentions';
 import { urgentNeed } from './needs';
 import { HABITS, HABIT_COUNT, T_CONSC, T_EXTRA, T_OPEN, V_FAITH } from './people';
-import { KINDS, type Service } from './placeKinds';
+import type { Service } from './placeKinds';
 import type { PlaceId, PlaceKind } from './places';
 import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIES, speciesId } from './species';
 import { atMinute, MINUTES_PER_DAY, minuteOfDay, onDay, weekdayOf } from './time';
-import { ageOf, tickRng, type World } from './world';
+import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, type World } from './world';
 
 /** Is a place open to visitors at `clock`? Places without hours are always open. */
 export function isOpen(world: World, place: PlaceId, clock: number): boolean {
@@ -84,13 +84,6 @@ export function go(world: World, id: ActorId, place: PlaceId, activity: number, 
   leadFollowers(world, id);
 }
 
-function hasCar(world: World, id: ActorId): boolean {
-  const a = world.actors.cols;
-  if (a.kind[id] !== ACTOR_PERSON) return false;
-  const hh = world.people.cols.household[a.row[id]];
-  const age = ageOf(world, id);
-  return hh >= 0 && world.households[hh].car && age >= 18 && age < 85;
-}
 
 /** Copy the leader's movement to everyone who goes with them, or release them when the outing is over. */
 function leadFollowers(world: World, leader: ActorId): void {
@@ -139,11 +132,6 @@ function takeAlong(world: World, leader: ActorId, activity: number, rng: Rng): v
   }
 }
 
-function householdOf(world: World, id: ActorId) {
-  const a = world.actors.cols;
-  const hh = a.kind[id] === ACTOR_PERSON ? world.people.cols.household[a.row[id]] : world.animals.cols.household[a.row[id]];
-  return hh >= 0 ? world.households[hh] : null;
-}
 
 // ---- people ----------------------------------------------------------------------------------------------
 
@@ -166,22 +154,22 @@ function anchors(world: World, id: ActorId): Day {
   const a = world.actors.cols, pc = world.people.cols, p = a.row[id];
   const now = world.clock;
   const weekend = weekdayOf(now) >= 5;
-  const job = pc.job[p] >= 0 ? world.jobs[pc.job[p]] : null;
+  const job = jobOf(world, id);
   let wake = pc.wake[p];
   // Lie-in on days off.
   if (!job || !onDay(job.days, now)) { if (weekend && ageOf(world, id) >= 10) wake += 60; }
   let shift: [number, number] | null = null;
   if (job && pc.leaveUntil[p] <= now) {
-    const commute = world.travel.minutes(a.home[id], job.place, hasCar(world, id));
+    const travelTime = commute(world, id, job.place);
     for (const d of [0, -1]) {
       const day = now + d * MINUTES_PER_DAY;
       if (!onDay(job.days, day)) continue;
       const s = atMinute(day, job.start), e = atMinute(day, job.end);
-      if (now >= s - commute - 5 && now < e) { shift = [s, e]; break; }
+      if (now >= s - travelTime - 5 && now < e) { shift = [s, e]; break; }
     }
   }
   let school: [number, number] | null = null;
-  if (pc.school[p] >= 0 && weekdayOf(now) < 5) {
+  if (pc.school[p] >= 0 && weekdayOf(now) < 5 && pc.leaveUntil[p] <= now) {
     const kg = world.graph.places[pc.school[p]].kind === 'kindergarten';
     const age = ageOf(world, id);
     const s = atMinute(now, kg ? 450 : 465), e = atMinute(now, kg ? 870 : age < 10 ? 780 : 915);
@@ -217,8 +205,15 @@ function decidePerson(world: World, id: ActorId): void {
   }
   const bedtime = nextAt(now, day.sleep);
 
+  // 2b. Ill: stay home in bed, up only to eat.
+  if (a.health[id] < 0.5 && a.kind[id] === ACTOR_PERSON) {
+    if (needs(N_FOOD) < 0.4) go(world, id, home, A.eat, now + 20);
+    else go(world, id, home, A.sleep, Math.min(bedtime, now + 120));
+    return;
+  }
+
   // 3. Work and school.
-  const job = pc.job[p] >= 0 ? world.jobs[pc.job[p]] : null;
+  const job = jobOf(world, id);
   if (day.shift && job) {
     const [, end] = day.shift;
     if (here === job.place && ((m >= 720 && m < 810 && needs(N_FOOD) < 0.7) || needs(N_FOOD) < 0.4) && end - now > 60) {
@@ -283,22 +278,6 @@ export function nearestWith(world: World, from: PlaceId, service: Service, id: A
   return world.travel.nearest(from, open);
 }
 
-const serviceCache = new WeakMap<World, Map<string, PlaceId[]>>();
-function placesWith(world: World, service: Service): PlaceId[] {
-  let m = serviceCache.get(world);
-  if (!m) { m = new Map(); serviceCache.set(world, m); }
-  let l = m.get(service);
-  if (!l) { l = world.graph.places.filter((p) => KINDS[p.kind].services.includes(service)).map((p) => p.id); m.set(service, l); }
-  return l;
-}
-function placesOf(world: World, kinds: readonly PlaceKind[]): PlaceId[] {
-  let m = serviceCache.get(world);
-  if (!m) { m = new Map(); serviceCache.set(world, m); }
-  const key = 'k:' + kinds.join(',');
-  let l = m.get(key);
-  if (!l) { l = world.graph.places.filter((p) => kinds.includes(p.kind)).map((p) => p.id); m.set(key, l); }
-  return l;
-}
 
 interface Option { place: PlaceId; activity: number; minutes: [number, number]; weight: number }
 

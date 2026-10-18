@@ -1,13 +1,15 @@
 /**
  * Society sim at full size (plan R3/R4, risk 2): 2,000 people plus their animals, ticked one game minute at a
  * time for a week. Reports ms per tick and rumour reach; fails if a tick averages over the budget or anyone starves.
+ * Also: twenty years of life events in daily steps, with the population and the books checked.
  * Slow tier: `npm run test:slow` or Actions → Slow tests.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testTown } from '../../src/sim/testTown';
 import { createWorld } from '../../src/sim/synth';
-import { tick } from '../../src/sim/world';
+import { isPerson, tick } from '../../src/sim/world';
+import { lifeDay } from '../../src/sim/life';
 import { ACTOR_PERSON } from '../../src/sim/actors';
 import { addFact, reach, witness } from '../../src/sim/knowledge';
 import { NEED_COUNT, N_FOOD } from '../../src/sim/species';
@@ -29,10 +31,29 @@ test('sim: 2,000 people for a week within the tick budget; news travels; nobody 
     curve.push(reach(world, story).any);
   }
   const perTick = (performance.now() - t1) / (7 * 1440);
-  const starving = persons.filter((id) => world.actors.cols.needs[id * NEED_COUNT + N_FOOD] < 0.05).length;
+  const starving = persons.filter((id) => isPerson(world, id) && world.actors.cols.needs[id * NEED_COUNT + N_FOOD] < 0.05).length;
   console.log(`actors ${world.actors.count} (people ${persons.length}), synth ${synthMs.toFixed(0)} ms, ${perTick.toFixed(3)} ms/tick, ` +
     `rumour reach by day ${curve.join(', ')}, facts ${world.knowledge.facts.length}, beliefs ${world.knowledge.beliefs.count - world.knowledge.free.length}, relations ${world.relations.liveRows}`);
   assert.ok(perTick < TICK_BUDGET_MS, `${perTick.toFixed(3)} ms per tick`);
   assert.equal(starving, 0);
   assert.ok(curve[6] > curve[0] && curve[6] >= 100, 'the story spreads');
+});
+
+test('life: twenty years of a 2,000-person town stay plausible (births, deaths, moves; population within 15%)', () => {
+  const world = createWorld(testTown(2027, 2000), 2027);
+  const people = () => { let n = 0; for (let id = 0; id < world.actors.count; id++) if (isPerson(world, id)) n++; return n; };
+  const start = people();
+  const t0 = performance.now();
+  for (let d = 0; d < 20 * 365; d++) { world.clock = (Math.floor(world.clock / 1440) + 1) * 1440; lifeDay(world); }
+  const perDay = (performance.now() - t0) / (20 * 365);
+  const by: Record<string, number> = {};
+  for (const e of world.life.events) {
+    const k = e.kind === 'death' && world.actors.cols.kind[e.who] !== ACTOR_PERSON ? 'animal death' : e.kind;
+    by[k] = (by[k] ?? 0) + 1;
+  }
+  const end = people();
+  console.log(`people ${start} → ${end}, ${perDay.toFixed(2)} ms/day; per year: ${Object.entries(by).map(([k, v]) => `${k} ${(v / 20).toFixed(1)}`).join(', ')}`);
+  assert.ok(Math.abs(end - start) / start < 0.15, `population ${start} → ${end}`);
+  assert.ok(by.birth / 20 > 8 && by.death / 20 > 8, 'births and deaths at town scale');
+  assert.ok(perDay < 10, `${perDay.toFixed(2)} ms per day`);
 });
