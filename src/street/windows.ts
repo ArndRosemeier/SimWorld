@@ -16,6 +16,7 @@ import { eachBuilding } from '../plan/placeGraph';
 import { PEOPLE_PER_HOME, type Town } from '../plan/town';
 import type { PlaceGraph } from '../sim/places';
 import type { SimView } from '../sim/view';
+import type { HomeDecor } from '../sim/decor';
 
 /** The town's buildings as slots, and the grid that finds a building's slot from a point. */
 export interface WindowSlots {
@@ -92,5 +93,20 @@ export function litShares(view: SimView, slots: WindowSlots, sleep: number, out:
     if (slot < 0 || !awake[p]) continue;
     const share = Math.round(Math.min(1, awake[p] / slots.placeFull[p]) * 255);
     if (share > out[slot]) out[slot] = share;
+  }
+}
+
+/**
+ * Holiday decorations per building (src/sim/decor.ts, the town's face): two bytes per slot into `out` (at least
+ * `2 * slots.count` long): the DECOR_* bits of any of its homes, and the biggest share of a place's households
+ * that decorate (0 … 255), so a block of flats shows a few decorated windows and a decorating house shows many.
+ */
+export function decorShares(decor: HomeDecor, slots: WindowSlots, out: Uint8Array): void {
+  out.fill(0, 0, slots.count * 2);
+  for (let p = 0; p < slots.placeSlot.length && p < decor.flags.length; p++) {
+    const slot = slots.placeSlot[p];
+    if (slot < 0 || !decor.flags[p]) continue;
+    out[slot * 2] |= decor.flags[p];
+    out[slot * 2 + 1] = Math.max(out[slot * 2 + 1], decor.share[p]);
   }
 }
