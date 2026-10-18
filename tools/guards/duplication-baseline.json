@@ -580,11 +580,7 @@
     "reason": "Walking a cell's streets and skipping footpaths (RoadClass.Path): each caller dresses the carriageways for its own purpose (bunting spans, street props, terrace fronts); the street list itself is the one seam."
   },
   {
-    "key": "idiom: [.groups .map .name] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
-    "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
-  },
-  {
-    "key": "idiom: [.inst .length] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
+    "key": "idiom: [.groups .name] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
     "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
   },
   {

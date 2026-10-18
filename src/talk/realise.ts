@@ -82,7 +82,9 @@ export interface SayOptions {
 /** The story itself as a clause for this listener, no hedge: "your brother lost his job at Maple Bakery". */
 export function clause(world: World, fact: Fact, d: Discourse, ctx: PickContext, voice: Voice | null): string {
   const ph = phrasings(fact);
-  return realiseSlots(world, pick(ph.lines, ctx, `fact:${ph.lines[0]}`), fact.subject, fact.object, fact.place, d, voice);
+  // Weeks-old news is not "just started".
+  const stale = world.clock - fact.time > 14 * 1440 ? ph.lines.filter((l) => !/\bjust\b/.test(l)) : ph.lines;
+  return realiseSlots(world, pick(stale.length ? stale : ph.lines, ctx, `fact:${ph.lines[0]}`), fact.subject, fact.object, fact.place, d, voice);
 }
 
 /** The tone of a fact (what reactions and openers fit). */

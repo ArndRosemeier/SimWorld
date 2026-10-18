@@ -138,6 +138,49 @@ export function clockSpots(town: Town): ClockSpot[] {
   return out;
 }
 
+/** A bus stop's post: its foot on the pavement and the yaw its timetable faces (the people waiting). */
+export interface StopPost { x: number; z: number; yaw: number }
+
+/**
+ * Where the post of a bus stop for (x, z) stands: on the pavement by the kerb of the nearest road, on the
+ * place's side, its timetable facing the pavement. Null when no road is near. Buses halt at the kerb by the
+ * place (src/traffic/buses.ts), so the post is where they pull up.
+ */
+export function stopPost(town: Town, roads: TownRoads, x: number, z: number): StopPost | null {
+  const hit = roads.nearest(x, z, 120);
+  if (!hit) return null;
+  const L = roads.lines[hit.li], len = L.cum[L.cum.length - 1];
+  let nx = x - hit.px, nz = z - hit.pz;
+  const d = Math.hypot(nx, nz);
+  if (d < 1e-3) {
+    // On the road's axis: either side will do; take the line's left.
+    const [x2, z2] = alongLine(L, Math.min(hit.s + 1, len)), [x1, z1] = alongLine(L, Math.max(hit.s - 1, 0));
+    nx = -(z2 - z1); nz = x2 - x1;
+  }
+  const n = Math.hypot(nx, nz) || 1;
+  nx /= n; nz /= n;
+  const out = L.width / 2 + kerbStrip(Math.max(L.sidewalk, 0.8));
+  // Along the kerb from the nearest point, the first spot clear of the street's trees, lamps and other furniture.
+  const props: number[] = [];
+  for (const c of town.cells) {
+    const P = c.props;
+    for (let o = 0; o < P.length; o += 6) if (Math.abs(P[o + 1] - hit.px) < 20 && Math.abs(P[o + 2] - hit.pz) < 20) props.push(P[o + 1], P[o + 2]);
+  }
+  for (const ds of [0, 2, -2, 4, -4, 6, -6, 8, -8]) {
+    const s = hit.s + ds;
+    if (s < 0 || s > len) continue;
+    const [px, pz] = alongLine(L, s);
+    const sx = px + nx * out, sz = pz + nz * out;
+    let clear = true;
+    for (let k = 0; k < props.length && clear; k += 2) clear = Math.hypot(props[k] - sx, props[k + 1] - sz) > STOP_CLEAR;
+    if (clear) return { x: sx, z: sz, yaw: facing(nx, nz) };
+  }
+  return { x: hit.px + nx * out, z: hit.pz + nz * out, yaw: facing(nx, nz) };
+}
+
+/** How far a bus stop's post keeps from the street's furniture (a tree's trunk, a lamp post; m). */
+const STOP_CLEAR = 1.6;
+
 /** Lamp posts per street that carry posters, and how far apart along the street they are at least (m). */
 const POSTERS_PER_STREET = 3, POSTER_GAP = 40;
 /** A poster's centre: out from the post's axis (m), and its height above the ground. */
