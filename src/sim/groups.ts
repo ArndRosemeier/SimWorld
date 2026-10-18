@@ -182,18 +182,18 @@ const SPECS: Record<GroupKind, Spec> = {
     big: { name: 'summer shoot and barbecue', month: 7, after: 15, from: 11, to: 20, pull: 0.4, appeal: 'adults', prize: '{subject} won the rifle club\'s summer shoot' },
   },
   allotment: {
-    name: 'the allotment society', venue: ['park', 'field'], ages: [25, 90], perHead: 0.012, min: 8, topic: 'event',
+    name: 'the community garden club', venue: ['park', 'field'], ages: [25, 90], perHead: 0.012, min: 8, topic: 'event',
     like: { base: 0.2, consc: 1, ages: [[49, 0.7], [120, 1.3]], flat: [1.6, 0.5] },
     offices: ['chair', 'treasurer', 'secretary'],
     meets: [{ kind: 'club', days: SAT, from: 9, to: 12, months: GROWING, pull: 1 }],
-    big: { name: 'produce show', month: 9, after: 1, from: 11, to: 16, pull: 0.4, appeal: 'adults', prize: '{subject} won best in show at the allotment society\'s produce show' },
+    big: { name: 'produce show', month: 9, after: 1, from: 11, to: 16, pull: 0.4, appeal: 'adults', prize: '{subject} won best in show at the community garden club\'s produce show' },
   },
   churchgroup: {
     name: 'the church coffee circle', venue: ['church'], ages: [55, 99], perHead: 0.01, min: 6, topic: 'event',
     like: { base: -0.9, faith: 1.8, agree: 0.5 },
     offices: ['organiser'],
     meets: [{ kind: 'club', days: WED, from: 15, to: 17, pull: 1.5 }],
-    big: { name: 'jumble sale', month: 11, after: 1, from: 10, to: 14, pull: 0.35, appeal: 'adults' },
+    big: { name: 'rummage sale', month: 11, after: 1, from: 10, to: 14, pull: 0.35, appeal: 'adults' },
   },
   youth: {
     name: 'the youth club', venue: ['school', 'townhall', 'church'], ages: [12, 17], perHead: 0.016, min: 8, topic: 'event',
@@ -232,9 +232,9 @@ const SPECS: Record<GroupKind, Spec> = {
   congregation: {
     name: 'the congregation', venue: ['church'], ages: [0, 120], perHead: 0, min: 5, topic: 'event',
     like: { faith: 1 },
-    offices: ['priest', 'churchwarden', 'treasurer'], jobs: { priest: 'priest' },
+    offices: ['priest', 'church elder', 'treasurer'], jobs: { priest: 'priest' },
     meets: [],
-    big: { name: 'church fete', month: 7, after: 1, from: 12, to: 17, pull: 0.5, appeal: 'all' },
+    big: { name: 'church fair', month: 7, after: 1, from: 12, to: 17, pull: 0.5, appeal: 'all' },
   },
   council: {
     name: 'the town council', venue: ['townhall'], ages: [21, 85], perHead: 0, min: 5, topic: 'politics',
