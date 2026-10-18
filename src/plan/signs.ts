@@ -15,7 +15,9 @@
  *  - posters: a few lamp posts per street where posters for the street's notices go up (on the
  *    pavement side of the post);
  *  - boards: a notice board for each place that has one (BOARD_KINDS): beside a public building's
- *    name board, in a shop's window (or on the wall by its door), at a square's edge by the street.
+ *    name board, in a shop's window (or on the wall by its door), at a square's edge by the street;
+ *  - clocks (`clockSpots`, apart: it needs the landmarks' parts): the dials on the town hall's
+ *    tower, the church tower and the station.
  *
  * `signFootprints` lists what of it stands on the ground (posts and legs), for the walkers'
  * footprints (src/plan/footprints.ts).
@@ -34,6 +36,7 @@ import { SITE } from './placeGraph';
 import { BOARD_KINDS } from '../sim/placeKinds';
 import type { PlaceKind } from '../sim/places';
 import { siteToWorld } from './landmarks';
+import { landmarkParts } from './landmarkParts';
 import { eachBuilding } from './placeGraph';
 import { LineSource, type TownRoads } from './roads';
 import type { Town } from './town';
@@ -112,6 +115,27 @@ export function signSpots(town: Town, roads: TownRoads, places: BoardPlaces = []
   });
   const sites = siteSigns(town);
   return { fronts, homes, sites, corners: cornerSigns(roads), gateways: gatewaySigns(town, roads), posters: posterSpots(town, roads), boards: noticeBoards(fronts, sites, roads, places) };
+}
+
+/** A public clock's dial (the town hall's tower, the church tower, the station's gable): its centre just in front of the face, its size (m, square). */
+export interface ClockSpot { x: number; z: number; y: number; yaw: number; size: number }
+
+/** How far in front of its plate a dial stands (m). */
+const DIAL_OUT = 0.01;
+
+/** The public clocks of the town: the clock faces of its landmarks (`LmPart.clock`, src/plan/landmarkParts.ts). */
+export function clockSpots(town: Town): ClockSpot[] {
+  const out: ClockSpot[] = [];
+  for (const lm of town.macro.landmarks) {
+    if (lm.kind !== 'townhall' && lm.kind !== 'church' && lm.kind !== 'station') continue;
+    for (const p of landmarkParts(lm, town.terrain)) {
+      if (!p.clock) continue;
+      // The part's v is (-sin a, cos a); the dial looks out on its `clock` side.
+      const nx = -Math.sin(p.a) * p.clock, nz = Math.cos(p.a) * p.clock, out0 = p.hz + DIAL_OUT;
+      out.push({ x: p.x + nx * out0, z: p.z + nz * out0, y: (p.y0 + p.y1) / 2, yaw: facing(nx, nz), size: p.hx * 2 * 0.92 });
+    }
+  }
+  return out;
 }
 
 /** Lamp posts per street that carry posters, and how far apart along the street they are at least (m). */
