@@ -8,6 +8,9 @@ import { planTown } from '../plan/town';
 import { placeGraphOf } from '../plan/placeGraph';
 import { regionOf } from '../plan/region';
 import { createWorld } from '../sim/synth';
+import { chronicle } from '../sim/chronicle';
+import { loadWorld, saveWorld } from '../sim/save';
+import { MINUTES_PER_DAY } from '../sim/time';
 import { tick, nameOf, jobOf, householdOf, type World } from '../sim/world';
 import { ACTIVITIES, ACTOR_PERSON } from '../sim/actors';
 import { viewOf, viewTransfers } from '../sim/view';
@@ -35,13 +38,21 @@ function simJob(m: ToSim): FromSim {
   if (m.type === 'init') {
     const town = planTown(m.settings);
     const graph = placeGraphOf(town);
-    world = createWorld(graph, m.settings.seed, { region: regionOf(town), start: m.start, startDay: m.startDay });
+    world = m.save ? loadWorld(graph, m.save) : createWorld(graph, m.settings.seed, { region: regionOf(town), start: m.start, startDay: m.startDay });
     map = new StreetMap(town, world.graph);
-    runTo(Math.max(m.clock, world.clock));
+    forget();
+    if (!m.save) runTo(Math.max(m.clock, world.clock));
     sentAt = world.clock;
     return { type: 'ready', clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), ms: took() };
   }
   if (!world || !map) throw new Error('sim worker: not initialised');
+  if (m.type === 'save') return { type: 'saved', clock: world.clock, bytes: saveWorld(world), ms: took() };
+  if (m.type === 'skip') {
+    skip(world, m.days);
+    forget();
+    sentAt = world.clock;
+    return { type: 'skipped', clock: world.clock, view: viewOf(world), ms: took() };
+  }
   runTo(m.clock);
   const view = world.clock !== sentAt ? viewOf(world) : null;
   sentAt = world.clock;
@@ -53,6 +64,24 @@ function runTo(clock: number): void {
   const w = world!;
   const target = Math.floor(clock);
   if (target > w.clock) tick(w, target - w.clock);
+}
+
+/**
+ * Skip `days` whole days to the same time of day: the chronicle runs to midnight `days` days on (the rest of
+ * today counts as the first), and the live tick runs the morning up to the hour it was.
+ */
+function skip(w: World, days: number): void {
+  const n = Math.max(1, Math.floor(days));
+  const at = w.clock % MINUTES_PER_DAY;
+  chronicle(w, n);
+  runTo(w.clock + at);
+}
+
+/** Drop the street state: after a load or a skip nobody is where the main thread last saw them. */
+function forget(): void {
+  tracks.clear();
+  shown.clear();
+  known.clear();
 }
 
 /** The street around (x, z) as a change to what the main thread has. */
@@ -115,5 +144,7 @@ function heightGrid(map: StreetMap, half: number, step: number): HeightGrid {
 serve<ToSim, FromSim>(simJob, (r) => {
   if (r.type === 'ready') return [r.ground.h.buffer, ...viewTransfers(r.view)];
   if (r.type === 'street') return [...r.tracks.map((t) => t.keys.buffer), ...(r.view ? viewTransfers(r.view) : [])];
+  if (r.type === 'saved') return [r.bytes.buffer];
+  if (r.type === 'skipped') return viewTransfers(r.view);
   return [];
 });
