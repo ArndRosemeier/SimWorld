@@ -28,6 +28,11 @@ export function minutesUntil(clock: number, minute: number, least = 30): number 
 /** The times of day a skip can run to (minutes from midnight). */
 export const TIMES_OF_DAY = { morning: 7 * 60, noon: 12 * 60, evening: 18 * 60, night: 22 * 60 } as const;
 
+/** The part of the day `minute` (of the day) falls in. */
+export const partOfDay = (minute: number): 'night' | 'morning' | 'afternoon' | 'evening' => {
+  const h = (((minute % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY) / 60;
+  return h < 5 || h >= 22 ? 'night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+};
 /** "07:30" */
 export const hhmm = (minute: number): string => {
   const m = ((minute % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
