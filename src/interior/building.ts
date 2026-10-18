@@ -77,6 +77,9 @@ export function workOf(b: BuildingDesc): Work | null {
     pharmacy: 'pharmacy', police: 'police', bakery: 'bakery', butcher: 'butcher', post: 'post', bank: 'bank', library: 'library',
     hairdresser: 'hairdresser', garage: 'garage', pub: 'pub', bar: 'pub', cafe: 'cafe', icecream: 'icecream', restaurant: 'restaurant',
     pizzeria: 'restaurant', grocer: 'grocery', shop: 'grocery', office: 'office', workshop: 'workshop', factory: 'factory', vacant: 'vacant',
+    // The economy's newer kinds borrow the nearest layout until they get their own.
+    hardware: 'grocery', clothes: 'clothes', florist: 'grocery', newsagent: 'grocery', charity: 'clothes', takeaway: 'restaurant',
+    hotel: 'restaurant', estateagent: 'office', beauty: 'hairdresser', physio: 'office', gym: 'workshop', funeral: 'office',
   };
   return a === 'shop' && hash32(b.seed ^ 0x51c7e3) % 3 === 0 ? 'clothes' : MAP[a];
 }

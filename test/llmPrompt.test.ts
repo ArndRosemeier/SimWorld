@@ -28,11 +28,15 @@ test('speech prompt: the epistemic firewall holds: only the NPC\'s own beliefs, 
   assert.doesNotMatch(card, /mill is closing/i);
 });
 
-test('refs: stable order, case-insensitive resolve, unknown refs resolve to nothing', () => {
+test('refs: stable order, forgiving resolve, unknown refs resolve to nothing, names are not doubled', () => {
   const r = refsFor(bakeryScene());
   assert.deepEqual([r.person(RUTH), r.person(TOM), r.person(ANNA), r.place(BAKERY), r.place(FOUNTAIN)], ['P1', 'P2', 'P3', 'L1', 'L2']);
   assert.deepEqual(r.resolve('p3'), { kind: 'person', id: ANNA });
   assert.equal(r.resolve('P9'), undefined);
+  // Forms models produced live: the display form, decorated refs, bare names; two refs name nothing.
+  assert.deepEqual(['Tom Brandt [P2]', '/People/P2', 'Tom Brandt [P2', 'tom brandt'].map((x) => r.resolve(x)?.id), [TOM, TOM, TOM, TOM]);
+  assert.equal(r.resolve('P2 and P3'), undefined);
+  assert.equal(r.unref('I trust Tom [P2] and Anna Keller [P3] at L2.'), 'I trust Tom Brandt and Anna Keller at the market fountain.');
 });
 
 const reply = "Closing? Says who? *wipes hands* Look, love, I'll ask Anna tonight, she cleans for the Brandts. Meet me at the fountain at five and I'll tell you.";
