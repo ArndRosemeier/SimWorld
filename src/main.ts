@@ -55,8 +55,8 @@ import { VehiclesView } from './render/vehiclesView';
 import { RailView } from './render/railView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
 import { A, FEMALE, MALE } from './sim/actors';
-import { decorShares, litShares } from './street/windows';
-import { setDecor, setLitShares, setWindowMap, WINDOW_SLOTS } from './render/windowLight';
+import { buildingLooksOf, decorShares, litShares } from './street/windows';
+import { setBuildingLooks, setDecor, setLitShares, setWindowMap, WINDOW_SLOTS } from './render/windowLight';
 import { hhmm, minuteOfDay, MINUTES_PER_DAY } from './sim/time';
 import type { MediaView } from './sim/media';
 import type { TownFace } from './sim/view';
@@ -159,7 +159,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const inside = new URLSearchParams(location.search).get('inside');
   if (inside) return showInside(inside, pool, stage, lights, renderer, camera, scene);
   const indoors = new URLSearchParams(location.search).get('indoors');
-  if (indoors) return showIndoors(indoors, pool, stage, renderer, camera, scene);
+  if (indoors) return showIndoors(indoors, pool, stage, renderer, camera, scene, () => { fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15); return showTown(stage, pool, town, () => {}, () => {}).ready; });
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   // What the town sounds like where: one worker works it out alongside the meshes.
   void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { time.region = { region: { coastal: r.map.coastal } }; audio.setTown(r.map); });
@@ -169,7 +169,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const sim = await simulated;
   // Lit windows follow who is in and awake (src/street/windows.ts), refreshed with every game minute.
   setWindowMap(sim.windows);
-  const lit = new Uint8Array(sim.windows.count);
+  const lit = new Uint8Array(sim.windows.count), looks = new Uint8Array(sim.windows.count * 2);
   // Holiday decorations in the windows follow the households' choices, once a game day (src/sim/decor.ts).
   const decor = new Uint8Array(WINDOW_SLOTS * 2);
   const decorate = (face = sim.town) => { decorShares(face.decor, sim.windows, decor); setDecor(decor); };
@@ -218,7 +218,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   let shown = false, lastT = 0, shadowMode = '';
   /** The media the signs last got (the sim's view brings a new one each game minute). */
   let shownMedia: MediaView | undefined;
-  let shownFace: TownFace | undefined;
+  let shownFace: TownFace | undefined, lookedFace: TownFace | undefined;
   const fwd = { x: 0, y: 0, z: 0 };
   shell.add({ label: 'Map', group: 'Town', open: mapOpener(
     async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
@@ -257,6 +257,12 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       view.signs.setFacts({ kind: shownFace.kind, name: shownFace.name, flags: shownFace.looks.flags, hours: shownFace.hours });
     }
     view.signs?.update(camera);
+    if (sim.town && sim.town !== lookedFace) {
+      // The walls' wear and fresh paint from the same face (upkeep and wealth per building).
+      lookedFace = sim.town;
+      buildingLooksOf(lookedFace.looks, sim.windows, looks);
+      setBuildingLooks(looks);
+    }
     sky.lampsOffAtMidnight = sim.town.rules.lightsOffAtMidnight;
     sky.update(dt, time, time.clock, w, camera, rate);
     if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.lamps);
@@ -317,7 +323,7 @@ async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage
  * through its street door, turning slowly (or fixed with `a=`, radians from looking straight in). `spot=<k>` stands
  * at the k-th spot instead (a bed, a seat, a desk); `room=0…1` the room light (default 1).
  */
-async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene): Promise<void> {
+async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene, outside: () => Promise<unknown>): Promise<void> {
   const q = new URLSearchParams(location.search);
   const [cell, index] = arg.split('/').map(Number);
   step('Planning the rooms', 0.5);
@@ -325,6 +331,9 @@ async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stag
   const r = await view.enter({ cell, index });
   if (!r) throw new Error('no interior');
   view.setRoomLight(Number(q.get('room') ?? 1));
+  // The town round it, to look out of the windows at.
+  step('Building the town', 0.6);
+  await outside();
   // (The fog stays: it is part of every shader's key, and the game keeps it when you go in.)
   const { indoors: ind } = r, door = ind.doors[0], spot = q.has('spot') ? ind.spots[Number(q.get('spot'))] : undefined;
   const [x, y, z, look] = spot ? [spot.x, spot.y, spot.z, spot.yaw] : [door.x - door.nx * 1.2, door.y, door.z - door.nz * 1.2, Math.atan2(-door.nx, -door.nz)];

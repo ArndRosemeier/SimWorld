@@ -16,11 +16,11 @@ import { MINUTES_PER_DAY } from './time';
 import { placesOf, type World } from './world';
 
 export type OccasionKind =
-  | 'market' | 'service' | 'binDay' | 'festival' | 'christmasMarket' | 'halloween' | 'newYear'
+  | 'market' | 'service' | 'binDay' | 'festival' | 'christmasMarket' | 'halloween' | 'eggHunt' | 'newYear'
   | 'wedding' | 'reception' | 'funeral' | 'meeting' | 'match' | 'club';
 
-/** Who an open occasion appeals to, on top of its pull. */
-export type Appeal = 'all' | 'faith' | 'children' | 'adults';
+/** Who an open occasion appeals to, on top of its pull ('families': children and the grown-ups who bring them). */
+export type Appeal = 'all' | 'faith' | 'children' | 'families' | 'adults';
 
 export interface Occasion {
   /** Stable id of a one-off occasion; -1 for one that recurs. */
@@ -154,8 +154,8 @@ function nthOfMonth(days: number, year: number, month: number, n: number): boole
 const SUNDAYS: DayMask = 0b1000000;
 
 /**
- * The occasions the calendar brings: the festival, the Christmas market, the Christmas Eve service, Halloween, New
- * Year's Eve. (Public holidays run like Sundays, so they have the Sunday service anyway.)
+ * The occasions the calendar brings: the festival, the Christmas market, the Christmas Eve service, Halloween, the
+ * Easter egg hunt in the park, New Year's Eve. (Public holidays run like Sundays, so they have the Sunday service anyway.)
  */
 function seasonal(world: World, day: number, out: Occasion[]): void {
   const at = day * MINUTES_PER_DAY;
@@ -171,6 +171,7 @@ function seasonal(world: World, day: number, out: Occasion[]): void {
     case 'summerFestival': seasonOccasion('festival', 'the summer festival', square, 11, 23.5, 1.4, 'all', A.socialize); break;
     case 'christmasMarket': seasonOccasion('christmasMarket', 'the Christmas market', square, weekend ? 11 : 16, 21, 0.6, 'all', A.socialize); break;
     case 'halloween': seasonOccasion('halloween', 'trick-or-treating', -1, 17, 20.5, 2, 'children', A.leisure); break;
+    case 'easter': seasonOccasion('eggHunt', 'the Easter egg hunt', green(world), 11.25, 12.75, 1.5, 'families', A.leisure); break;
     case 'newYearsEve': seasonOccasion('newYear', 'the New Year fireworks', square, 23.5, 24.5, 0.9, 'adults', A.socialize); break;
     case 'christmasEve': seasonOccasion('service', 'the Christmas Eve service', church, 17, 18.25, 1.6, 'faith', A.worship); break;
     default: break;
@@ -181,6 +182,12 @@ function seasonal(world: World, day: number, out: Occasion[]): void {
 function centre(world: World): PlaceId {
   const s = placeOfKind(world, 'square');
   return s !== -2 ? s : placeOfKind(world, 'park');
+}
+
+/** A park (or the square) for things children run about in; -2 if the town has neither. */
+function green(world: World): PlaceId {
+  const p = placeOfKind(world, 'park');
+  return p !== -2 ? p : placeOfKind(world, 'square');
 }
 
 function placeOfKind(world: World, kind: 'square' | 'park' | 'church'): PlaceId {

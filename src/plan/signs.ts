@@ -28,7 +28,7 @@
  * fronts, the gardens and the kerbs); the signs track only reads it.
  */
 import { alongLine } from '../geom/geom2';
-import { dwellingsOf, flatsDoorBay, streetDoor, type BuildingDesc } from './building';
+import { baysOf, dwellingsOf, flatsDoorBay, streetDoor, type BuildingDesc } from './building';
 import { kerbStrip, PropType } from './cell';
 import { SITE } from './placeGraph';
 import { BOARD_KINDS } from '../sim/placeKinds';
@@ -215,7 +215,7 @@ function frontSign(b: BuildingDesc, code: number): FrontSign {
   const e = facadeFront(b), door = streetDoor(b);
   const onFront = (s: number, out: number) => ({ x: e.ax + e.dx * s + e.nx * out, z: e.az + e.dz * s + e.nz * out });
   const yaw = facing(e.nx, e.nz);
-  const bays = Math.max(1, Math.round(e.L / b.bay)), bayW = e.L / bays;
+  const bays = baysOf(b, e.L), bayW = e.L / bays;
   // The opening hours: on the wall beside the door, on the side with more room.
   const hs = door.s1 + 0.3 < e.L - 0.2 ? door.s1 + 0.25 : door.s0 - 0.25;
   const hours = { ...onFront(hs, OFF_WALL * 0.5), y: 1.45 };

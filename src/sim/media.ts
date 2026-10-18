@@ -99,10 +99,10 @@ const POST_AHEAD = 14;
 const NOTICE_READ = 0.1;
 
 /** Occasions with posters and a line in What's on; the routine ones (market) only get the line. */
-const POSTED: readonly OccasionKind[] = ['festival', 'christmasMarket', 'newYear', 'match', 'club', 'meeting'];
-const LISTED: readonly OccasionKind[] = [...POSTED, 'market', 'halloween'];
+const POSTED: readonly OccasionKind[] = ['festival', 'christmasMarket', 'eggHunt', 'newYear', 'halloween', 'match', 'club', 'meeting'];
+const LISTED: readonly OccasionKind[] = [...POSTED, 'market'];
 /** Town-wide occasions: on every board, and posters along the centre's streets. */
-const TOWN_WIDE: readonly OccasionKind[] = ['festival', 'christmasMarket', 'newYear'];
+const TOWN_WIDE: readonly OccasionKind[] = ['festival', 'christmasMarket', 'eggHunt', 'newYear', 'halloween'];
 /** Fact topics the paper picks up from anywhere in the sim (a council vote, a public event). */
 const PICKED_UP: readonly FactTopic[] = ['politics', 'event'];
 

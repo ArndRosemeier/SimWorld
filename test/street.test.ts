@@ -7,13 +7,13 @@ import { ageOf, householdOf, isPerson, tick, tripOf } from '../src/sim/world';
 import { civilOf, daysOf } from '../src/sim/calendar';
 import { DECOR_HALLOWEEN, homeDecor } from '../src/sim/decor';
 import { DOOR_LEG, doorRound, trickOrTreater } from '../src/street/trickOrTreat';
-import { tripRow, viewOf, viewTransfers } from '../src/sim/view';
+import { townFace, tripRow, viewOf, viewTransfers } from '../src/sim/view';
 import { agendaOn } from '../src/sim/agenda';
 import { ACTOR_PERSON } from '../src/sim/actors';
 import { StreetMap, OUTDOOR } from '../src/street/streetMap';
 import { trackOf, sample, type Track } from '../src/street/tracks';
 import { costumeOf, dressUpDay, outfitOf, bodyKey, type LookInfo } from '../src/street/looks';
-import { litShares, windowSlots } from '../src/street/windows';
+import { buildingLooksOf, litShares, windowSlots } from '../src/street/windows';
 import { spotsFor, whoIsInside } from '../src/street/inside';
 import { planInterior } from '../src/interior/building';
 import { buildingRef } from '../src/plan/placeGraph';
@@ -162,6 +162,13 @@ test('windows: each building finds its slot from inside its walls, and its windo
   litShares(viewOf(world), slots, A.sleep, out);
   const lit = out.filter((v) => v > 0).length;
   assert.ok(lit > 0 && lit < slots.count, `${lit} of ${slots.count} buildings lit`);
+
+  // How the buildings look: the home's upkeep and wealth on its slot, never 0 (left for "not known yet").
+  const looks = townFace(world).looks, two = new Uint8Array(slots.count * 2);
+  looks.upkeep[home] = 0; looks.wealth[home] = 1;
+  buildingLooksOf(looks, slots, two);
+  assert.ok(two.every((v) => v > 0), 'every slot known');
+  assert.ok(two[slot * 2] <= 2 + 255 / 2 && two[slot * 2 + 1] >= 255 / 4, `the run-down, well-off home reads ${two[slot * 2]}, ${two[slot * 2 + 1]}`);
 });
 
 test('street: walks keep clear of trees, furniture, parked cars (in car parks and at the kerb) and walls', () => {

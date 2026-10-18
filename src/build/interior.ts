@@ -198,9 +198,22 @@ export function buildIndoors(mb: MeshBuilder, I: Interior, ind: Indoors): void {
     buildStorey(mb, s, { base: ind.base, floorHoles: below ? [below] : [], ceiling: true });
     for (const w of ind.outer) {
       if (w.floor !== f) continue;
-      const L = Math.hypot(w.bx - w.ax, w.bz - w.az), mx = (w.ax + w.bx) / 2, mz = (w.az + w.bz) / 2;
-      const room = roomAt(s, mx - w.nx * 0.3, mz - w.nz * 0.3);
-      g.col(room?.wallColor ?? [0.9, 0.89, 0.86], wallLayer(room)).mb.box(mx + w.nx * 0.1, (w.y0 + w.y1) / 2, mz + w.nz * 0.1, 0.1, (w.y1 - w.y0) / 2, L / 2, Math.atan2(w.bx - w.ax, w.bz - w.az));
+      const L = Math.hypot(w.bx - w.ax, w.bz - w.az), dx = (w.bx - w.ax) / L, dz = (w.bz - w.az) / L, yaw = Math.atan2(dx, dz);
+      // The wall from s0 to s1 along it, h0 to h1 high, in the room's paint.
+      const wallPart = (s0: number, s1: number, h0: number, h1: number) => {
+        if (s1 - s0 < 0.01 || h1 - h0 < 0.01) return;
+        const sm = (s0 + s1) / 2, x = w.ax + dx * sm, z = w.az + dz * sm, room = roomAt(s, x - w.nx * 0.3, z - w.nz * 0.3);
+        g.col(room?.wallColor ?? [0.9, 0.89, 0.86], wallLayer(room)).mb.box(x + w.nx * 0.1, (h0 + h1) / 2, z + w.nz * 0.1, 0.1, (h1 - h0) / 2, (s1 - s0) / 2, yaw);
+      };
+      // Solid between the windows; under each its sill, over it its head.
+      let at = 0;
+      for (const [s0, s1, h0, h1] of w.windows) {
+        wallPart(at, s0, w.y0, w.y1);
+        wallPart(s0, s1, w.y0, h0);
+        wallPart(s0, s1, h1, w.y1);
+        at = s1;
+      }
+      wallPart(at, L, w.y0, w.y1);
     }
   });
   g.free();
