@@ -13,7 +13,7 @@ import { DEFAULT_LATITUDE, daysOf, epochFor, weekdayOfDays, type CivilDate } fro
 import type { SimView } from '../sim/view';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
-import { readSave, storeSave } from '../persist/saves';
+import { dropSave, readSave, storeSave } from '../persist/saves';
 
 /** Real milliseconds between street updates (the plan's L1 rate, ~5 Hz). */
 const UPDATE_MS = 200;
@@ -99,6 +99,7 @@ export class SimClient {
     if (ready.type !== 'ready') throw new Error(ready.type === 'error' ? ready.message : 'the sim worker did not start');
     const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view, key);
     c.restart(ready.clock);
+    if (save && !ready.resumed) void dropSave(key); // it no longer fits this build or town
     return c;
   }
 

@@ -4,22 +4,47 @@
  * everyone who must keep clear of things: people on foot (src/street), and the planner placing more things.
  *
  * Built from the cells' plans (pure). Circles, not boxes: a parked car is three overlapping circles along
- * its length; a hedge or wall segment one circle per segment.
+ * its length; a bench or a stretch of wall a row of small ones. The sizes are each kind's footprint as an
+ * oriented box (half extents across and along).
  */
 import { distPointPolyEdge, pointInPoly, polyBounds, type Poly } from '../geom/geom2';
 import { PropType, type CellPlan } from './cell';
 
-/** Radius (m) of each prop kind's body at scale 1, by PropType; 0 for things walked over (manholes) or overhead (awnings). */
-const BODY: Record<number, number> = {
-  [PropType.Tree]: 0.35, [PropType.Lamp]: 0.15, [PropType.Bench]: 0.85, [PropType.Bin]: 0.3, [PropType.Hydrant]: 0.25,
-  [PropType.TrafficLight]: 0.2, [PropType.BusStop]: 1.6, [PropType.Bollard]: 0.15, [PropType.Fountain]: 2.2, [PropType.Statue]: 1,
-  [PropType.Bush]: 0.6, [PropType.Kiosk]: 1.4, [PropType.Planter]: 0.5, [PropType.StopSign]: 0.1, [PropType.Hedge]: 0.8,
-  [PropType.PlayGround]: 3.5, [PropType.Manhole]: 0, [PropType.Mailbox]: 0.3, [PropType.CafeTable]: 0.4, [PropType.CafeChair]: 0.3,
-  [PropType.Parasol]: 0.15, [PropType.Awning]: 0, [PropType.MenuBoard]: 0.35, [PropType.TerraceRail]: 0.5, [PropType.Parklet]: 1.2,
-  [PropType.CemWall]: 0.6, [PropType.Gravestone]: 0.4, [PropType.Grave]: 0.9, [PropType.Tomb]: 1.8, [PropType.Yew]: 0.6,
+/**
+ * Half extents [hx, hz] in m at scale 1 of each solid prop's footprint, as an oriented box: hx across (the
+ * model's x), hz along its yaw (its z). Missing types are walked over or under (manholes, awnings).
+ */
+const SIZE: Partial<Record<PropType, [number, number]>> = {
+  [PropType.Tree]: [0.35, 0.35], // the trunk and its pit; the crown is overhead
+  [PropType.Yew]: [0.7, 0.7],
+  [PropType.Bush]: [0.8, 0.8],
+  [PropType.Hedge]: [1.0, 1.0],
+  [PropType.Lamp]: [0.15, 0.15],
+  [PropType.TrafficLight]: [0.2, 0.2],
+  [PropType.StopSign]: [0.1, 0.1],
+  [PropType.Bollard]: [0.12, 0.12],
+  [PropType.Hydrant]: [0.25, 0.25],
+  [PropType.Bin]: [0.3, 0.3],
+  [PropType.Mailbox]: [0.3, 0.3],
+  [PropType.Planter]: [0.6, 0.6],
+  [PropType.Bench]: [0.95, 0.35],
+  [PropType.BusStop]: [1.8, 0.8],
+  [PropType.Kiosk]: [1.8, 1.8],
+  [PropType.Fountain]: [3.5, 3.5],
+  [PropType.Statue]: [1.5, 1.5],
+  [PropType.PlayGround]: [4.5, 4.5],
+  [PropType.ParkedCar]: [1.0, 2.4],
+  [PropType.CafeTable]: [0.45, 0.45],
+  [PropType.CafeChair]: [0.3, 0.3],
+  [PropType.Parasol]: [0.15, 0.15], // the pole
+  [PropType.MenuBoard]: [0.35, 0.3],
+  [PropType.TerraceRail]: [1.0, 0.1],
+  [PropType.Parklet]: [1.0, 0.9],
+  [PropType.CemWall]: [1.3, 0.28],
+  [PropType.Gravestone]: [0.35, 0.2],
+  [PropType.Grave]: [0.5, 1.1],
+  [PropType.Tomb]: [1.5, 1.5],
 };
-/** A parked car: three circles of this radius, this far apart along its length. */
-const CAR_R = 1.0, CAR_STEP = 1.45;
 /** Grid cell size (m) of the lookup. */
 const CELL = 8;
 
@@ -27,17 +52,20 @@ const CELL = 8;
 export class Footprints {
   /** Circles: [x, z, r] * n. */
   readonly circles: number[] = [];
+  /** The PropType of each circle (-1 for none). */
+  readonly kinds: number[] = [];
   /** Building footprints. */
   readonly buildings: Poly[] = [];
   private readonly grid = new Map<number, number[]>();
   private readonly bgrid = new Map<number, number[]>();
   private readonly scratch: number[] = [];
 
-  /** Add a circle. */
-  circle(x: number, z: number, r: number): void {
+  /** Add a circle (`kind`: the PropType it belongs to, -1 for none). */
+  circle(x: number, z: number, r: number, kind = -1): void {
     if (r <= 0) return;
     const i = this.circles.length / 3;
     this.circles.push(x, z, r);
+    this.kinds.push(kind);
     for (let gx = Math.floor((x - r) / CELL); gx <= Math.floor((x + r) / CELL); gx++)
       for (let gz = Math.floor((z - r) / CELL); gz <= Math.floor((z + r) / CELL); gz++) bucket(this.grid, gx, gz).push(i);
   }
@@ -94,12 +122,18 @@ export function footprintsOf(cells: readonly CellPlan[]): Footprints {
   for (const plan of cells) {
     const P = plan.props;
     for (let i = 0; i < P.length; i += 6) {
-      const t = P[i], x = P[i + 1], z = P[i + 2], yaw = P[i + 3], sc = P[i + 4];
-      if (t === PropType.ParkedCar) {
-        // Along the car: (sin yaw, cos yaw) (src/build/streetProps.ts puts its front at -that).
-        const ax = Math.sin(yaw) * CAR_STEP * sc, az = Math.cos(yaw) * CAR_STEP * sc;
-        for (const k of [-1, 0, 1]) f.circle(x + ax * k, z + az * k, CAR_R * sc);
-      } else f.circle(x, z, (BODY[t] ?? 0.4) * sc);
+      const size = SIZE[P[i] as PropType];
+      if (!size) continue;
+      const x = P[i + 1], z = P[i + 2], yaw = P[i + 3], k = P[i + 4] || 1;
+      const hx = size[0] * k, hz = size[1] * k;
+      // A box as a row of circles of its short half extent along its long axis (a parked car: three).
+      const r = Math.min(hx, hz), long = Math.max(hx, hz), n = Math.max(1, Math.round(long / r));
+      // Along yaw: (sin, cos); across: (cos, −sin).
+      const ux = hz >= hx ? Math.sin(yaw) : Math.cos(yaw), uz = hz >= hx ? Math.cos(yaw) : -Math.sin(yaw);
+      for (let j = 0; j < n; j++) {
+        const d = n === 1 ? 0 : -(long - r) + (2 * (long - r) * j) / (n - 1);
+        f.circle(x + ux * d, z + uz * d, r, P[i]);
+      }
     }
     for (const b of plan.buildings) f.building(b.poly);
   }
