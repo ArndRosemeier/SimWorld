@@ -1,5 +1,0 @@
-# Foundation
-
-- The project skeleton: three.js on WebGL 2, the shared packages from AssetGenerator, the plan in docs/design.
-- The shader policy is live from the first commit: every shader compiles during warm-up or one at a time later, at least 200 ms after the previous one finished, and the HUD shows any breach.
-- Code guards and the Toolbox duplicate finders run with every test.
