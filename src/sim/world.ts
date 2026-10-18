@@ -15,6 +15,7 @@ import type { Intention } from './intentions';
 import type { Knowledge } from './knowledge';
 import type { Economy } from './economy';
 import type { Life } from './life';
+import type { Media } from './media';
 import type { Memories } from './memory';
 import type { MindLedger } from './mind/apply';
 import type { Household, Job, PersonTable } from './people';
@@ -34,6 +35,8 @@ import { fadeRelations } from './relations';
 import { lifeDay } from './life';
 import { phoneCalls } from './phone';
 import { economyDay } from './economy';
+import { lostPetsDay } from './lostPets';
+import { mediaDay } from './media';
 
 export interface World {
   readonly seed: number;
@@ -75,6 +78,8 @@ export interface World {
   region: RegionKnowledge | null;
   /** Household budgets, business ledgers, openings and closures (src/sim/economy.ts). */
   readonly economy: Economy;
+  /** The weekly paper, notice boards and posters (src/sim/media.ts). */
+  readonly media: Media;
 }
 
 /** The fixed parts of a world for a place graph (the population comes from `synthesize`, src/sim/synth.ts). */
@@ -116,6 +121,8 @@ export function tick(world: World, minutes = 1): void {
 export function passDays(world: World, days: number): void {
   lifeDay(world, days);
   economyDay(world, days);
+  lostPetsDay(world, days);
+  mediaDay(world, days);
   pruneAgenda(world, world.clock);
   forget(world, days);
   fadeRelations(world.relations, world.clock, days);

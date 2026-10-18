@@ -18,7 +18,7 @@
  */
 import { clamp, hashCombine, hashToFloat, type Rng } from '@futuremagic/core';
 import { A, type ActorId } from './actors';
-import { addFact, broadcast, witness } from './knowledge';
+import { addFact, witness } from './knowledge';
 import { closeTo, feel, leaveTown, log, neighboursOf, vacantHomes, type LifeEventKind } from './life';
 import { remember } from './memory';
 import { HABITS, HABIT_COUNT, T_CONSC, V_AMBITION, type Household, type Job } from './people';
@@ -779,8 +779,8 @@ function evicted(world: World, hh: Household, rng: Rng): void {
 
 // ---- closing and opening -------------------------------------------------------------------------------------
 
-/** People who know a place well: its staff and their households, and its regulars. */
-function regularsOf(world: World, place: PlaceId): ActorId[] {
+/** A place's regulars: the people who count it among their favourite places (`habits`). */
+export function regularsOf(world: World, place: PlaceId): ActorId[] {
   const a = world.actors.cols, pc = world.people.cols, out: ActorId[] = [];
   for (let id = 0; id < world.actors.count; id++) {
     if (!isPerson(world, id)) continue;
@@ -821,7 +821,6 @@ export function closeBusiness(world: World, place: PlaceId, rng: Rng): void {
   const fact = addFact(world, { topic: 'business', text: `${name} has closed down`, subject: ownerId >= 0 ? ownerId : -1, place, magnitude: 0.8 });
   const passers = neighboursOf(world, place);
   witness(world, fact, [...new Set([...closeTo(world, ...staff), ...regulars, ...passers])]);
-  broadcast(world, fact, 0.25);
   for (const id of staff) {
     feel(world, id, 'sadness', id === ownerId ? 0.9 : 0.6);
     remember(world, id, { who: staff.filter((s) => s !== id), summary: id === ownerId ? `I had to close ${name}` : `${name} closed and I lost my job`, importance: id === ownerId ? 1 : 0.85, emotion: 'sadness', fact });
@@ -889,7 +888,6 @@ export function openBusiness(world: World, place: PlaceId, kind: PlaceKind, rng:
   const passers = neighboursOf(world, place);
   const fact = addFact(world, { topic: 'business', text: `a new ${(LABEL[kind] ?? kind).toLowerCase()} is opening on ${p.street}: ${name}`, subject: owner, place, magnitude: 0.7 });
   witness(world, fact, [...new Set([...(owner >= 0 ? closeTo(world, owner) : []), ...passers])]);
-  broadcast(world, fact, 0.35);
   if (owner >= 0) remember(world, owner, { who: [], summary: `I opened ${name} on ${p.street}`, importance: 1, emotion: 'joy', fact });
   ec.events.push({ day, kind: 'opened', place, who: owner, what: kind, name, fact });
 }
