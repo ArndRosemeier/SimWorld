@@ -53,6 +53,8 @@ export interface Region {
   /** places[0] is the big city, places[1] the larger town nearby, the rest are villages. */
   places: RegionPlace[];
   lore: LoreLine[];
+  /** The railway: through the town (to the city one way, out into the country the other), a branch line ending here, or none. */
+  rail?: 'through' | 'terminus' | null;
 }
 
 /** The region as the world holds it (`world.region`). */
