@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.051 — The bin lorry, the post van and deliveries
+
+- On bin day the bin lorry works its way along every street whose bins are out, early in the morning.
+- The post van does its round from Monday to Saturday, out to the farms as well.
+- A delivery lorry brings the morning goods to the food shops, pubs and cafés that open that day, and a parcel van calls at a few homes on weekdays.
+- Vans and lorries pull in to the kerb while they unload, so traffic goes past them. A bus that finds another bus at its stop now pulls in behind it instead of waiting in the road.
+
 ## v0.050 — The town's weekly paper, notice boards and lost pets
 
 - The town has its own weekly paper. Each Thursday or Friday it prints what really happened that week: deaths with the funeral time, births, weddings, burglaries and shoplifting, shops opening and closing, and what's on in the coming week.
