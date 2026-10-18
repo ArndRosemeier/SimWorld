@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.105 — Halloween posters
+
+- Trick-or-treating now gets posters on every notice board and along the centre's streets in the two weeks before Halloween, like the summer festival and the Christmas market.
+
 ## v0.104 — Building wear and fresh paint
 
 - Walls of run-down buildings get grime and rain streaks, from the upkeep the economy keeps for each place.
