@@ -33,7 +33,7 @@ import { WEATHER_KINDS, describeWeather, forceWeather, weatherAt, type Weather, 
 import { setParcels } from './render/tsl/ground';
 import { showTown, type TownView } from './render/townView';
 import { meshFromData } from './render/meshes';
-import { WorkerPool } from './workers/pool';
+import { WorkerPool, WorkerStartError } from './workers/pool';
 import townWorkerUrl from './workers/town.worker.ts?worker&url';
 import texWorkerUrl from './workers/tex.worker.ts?worker&url';
 import type { FromTex, ToTex } from './workers/texProtocol';
@@ -114,6 +114,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   // meanwhile (the shaders need them before the warm-up), then the renderer warms up.
   const pool = new WorkerPool<ToTown, FromTown>(townWorkerUrl, Math.min(4, cores));
   const planned = pool.start(() => ({ type: 'init', settings }));
+  // Their failures reach the loading screen when awaited below; until then they are not unhandled.
+  for (const p of [simulated, planned]) p.catch(() => undefined);
   const texPool = new WorkerPool<ToTex, FromTex>(texWorkerUrl, Math.min(6, cores));
   await texPool.start(() => ({ type: 'init' }));
   const texSize = Number(new URLSearchParams(location.search).get('tex')) === 512 ? 512 : 256;
@@ -399,6 +401,25 @@ const startScreen = setInterval(() => {
 
 start(audio, play, time, ears).catch((err) => {
   const el = document.querySelector('#loading .step');
-  if (el) el.textContent = err instanceof GraphicsUnavailable ? 'This browser cannot draw 3D graphics (WebGL 2 needed).' : `Start failed: ${err instanceof Error ? err.message : String(err)}`;
+  // A page from an earlier deploy (cached) asks for workers the server no longer has: load the new version,
+  // once per tab session, so a server that keeps answering 404 shows the message instead of looping.
+  if (err instanceof WorkerStartError && err.outdated && !onceThisSession('simworld-reloaded-for-update')) {
+    if (el) el.textContent = 'SimWorld was updated: loading the new version…';
+    location.reload();
+    return;
+  }
+  const why = err instanceof GraphicsUnavailable ? 'This browser cannot draw 3D graphics (WebGL 2 needed).'
+    : err instanceof WorkerStartError && err.outdated ? `${err.message}. Reload the page with Ctrl+F5.`
+    : `Start failed: ${err instanceof Error ? err.message : String(err)}`;
+  if (el) el.textContent = why;
   throw err;
 });
+
+/** Whether `key` was already marked in this tab's session (and mark it). Storage may be off: then say yes. */
+function onceThisSession(key: string): boolean {
+  try {
+    if (sessionStorage.getItem(key)) return true;
+    sessionStorage.setItem(key, '1');
+    return false;
+  } catch { return true; }
+}
