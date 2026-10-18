@@ -61,7 +61,7 @@ export class TownTraffic {
     }
   }
 
-  /** New car trips from the sim (call once per game minute with what `TripWatcher.poll` returned). */
+  /** New car trips from the sim (call once per game minute with what `carTripsSince` returned). */
   trips(trips: readonly CarTrip[], clock: number): void {
     for (const trip of trips) {
       const car = householdCar(this.seed, trip.household);

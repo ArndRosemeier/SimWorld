@@ -9,7 +9,7 @@ import { LIMITS, Rule, RoadNet } from '../src/traffic/roadNet';
 import { Parking } from '../src/traffic/parking';
 import { Traffic, type Car, type Vehicle } from '../src/traffic/traffic';
 import { TownTraffic } from '../src/traffic/townTraffic';
-import { TripWatcher, carPlace } from '../src/traffic/trips';
+import { carPlace, carTripsSince } from '../src/traffic/trips';
 
 // One small town shared by the file (planning it is the expensive part).
 const town = planTown({ seed: 1, size: 0 });
@@ -133,12 +133,11 @@ test('the sim drives the traffic: car trips take the household car, which parks 
   const world = createWorld(graph, 1);
   const tt = new TownTraffic(town, graph.places, 1);
   tt.placeCars(world.households, (h) => carPlace(world, h));
-  const watcher = new TripWatcher();
-  watcher.poll(world);
   let trips = 0;
   for (let m = 0; m < 60; m++) {
+    const since = world.clock;
     tick(world, 1);
-    const t = watcher.poll(world);
+    const t = carTripsSince(world, since);
     trips += t.length;
     for (const trip of t) assert.ok(world.households[trip.household].car && trip.from !== trip.to);
     tt.trips(t, world.clock);

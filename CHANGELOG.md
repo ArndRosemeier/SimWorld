@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.021 — Every journey is recorded
+
+- The simulation now keeps a list of everyone who is on their way somewhere: where from, where to, when they left and arrive, and whether they walk or drive. Children and the dog travel with whoever takes them, in the same car.
+- Nothing new is visible yet. The traffic and the people on the street will be drawn from this list.
+
+## v0.020 — The town keeps a real calendar
+
+- Game days are real dates now: play starts in the current week, and the season, the length of the day and the holidays follow the real calendar.
+- On Christmas Day and New Year's Day almost everything is shut. On Good Friday, Easter, Boxing Day and the other public holidays the town runs like a Sunday. The shops close at two on Christmas Eve and New Year's Eve.
+- The school keeps terms: half-terms, Easter, six weeks in summer and two at Christmas. Children stay home during them.
+- People go to the park while it is light, so on winter afternoons the park empties early.
+- The calendar already knows Halloween, the town's summer festival weekend in July and the Christmas market from late November. The events themselves come next.
+
+## v0.019 — Plan: the agreed town realism and who builds what
+
+- The realism checklist is now part of the design docs, with Arnd's answers recorded: drive on the right, the real calendar with snowy winters, a simple real economy, phones, the holidays, and the school bus to the nearby town.
+- The plan names the eight realism tracks, the thread that owns each, and the shared pieces they build on.
+- Guards: only the app, game, render, audio, save and worker code may read the wall clock, and sound gets one audio engine.
+
+## v0.018 — Buildings have insides
+
+- Every building now has rooms and furniture: homes get a living room, kitchen, bathroom and bedrooms; shops, cafés, bakeries, offices, garages and the other workplaces get counters, tables, ovens, desks and work benches sized to their staff and guests.
+- Houses keep the living rooms downstairs and the bedrooms upstairs; blocks of flats are split into separate homes off a shared stair hall; small flats become studios with a kitchenette.
+- Each interior also knows where its people sleep, sit and work, for the simulation to use.
+- Look inside a building with `?inside=<cell>/<building>&floor=<n>` (a cutaway of one floor).
+- Very narrow town houses on lots too small for flats now count as one home.
+
 ## v0.017 — Buildings with windows, doors and shop fronts
 
 - Buildings now have textured walls and roofs: brick, stone, plaster, timber siding, glass, tiles, slate and more, all generated from the seed while the loading screen shows.
