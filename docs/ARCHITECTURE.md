@@ -247,7 +247,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 
 | Question | The one way | Where |
 |---|---|---|
-| Call a language model for anything | `createLlm(cfg).run(task, input)`: routes the task to roster models best first, streams, parses, falls back on retryable errors, records usage. Tasks: `npc.speech`, `npc.appraisal`, `memory.summary`, `npc.reflection`, `skip.digest` | `src/llm/llm.ts`, `src/llm/tasks.ts` |
+| Call a language model for anything | `createLlm(cfg).run(task, input)`: routes the task to roster models best first, streams, parses, falls back on retryable errors, records usage. Tasks: `npc.speech`, `npc.appraisal`, `memory.summary`, `npc.reflection`, `skip.digest`, `talk.judge` (scores generated chatter; slow tests only) | `src/llm/llm.ts`, `src/llm/tasks.ts` |
 | Talk to openrouter.ai | `openRouterTransport({ apiKey })` (guarded: `openrouter.ai` only in `src/llm`); the public model list via `fetchCatalog()` | `src/llm/openrouter.ts` |
 | Which models does the player have, what can they do? | the roster: `DEFAULT_ROSTER`, `rosterFromCatalog`, capability tags (`fast`, `cheap`, `structured`, `writing`, `reasoning`, `long_context`) | `src/llm/roster.ts` |
 | Which model runs a task? | `route(roster, task.routing, pins)`; pins are the player's per-task picks, else `DEFAULT_TASK_MODELS` (the settings screen shows `llm.plan(task)`) | `src/llm/router.ts`, `src/llm/roster.ts` |
@@ -256,7 +256,14 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Turn an NPC reply into state changes | the `npc.appraisal` task: `APPRAISAL_SCHEMA` → `parseAppraisal` → `Proposal` for `applyProposal` | `src/llm/appraisal.ts` |
 | Test anything that calls an LLM | `replayTransport(recordings)` (never the network); real recordings from `test/slow/openrouter.slow.test.ts` with `LLM_RECORD=1` | `src/llm/recorded.ts` |
 | Which models are good at a task? (live, by hand) | `test/slow/llm-models.slow.test.ts` on the scenes in `test/fixtures/llm/scenes.ts`: every candidate, same inputs, scored checks, latency, cost | `test/slow/llm-models.slow.test.ts` |
-| Background chatter, a fallback answer, any generated sentence | the procedural text engine | `src/talk/` |
+| What two people say when they meet (overheard lines, speech bubbles, the chat panel's "Nearby" channel) | `overhear(world, encounter, memory)` / `overheard(world, memory, keep?)` → `Exchange { place, a, b, kind, time, lines: { speaker, text, fact }[] }`; a line with `fact >= 0` is the story passing (what the player can learn by listening). `TalkMemory` (anti-repetition) lives with the caller, never in the World | `src/talk/chatter.ts` |
+| Put a story into one person's words for another | `say(world, fact, speaker, listener, opts)` (opener, hedge by confidence and source, referring expressions, the speaker's voice); `clause(...)` for the bare story | `src/talk/realise.ts` |
+| Name a person or place as a speaker would to a listener ("my sister", "your dad", "the baker at …", "he") | `refer(world, who, discourse, case)`, `placeName`; grammar slots `{S}`, `{S:has}`, `{S&O}`, `{P}` via `realiseSlots` | `src/talk/refer.ts` |
+| How a person talks (formality, verbosity, fillers, pet phrase, swearing, dialect) | `voiceOf(world, id)`; `voiced(text, voice, ctx)` puts any line in it | `src/talk/voice.ts`, `src/talk/realise.ts` |
+| Words for a kind of news, phrase banks per speech act | `phrasings(fact)` (keyed by the sim's fact templates; unknown ones fall back to `slotted(template)`); `ACTS` banks by register | `src/talk/facts.ts`, `src/talk/acts.ts` |
+| Pick a phrase without repeating, fill slots, polish a sentence | `pick`, `expand` (`[a\|b]`), `fillSlots`, `finish`, `contract` | `src/talk/grammar.ts` |
+| Read or score generated chatter (a day of overheard talk as Markdown; an LLM judge's coherence and naturalness scores) | `sampleTown`, `sampleDay`, `asText`, `asMarkdown` (`node --import tsx tools/talk/samples.ts <out.md>`); the `talk.judge` task in `test/slow/chatter.slow.test.ts` | `tools/talk/samples.ts` |
+| Background chatter, a fallback answer, any generated sentence | the procedural text engine (rows above) | `src/talk/` |
 
 ### Sound
 
