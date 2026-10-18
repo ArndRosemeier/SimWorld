@@ -28,9 +28,13 @@ import { chatOp } from '../chat/ops';
 import { TrafficFeed, trafficTransfers } from '../traffic/feed';
 import { TalkFeed } from '../street/talk';
 import type { ActorId } from '../sim/actors';
-import type { PlaceId } from '../sim/places';
+import type { PlaceGraph, PlaceId } from '../sim/places';
 
 let world: World | null = null;
+/** The town's planned place graph (a save loads onto it). */
+let planned: PlaceGraph | null = null;
+/** The world as kept by `mark` (save bytes) and its clock: what the picker's look ahead runs from. */
+let mark: { bytes: Uint8Array; clock: number } | null = null;
 let map: StreetMap | null = null;
 /** The town's traffic, driven by the world's car trips and rounds, and the town it drives in. */
 let traffic: TrafficFeed | null = null;
@@ -69,7 +73,8 @@ function simJob(m: ToSim): FromSim {
   const took = () => Math.round(performance.now() - t0);
   if (m.type === 'init') {
     const town = planTown(m.settings);
-    const graph = placeGraphOf(town);
+    const graph = (planned = placeGraphOf(town));
+    mark = null;
     // A save that no longer fits (another save version, another town) is set aside: play starts afresh.
     let resumed: World | null = null;
     if (m.save) try { resumed = loadWorld(graph, m.save); } catch (e) { console.warn('save not loaded', e); }
@@ -91,7 +96,13 @@ function simJob(m: ToSim): FromSim {
   }
   if (!world || !map || !traffic) throw new Error('sim worker: not initialised');
   if (m.type === 'save') return { type: 'saved', clock: world.clock, bytes: saveWorld(world), ms: took() };
+  if (m.type === 'mark') {
+    mark = m.on ? { bytes: saveWorld(world), clock: world.clock } : null;
+    return { type: 'marked', clock: world.clock, ms: took() };
+  }
   if (m.type === 'skip') {
+    // Back to the world as marked (the same town: the street map stays), then on from there.
+    if (m.fromMark && mark) world = loadWorld(planned!, mark.bytes);
     skipTo(world, m.to);
     forget();
     talk.clear();
@@ -121,7 +132,7 @@ function simJob(m: ToSim): FromSim {
 
 /** A player request (src/sim/player.ts), answered with their status after it. */
 function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
-  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], near: null, located: null, info: null, waits: [], status: null, ms: 0 };
+  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], near: null, located: null, doing: '', info: null, waits: [], status: null, ms: 0 };
   if (op.op === 'cards') out.cards = cardsOf(w);
   else if (op.op === 'become') { becomePlayer(w, op.id, op.autopilot); out.info = infoOf(w, op.id); known.add(op.id); }
   else if (op.op === 'autopilot') setAutopilot(w, op.on);
@@ -131,10 +142,11 @@ function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
   else if (op.op === 'near') out.near = map!.solidsNear(op.x, op.z, op.r);
   else if (op.op === 'locate') out.located = locate(w, map!, op.id);
   else if (op.op === 'waits') for (let id = 0; id < w.actors.count; id++) { const k = isPerson(w, id) ? waitOf(w, id) : null; if (k) out.waits.push({ id, why: k.why, back: k.back }); }
+  else if (op.op === 'doing' && op.id >= 0 && op.id < w.actors.count) out.doing = doingOf(w, op.id);
   // The menu is wanted after a move too (what is there to do where they are going).
   if (op.op === 'actions' || op.op === 'go' || op.op === 'become') out.actions = playerActions(w);
   // Their track changes at once: drop it, so the next street update makes and sends the new one.
-  if (op.op !== 'cards' && op.op !== 'digest' && op.op !== 'near' && op.op !== 'locate' && op.op !== 'waits' && w.player) tracks.delete(w.player.id);
+  if (op.op !== 'cards' && op.op !== 'digest' && op.op !== 'near' && op.op !== 'locate' && op.op !== 'waits' && op.op !== 'doing' && w.player) tracks.delete(w.player.id);
   out.status = playerOut(w, map!, w.clock);
   out.ms = took();
   return out;

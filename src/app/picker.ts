@@ -2,9 +2,10 @@
  * The character picker (D4, plan R2): who will you be? A panel over the live town from above, listing every
  * inhabitant's card (src/sim/profile.ts) with a search, the filters (in love, has a secret, new in town, …), an age
  * band and a sort. Picking someone shows their whole card (secrets marked as known only to you); "Be …" plays as
- * them. A slider starts play later (up to a day ahead, Arnd): the town lives on to then, and you take over wherever
- * they are at that time. Someone in a car, on a bus or out of town is not offered (Arnd, 21:20: "Hide them"): they
- * are never put where the sim does not have them. The loading screen hands over to it once the town is up; it comes back when the player wants to be
+ * them. A slider starts play later (up to a day ahead, Arnd): the town behind lives on to then as it moves (and
+ * back), the open card says what its person is doing then, and you take over wherever they are at that time.
+ * Someone in a car, on a bus or out of town at that time is not offered (Arnd, 21:20: "Hide them"): they are never
+ * put where the sim does not have them. The loading screen hands over to it once the town is up; it comes back when the player wants to be
  * someone else.
  */
 import { deriveSeed, Rng } from '@futuremagic/core';
@@ -42,9 +43,16 @@ export interface PickerOptions {
   current?: InhabitantCard | null;
   /** The game clock now (minutes since day 0, a Monday). */
   clock: () => number;
+  /**
+   * The slider moved: show the town `ahead` minutes from now behind the picker (resolves once it is there). Without
+   * it the town stays at now until someone is picked.
+   */
+  onAhead?: (ahead: number) => Promise<void>;
+  /** What inhabitant `id` is doing in the town as it is shown now ("work at Café Plover"), for the open card. */
+  doing?: (id: number) => Promise<string>;
   /** Play as `card`, `ahead` minutes from now (0: now); resolves once play has begun. */
   onPick: (card: InhabitantCard, ahead: number) => void | Promise<void>;
-  /** Who cannot be taken over now (in a car, on a bus, out of town): their cards are left out. */
+  /** Who cannot be taken over in the town as shown (in a car, on a bus, out of town): their cards are left out. */
   waits?: () => Promise<readonly Wait[]>;
   /** Called when the player closes the picker without picking (only offered while they are someone). */
   onClose?: () => void;
@@ -65,8 +73,13 @@ export class Picker {
   private ahead = 0;
   private readonly when = el('span', 'pk-when');
   private picking = false;
-  /** Who cannot be taken over now (asked again every half minute while the picker is up). */
+  /** Who cannot be taken over in the town as shown (asked again as the slider settles, and every half minute). */
   private waits = new Map<number, Wait>();
+  /** The town behind is still catching up with the slider. */
+  private catching = false;
+  private aheadTimer: ReturnType<typeof setTimeout> | null = null;
+  /** What the open card's person is doing in the town as shown, and for which person and slider position. */
+  private then: { id: number; ahead: number; text: string } | null = null;
 
   constructor(private readonly cards: readonly InhabitantCard[], private readonly opts: PickerOptions) {
     this.root.setAttribute('aria-label', 'Choose who to be');
@@ -105,18 +118,20 @@ export class Picker {
     this.askWaits();
   }
 
-  /** Ask who is away now, and again every 30 s while the picker is up (people leave and come back). */
+  /** Ask who is away in the town as shown, and again every 30 s while the picker is up (people leave and come back). */
   private askWaits(): void {
-    const ask = this.opts.waits;
-    if (!ask) return;
-    const once = (): void => void ask().then((w) => {
+    if (!this.opts.waits) return;
+    this.refreshWaits();
+    const t = setInterval(() => { if (this.root.isConnected && !this.catching) this.refreshWaits(); else if (this.shownOnce) clearInterval(t); }, 30_000);
+  }
+
+  private refreshWaits(): void {
+    void this.opts.waits?.().then((w) => {
       const next = new Map(w.map((x) => [x.id, x]));
       const same = next.size === this.waits.size && [...next.keys()].every((id) => this.waits.has(id));
       this.waits = next;
       if (!same && (this.root.isConnected || !this.shownOnce)) this.render();
     }).catch(() => {});
-    once();
-    const t = setInterval(() => { if (this.root.isConnected) once(); else if (this.shownOnce) clearInterval(t); }, 30_000);
   }
 
   /** The start-time slider: now, or up to a day on; the day and time it lands on beside it. */
@@ -125,7 +140,14 @@ export class Picker {
     const slider = el('input', 'pk-slider');
     Object.assign(slider, { type: 'range', min: '0', max: String(AHEAD_MAX), step: String(AHEAD_STEP), value: '0' });
     slider.setAttribute('aria-label', 'Start later');
-    slider.addEventListener('input', () => { this.ahead = Number(slider.value); this.showWhen(); this.render(); });
+    slider.addEventListener('input', () => {
+      this.ahead = Number(slider.value);
+      this.showWhen();
+      this.render();
+      // The town behind follows once the slider rests a moment.
+      if (this.aheadTimer) clearTimeout(this.aheadTimer);
+      this.aheadTimer = setTimeout(() => void this.follow(), 150);
+    });
     row.append(el('span', 'pk-start-label', 'Start'), slider, this.when);
     this.showWhen();
     // The clock runs while the picker is up: "now" moves on.
@@ -135,13 +157,41 @@ export class Picker {
 
   private shownOnce = false;
 
+  /** Let the town behind catch up with the slider, then say what the open card's person is doing then. */
+  private async follow(): Promise<void> {
+    if (!this.opts.onAhead) return;
+    const want = this.ahead;
+    this.catching = true;
+    this.showWhen();
+    try { await this.opts.onAhead(want); } finally {
+      if (this.ahead === want) { this.catching = false; this.showWhen(); this.render(); this.refreshWaits(); }
+    }
+  }
+
+  /** The open card's line on what they are doing at the time shown (fetched when not known yet). */
+  private thenLine(c: InhabitantCard): HTMLElement | null {
+    if (!this.opts.doing) return null;
+    const p = el('p', 'pk-then');
+    const label = this.ahead ? `At ${hhmm(Math.floor(minuteOfDay(this.opts.clock() + this.ahead)))}` : 'Now';
+    const known = this.then?.id === c.id && this.then.ahead === this.ahead ? this.then.text : null;
+    if (known) p.textContent = `${label}: ${known}`;
+    else if (!this.catching) {
+      const ahead = this.ahead;
+      void this.opts.doing(c.id).then((text) => {
+        this.then = { id: c.id, ahead, text };
+        if (this.open === c.id && this.ahead === ahead && p.isConnected) p.textContent = `${label}: ${text}`;
+      });
+    }
+    return p;
+  }
+
   /** "now · Saturday 18:40, evening" or "in 6 h · Sunday 00:40, night". */
   private showWhen(): void {
     if (this.root.isConnected) this.shownOnce = true;
     const now = this.opts.clock(), at = now + this.ahead, m = Math.floor(minuteOfDay(at));
     const day = dayOf(at) === dayOf(now) ? 'today' : dayOf(at) === dayOf(now) + 1 ? 'tomorrow' : weekdayName(weekdayOf(at));
     const h = Math.floor(this.ahead / 60), half = this.ahead % 60 ? '½' : '';
-    this.when.textContent = `${this.ahead ? `in ${h || ''}${half || (h ? '' : '0')} h` : 'now'} · ${day === 'today' || day === 'tomorrow' ? `${day} (${weekdayName(weekdayOf(at))})` : day} ${hhmm(m)}, ${partOfDay(m)}`;
+    this.when.textContent = `${this.ahead ? `in ${h || ''}${half || (h ? '' : '0')} h` : 'now'} · ${day === 'today' || day === 'tomorrow' ? `${day} (${weekdayName(weekdayOf(at))})` : day} ${hhmm(m)}, ${partOfDay(m)}${this.catching ? ' · the town is catching up…' : ''}`;
   }
 
   /** The cards that pass the search and the filters, sorted. */
@@ -150,17 +200,16 @@ export class Picker {
     const [, from, to] = AGES[this.age];
     let tagMask = 0;
     for (const t of this.tags) tagMask |= t;
-    const now = this.ahead ? null : this.waits;
     return this.cards
-      .filter((c) => !now?.has(c.id) && c.age >= from && c.age < to && (c.tags & tagMask) === tagMask
+      .filter((c) => !this.waits.has(c.id) && c.age >= from && c.age < to && (c.tags & tagMask) === tagMask
         && (!q || `${c.name} ${c.line} ${c.household}`.toLowerCase().includes(q)))
       .sort(SORTS[this.sort][1]);
   }
 
   private render(): void {
     const all = this.matching();
-    const gone = this.ahead ? 0 : this.waits.size;
-    this.count.textContent = `${all.length} of ${this.cards.length}${gone ? ` · ${gone} out of town or on the road now` : ''}`;
+    const gone = this.waits.size;
+    this.count.textContent = `${all.length} of ${this.cards.length}${gone ? ` · ${gone} out of town or on the road ${this.ahead ? 'then' : 'now'}` : ''}`;
     this.list.replaceChildren();
     for (const c of all.slice(0, this.shown)) this.list.append(this.cardEl(c));
     if (all.length > this.shown) {
@@ -189,14 +238,16 @@ export class Picker {
         ul.append(li);
       }
       if (c.situations.length) card.append(ul);
+      const then = this.thenLine(c);
+      if (then) card.append(then);
       const be = el('button', 'pk-be', this.ahead ? `Be ${first} from ${hhmm(Math.floor(minuteOfDay(this.opts.clock() + this.ahead)))}` : `Be ${first}`);
       be.type = 'button';
       be.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.picking) return;
         this.picking = true;
-        // Living the hours up to then takes the town a moment.
-        if (this.ahead) { be.textContent = 'Moving the clock on…'; be.disabled = true; }
+        // Living the hours up to then can take the town a moment.
+        if (this.ahead && this.catching) { be.textContent = 'Moving the clock on…'; be.disabled = true; }
         void Promise.resolve(this.opts.onPick(c, this.ahead)).finally(() => { this.picking = false; });
       });
       card.append(be);

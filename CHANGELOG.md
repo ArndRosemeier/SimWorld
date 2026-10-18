@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.147 — The start slider moves the town
+
+- Moving the start slider in "Who will you be?" now runs the town behind the picker to that hour: the sky, the lights, the people and the traffic. Moving it back works too.
+- While the town catches up, the time says so. An open card shows what that person is doing at the chosen time.
+- The list shows who is in town at the chosen time. People who are out of town or on the road then are left out.
+
 ## v0.146 — You take over people where they really are
 
 - People who are out of town (at work in the city, at school in the next town) or in a car, on a bus or on a bike are no longer offered in the picker, so nobody starts out in the fields. The count says how many are away right now.

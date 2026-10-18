@@ -150,7 +150,9 @@ export class Playing {
     const current = this.panel ? this.cards.find((c) => c.id === this.panel!.card.id) ?? null : null;
     this.picker = new Picker(this.cards, {
       seed: this.seed, current,
-      clock: () => this.sim.clock,
+      clock: () => this.sim.nowClock,
+      onAhead: (ahead) => this.showAhead(ahead),
+      doing: async (id) => (await this.sim.ask({ op: 'doing', id })).doing,
       onPick: (c, ahead) => this.becomeLater(c, ahead),
       waits: async () => (await this.sim.ask({ op: 'waits' })).waits,
       onClose: current ? () => this.closePicker() : undefined,
@@ -160,24 +162,38 @@ export class Playing {
   }
 
   private closePicker(): void {
+    // Closed without picking: back to now, as if nobody had looked ahead.
+    if (this.picker) void this.sim.endLook(false);
     this.picker?.root.remove();
     this.picker = null;
     this.panel?.root.classList.remove('pl-hidden');
   }
 
   /**
-   * Become `card`'s person `ahead` minutes from now (the picker's slider): the town lives the time up to then (whoever
-   * you were goes back to their routine for it), then you take over wherever they are.
+   * The picker's slider: the town behind runs on to `ahead` minutes from now (and back). Whoever you are goes back to
+   * their routine for it: their life goes on without you while you look.
+   */
+  private async showAhead(ahead: number): Promise<void> {
+    if (this.avatar || this.interior >= 0) { this.dropAvatar(); this.goOut(); }
+    if (this.sim.player?.alive && !this.sim.player.autopilot) await this.sim.ask({ op: 'autopilot', on: true });
+    await this.sim.lookAhead(ahead);
+  }
+
+  /**
+   * Become `card`'s person `ahead` minutes from now (the picker's slider): the town lives the time up to then (it may
+   * already have, behind the picker), then you take over wherever they are.
    */
   private async becomeLater(card: InhabitantCard, ahead: number): Promise<void> {
+    if (ahead > 0) await this.showAhead(ahead);
+    await this.sim.endLook(ahead > 0);
+    // In a car, on a bus or out of town then after all (the picker leaves them out, but the town moves on while you
+    // choose): on until they are on foot in town again (a day at most).
     const away = async () => (await this.sim.ask({ op: 'waits' })).waits.find((w) => w.id === card.id);
     let wait = await away();
-    if (ahead > 0 || wait) {
+    if (wait) {
       this.dropAvatar();
       this.goOut();
       if (this.sim.player?.alive && !this.sim.player.autopilot) await this.sim.ask({ op: 'autopilot', on: true });
-      if (ahead > 0) { await this.sim.skip(ahead); wait = await away(); }
-      // In a car, on a bus or out of town then (the picker leaves them out only for now): on until they are on foot in town again (a day at most).
       for (let gone = 0; wait && gone < WAIT_MAX; wait = await away()) {
         const step = Math.max(1, Math.min(WAIT_STEP, wait.back !== null ? Math.ceil(wait.back - this.sim.clock) + 1 : WAIT_STEP));
         await this.sim.skip(step);
