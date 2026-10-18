@@ -11,6 +11,8 @@ import { hash32, smoothstep } from '@futuremagic/core';
 import { VEHICLE_KINDS, paintColor } from '../build/vehicles';
 import { sunPosition } from '../sim/calendar';
 import type { Town } from '../plan/town';
+import { PropType } from '../plan/cell';
+import { Footprints } from '../plan/footprints';
 import type { World } from '../sim/world';
 import { TownTraffic, householdCar } from './townTraffic';
 import { carPlace, carTripsSince } from './trips';
@@ -64,6 +66,11 @@ export class TrafficFeed {
   /** Recorded moments: game clock minutes and every vehicle's pose then (by vehicle id). */
   private readonly hist: { t: number; poses: Map<number, [number, number, number, number]> }[] = [];
   private parkedSig = -1;
+  /**
+   * The cars standing in the kerbside bays as footprints (src/plan/footprints.ts: three circles each, kind
+   * `PropType.KerbCar`), for whoever must keep clear of them (people on foot); remade when they change.
+   */
+  standing = new Footprints();
 
   /** `step`: the longest step the cars are run in (s; coarser in tests). */
   constructor(town: Town, private readonly world: World, private readonly step = MAX_STEP) {
@@ -146,6 +153,8 @@ export class TrafficFeed {
     let parked: Float32Array | null = null, parkedCars: Int32Array | null = null;
     if (sig !== this.parkedSig) {
       this.parkedSig = sig;
+      this.standing = new Footprints();
+      for (const s of spots) for (const d of [-1.4, 0, 1.4]) this.standing.circle(s.x + Math.sin(s.yaw) * d, s.z + Math.cos(s.yaw) * d, 1.0, PropType.KerbCar);
       parked = new Float32Array(spots.length * PARKED_STRIDE);
       parkedCars = new Int32Array(spots.length * CAR_STRIDE);
       spots.forEach((s, i) => {

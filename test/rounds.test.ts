@@ -118,6 +118,7 @@ test('the feed: the world drives the traffic; moving cars between recorded momen
   const feed = new TrafficFeed(town, world, 1);
   const first = feed.message();
   assert.ok(first.parked && first.parked.length / PARKED_STRIDE > 50, 'household cars stand in the bays');
+  assert.equal(feed.standing.circles.length / 3, (first.parked.length / PARKED_STRIDE) * 3, 'each parked car is three circles to keep clear of');
   let parked = new Set(Array.from({ length: first.parkedCars!.length / CAR_STRIDE }, (_, i) => first.parkedCars![i * CAR_STRIDE]));
   let clock = world.clock, moving = 0;
   const p = [0, 0, 0, 0];
