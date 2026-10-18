@@ -60,7 +60,8 @@ function simJob(m: ToSim): FromSim {
     map = new StreetMap(town, world.graph);
     forget();
     // With a history the world's day 0 lies that many weeks back (the same weekday): play starts after it.
-    if (!resumed) runTo(Math.max(m.clock + historyDays(HISTORY_YEARS) * MINUTES_PER_DAY, world.clock));
+    // `until`: the world clock itself (history included), as a report's repro link gives it.
+    if (!resumed) runTo(Math.max(m.until ?? m.clock + historyDays(HISTORY_YEARS) * MINUTES_PER_DAY, world.clock));
     traffic = new TrafficFeed((roads = town), world);
     sentAt = world.clock;
     // The bus stops' posts, with their timetables; people walk round the posts.

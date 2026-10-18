@@ -182,10 +182,16 @@ export class CameraControl {
     return { x, z, hurry: k.has('ShiftLeft') || k.has('ShiftRight') };
   }
 
-  /** Steer from behind someone facing `yaw` (0 looks to −z): the camera swings round behind them. */
-  behind(yaw: number): void {
+  /** Steer from behind someone facing `yaw` (0 looks to −z): the camera swings round behind them (tilted `pitch`, if given). */
+  behind(yaw: number, pitch?: number): void {
     this.orbit = yaw;
+    if (pitch !== undefined) this.lookPitch = pitch;
     this.steering = true;
+  }
+
+  /** Which way the steering camera looks: its turn round the person and its tilt (a report, src/game/report.ts). */
+  get look(): { orbit: number; pitch: number } {
+    return { orbit: this.orbit, pitch: this.lookPitch };
   }
 
   /**

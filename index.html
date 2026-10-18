@@ -116,6 +116,30 @@
       .map-tools button { padding: 3px 9px; border: 1px solid #1d1b1766; border-radius: 3px; background: #efe8d8e6; color: #1d1b17; font: 13px/1.3 'Alegreya Sans', system-ui, sans-serif; cursor: pointer; }
       #hud { position: fixed; left: 14px; top: 40px; pointer-events: none; white-space: pre; font-size: 12px; opacity: 0.75; text-shadow: 0 1px 2px #000; }
       /* The screen's frame (src/app/shell.ts): the top bar and the one menu. Chat keeps the right-hand side while open. */
+      .dbg-panel { position: fixed; left: 12px; top: 44px; z-index: 32; width: min(330px, calc(100vw - 24px)); max-height: calc(100vh - 56px); overflow-y: auto; padding: 8px 0 10px; box-sizing: border-box; background: #0b0d0ef5; border: 1px solid #3d6b5a; box-shadow: 0 8px 40px #000a; color: #cfd6dc; font: 13px/1.3 'Alegreya Sans', system-ui, sans-serif; }
+      .dbg-head { display: flex; align-items: center; gap: 8px; padding: 0 10px 4px 12px; }
+      .dbg-head strong { flex: 1; color: #9fe0c6; letter-spacing: 0.1em; text-transform: uppercase; font-size: 12px; }
+      .dbg-close { border: 0; background: none; color: #7a6f5e; font-size: 18px; cursor: pointer; }
+      .dbg-info { margin: 0 12px 4px; padding: 6px 8px; background: #000a; color: #b8f0d8; font: 11px/1.35 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; }
+      .dbg-panel h3 { margin: 8px 12px 3px; font: 600 11px/1 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: #5f8a7a; }
+      .dbg-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 4px 12px; border: 0; background: none; color: #cfd6dc; font: inherit; text-align: left; cursor: pointer; box-sizing: border-box; }
+      label.dbg-item { justify-content: flex-start; }
+      .dbg-item:hover, .dbg-item:focus-visible { background: #9fe0c61a; color: #ece3d0; outline: none; }
+      .dbg-note { margin-left: auto; color: #7a6f5e; font-size: 12px; }
+      .dbg-custom { padding: 4px 12px; }
+      .dbg-form { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+      .dbg-form input, .dbg-form button { font: inherit; color: #cfd6dc; background: #000a; border: 1px solid #3d6b5a; border-radius: 3px; padding: 2px 6px; }
+      .rp-backdrop { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: #050607b3; }
+      .rp-panel { display: flex; flex-direction: column; gap: 8px; width: min(720px, 100%); max-height: min(88vh, 820px); padding: 14px 16px; box-sizing: border-box; background: #0d0f11; border: 1px solid #3d6b5a; box-shadow: 0 8px 40px #000a; color: #cfd6dc; font: 14px/1.35 'Alegreya Sans', system-ui, sans-serif; }
+      .rp-panel h2 { margin: 0; font: 400 20px/1.1 'IM Fell English', Georgia, serif; color: #ece3d0; }
+      .rp-note { font: inherit; color: #ece3d0; background: #000a; border: 1px solid #4f4232; border-radius: 3px; padding: 6px 8px; resize: vertical; }
+      .rp-hint { margin: 0; color: #7a6f5e; font-size: 13px; }
+      .rp-text { flex: 1; min-height: 120px; margin: 0; padding: 8px; overflow: auto; background: #000a; color: #b8f0d8; font: 11px/1.4 ui-monospace, monospace; white-space: pre-wrap; word-break: break-all; }
+      .rp-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+      .rp-buttons button { font: inherit; color: #b9ad96; background: none; border: 1px solid #4f4232; border-radius: 3px; padding: 4px 12px; cursor: pointer; }
+      .rp-buttons button:hover, .rp-buttons button:focus-visible { color: #ece3d0; border-color: #e9b85c; outline: none; }
+      .rp-copy { color: #ece3d0 !important; border-color: #e9b85c !important; }
+      .rp-said { color: #e9b85c; font-size: 13px; min-height: 1.2em; }
       :root { --right: 0px; }
       body.chat-open { --right: var(--chat-w, 0px); }
       .sh-bar { position: fixed; left: 0; right: var(--right); top: 0; z-index: 24; display: flex; align-items: center; gap: 18px; height: 36px; padding: 0 100px 0 14px; box-sizing: border-box; background: linear-gradient(#050607d9, #05060700); color: #ece3d0; font: 15px/1 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.04em; text-shadow: 0 1px 2px #000; pointer-events: none; }

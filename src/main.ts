@@ -20,6 +20,10 @@
  * drone view without the picker, for screenshots (the looks check, tools/looks/check.mjs): once the town is built the
  * page's root gets `data-town="built"`.
  * On the street, T talks to the person nearest you (or the one you follow).
+ *
+ * A report's repro link (Shift+Ctrl+F12 → Report this spot, F8; src/game/report.ts, docs/REPORTS.md) adds `?clock=<world
+ * minute>` (the world run to that minute from the start `date`), `?stand=x,y,z,yaw,building` and `?look=orbit,pitch`
+ * (where `be` stands and looks), `?autopilot` (their routine runs them), and `?save=<url>` plays on from a save file.
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
@@ -71,6 +75,10 @@ import { soundEnvFromSim, soundEnvOf, soundOverrides } from './audio/env';
 import { soundNote, soundOpener } from './app/soundPanel';
 import { openPaper } from './app/paperPanel';
 import { mapOpener } from './app/mapPanel';
+import { watchConsole } from './app/consoleLog';
+import { DebugMenu } from './app/debug';
+import { addDebugTools } from './game/debugTools';
+import { parseLook, parseStand } from './game/report';
 
 const HAZE = 0xa9c8e4;
 
@@ -109,7 +117,9 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const rate = Math.max(0, Number(q0.get('speed') ?? 1)) || 1;
   // The society: planned and populated in its own worker while the rest loads.
   // `?resume`: play on from this town's last save (made when the tab is hidden, and every few minutes).
-  const simulated = SimClient.boot(settings, play.start, play.startDay, play.clock, rate, { resume: q0.has('resume') });
+  // A report's repro link (src/game/report.ts): `?clock=` runs the world to that minute, `?save=<url>` plays on from a save file.
+  const until = q0.has('clock') && Number.isFinite(Number(q0.get('clock'))) ? Number(q0.get('clock')) : undefined;
+  const simulated = SimClient.boot(settings, play.start, play.startDay, play.clock, rate, { resume: q0.has('resume'), until, saveUrl: q0.get('save') ?? undefined });
   // The town workers start planning at once; the texture workers generate the facade textures
   // meanwhile (the shaders need them before the warm-up), then the renderer warms up.
   const pool = new WorkerPool<ToTown, FromTown>(townWorkerUrl, Math.min(4, cores));
@@ -188,6 +198,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   decorate();
   if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);
   sim.keepSaved();
+  // A repro (a report's link, a save file) must not replace the player's own save of this town.
+  if (until !== undefined || q0.has('save') || q0.has('stand')) sim.autosave = false;
   shell.add({ label: 'Paper', group: 'Town', open: () => openPaper(sim.view) });
   shell.add({ label: 'Save now', group: 'Game', open: () => void sim.saveNow().then((ok) => shell.say(ok ? 'Saved' : 'Could not save here')) });
   shell.add({ label: 'Load last save', group: 'Game', open: () => {
@@ -228,6 +240,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   });
   const playing = new Playing(sim, cam, street, settings.seed, goingIn);
   shell.add({ label: 'Choose who to be', group: 'Play', open: () => void playing.choose() });
+  addDebugTools(debug, { sim, cam, camera, playing, stage, settings, start: play.start });
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
   /** The media the signs last got (the sim's view brings a new one each game minute). */
@@ -241,6 +254,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     () => (cam.mode === 'drone' ? null : { x: camera.position.x, z: camera.position.z, fx: fwd.x, fz: fwd.z }),
   ) });
   renderer.setAnimationLoop((t: number) => {
+    if (lastT) debug.frame(t - lastT);
     const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
     lastT = t;
     stage.frame();
@@ -296,7 +310,9 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       shown = true;
       document.getElementById('loading')?.remove();
       audio.startTown();
-      if (q.has('be') || (!q.has('street') && !q.has('still') && followId < 0)) void playing.takeOver(q.has('be') ? num('be', -1) : null);
+      if (q.has('be') || (!q.has('street') && !q.has('still') && followId < 0)) {
+        void playing.takeOver(q.has('be') ? num('be', -1) : null, { stand: parseStand(q.get('stand')), look: parseLook(q.get('look')), autopilot: q.has('autopilot') });
+      }
     }
     shell.setWhen(`${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(sim.clock)))} · ${describeWeather(w)}`);
     if (hud) {
@@ -382,7 +398,10 @@ async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stag
 
 // The screen's frame: the top bar and the one menu every window opens from (src/app/shell.ts). The version and What's
 // new sit on the loading screen (plan R2) and go with it; the menu has What's new once the town is up.
+watchConsole();
 const shell = new Shell();
+// The debug menu (Shift+Ctrl+F12), out of the normal Menu: "Report this spot" and the tools (src/app/debug.ts, docs/REPORTS.md).
+const debug = new DebugMenu();
 document.getElementById('loading')?.append(whatsNewButton());
 // Sound starts with the first click or key (browsers allow nothing earlier): the title music on the
 // start screen, then the town.

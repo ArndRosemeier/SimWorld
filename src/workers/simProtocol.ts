@@ -24,7 +24,7 @@ export type ToSim =
    * run it to `clock` (game minutes since day 0, 00:00). With `save` (bytes of `saveWorld`), the world is that save
    * instead, on the same town planned again, and play resumes at its clock (`start`, `startDay`, `clock` are unused).
    */
-  | { type: 'init'; settings: TownSettings; start: CivilDate; startDay: number; clock: number; save?: Uint8Array | null }
+  | { type: 'init'; settings: TownSettings; start: CivilDate; startDay: number; clock: number; until?: number; save?: Uint8Array | null }
   /**
    * Run the world up to `clock` (whole minutes are ticked; the fraction only places the tracks), then report
    * the street around (x, z): tracks that are new or changed within `r` metres, and who went out of it.
