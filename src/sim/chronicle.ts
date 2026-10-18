@@ -175,10 +175,15 @@ export function digest(world: World, id: ActorId, since: number, max = 20): Dige
   const out: DigestItem[] = [];
   const seen = new Set<number>();
   const lines = new Set<string>();
+  const k = world.knowledge, c = k.beliefs.cols;
+  // Stories someone told them are told as heard (with who told them), not as the memory of hearing it.
+  const told = new Set<number>();
+  for (const r of k.byHolder[id] ?? []) if (c.heardAt[r] >= since && c.source[r] >= 0) told.add(k.facts[c.fact[r]].root);
   for (const m of world.memory.byPerson[id] ?? []) {
     if (m.time < since) continue;
     if (m.fact >= 0) {
       const root = world.knowledge.facts[m.fact].root;
+      if (told.has(root)) continue;
       if (seen.has(root) && lines.has(m.summary)) continue;
       seen.add(root);
     }
@@ -186,7 +191,6 @@ export function digest(world: World, id: ActorId, since: number, max = 20): Dige
     lines.add(m.summary);
     out.push({ time: m.time, text: m.summary, kind: 'lived', importance: m.importance });
   }
-  const k = world.knowledge, c = k.beliefs.cols;
   for (const r of k.byHolder[id] ?? []) {
     if (c.heardAt[r] < since) continue;
     const f = k.facts[c.fact[r]];
