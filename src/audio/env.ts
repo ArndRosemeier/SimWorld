@@ -17,7 +17,6 @@ import type { SoundEnv } from './soundscape';
 export interface SoundWorld extends Dated {
   readonly latitude: number;
   clock: number;
-  /** The region as the town knows it (as on `World`): only whether it is coastal matters here. */
   region?: { region: { coastal?: boolean } } | null;
 }
 

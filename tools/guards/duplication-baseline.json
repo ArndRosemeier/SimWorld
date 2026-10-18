@@ -28,24 +28,8 @@
     "reason": "One designer per public building (the Designer contract from Scale): the same closure shape, each with its own sizes and parameters for its parts; a table would hide the drawing rules."
   },
   {
-    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
     "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/synth.ts",
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.filter .households .length .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
-    "reason": "Different questions over the household list (who lives alone, which care-home rooms are taken, which households still have members; emptied households stay as records): each is a one-line Array.filter with its own predicate, and the shared part is Array.filter itself."
   },
   {
     "key": "idiom: [.angle .cos .sin Math] in simworld/geom/geom2.ts + simworld/plan/cell.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
@@ -136,12 +120,112 @@
     "reason": "The shape of every texture generator: a per-pixel Tex.each loop sampling tileable TNoise.fbm; it is the generator contract, not a copy."
   },
   {
-    "key": "idiom: [.each .round Math] in simworld/build/texgen/ground.ts + simworld/build/texgen/interior.ts + simworld/build/texgen/roof.ts",
-    "reason": "Texture generators round a feature size to a whole count per tile (Math.round(W / size)) so the pattern wraps, then loop Tex.each; the tiling contract, not a copy."
-  },
-  {
     "key": "same name: simworld/build/texgen/facade.ts#extra + simworld/build/texgen/ground.ts#extra",
     "reason": "Two implementations of the one StoneOpts.extra hook (per-layer stone detail), not two copies of a helper."
+  },
+  {
+    "key": "clone: simworld/build/vehicles.ts#quad + simworld/build/vehicles.ts#quadN",
+    "reason": "Ported from Scale's vehicle Geo: a quad flipped on request and a quad whose two halves are each oriented to a normal (each half tested, as a half can be degenerate where a loft closes)."
+  },
+  {
+    "key": "idiom: [.ElseIf .assign] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "idiom: [.ElseIf .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "idiom: [.Path .cls .streets] in simworld/build/ground.ts + simworld/build/streetProps.ts + simworld/plan/terrace.ts",
+    "reason": "Each reads the plan's street segments (path, class) for its own job: ground strips, signal approaches, terrace frontage."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts",
+    "reason": "Untouched sim code: the idiom finder regrouped existing [.actors .cols] uses after new files changed its clusters."
+  },
+  {
+    "key": "idiom: [.add .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vegetation.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "idiom: [.and .greaterThan .lessThan] in simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "idiom: [.assign .equal] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "idiom: [.assign .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "idiom: [.assign .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/vegetation.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "idiom: [.emissiveNode .get .metalnessNode .roughnessNode] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "idiom: [.equal .or] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vegetation.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
+  },
+  {
+    "key": "same name: simworld/build/furniture.ts#add + simworld/plan/kit.ts#add",
+    "reason": "FB.add merges a solid into the furniture mesh; Kit.add records a landmark part. Both Scale ports, unrelated jobs."
+  },
+  {
+    "key": "same name: simworld/build/furniture.ts#box + simworld/plan/kit.ts#box",
+    "reason": "FB.box adds a furniture box with its material; Kit.box records a landmark part. Both Scale ports, unrelated jobs."
+  },
+  {
+    "key": "same name: simworld/build/meshBuilder.ts#box + simworld/build/prims.ts#box",
+    "reason": "MeshBuilder.box appends a yawed box to a builder; prims.box returns a standalone solid laid out as three's BoxGeometry (the furniture port transforms and merges solids). Different jobs."
+  },
+  {
+    "key": "same name: simworld/build/meshBuilder.ts#face + simworld/build/prims.ts#face",
+    "reason": "Local closures inside the two box generators (one face each), not shared helpers."
+  },
+  {
+    "key": "same name: simworld/build/meshBuilder.ts#put + simworld/build/streetProps.ts#put",
+    "reason": "Growable float buffer's put versus streetProps' local closure that appends one prop instance to its model's list."
+  },
+  {
+    "key": "same name: simworld/build/meshBuilder.ts#quad + simworld/build/vehicles.ts#quad",
+    "reason": "MeshBuilder.quad joins four vertex indices; the vehicle Geo's quad (ported from Scale) adds two raw triangles with uv and part before welding. Different data."
+  },
+  {
+    "key": "same name: simworld/build/streetProps.ts#put + simworld/plan/cell.ts#put",
+    "reason": "Local closures appending to different records (a prop instance per model here, a planned prop in cell.ts)."
+  },
+  {
+    "key": "same name: simworld/build/streetProps.ts#put + simworld/world/rural.ts#put",
+    "reason": "Local closures appending to different records (a prop instance per model here, rural.ts its own)."
+  },
+  {
+    "key": "same name: simworld/build/vehicles.ts#quad + simworld/plan/kit.ts#quad",
+    "reason": "The vehicle Geo's triangle-soup quad versus the landmark Kit's part record; both ported from Scale, unrelated jobs."
+  },
+  {
+    "key": "clone: simworld/build/vegetationTex.ts#leaf",
+    "reason": "The leaf atlas's species table (ported from Scale's props/vegetation.ts): each entry's leaf is one call to the shared leaf painter with that species' shape numbers; data, not code."
+  },
+  {
+    "key": "idiom: [.coastDistance .coastal .profile] in simworld/build/forest.ts + simworld/plan/landmarks.ts + simworld/world/rural.ts",
+    "reason": "Each reads the terrain profile's coast to keep its own things (forest, landmarks, farms) off the shore; the one way is terrain.profile, used, not copied."
+  },
+  {
+    "key": "idiom: [.land .sample] in simworld/build/forest.ts + simworld/plan/placeGraph.ts + simworld/world/rural.ts",
+    "reason": "Callers of LandUse.sample (the one land-use query) asking it different questions: where forest grows, where places go, where farms are."
   },
   {
     "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/fill/area.ts + simworld/interior/storey.ts",
@@ -252,8 +336,36 @@
     "reason": "A loop over a cell plan's flat junction list (x, z, degree triples), the plan's own format; each use asks something different of it."
   },
   {
-    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops. (Listed again in this grouping since src/audio joined the corpus and the finder regrouped the sim's files.)"
+    "key": "idiom: [.len .min .width Math] in simworld/build/streetProps.ts + simworld/traffic/parking.ts + simworld/traffic/traffic.ts",
+    "reason": "Each clamps a set-back along its own street approach (prop placement, parking bays, the traffic stop line) by the approach's length and width; three different measures, not one helper."
+  },
+  {
+    "key": "same name: simworld/build/furniture.ts#box + simworld/build/interior.ts#box",
+    "reason": "FB.box (furniture builder method, material per part, ported from Scale) and the interior's own box emitter on MeshBuilder: different builders and attribute sets."
+  },
+  {
+    "key": "same name: simworld/build/paint2d.ts#rect + simworld/interior/cores.ts#rect",
+    "reason": "Paint2D.rect fills pixels of a texture; the interior's rect is a floor-plan rectangle. Same word, different things."
+  },
+  {
+    "key": "same name: simworld/render/vegetationView.ts#update + simworld/traffic/townTraffic.ts#update",
+    "reason": "Per-frame update methods of two different views (vegetation LOD re-split, traffic stepping); the conventional name of a frame hook."
+  },
+  {
+    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.filter .households .length .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
+    "reason": "Different questions over the household list (who lives alone, which care-home rooms are taken, which households still have members; emptied households stay as records): each is a one-line Array.filter with its own predicate, and the shared part is Array.filter itself."
+  },
+  {
+    "key": "idiom: [.each .round Math] in simworld/build/texgen/ground.ts + simworld/build/texgen/interior.ts + simworld/build/texgen/roof.ts",
+    "reason": "Texture generators round a feature size to a whole count per tile (Math.round(W / size)) so the pattern wraps, then loop Tex.each; the tiling contract, not a copy."
   },
   {
     "key": "idiom: [.fromEntries .map Object] in simworld/audio/engine.ts + simworld/audio/soundMap.ts + simworld/llm/appraisal.ts",
@@ -264,8 +376,20 @@
     "reason": "Reading a 3D position (the camera, a sound source, a listener) field by field into plain numbers at the boundary between three.js and the audio layer, which takes no three.js types by design (rules.json, src/audio)."
   },
   {
-    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+    "key": "idiom: [.actors .count] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/encounters.ts + simworld/sim/knowledge.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/phone.ts + simworld/sim/region.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts",
+    "reason": "Looping over every actor (`world.actors.count`) is how each data-oriented sim system walks its tables (plan R3); a shared iterator would cost a call per actor in hot loops and hide which tables a system reads."
+  },
+  {
+    "key": "idiom: [.actors .count] in simworld/sim/actions.ts + simworld/sim/economy.ts + simworld/sim/encounters.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
+    "reason": "Looping over every actor (`world.actors.count`) is how each data-oriented sim system walks its tables (plan R3); a shared iterator would cost a call per actor in hot loops and hide which tables a system reads."
+  },
+  {
+    "key": "idiom: [.actors .count] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/phone.ts + simworld/sim/synth.ts",
+    "reason": "Looping over every actor (`world.actors.count`) is how each data-oriented sim system walks its tables (plan R3); a shared iterator would cost a call per actor in hot loops and hide which tables a system reads."
+  },
+  {
+    "key": "idiom: [.actors .count] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/region.ts",
+    "reason": "Looping over every actor (`world.actors.count`) is how each data-oriented sim system walks its tables (plan R3); a shared iterator would cost a call per actor in hot loops and hide which tables a system reads."
   },
   {
     "key": "idiom: [.filter .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
@@ -274,5 +398,25 @@
   {
     "key": "idiom: [.anyKnown .relations] in simworld/sim/chronicle.ts + simworld/sim/knowledge.ts + simworld/sim/phone.ts",
     "reason": "Calls of the one seam (Relations.anyKnown, someone a person knows) that replaced three copies of the pick; the finder sees the call itself."
+  },
+  {
+    "key": "idiom: [.add .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/interior.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
+  },
+  {
+    "key": "idiom: [.add .toVar] in simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
+  },
+  {
+    "key": "idiom: [.cols .t] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/relations.ts",
+    "reason": "Sim systems reading the component tables (actors.cols / .t); the table access pattern, not a copy. Regrouped by the finder when files change."
+  },
+  {
+    "key": "idiom: [.entries Object] in simworld/audio/engine.ts + simworld/audio/music.ts + simworld/render/meshes.ts",
+    "reason": "Iterating a record with Object.entries; language idiom."
+  },
+  {
+    "key": "idiom: [.mul .toVar] in simworld/render/tsl/ground.ts + simworld/render/tsl/interior.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
   }
 ]
