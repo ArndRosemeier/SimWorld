@@ -133,12 +133,28 @@ export class RefTable {
 
   /** Text the model wrote with refs ("[P3] lost her job at L2") back to names, for the sim and the player. */
   unref(text: string): string {
-    return text.replace(/\[?\b([PL]\d+)\b\]?/g, (m, ref: string) => this.names.get(ref) ?? m);
+    // "Tom [P2]" and "Tom Brandt [P2]" become "Tom Brandt", not "Tom Tom Brandt".
+    let out = text;
+    for (const [ref, name] of this.names) {
+      const first = name.split(/\s+/)[0];
+      out = out.replace(new RegExp(`(?:\\b(?:${escapeRe(name)}|${escapeRe(first)})\\s*)?\\[${ref}\\]`, 'g'), name);
+    }
+    return out.replace(/\[?\b([PL]\d+)\b\]?/g, (m, ref: string) => this.names.get(ref) ?? m);
   }
 
   /** A ref as the model wrote it ("P2", "[p2]") back to what it names. */
   resolve(ref: unknown): { kind: RefKind; id: number } | undefined {
-    return typeof ref === 'string' ? this.toId.get(ref.replace(/[[\]\s]/g, '').toUpperCase()) : undefined;
+    if (typeof ref !== 'string') return undefined;
+    const exact = this.toId.get(ref.replace(/[[\]\s]/g, '').toUpperCase());
+    if (exact) return exact;
+    // Models often copy the display form ("Tom Brandt [P2]") or decorate it ("/People/P2"): take the
+    // one ref in it. Two different refs in one string name nothing.
+    const found = [...new Set([...ref.toUpperCase().matchAll(/(?<![A-Z0-9])([PL]\d+)(?![0-9])/g)].map((m) => m[1]))];
+    if (found.length) return found.length === 1 ? this.toId.get(found[0]) : undefined;
+    // Or the name instead of the ref ("Tom Brandt").
+    const name = ref.trim().toLowerCase();
+    const named = [...this.names].filter(([, n]) => n.toLowerCase() === name);
+    return named.length === 1 ? this.toId.get(named[0][0]) : undefined;
   }
 
   /** A list of refs split into people and places; refs that name nothing are reported to `bad`. */
@@ -154,6 +170,8 @@ export class RefTable {
 }
 
 export type RefKind = 'person' | 'place';
+
+export const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Refs in a fixed order (npc, partner, present, people; scene place, places) so prompts are stable. */
 export function refsFor(input: NpcPromptInput): RefTable {

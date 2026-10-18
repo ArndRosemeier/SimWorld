@@ -790,9 +790,9 @@ function buildWheel(R: number, tw: number, rimR: number, style: WheelStyle): Sou
   const xF = hw - 0.028, xH = hw - 0.012;
   const rH = 0.058 * s, rR = rimR - 0.018;
   const spoke = (al: number, wh: number, wr: number, depth = 0.03) => {
-    const P = (r: number, t: number, x: number): V3 => [x, r * Math.cos(al) - t * Math.sin(al), r * Math.sin(al) + t * Math.cos(al)];
-    const L0 = P(rH, -wh / 2, xH), L1 = P(rR, -wr / 2, xF), M0 = P(rH, 0, xH + 0.006), M1 = P(rR * 0.97, 0, xF + 0.006);
-    const R0 = P(rH, wh / 2, xH), R1 = P(rR, wr / 2, xF);
+    const spokeAt = (r: number, t: number, x: number): V3 => [x, r * Math.cos(al) - t * Math.sin(al), r * Math.sin(al) + t * Math.cos(al)];
+    const L0 = spokeAt(rH, -wh / 2, xH), L1 = spokeAt(rR, -wr / 2, xF), M0 = spokeAt(rH, 0, xH + 0.006), M1 = spokeAt(rR * 0.97, 0, xF + 0.006);
+    const R0 = spokeAt(rH, wh / 2, xH), R1 = spokeAt(rR, wr / 2, xF);
     const uv: V2 = [0, 5];
     g.quadN(L0, L1, M1, M0, uv, uv, uv, uv, VPart.Alloy, [1, 0, 0]);
     g.quadN(M0, M1, R1, R0, uv, uv, uv, uv, VPart.Alloy, [1, 0, 0]);

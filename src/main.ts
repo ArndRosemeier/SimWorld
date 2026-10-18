@@ -5,7 +5,8 @@
  * game come in their own changes (docs/design/simworld-plan.md R2).
  *
  * `?seed=…&size=…` (0 … 1) pick the town; `?tex=…` the texture size in texels (256 default, 512 sharper and slower); `?at=x,z&r=…&h=…&a=…` fix the drone's centre, distance,
- * height and angle (radians) instead of circling, for screenshots.
+ * height and angle (radians) instead of circling, for screenshots. `?inside=<cell>/<building>&floor=…`
+ * shows one storey of a building as a cutaway instead (showInside).
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
@@ -14,12 +15,13 @@ import { Stage } from './render/stage';
 import { fitSunShadow, makeLights } from './render/lights';
 import { setParcels } from './render/tsl/ground';
 import { showTown } from './render/townView';
+import { meshFromData } from './render/meshes';
 import { WorkerPool } from './workers/pool';
 import townWorkerUrl from './workers/town.worker.ts?worker&url';
 import texWorkerUrl from './workers/tex.worker.ts?worker&url';
 import type { FromTex, ToTex } from './workers/texProtocol';
 import { loadTextures, loadVegetationTextures } from './render/textures';
-import { useTextures } from './render/materials';
+import { VERTEX_COLOR_SOLID, useTextures } from './render/materials';
 import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
@@ -78,6 +80,8 @@ async function start(): Promise<void> {
   if (ready.type !== 'ready') throw new Error('the town workers did not start');
   const town = ready.town;
   setParcels(town.parcels);
+  const inside = new URLSearchParams(location.search).get('inside');
+  if (inside) return showInside(inside, pool, stage, lights, renderer, camera, scene);
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total));
 
@@ -100,6 +104,32 @@ async function start(): Promise<void> {
     if (hud) hud.textContent = `${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}`;
   });
   await view.ready;
+}
+
+/**
+ * `?inside=<cell>/<building>&floor=<n>`: the dollhouse cutaway of one storey of a building, the
+ * camera circling it (or fixed with `a=`), to look at interiors before the game can walk in.
+ */
+async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, lights: ReturnType<typeof makeLights>, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene): Promise<void> {
+  const q = new URLSearchParams(location.search);
+  const [cell, building] = arg.split('/').map(Number);
+  step('Planning the rooms', 0.5);
+  const r = await pool.run({ type: 'interior', cell, building, floor: Number(q.get('floor') ?? 0) }, 0);
+  if (r.type !== 'interior') throw new Error(r.type === 'error' ? r.message : 'no interior');
+  if (r.mesh) await stage.add(meshFromData(r.mesh, VERTEX_COLOR_SOLID));
+  scene.fog = null;
+  const [x, y, z] = r.at, R = Math.max(8, r.radius * 1.5), fixed = q.has('a') ? Number(q.get('a')) : null;
+  fitSunShadow(lights, x, y, z, r.radius * 1.5);
+  document.getElementById('loading')?.remove();
+  const hud = document.getElementById('hud');
+  renderer.setAnimationLoop((t: number) => {
+    stage.frame();
+    const a = fixed ?? t * 0.0001;
+    camera.position.set(x + Math.cos(a) * R, y + R * 0.9, z + Math.sin(a) * R);
+    camera.lookAt(x, y, z);
+    renderer.render(scene, camera);
+    if (hud) hud.textContent = `${r.about} · ${stage.hudLine()}`;
+  });
 }
 
 // The version and What's new sit on the start screen and stay in the corner once the town is up.

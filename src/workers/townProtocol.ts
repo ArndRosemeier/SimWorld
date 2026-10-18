@@ -31,7 +31,9 @@ export type ToTown =
   /** The countryside trees of one square tile (src/build/forest.ts `ForestGen.tile`). */
   | { type: 'forest'; x0: number; z0: number; size: number }
   /** One tree or shrub model (index into src/build/vegetation.ts `VEG_MODELS`). */
-  | { type: 'vegModel'; index: number };
+  | { type: 'vegModel'; index: number }
+  /** The cutaway of one storey of a building (`building`: its id in the cell). */
+  | { type: 'interior'; cell: number; building: number; floor: number };
 
 /** What the main thread needs to know about the town to lay out the view. */
 export interface TownSummary {
@@ -65,4 +67,6 @@ export type FromTown =
   | { type: 'trees'; recs: Float32Array; ms: number }
   | { type: 'forest'; recs: Float32Array; ms: number }
   | { type: 'vegModel'; model: TreeModelData; ms: number }
+  /** `at`: the storey's centre (floor level), `radius` its reach; `about`: what the building is, for the HUD. */
+  | { type: 'interior'; mesh: MeshData | null; at: [number, number, number]; radius: number; floors: number; about: string; ms: number }
   | { type: 'error'; message: string };

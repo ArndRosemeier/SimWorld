@@ -12,7 +12,10 @@ import { buildBridges } from '../build/bridges';
 import { lampsOf, propFar, propInstances, propModel } from '../build/streetProps';
 import { ForestGen, townTrees } from '../build/forest';
 import { buildVegModel } from '../build/vegetation';
-import { facadeSpecs, buildBuildings, buildLandmark } from '../build/massing';
+import { facadeSpecs, buildBuildings, buildLandmark, buildingBase, buildingTiers } from '../build/massing';
+import { INTERIOR_SPECS, buildCutaway } from '../build/interior';
+import { planInterior, storeyFacade } from '../interior/building';
+import { polyBounds } from '../geom/geom2';
 import { planTown, type Town } from '../plan/town';
 import { parcelParams } from '../world/landuse';
 import type { FromTown, ToTown } from './townProtocol';
@@ -80,6 +83,20 @@ function handle(m: ToTown): FromTown {
     case 'trees': return { type: 'trees', recs: townTrees(cells, terrain), ms: ms() };
     case 'forest': return { type: 'forest', recs: (forest ??= new ForestGen(land, macro)).tile(m.x0, m.z0, m.size), ms: ms() };
     case 'vegModel': return { type: 'vegModel', model: buildVegModel(m.index), ms: ms() };
+    case 'interior': {
+      const b = cells[m.cell]?.buildings.find((q) => q.id === m.building);
+      if (!b) throw new Error(`no building ${m.building} in cell ${m.cell}`);
+      const I = planInterior(b);
+      const f = Math.max(0, Math.min(I.storeys.length - 1, m.floor));
+      const { base } = buildingBase(b, terrain), tiers = buildingTiers(b);
+      const [x0, z0, x1, z1] = polyBounds(b.poly), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+      const mb = new MeshBuilder(INTERIOR_SPECS);
+      mb.setOrigin(cx, base, cz);
+      buildCutaway(mb, I, f, base, I.storeys.map((_, k) => storeyFacade(b, k, tiers)));
+      const homes = I.units.length ? `, ${I.units.length} home${I.units.length > 1 ? 's' : ''}` : '';
+      const about = `${b.style} ${b.use}${b.amenity ? ` (${b.amenity})` : ''}, floor ${f} of ${I.storeys.length}${homes}`;
+      return { type: 'interior', mesh: out(mb), at: [cx, base + I.storeys[f].y, cz], radius: Math.hypot(x1 - x0, z1 - z0) / 2, floors: I.storeys.length, about, ms: ms() };
+    }
   }
 }
 
@@ -87,7 +104,7 @@ function meshesOf(r: FromTown): MeshData[] {
   switch (r.type) {
     case 'cell': case 'country': case 'bridges': return [r.ground, r.buildings].filter((x): x is MeshData => !!x);
     case 'terrain': return [r.mesh];
-    case 'water': case 'landmark': return r.mesh ? [r.mesh] : [];
+    case 'water': case 'landmark': case 'interior': return r.mesh ? [r.mesh] : [];
     case 'vegModel': return [r.model.wood, r.model.leaves, r.model.far];
     // (propModel: copied, not transferred: the models stay cached in this worker)
     default: return [];

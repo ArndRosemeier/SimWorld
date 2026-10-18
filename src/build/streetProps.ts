@@ -85,7 +85,7 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain): Pro
           const k = `${Math.round(x)},${Math.round(z)}`;
           if (signalled.has(k)) break;
           signalled.add(k);
-          for (const a of ends.near(x, z)) {
+          for (const a of ends.around(x, z)) {
             // Scale's signal: at the kerb, its arm over the approach, the heads facing the traffic.
             const back = Math.min(a.len * 0.3, a.width * 0.55 + 2.5) + 1.5;
             const lx = a.dz, lz = -a.dx; // left of travel
@@ -166,7 +166,7 @@ const TERRACE: Record<number, [FurnitureKind, number]> = {
 interface Approach { dx: number; dz: number; width: number; len: number }
 
 /** The ends of every street of the town, to find the approaches of a junction. */
-function streetEnds(cells: readonly CellPlan[]): { near(x: number, z: number): Approach[] } {
+function streetEnds(cells: readonly CellPlan[]): { around(x: number, z: number): Approach[] } {
   const G = 16, grid = new Map<string, { x: number; z: number; a: Approach }[]>();
   for (const plan of cells) for (const s of plan.streets) {
     if (s.cls === RoadClass.Path) continue;
@@ -184,7 +184,7 @@ function streetEnds(cells: readonly CellPlan[]): { near(x: number, z: number): A
     }
   }
   return {
-    near(x, z) {
+    around(x, z) {
       const out: Approach[] = [];
       const i0 = Math.floor(x / G), j0 = Math.floor(z / G);
       for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) {

@@ -9,7 +9,7 @@
  *  - skip.digest     what the player's person learned during a time skip (cheap, long context)
  */
 import { APPRAISAL_SCHEMA, appraisalMessages, parseAppraisal, stripFence, type AppraisalInput, type AppraisalResult } from './appraisal';
-import { backgroundBlock, refsFor, RefTable, speechMessages, transcript, type Memory, type Message, type NpcCard, type NpcPromptInput, type PersonRef, type PlaceRef } from './prompt';
+import { backgroundBlock, escapeRe, refsFor, RefTable, speechMessages, transcript, type Memory, type Message, type NpcCard, type NpcPromptInput, type PersonRef, type PlaceRef } from './prompt';
 import type { Effort } from './roster';
 import type { Routing } from './router';
 import type { JsonSchema } from './wire';
@@ -127,8 +127,6 @@ export function cleanSpeech(text: string, name: string): string {
   return s;
 }
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 export const TASKS: { [K in TaskName]: TaskSpec<TaskIO[K]['input'], TaskIO[K]['output']> } = {
   'npc.speech': {
     routing: { needs: ['writing'], rank: 'quality' },
@@ -163,7 +161,7 @@ export const TASKS: { [K in TaskName]: TaskSpec<TaskIO[K]['input'], TaskIO[K]['o
 
   'memory.summary': {
     routing: { needs: ['structured', 'cheap'], prefers: ['writing'], rank: 'cost' },
-    effort: 'low',
+    effort: 'none',
     maxTokens: 300,
     temperature: 0.3,
     timeoutMs: 30_000,
@@ -226,7 +224,7 @@ export const TASKS: { [K in TaskName]: TaskSpec<TaskIO[K]['input'], TaskIO[K]['o
 
   'skip.digest': {
     routing: { needs: ['cheap', 'long_context'], prefers: ['writing'], rank: 'cost' },
-    effort: 'low',
+    effort: 'none',
     maxTokens: 900,
     temperature: 0.6,
     timeoutMs: 60_000,
@@ -240,7 +238,7 @@ export const TASKS: { [K in TaskName]: TaskSpec<TaskIO[K]['input'], TaskIO[K]['o
         npc: input.pov.id,
         refs,
         messages: [
-          { role: 'system', content: `Time passed in a town while the player was away. Write what ${input.pov.name} remembers of it, addressed to the player as "you" (they are ${input.pov.name}). Lead with what matters most to this person. Only what is in the list; nothing else happened as far as they know. A few short paragraphs, plain and warm, no headings.` },
+          { role: 'system', content: `Time passed in a town while the player was away. The player is ${input.pov.name}. Tell them what ${input.pov.name} lived through, in the second person: "you" is ${input.pov.name} ("Tom asked you to the dance"), never "I". Lead with what matters most to this person. Only what is in the list: invent no events, words or feelings beyond it. Sum up routine things in a sentence. A few short paragraphs, plain and warm, no headings.` },
           { role: 'user', content: `From ${input.from} to ${input.to}:\n${events.map((e) => `- ${e.when}: ${e.text}`).join('\n')}` },
         ],
       };

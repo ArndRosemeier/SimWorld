@@ -18,7 +18,7 @@
  */
 import { Rng, deriveSeed } from '@futuremagic/core';
 import { pointInPoly, distPointPolyEdge, closestOnPolyline, polylineLength, polyBounds, polyCentroid, type Poly } from '../geom/geom2';
-import { doorBayOf } from './building';
+import { doorBayOf, streetDoor } from './building';
 import type { Terrain } from '../world/terrain';
 import { RoadClass, type CellInfo, type MacroPlan } from './types';
 import type { BuildingDesc } from './building';
@@ -105,9 +105,8 @@ export function frontDoor(b: BuildingDesc): { x: number; z: number } {
   const i = b.front % n, j = (i + 1) % n;
   const ax = p[i * 2], az = p[i * 2 + 1], bx = p[j * 2], bz = p[j * 2 + 1];
   const L = Math.hypot(bx - ax, bz - az) || 1;
-  const bays = Math.max(1, Math.round(L / b.bay));
-  const t = ((doorBayOf(b.seed, bays) + 0.5) * (L / bays)) / L;
-  return { x: ax + (bx - ax) * t + ((bz - az) / L) * 0.8, z: az + (bz - az) * t - ((bx - ax) / L) * 0.8 };
+  const d = streetDoor(b);
+  return { x: d.x + ((bz - az) / L) * 0.8, z: d.z - ((bx - ax) / L) * 0.8 };
 }
 
 /**

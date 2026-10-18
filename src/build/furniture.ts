@@ -568,30 +568,30 @@ function fountain(fb: FB, v: number): number {
 
 function human(fb: FB, x: number, y: number, z: number, s: number, pose: number, po: PO) {
   // a stylised standing figure facing -Z; y = feet
-  const P = (px: number, py: number, pz: number): V => [x + px * s, y + py * s, z + pz * s];
+  const body = (px: number, py: number, pz: number): V => [x + px * s, y + py * s, z + pz * s];
   // legs and shoes
   for (const sx of [-1, 1]) {
-    fb.capsule(po, P(sx * 0.11, 0.08, -0.02), P(sx * 0.1, 0.5, 0), 0.06 * s, 0.07 * s, 8);
-    fb.capsule(po, P(sx * 0.1, 0.5, 0), P(sx * 0.1, 0.92, 0.01), 0.07 * s, 0.085 * s, 8);
-    fb.sphere(po, 0.07 * s, ...P(sx * 0.11, 0.05, -0.07), 1, 0.6, 1.7, 8, 5);
+    fb.capsule(po, body(sx * 0.11, 0.08, -0.02), body(sx * 0.1, 0.5, 0), 0.06 * s, 0.07 * s, 8);
+    fb.capsule(po, body(sx * 0.1, 0.5, 0), body(sx * 0.1, 0.92, 0.01), 0.07 * s, 0.085 * s, 8);
+    fb.sphere(po, 0.07 * s, ...body(sx * 0.11, 0.05, -0.07), 1, 0.6, 1.7, 8, 5);
   }
   // long coat
   fb.lathe(po, [[0.0, 0.62], [0.27, 0.62], [0.24, 0.9], [0.2, 1.1], [0.0, 1.1]].map(([r, yy]) => [r * s, yy * s]) as [number, number][], 14, x, y, z, 0, 1.1, 0.85);
   // torso
   fb.lathe(po, [[0, 1.05], [0.19, 1.08], [0.21, 1.3], [0.23, 1.45], [0.2, 1.52], [0.08, 1.56], [0, 1.56]].map(([r, yy]) => [r * s, yy * s]) as [number, number][], 14, x, y, z, 0, 1.15, 0.75);
   // neck + head
-  fb.capsule(po, P(0, 1.52, 0), P(0, 1.6, 0), 0.055 * s, 0.05 * s, 8);
-  fb.sphere(po, 0.11 * s, ...P(0, 1.71, -0.01), 0.9, 1.1, 1.0, 12, 9);
-  fb.sphere(po, 0.03 * s, ...P(0, 1.69, -0.11), 1, 1.3, 1, 6, 4);
+  fb.capsule(po, body(0, 1.52, 0), body(0, 1.6, 0), 0.055 * s, 0.05 * s, 8);
+  fb.sphere(po, 0.11 * s, ...body(0, 1.71, -0.01), 0.9, 1.1, 1.0, 12, 9);
+  fb.sphere(po, 0.03 * s, ...body(0, 1.69, -0.11), 1, 1.3, 1, 6, 4);
   // arms
-  fb.capsule(po, P(-0.25, 1.46, 0), P(-0.3, 1.15, 0.02), 0.055 * s, 0.05 * s, 8);
-  fb.capsule(po, P(-0.3, 1.15, 0.02), P(-0.3, 0.9, -0.04), 0.05 * s, 0.04 * s, 8);
+  fb.capsule(po, body(-0.25, 1.46, 0), body(-0.3, 1.15, 0.02), 0.055 * s, 0.05 * s, 8);
+  fb.capsule(po, body(-0.3, 1.15, 0.02), body(-0.3, 0.9, -0.04), 0.05 * s, 0.04 * s, 8);
   if (pose === 0) {
-    fb.capsule(po, P(0.25, 1.46, 0), P(0.4, 1.62, -0.25), 0.055 * s, 0.05 * s, 8);
-    fb.capsule(po, P(0.4, 1.62, -0.25), P(0.5, 1.82, -0.5), 0.05 * s, 0.04 * s, 8);
+    fb.capsule(po, body(0.25, 1.46, 0), body(0.4, 1.62, -0.25), 0.055 * s, 0.05 * s, 8);
+    fb.capsule(po, body(0.4, 1.62, -0.25), body(0.5, 1.82, -0.5), 0.05 * s, 0.04 * s, 8);
   } else {
-    fb.capsule(po, P(0.25, 1.46, 0), P(0.3, 1.2, -0.12), 0.055 * s, 0.05 * s, 8);
-    fb.capsule(po, P(0.3, 1.2, -0.12), P(0.12, 1.25, -0.22), 0.05 * s, 0.04 * s, 8);
+    fb.capsule(po, body(0.25, 1.46, 0), body(0.3, 1.2, -0.12), 0.055 * s, 0.05 * s, 8);
+    fb.capsule(po, body(0.3, 1.2, -0.12), body(0.12, 1.25, -0.22), 0.05 * s, 0.04 * s, 8);
   }
 }
 
