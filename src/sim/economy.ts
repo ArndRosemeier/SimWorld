@@ -239,6 +239,9 @@ const today = (world: World): number => Math.floor(world.clock / MINUTES_PER_DAY
 /** Is this position still there (its business has not closed)? Life events hire only into open jobs. */
 export const jobOpen = (world: World, job: Job): boolean => !world.economy.closedJobs.has(job.id);
 
+/** A position someone can be hired into: vacant, open, and not elected (the mayor comes from src/sim/politics.ts). */
+export const hireable = (world: World, job: Job): boolean => job.holder < 0 && jobOpen(world, job) && job.role !== 'mayor';
+
 // ---- settling a new world ----------------------------------------------------------------------------------
 
 /**
