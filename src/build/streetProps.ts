@@ -17,12 +17,13 @@ import type { Terrain } from '../world/terrain';
 import { FURNITURE_KINDS, furnitureModel, type FurnitureKind } from './furniture';
 import { farVehicle, paintColor, standingVehicle, type VehicleKind } from './vehicles';
 import type { MeshData } from './meshBuilder';
+import { InstanceLists, type ModelInstances } from './instanceLists';
 
 /** Floats per instance: x, y, z, yaw, scale, then four for the kind's instance attributes (furniture: tint rgb + noise offset; vehicles: paint rgb + 0). */
 export const PROP_STRIDE = 9;
 
 /** One model's instances. `model`: 'f:<FurnitureKind>:<variant>' or 'v:<VehicleKind>:<variant>'. */
-export interface PropGroup { model: string; inst: Float32Array }
+export type PropGroup = ModelInstances;
 
 /** Mesh data of a model named by a `PropGroup.model` key (a furniture mesh, or a standing vehicle with its wheels). */
 export function propModel(key: string): MeshData {
@@ -51,12 +52,9 @@ const MANHOLE_LIFT = 0.035;
 
 /** Every cell's props (trees and shrubs excepted) as instance lists. */
 export function propInstances(cells: readonly CellPlan[], terrain: Terrain): PropGroup[] {
-  const lists = new Map<string, number[]>();
-  const put = (key: string, x: number, y: number, z: number, yaw: number, scale: number, c: [number, number, number] = [0, 0, 0], w = 0) => {
-    let l = lists.get(key);
-    if (!l) lists.set(key, (l = []));
-    l.push(x, y, z, yaw, scale, c[0], c[1], c[2], w);
-  };
+  const lists = new InstanceLists();
+  const put = (key: string, x: number, y: number, z: number, yaw: number, scale: number, c: [number, number, number] = [0, 0, 0], w = 0) =>
+    lists.add(key, x, y, z, yaw, scale, c[0], c[1], c[2], w);
   /** A noise offset per prop (so alike props differ in the shader). */
   const jitter = (x: number, z: number) => hashToFloat(hash32(Math.round(x * 10) * 7919 + Math.round(z * 10) * 104729)) * 50;
   const curb = (x: number, z: number) => terrain.height(x, z) + CURB_H;
@@ -131,7 +129,7 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain): Pro
       }
     }
   }
-  return [...lists].map(([model, l]) => ({ model, inst: Float32Array.from(l) }));
+  return lists.groups();
 }
 
 /** Floats per lamp head in `lampsOf`: x, y, z (world, the light's place in the head), kind. */

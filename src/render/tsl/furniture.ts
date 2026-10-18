@@ -5,7 +5,8 @@
  * timber, concrete, stone, screen-door glass, plastic / foliage, lenses (lamps, traffic and
  * pedestrian signals, charger LEDs), water (falling streaks, ripples), bronze, rubber, signage
  * from the text atlas. Per instance (geometry-instanced): placed by iPose / iSize (`poseByInstance`);
- * iTint: rgb sRGB paint, 0 = the model's own; w = a noise offset so alike props differ. Lamps glow with LIGHT.night; signals cycle on their own.
+ * iTint: rgb sRGB paint, 0 = the model's own; w = a noise offset so alike props differ; iSign: the
+ * instance's lettering slot in the text atlas (sub-material 6, src/build/signs.ts). Lamps glow with LIGHT.night; signals cycle on their own.
  * Ported from Scale (src/render/webgpu/furniture.ts), kept close to it; Scale's robot and drone
  * lights and the per-instance signal state stay behind.
  */
@@ -31,6 +32,8 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
   const vONrm = varying(normalGeometry, 'vONrm');
   poseByInstance(m);
   const iTint = varying(attribute('iTint', 'vec4'), 'vTint');
+  // The instance's own lettering slot in the atlas (u0, v0, u1, v1; zero for props without one).
+  const iSign = varying(attribute('iSign', 'vec4'), 'vSign');
   const vPaint = Fn(() => {
     const tint = dot(iTint.xyz, iTint.xyz).greaterThan(0.0).and(vSub.lessThan(8.5))
       .and(vMat.greaterThan(0.5).and(vMat.lessThan(1.5)).or(vMat.greaterThan(5.5).and(vMat.lessThan(6.5))));
@@ -128,9 +131,12 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
       base.assign(vPaint.mul(add(0.85, mul(0.2, n2))));
       rough.assign(0.95);
     }).ElseIf(mid.equal(11), () => { // signage
-      base.assign(texture(sign, vUvF).rgb);
+      // 6: the instance's lettering (shop names, street names, notices), lit with the shops at night.
+      const own = sub_.equal(6);
+      base.assign(texture(sign, select(own, mix(iSign.xy, iSign.zw, vUvF), vUvF)).rgb);
       rough.assign(0.45); metal.assign(0.0);
-      If(sub_.equal(7), () => { fEmis.assign(base.mul(vEmit).mul(uNight).mul(1.6).mul(lightOn)); });
+      If(sub_.equal(7), () => { fEmis.assign(base.mul(vEmit).mul(uNight).mul(1.6).mul(lightOn)); })
+        .ElseIf(own, () => { fEmis.assign(base.mul(vEmit).mul(LIGHT.shopLit).mul(uNight).mul(0.35)); });
     });
     return FurnSurf(base, clamp(rough, 0.02, 1.0), metal, fEmis);
   });

@@ -192,6 +192,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     shadowMode = cam.mode;
     view.vegetation?.update(camera);
     view.props?.update(camera);
+    view.signs?.update(camera);
     sky.update(dt, time, time.clock, w, camera, rate);
     if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.night);
     else placeLamps(lights, undefined, 0, 0, 0);

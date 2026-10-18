@@ -208,16 +208,7 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
               tn.assign(mix(tn, vec2(0.0, slat.sub(0.5).mul(0.8)), detail));
               rough.assign(0.7);
             });
-            // Shop sign band above the display windows.
-            If(isShopFloor.and(eatery.not()).and(ly.greaterThan(wy0.add(wh).add(0.15))).and(ly.lessThan(fh.sub(0.15))), () => {
-              const sid = h11(seedB.add(21.0));
-              const sc = add(0.15, mul(0.7, vec3(h11(sid.mul(3.0)), h11(sid.mul(5.0)), h11(sid.mul(7.0)))));
-              const letters = step(0.45, vnoise(vec2(uv.x.mul(3.0), ly.mul(6.0)).add(sid.mul(10.0))))
-                .mul(step(abs(ly.sub(wy0.add(wh).add(0.15).add(fh).sub(0.15).mul(0.5))), 0.18));
-              albedo.assign(mix(albedo, mix(sc, vec3(0.95), letters), detail));
-              rough.assign(0.4);
-              emis.addAssign(uShopLit.mul(uNight).mul(sc.mul(0.3).add(letters.mul(vec3(1.0, 0.9, 0.7)))).mul(1.2));
-            });
+            // (The shop's sign over the display windows is a board of its own: src/render/signsView.ts.)
             // Wrought iron balcony rail across the lower part of tall windows (floors 2 and 5).
             If(balcony.and(f.equal(2.0).or(f.equal(5.0))).and(ly.greaterThan(wy0.sub(0.15))).and(ly.lessThan(wy0.add(0.95))), () => {
               const bar = min(1.0, step(0.85, fract(uv.x.mul(8.0))).add(step(abs(ly.sub(wy0).sub(0.9)), 0.04)).add(step(abs(ly.sub(wy0).sub(0.05)), 0.04)));
