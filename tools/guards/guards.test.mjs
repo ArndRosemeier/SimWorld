@@ -80,7 +80,25 @@ test('repo: layer boundaries hold', () => {
   assert.deepEqual(checkLayers(REPO, files), []);
 });
 
-test('repo: duplication matches the baseline exactly (ratchet)', () => {
-  const problems = checkDuplication(duplicationFindings(), readBaseline());
+// The ratchet, one test per finder (each within the per-test budget): every finding is in the
+// baseline with a reason, every baseline line of that finder is still found.
+const ofKind = (prefixes) => readBaseline().filter((b) => prefixes.some((p) => b.key.startsWith(p)));
+
+test('repo: duplication matches the baseline exactly (ratchet: clones)', () => {
+  const problems = checkDuplication(duplicationFindings(undefined, undefined, ['clones']), ofKind(['clone:']));
   assert.equal(problems.length, 0, '\n' + problems.join('\n'));
+});
+
+test('repo: duplication matches the baseline exactly (ratchet: idioms)', () => {
+  const problems = checkDuplication(duplicationFindings(undefined, undefined, ['idioms']), ofKind(['idiom:']));
+  assert.equal(problems.length, 0, '\n' + problems.join('\n'));
+});
+
+test('repo: duplication matches the baseline exactly (ratchet: same names)', () => {
+  const problems = checkDuplication(duplicationFindings(undefined, undefined, ['names']), ofKind(['same name:']));
+  assert.equal(problems.length, 0, '\n' + problems.join('\n'));
+});
+
+test('repo: every baseline line belongs to a finder', () => {
+  assert.deepEqual(readBaseline().filter((b) => !/^(clone|idiom|same name):/.test(b.key)).map((b) => b.key), []);
 });

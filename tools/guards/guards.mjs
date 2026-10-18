@@ -13,8 +13,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scan as scanRepeated } from '../repeated-code/find-repeated-code.mjs';
-import { scanTree, groupCandidates, DEFAULT_CONFIRM_FLOOR } from '../duplicate-candidates/find-duplicate-candidates.mjs';
+import { findBodyClones, findIdioms } from '../repeated-code/find-repeated-code.mjs';
+import { scanTree, groupCandidates, extractFunctions, listSourceFiles, DEFAULT_CONFIRM_FLOOR } from '../duplicate-candidates/find-duplicate-candidates.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '..', '..');
@@ -112,18 +112,37 @@ function stage(root, roots) {
 }
 
 /** The current duplication findings as stable keys (names and files, never line numbers). */
-export function duplicationFindings(root = REPO, roots = RULES.duplication.roots) {
+/**
+ * Duplication keys of the tree. `finders` picks which Toolbox finders run: 'clones' (bodies
+ * copied under other names), 'idioms' (inline snippets recurring across files) and 'names'
+ * (same-name candidates). The ratchet runs them as separate tests so each stays inside the
+ * per-test CI budget; together they are what the Toolbox `scan` functions report.
+ */
+export function duplicationFindings(root = REPO, roots = RULES.duplication.roots, finders = ['clones', 'idioms', 'names']) {
   const dir = stage(root, roots);
   try {
-    const rep = scanRepeated(dir, { displayBase: dir });
-    const clones = rep.clones.clusters.map((c) => `clone: ${[...new Set(c.fns.map((f) => `${f.file}#${f.name}`))].sort().join(' + ')}`);
-    const idioms = rep.idioms.idioms.map((d) => `idiom: [${d.names.join(' ')}] in ${[...new Set(d.at.map((a) => a.file))].sort().join(' + ')}`);
-    const tree = scanTree(dir, { displayBase: dir });
-    const g = groupCandidates(tree.functions);
-    const names = [...g.tier1, ...g.tier2]
-      .filter((p) => (p.status === 'compared' || p.status === 'confirmed') && p.sim >= DEFAULT_CONFIRM_FLOOR)
-      .map((p) => `same name: ${[`${p.a.file}#${p.a.name}`, `${p.b.file}#${p.b.name}`].sort().join(' + ')}`);
-    return [...new Set([...clones, ...idioms, ...names])].sort();
+    const out = [];
+    if (finders.includes('clones') || finders.includes('idioms')) {
+      const { files, display } = listSourceFiles(dir, { displayBase: dir });
+      const sources = files.map((f) => ({ file: display(f), source: fs.readFileSync(f, 'utf8') }));
+      if (finders.includes('clones')) {
+        const fns = [];
+        for (const { file, source } of sources) for (const fn of extractFunctions(source)) fns.push({ name: fn.name, file, line: fn.line, kind: fn.kind, size: fn.tokens.length, endLine: fn.tokens.length ? fn.tokens[fn.tokens.length - 1].line : fn.line, tokens: fn.tokens });
+        fns.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)));
+        for (const c of findBodyClones(fns).clusters) out.push(`clone: ${[...new Set(c.fns.map((f) => `${f.file}#${f.name}`))].sort().join(' + ')}`);
+      }
+      if (finders.includes('idioms')) {
+        for (const d of findIdioms(sources).idioms) out.push(`idiom: [${d.names.join(' ')}] in ${[...new Set(d.at.map((a) => a.file))].sort().join(' + ')}`);
+      }
+    }
+    if (finders.includes('names')) {
+      const tree = scanTree(dir, { displayBase: dir });
+      const g = groupCandidates(tree.functions);
+      for (const p of [...g.tier1, ...g.tier2]) {
+        if ((p.status === 'compared' || p.status === 'confirmed') && p.sim >= DEFAULT_CONFIRM_FLOOR) out.push(`same name: ${[`${p.a.file}#${p.a.name}`, `${p.b.file}#${p.b.name}`].sort().join(' + ')}`);
+      }
+    }
+    return [...new Set(out)].sort();
   } finally {
     fs.rmSync(path.dirname(dir), { recursive: true, force: true });
   }
