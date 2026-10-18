@@ -6,6 +6,7 @@
  */
 import { hashCombine } from '@futuremagic/core';
 import type { Rng } from '@futuremagic/core';
+import { lostAt } from './lostPets';
 import { A, ACTOR_PERSON, type ActorId } from './actors';
 import { performIntention } from './actions';
 import { shoppingTrip, spend } from './economy';
@@ -491,6 +492,9 @@ function decideAnimal(world: World, id: ActorId): void {
   const now = world.clock, m = minuteOfDay(now);
   const home = a.home[id];
   const rng = tickRng(world, 'decide', id);
+  // A missing pet stays out where it strayed, day and night, until it is found (src/sim/lostPets.ts).
+  const stray = lostAt(world, id);
+  if (stray >= 0) { go(world, id, stray, awakeAt(sp, m) ? A.roam : A.sleep, now + rng.int(60, 180)); return; }
   if (!awakeAt(sp, m)) {
     // Sleep until the next waking minute (step in half-hours so a wrapped window is found cheaply).
     let t = now + 30;

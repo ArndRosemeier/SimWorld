@@ -8,7 +8,7 @@
  */
 import { Rng, deriveSeed } from '@futuremagic/core';
 import type { Place, PlaceGraph, PlaceKind, RoadEdge, RoadNode } from './places';
-import { defaultHours, defaultStaff, KINDS } from './placeKinds';
+import { CARE_ROOMS_PER_PERSON, defaultHours, defaultStaff, KINDS } from './placeKinds';
 import { STREET_STEMS, STREET_SUFFIXES } from './names';
 
 /** Amenities per 2,000 inhabitants, and whether a town of any size has at least one. */
@@ -23,8 +23,6 @@ const AMENITIES: [PlaceKind, number, boolean][] = [
   ['charity', 1, false], ['takeaway', 2, false], ['hotel', 1, false], ['estateagent', 1, false], ['beauty', 1, false],
   ['physio', 1, false], ['gym', 1, false], ['funeral', 1, false], ['carehome', 1, false], ['vacant', 2, false],
 ];
-/** Residents' rooms in a care home per inhabitant of the town. */
-const CARE_ROOMS_PER_PERSON = 0.025;
 /** Kinds whose staff grows with the town (one big school rather than three small ones). */
 const SCALED: ReadonlySet<PlaceKind> = new Set(['school', 'kindergarten', 'supermarket', 'factory', 'townhall']);
 

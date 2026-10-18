@@ -39,7 +39,7 @@ test('the town houses about the planned number of households', () => {
 });
 
 test('every public building has a site: in its cell or outside the town with an access road', () => {
-  const kinds: LandmarkKind[] = ['townhall', 'church', 'school', 'kindergarten', 'clinic', 'fire', 'supermarket', 'sports', 'station'];
+  const kinds: LandmarkKind[] = ['townhall', 'church', 'school', 'kindergarten', 'clinic', 'fire', 'supermarket', 'sports', 'station', 'carehome', 'petrol'];
   for (const k of kinds) assert.equal(macro.landmarks.filter((l) => l.kind === k).length, 1, k);
   for (const lm of macro.landmarks) {
     const [x, z] = siteToWorld(lm, 0, 0);
@@ -113,8 +113,9 @@ test('the place graph: every home, workplace and street on one connected road ne
     assert.ok(Math.hypot(g.nodes[p.node].x - p.x, g.nodes[p.node].z - p.z) < 160, `${p.name} near its road`);
     assert.ok(p.street, `${p.name} has an address`);
   }
-  assert.equal(g.places.reduce((s, p) => s + p.homes, 0), town.dwellings);
-  for (const k of ['townhall', 'church', 'school', 'kindergarten', 'doctor', 'fire', 'police', 'supermarket', 'station', 'sports', 'pub', 'farm'] as const)
+  // (The care home's rooms are homes too, but not households the planner counts.)
+  assert.equal(g.places.reduce((s, p) => s + (p.kind === 'carehome' ? 0 : p.homes), 0), town.dwellings);
+  for (const k of ['townhall', 'church', 'school', 'kindergarten', 'doctor', 'fire', 'police', 'supermarket', 'station', 'sports', 'pub', 'farm', 'carehome', 'petrol'] as const)
     assert.ok(g.places.some((p) => p.kind === k), k);
   const ref = buildingRef(g.places.find((p) => p.kind === 'pub')!.building);
   assert.ok(ref && 'cell' in ref && cells[ref.cell].buildings[ref.index].amenity, 'building codes point at the building');

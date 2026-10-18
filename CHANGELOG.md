@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.053 — A care home, a petrol station, and fewer empty-looking shop fronts
+
+- The town has a care home now: a two- or three-storey house with a garden behind it, on a quiet street at the edge of the residential part. The oldest townspeople living alone move in there.
+- A petrol station stands on a main road at the edge of town: a forecourt with a canopy, pumps and a small kiosk.
+- The supermarket sits further out towards the edge of town, with its car park in front.
+- Fewer shop fronts: a town keeps about one ordinary shop per 85 inhabitants. The fronts it cannot fill have become flats on the ground floor or small offices, and only a few units stand empty.
+- Tiny or wedge-shaped plots no longer carry tall narrow houses: they hold a single-storey kiosk, bungalow, shed or lock-up garage.
+- Zebra crossings are now known to the town itself, so people will be able to cross the street where the stripes are.
+
+## v0.052 — Street lamps light the street
+
+- At night the street lamps around you cast real light on the pavement, the walls and the people walking by, warmer under the old-style lamps.
+
+## v0.051 — The bin lorry, the post van and deliveries
+
+- On bin day the bin lorry works its way along every street whose bins are out, early in the morning.
+- The post van does its round from Monday to Saturday, out to the farms as well.
+- A delivery lorry brings the morning goods to the food shops, pubs and cafés that open that day, and a parcel van calls at a few homes on weekdays.
+- Vans and lorries pull in to the kerb while they unload, so traffic goes past them. A bus that finds another bus at its stop now pulls in behind it instead of waiting in the road.
+
+## v0.050 — The town's weekly paper, notice boards and lost pets
+
+- The town has its own weekly paper. Each Thursday or Friday it prints what really happened that week: deaths with the funeral time, births, weddings, burglaries and shoplifting, shops opening and closing, and what's on in the coming week.
+- Notice boards at the town hall, church, supermarket, library, post office, newsagent and square carry posters for the festival, the Christmas market, matches, club nights and council meetings, plus funeral notices. A new shop puts a "Grand opening" poster in its window; a closed one says thank you to its customers.
+- People who read the paper or walk past a poster come to know what it says, so news spreads through the town the way it would in real life.
+- Pets sometimes go missing. The family puts up "Lost cat" or "Lost dog" posters, and the more people know, the sooner someone finds it and brings it home. Some come home on their own; a few never do.
+
+## v0.049 — Lightning and thunder together
+
+- Each lightning flash in the sky now has its thunder: the sky and the sound draw the same strikes, and the thunder follows the flash after the time sound takes to travel.
+
 ## v0.048 — Day and night, sun and moon, clouds and storms
 
 - The sky follows the real date and time: the sun rises and sets where and when it really would, with sunsets, twilight and a starry night.
