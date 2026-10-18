@@ -22,7 +22,7 @@ export interface DebugItem {
   /** A button: what it does. */
   run?: () => void;
   /** A switch: whether it is on now, and turning it on or off. */
-  on?: () => boolean;
+  isOn?: () => boolean;
   set?: (on: boolean) => void;
   /** Your own control instead (made each time the panel opens). */
   custom?: () => HTMLElement;
@@ -52,7 +52,7 @@ export class DebugMenu {
       const it = this.items.find((i) => i.key && i.key.code === e.code && !!i.key.shift === e.shiftKey && !!i.key.ctrl === e.ctrlKey);
       if (!it) return;
       e.preventDefault();
-      if (it.run) it.run(); else if (it.on && it.set) it.set(!it.on());
+      if (it.run) it.run(); else if (it.isOn && it.set) it.set(!it.isOn());
       this.refresh();
     });
   }
@@ -137,10 +137,10 @@ export class DebugMenu {
       row.append(el('span', 'dbg-label', it.label), it.custom());
       return row;
     }
-    if (it.on && it.set) {
+    if (it.isOn && it.set) {
       const row = el('label', 'dbg-item');
       const set = it.set;
-      row.append(checkbox(it.on(), (on) => set(on)), el('span', 'dbg-label', it.label));
+      row.append(checkbox(it.isOn(), (on) => set(on)), el('span', 'dbg-label', it.label));
       if (note) row.append(el('span', 'dbg-note', note));
       return row;
     }

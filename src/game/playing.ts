@@ -95,6 +95,37 @@ export class Playing {
     return a ? { x: a.x, y: a.y, z: a.z, yaw: a.yaw } : null;
   }
 
+  /** The physics world once loaded (null before anyone took the wheel): the debug menu's Show colliders. */
+  get physicsNow(): Physics | null { return this.physNow; }
+
+  /** The street doors of the buildings near, as x, z pairs: walking within `DOOR_NEAR` of one brings its interior up. */
+  doorPoints(): number[] {
+    return this.lastNear?.buildings.flatMap((b) => b.doors) ?? [];
+  }
+
+  /**
+   * Move the body (taking the wheel first if needed) to (x, z) out of doors, or into building `building` just inside
+   * its first street door. For the debug menu's Go tools. Resolves to whether it moved.
+   */
+  async teleport(x: number, z: number, building = -1): Promise<boolean> {
+    if (!this.avatar) await this.takeWheel();
+    const av = this.avatar;
+    if (!av) return false;
+    const phys = av.phys;
+    let at = { x, y: this.sim.standHeight(x, z), z, yaw: av.yaw }, inside = -1;
+    if (building >= 0 && (await this.goIn(phys, building)) && this.goingIn.inside) {
+      const d = this.goingIn.inside.indoors.doors[0];
+      if (d) { at = { x: d.x - d.nx * 1.0, y: d.y, z: d.z - d.nz * 1.0, yaw: Math.atan2(d.nx, d.nz) }; inside = building; }
+    }
+    if (inside < 0) this.goOut();
+    await this.fetchSolids(phys, at.x, at.z);
+    if (this.avatar !== av) return false;
+    av.putAt(at.x, at.y, at.z, at.yaw);
+    this.cam.behind(at.yaw);
+    await this.tell(at.x, at.z, inside);
+    return true;
+  }
+
   /** The building whose interior is up (its `Place.building` code, what it is), and the floor height `y` stands on (0 ground; null out of doors). */
   where(y: number): { building: number; about: string; floor: number | null } {
     const ins = this.goingIn.inside;

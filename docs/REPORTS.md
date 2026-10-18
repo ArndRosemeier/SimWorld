@@ -36,15 +36,25 @@ Opening a repro link (`clock`, `stand` or `save` in the URL) never replaces the 
 
 Reproduce first, fix, then open the same link on your build and check the `Body:` and screenshot again. Say in the PR which report it fixes (the note line).
 
+## Looking into a spot
+
+The debug menu's own tools, for Arnd and for threads in a headless browser:
+
+- **Go to**: `#123` a person (beside them, or inside their building), `b 65539` a building (just inside its first street door; the code as `Inside:` shows it), `x, z` a point. The body moves there; on autopilot you take the wheel first.
+- **Free camera**: from where the camera is, W A S D along the view (Shift faster), Q and E down and up, drag to look, through walls and floors; Escape or the switch goes back.
+- **Colliders** (magenta): what the player's body bumps into round where you are, as the physics world has it: walls, furniture, door leaves, ramps, posts, trees, parked cars, the body itself.
+- **Door boxes and reach**: the shown interior's door leaves and street doorways (cyan), and the street doors near with the 4 m reach that brings their interior up (yellow).
+- **Walk lines**: where everyone out of doors is walking, from a minute ago to six minutes ahead (green; yours orange).
+
 ## Adding to the debug menu
 
 The debug menu is the one place for developer tools: no thread adds its own debug key, overlay or button. It is made once in `bootTown` (src/game/boot.ts) as `debug`; the game's own tools are in `addDebugTools` (src/game/debugTools.ts). Add yours where your part of the game is made, or in `addDebugTools` when it needs the game's pieces:
 
 ```ts
-debug.add({ label: 'Show door boxes', group: 'Show', on: () => shown, set: (on) => { shown = on; } });
+debug.add({ label: 'Show door boxes', group: 'Show', isOn: () => shown, set: (on) => { shown = on; } });
 debug.add({ label: 'Rebuild the signs', group: 'Render', run: () => signs.rebuild(), key: { code: 'F9' } });
 debug.add({ label: 'Weather', group: 'Time', custom: () => weatherSelect() });
 debug.addInfo(() => `signs ${signs.count} drawn`);
 ```
 
-Groups: `Report`, `Time`, `Play`, `Go`, `Show`, `Render`. A switch reads `on()` each time the panel opens; an info line is read four times a second while it is open, so keep it cheap. A `key` works with the panel shut too (check `docs/ARCHITECTURE.md` and the panel for keys already taken: F8 is the report, Shift+Ctrl+F12 the panel).
+Groups: `Report`, `Time`, `Play`, `Go`, `Show`, `Render`. A switch reads `isOn()` each time the panel opens; an info line is read four times a second while it is open, so keep it cheap. A `key` works with the panel shut too (check `docs/ARCHITECTURE.md` and the panel for keys already taken: F8 is the report, Shift+Ctrl+F12 the panel).
