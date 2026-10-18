@@ -196,10 +196,6 @@
     "reason": "The leaf atlas's species table (ported from Scale's props/vegetation.ts): each entry's leaf is one call to the shared leaf painter with that species' shape numbers; data, not code."
   },
   {
-    "key": "idiom: [.P] in simworld/interior/cores.ts + simworld/interior/fill/split.ts + simworld/plan/landmarkParts.ts",
-    "reason": "Each reads its own record's point list `P`; a field name, not a copied step (tipped over the threshold by the traffic sounds' new files)."
-  },
-  {
     "key": "idiom: [.overlap] in simworld/build/decorProps.ts + simworld/street/clearance.ts + simworld/street/streetMap.ts",
     "reason": "Each calls the one footprint overlap test (Footprints.overlap); used, not copied."
   },

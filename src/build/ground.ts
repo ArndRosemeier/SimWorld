@@ -167,17 +167,17 @@ export function ringWall(mb: MeshBuilder, ring: number[], terrain: Terrain, yTop
 export interface GroundSurface { shapes: Shape[]; dy: number; layer: GroundLayer }
 
 /**
- * The draped surfaces of a cell. They never overlap: two drapes a centimetre apart cross
- * wherever their triangles follow the terrain differently (DRAPE_TOL), and fight in the depth
- * buffer further off, so a block's ground has holes where anything else lies on it.
+ * The draped surfaces of a cell as planned, the carriageway first and then the others highest first
+ * (each lies where none above it does: `groundSurfaces` cuts them so). What the cell's ground is drawn
+ * from, and what `cellGround` reads heights from.
  */
-export function groundSurfaces(plan: CellPlan): GroundSurface[] {
+export function surfaceStack(plan: CellPlan): GroundSurface[] {
   const oldTown = plan.district === 'oldtown';
   // Blocks: lots and yards. Lot surfaces of dense districts are paved, gardens are grass.
   const dense = plan.district === 'downtown' || plan.district === 'commercial' || plan.district === 'oldtown';
   const industrial = plan.district === 'industrial' || plan.district === 'port';
-  // Highest first: each lies where none above it does.
-  const S: GroundSurface[] = [
+  return [
+    { shapes: plan.carriageway, dy: 0, layer: oldTown ? GroundLayer.Cobble : GroundLayer.Asphalt },
     { shapes: plan.cemPaths, dy: CURB_H + 0.01, layer: GroundLayer.Gravel },
     // Houses' driveways (by what they are laid with) and front paths.
     ...([[DriveSurface.Asphalt, GroundLayer.Asphalt], [DriveSurface.Paving, GroundLayer.PlazaStone], [DriveSurface.Gravel, GroundLayer.Gravel]] as const).map(([k, layer]) =>
@@ -192,13 +192,63 @@ export function groundSurfaces(plan: CellPlan): GroundSurface[] {
     { shapes: plan.cemeteries, dy: CURB_H, layer: GroundLayer.Grass },
     { shapes: plan.blocks, dy: CURB_H - 0.01, layer: industrial ? GroundLayer.AsphaltLight : dense ? GroundLayer.Paving : GroundLayer.Grass },
   ];
+}
+
+/**
+ * The draped surfaces of a cell. They never overlap: two drapes a centimetre apart cross
+ * wherever their triangles follow the terrain differently (DRAPE_TOL), and fight in the depth
+ * buffer further off, so a block's ground has holes where anything else lies on it.
+ */
+export function groundSurfaces(plan: CellPlan): GroundSurface[] {
+  const [road, ...S] = surfaceStack(plan);
   const above: Shape[] = [];
   for (const g of S) {
     const own = g.shapes;
     g.shapes = uncovered(own, above);
     above.push(...own);
   }
-  return [{ shapes: plan.carriageway, dy: 0, layer: oldTown ? GroundLayer.Cobble : GroundLayer.Asphalt }, ...S];
+  return [road, ...S];
+}
+
+/**
+ * Height of a cell's drawn ground at (x, z) (`buildGround`: the terrain plus its surface's lift), NaN
+ * where the cell draws none. The surfaces are found the way they are stacked, so no cutting is needed. `height`: the
+ * terrain's (a faster stand-in may be handed in).
+ */
+export function cellGround(plan: CellPlan, terrain: Terrain, height: (x: number, z: number) => number = (x, z) => terrain.height(x, z)): (x: number, z: number) => number {
+  // Every surface cut into triangles (as `drapeShape` cuts them), by 8 m squares; each triangle with its place in the stack.
+  const tri: number[] = [], rank: number[] = [], lift: number[] = [];
+  const G = 8, grid = new Map<number, number[]>();
+  surfaceStack(plan).forEach((g, r) => {
+    for (const sh of g.shapes) {
+      const flat = [...sh.outer], holes: number[] = [];
+      for (const h of sh.holes) { holes.push(flat.length / 2); flat.push(...h); }
+      const T = earcut(flat, holes.length ? holes : undefined, 2);
+      for (let k = 0; k < T.length; k += 3) {
+        const id = rank.length, P = [T[k], T[k + 1], T[k + 2]].flatMap((v) => [flat[v * 2], flat[v * 2 + 1]]);
+        tri.push(...P); rank.push(r); lift.push(g.dy);
+        for (let i = Math.floor(Math.min(P[0], P[2], P[4]) / G); i <= Math.floor(Math.max(P[0], P[2], P[4]) / G); i++) {
+          for (let j = Math.floor(Math.min(P[1], P[3], P[5]) / G); j <= Math.floor(Math.max(P[1], P[3], P[5]) / G); j++) {
+            const key = i * 65536 + j;
+            let l = grid.get(key);
+            if (!l) grid.set(key, (l = []));
+            l.push(id);
+          }
+        }
+      }
+    }
+  });
+  return (x, z) => {
+    let best = -1;
+    for (const id of grid.get(Math.floor(x / G) * 65536 + Math.floor(z / G)) ?? []) {
+      if (best >= 0 && rank[id] >= rank[best]) continue;
+      const o = id * 6, ax = tri[o], az = tri[o + 1], bx = tri[o + 2], bz = tri[o + 3], cx = tri[o + 4], cz = tri[o + 5];
+      const d1 = (bx - ax) * (z - az) - (bz - az) * (x - ax), d2 = (cx - bx) * (z - bz) - (cz - bz) * (x - bx), d3 = (ax - cx) * (z - cz) - (az - cz) * (x - cx);
+      if ((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0)) continue;
+      best = id;
+    }
+    return best < 0 ? NaN : height(x, z) + lift[best];
+  };
 }
 
 /**

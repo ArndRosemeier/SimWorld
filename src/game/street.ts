@@ -11,7 +11,7 @@ import { restAt } from '../street/tracks';
 import { yawToward } from '../geom/geom2';
 import type { SimClient, Walker } from './SimClient';
 import { bikeSaddle } from '../build/bicycle';
-import { CAR_STRIDE, vehiclePose } from '../traffic/feed';
+import { CAR_STRIDE, POSE_STRIDE, vehiclePose } from '../traffic/feed';
 import { BIKE_KEY, isBikeKey } from '../traffic/townTraffic';
 
 /** Game minutes ahead a walker's velocity is measured over. */
@@ -61,8 +61,8 @@ export class Street {
 
   /** The cyclists on their bikes this frame (by actor id). */
   private readonly riding = new Set<number>();
-  private readonly q0 = new Float32Array(4);
-  private readonly q1 = new Float32Array(4);
+  private readonly q0 = new Float32Array(POSE_STRIDE);
+  private readonly q1 = new Float32Array(POSE_STRIDE);
 
   /** Your own person while you walk them yourself: drawn where the body you steer is (src/game/avatar.ts). */
   private self: { fig: WalkerFigure; at: SelfPose } | null = null;

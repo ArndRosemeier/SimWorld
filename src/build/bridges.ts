@@ -77,26 +77,13 @@ export function deckSpans(bridges: readonly Bridge[], terrain: Terrain, margin =
 /**
  * The deck heights of all bridges at a point: a function of (x, z) giving the deck surface of the bridge whose
  * water span it lies on (within half its width plus `margin`), or null off every deck. For things placed by
- * position (people on the street layer); traffic follows a deck by arc length (`bridgeDeckSurface`).
+ * position (people on the street layer). What is drawn under a point: `bridgeGround`.
  */
 export function bridgeDecksAt(bridges: readonly Bridge[], terrain: Terrain, margin = 1): (x: number, z: number) => number | null {
   const spans = deckSpans(bridges, terrain, margin);
   return (x, z) => deckHeight(spans, x, z);
 }
 
-/**
- * Height of a bridged arterial's deck at arc length s along its edge, or null when the bridge has
- * no water span (then the road lies on the ground).
- */
-export function bridgeDeckSurface(br: Bridge, terrain: Terrain): ((s: number) => number) | null {
-  const pr = profileOf(br, terrain);
-  if (!pr) return null;
-  // The profile runs along the straight line from the edge's first to its last point.
-  const P = br.pts, cum = [0];
-  for (let i = 2; i < P.length; i += 2) cum.push(cum[cum.length - 1] + Math.hypot(P[i] - P[i - 2], P[i + 1] - P[i - 1]));
-  const k = pr.L / Math.max(1e-6, cum[cum.length - 1]);
-  return (s) => pr.y(s * k);
-}
 
 /**
  * Pier stations (arc length) of a stone or girder bridge between its span ends; none for the
@@ -120,6 +107,32 @@ export function buildBridges(bridges: readonly Bridge[], terrain: Terrain, edges
     if (pr) buildBridge(deck, mb, br, edges[br.edge], pr);
   }
   return { deck: deck.empty ? null : deck, structure: mb.empty ? null : mb };
+}
+
+/**
+ * The town bridges' drawn decks under points (`buildBridge`'s deck surfaces: the carriageway, the raised sidewalks,
+ * in 4 m pieces from node to node): `at(x, z)` the highest deck there, NaN off every bridge. `edges`: the macro
+ * plan's (the carriageway width of each bridge's edge).
+ */
+export function bridgeGround(bridges: readonly Bridge[], terrain: Terrain, edges: readonly ArterialEdge[]): (x: number, z: number) => number {
+  const decks = bridges.flatMap((br) => {
+    const pr = profileOf(br, terrain);
+    if (!pr) return [];
+    const n = Math.max(1, Math.ceil(pr.L / 4)), d = pr.L / n;
+    const ys = Float64Array.from({ length: n + 1 }, (_, k) => pr.y(k * d));
+    return [{ pr, d, ys, half: br.width / 2, carr: edges[br.edge].width / 2 }];
+  });
+  return (x, z) => {
+    let y = NaN;
+    for (const { pr, d, ys, half, carr } of decks) {
+      const s = (x - pr.ax) * pr.dx + (z - pr.az) * pr.dz, o = Math.abs((x - pr.ax) * -pr.dz + (z - pr.az) * pr.dx);
+      if (s < 0 || s > pr.L || o > half) continue;
+      const f = Math.min(ys.length - 2, Math.floor(s / d)), t = s / d - f;
+      const h = ys[f] + (ys[f + 1] - ys[f]) * t + (o > carr ? CURB_H : 0);
+      if (!(h <= y)) y = h;
+    }
+    return y;
+  };
 }
 
 function buildBridge(deck: MeshBuilder, mb: MeshBuilder, br: Bridge, e: ArterialEdge, pr: Profile): void {
