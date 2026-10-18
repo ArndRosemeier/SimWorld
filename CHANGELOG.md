@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.111 — Public clocks tell the time
+
+- The clocks on the church tower, the town hall's clock tower and the old station's gable now show the game's time of day, to the minute.
+- Plain dials with hour marks and no numerals; every public clock in town agrees.
+
 ## v0.110 — Trick-or-treaters on Halloween
 
 - On Halloween evening (31 October, 17:00 to 20:30) children go from door to door in their street and the next ones, ringing at the homes that put up Halloween decorations, then go home.
