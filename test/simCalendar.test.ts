@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  christmasMarket, civilOf, dateOf, daysOf, easter, epochFor, formatDate, gameDayOf, holidaysOn, runsLike, schoolDay,
-  schoolHoliday, seasonOf, sunTimes, weekdayOfDays,
+  christmasMarket, civilOf, dateOf, daysOf, easter, epochFor, formatDate, gameDayOf, holidayOn, runsLike, schoolDay,
+  termOn, seasonOf, sunTimes, weekdayOfDays,
 } from '../src/sim/calendar';
 import { createWorld } from '../src/sim/synth';
 import { testTown } from '../src/sim/testTown';
@@ -28,7 +28,7 @@ test('calendar: game day 0 is a Monday and play starts on the given date', () =>
   const w = { epoch: e, seed: 1 };
   assert.equal(weekdayOfDays(e), 0);
   assert.equal(formatDate(dateOf(w, 7 * 52 * 1440)), 'Monday 19 October 2026');
-  const world = createWorld(testTown(3, 120), 3, { date: { year: 2026, month: 10, day: 21 } });
+  const world = createWorld(testTown(3, 120), 3, { start: { year: 2026, month: 10, day: 21 } });
   const d = dateOf(world, world.clock);
   assert.deepEqual([d.month, d.day, d.weekday], [10, 19, weekdayOf(world.clock)]);
   assert.equal(seasonOf(d), 'autumn');
@@ -45,7 +45,7 @@ test('calendar: the sun rises late in winter and sets late in summer', () => {
 
 test('calendar: holidays, school terms, and the town keeps them', () => {
   const world = createWorld(testTown(4, 200), 4);
-  const kinds = (y: number, m: number, d: number) => holidaysOn(world, day(world, y, m, d)).map((h) => h.kind);
+  const kinds = (y: number, m: number, d: number) => [holidayOn(world, day(world, y, m, d))?.kind].filter(Boolean);
   assert.deepEqual(kinds(2026, 12, 25), ['christmas']);
   assert.deepEqual(kinds(2027, 3, 26), ['goodFriday']);
   assert.ok(kinds(2026, 12, 5).includes('christmasMarket'));
@@ -55,9 +55,9 @@ test('calendar: holidays, school terms, and the town keeps them', () => {
 
   // Good Friday runs like a Sunday; the school is shut in the holidays and on weekends.
   assert.equal(runsLike(world, day(world, 2027, 3, 26)), 6);
-  assert.equal(schoolHoliday(world, day(world, 2026, 8, 10)), 'the summer holidays');
-  assert.equal(schoolHoliday(world, day(world, 2026, 12, 30)), 'the Christmas holidays');
-  assert.equal(schoolHoliday(world, day(world, 2027, 1, 2)), 'the Christmas holidays');
+  assert.equal(termOn(world, day(world, 2026, 8, 10)).holiday, 'the summer holidays');
+  assert.equal(termOn(world, day(world, 2026, 12, 30)).holiday, 'the Christmas holidays');
+  assert.equal(termOn(world, day(world, 2027, 1, 2)).holiday, 'the Christmas holidays');
   assert.ok(schoolDay(world, day(world, 2026, 11, 4)));
   assert.ok(!schoolDay(world, day(world, 2026, 11, 7)));
 

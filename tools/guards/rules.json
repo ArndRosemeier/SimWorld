@@ -8,12 +8,15 @@
     { "id": "renderer.compile", "pattern": "\\.compile(Async)?\\s*\\(", "only": ["src/render/stage.ts"], "why": "compiling is the Stage's job: warmUp(), warmLater() and add() (docs/SHADERS.md)" },
     { "id": "new Light", "pattern": "\\bnew\\s+(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)\\s*\\(", "only": ["src/render/lights.ts"], "why": "lights are a fixed pool made before the warm-up: the light count is part of every shader's cache key (docs/SHADERS.md)" },
     { "id": "localStorage", "pattern": "\\blocalStorage\\b", "only": ["src/persist/"], "why": "persistence goes through src/persist" },
-    { "id": "fetch openrouter", "pattern": "openrouter\\.ai", "flags": "gi", "only": ["src/llm/"], "why": "every LLM call goes through src/llm (model roster, task routing, usage tracking)" }
+    { "id": "fetch openrouter", "pattern": "openrouter\\.ai", "flags": "gi", "only": ["src/llm/"], "why": "every LLM call goes through src/llm (model roster, task routing, usage tracking)" },
+    { "id": "wall clock", "pattern": "\\bDate\\.now\\s*\\(|\\bnew\\s+Date\\s*\\(", "only": ["src/app/", "src/game/", "src/render/", "src/audio/", "src/persist/", "src/workers/", "src/llm/llm.ts"], "why": "the pure layers are deterministic: the real date enters through createWorld (src/sim/calendar.ts), timings are injected" },
+    { "id": "AudioContext", "pattern": "\\bnew\\s+(webkit)?AudioContext\\s*\\(", "only": ["src/audio/"], "why": "one audio engine (src/audio)" }
   ],
   "layers": [
     { "from": "src/sim", "deny": ["three", "src/render", "src/app", "src/game", "src/llm", "src/plan", "src/world"], "why": "the society simulation is pure data: it runs in a worker and in headless tests, and takes the town only through the PlaceGraph (the planner depends on the sim, never the reverse)" },
     { "from": "src/plan", "deny": ["three", "src/render", "src/app", "src/game", "src/sim"], "types": ["src/sim"], "allow": ["src/sim/placeKinds.ts"], "why": "the town planner is pure data: it runs in workers and headless tests (it fills the sim's PlaceGraph type, with the sim's per-kind defaults from placeKinds)" },
     { "from": "src/geom", "deny": ["three", "src/render", "src/app", "src/game", "src/sim", "src/plan", "src/world"], "why": "2D geometry is a leaf: everything pure may use it" },
+    { "from": "src/interior", "deny": ["three", "src/render", "src/app", "src/game", "src/sim", "src/llm"], "types": ["src/sim"], "allow": ["src/sim/placeKinds.ts"], "why": "interiors are pure data from the building (rooms, furniture, where people sleep, sit and work): planned in workers and headless tests, sized by the sim's per-kind staff and capacity" },
     { "from": "src/build", "deny": ["three", "src/render", "src/app", "src/game", "src/sim", "src/llm"], "why": "mesh data is built in workers from the plan: plain typed arrays, no three.js (src/render turns them into meshes)" },
     { "from": "src/world", "deny": ["three", "src/render", "src/app", "src/game"], "why": "world queries are pure: gameplay, workers and tests use them" },
     { "from": "src/talk", "deny": ["three", "src/render", "src/app", "src/game"], "why": "the procedural text engine is pure: workers, tests and tools use it" },

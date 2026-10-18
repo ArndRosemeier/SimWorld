@@ -3,10 +3,10 @@
  * geometry (with the seed). Styles define facade grammar, materials, roofs
  * and massing rules.
  *
- * Ported from Scale (src/plan/building.ts) with town-sized floor counts; `dwellingsOf` and
- * `doorBayOf` are new here.
+ * Ported from Scale (src/plan/building.ts) with town-sized floor counts; `dwellingsOf`,
+ * `doorBayOf` and `streetDoor` are new here.
  */
-import type { Poly } from '../geom/geom2';
+import { polyArea, type Poly } from '../geom/geom2';
 import { type Rng } from '@futuremagic/core';
 import type { District } from './types';
 import type { AmenityKind } from './amenities';
@@ -220,14 +220,34 @@ export function doorBayOf(seed: number, bays: number): number {
 }
 
 /**
+ * The street door: on the front edge, centred in the door bay (`doorBayOf`), at most 1.3 m wide.
+ * `s0`, `s1` its span along the edge from the edge's first corner, `x`, `z` its middle on the
+ * facade. Scale: build/buildingLayout doorOf; the one door the facade, the interior and the
+ * place graph agree on.
+ */
+export function streetDoor(b: BuildingDesc): { edge: number; s0: number; s1: number; x: number; z: number } {
+  const P = b.poly, n = P.length >> 1, i = b.front % n, j = (i + 1) % n;
+  const L = Math.hypot(P[j * 2] - P[i * 2], P[j * 2 + 1] - P[i * 2 + 1]);
+  const bays = Math.max(1, Math.round(L / b.bay)), bayW = L / bays;
+  const dw = Math.min(1.3, bayW * 0.62), dc = (doorBayOf(b.seed, bays) + 0.5) * bayW, t = dc / Math.max(1e-6, L);
+  return { edge: i, s0: dc - dw / 2, s1: dc + dw / 2, x: P[i * 2] + (P[j * 2] - P[i * 2]) * t, z: P[i * 2 + 1] + (P[j * 2 + 1] - P[i * 2 + 1]) * t };
+}
+
+/**
  * How many households can live in a building (SimWorld; Scale counted `units` per floor for
  * its crowd density only). A detached house or a row house is one home (a few detached houses
  * are split into two flats); a block of flats has `units` flats on each residential floor, the
- * ground floor of a building with a shop front being the shop.
+ * ground floor of a building with a shop front being the shop. A block whose floor cannot hold
+ * a flat and the stairs (under MIN_FLAT_FLOOR) is one home over all its storeys (SimWorld, for
+ * the interiors).
  */
+export const MIN_FLAT_FLOOR = 55;
 export function dwellingsOf(b: BuildingDesc): number {
   if (b.use !== 'residential' && b.use !== 'mixed') return 0;
   if (b.style === 'house') return b.floors >= 2 && (b.seed >>> 9) % 7 === 0 ? 2 : 1;
   if (b.style === 'rowhouse') return 1;
-  return b.units * Math.max(0, b.floors - (b.shopfront ? 1 : 0));
+  const floors = Math.max(0, b.floors - (b.shopfront ? 1 : 0));
+  // A floor too small for a flat beside the stairs: the building is one narrow town house.
+  if (floors > 1 && Math.abs(polyArea(b.poly)) < MIN_FLAT_FLOOR) return 1;
+  return b.units * floors;
 }

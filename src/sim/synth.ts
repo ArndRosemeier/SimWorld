@@ -44,7 +44,7 @@ export interface WorldOptions {
    * The real date of the first day of play (default 19 October 2026). The calendar puts that week on the clock:
    * play starts on the Monday of it plus `startDay`'s weekday. The app passes today's date.
    */
-  date?: CivilDate;
+  start?: CivilDate;
   /** The town's latitude in degrees (default 51). */
   latitude?: number;
   /** The country around the town (the planner's `regionOf(town)`): lore everyone knows, people's ties to it. */
@@ -62,7 +62,7 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
   const idx = placeIndex(graph);
   const world: World = {
     seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
-    epoch: epochFor(opts.date ?? DEFAULT_DATE, (opts.startDay ?? 0) + historyDays(opts.history ?? 0)),
+    epoch: epochFor(opts.start ?? DEFAULT_DATE, (opts.startDay ?? 0) + historyDays(opts.history ?? 0)),
     latitude: opts.latitude ?? DEFAULT_LATITUDE,
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),

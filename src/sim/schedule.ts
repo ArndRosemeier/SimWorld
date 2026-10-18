@@ -16,7 +16,7 @@ import type { DayMask, PlaceId, PlaceKind } from './places';
 import type { Job } from './people';
 import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIES, speciesId } from './species';
 import { atMinute, MINUTES_PER_DAY, minuteOfDay, weekdayOf } from './time';
-import { dateOf, eve, feast, runsLike, schoolDay, sunTimes } from './calendar';
+import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
 import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, type World } from './world';
 
 /** Does a weekday mask include weekday `wd`? */
@@ -320,7 +320,7 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
   const t = (k: number) => pc.traits[p * 5 + k];
   const need = (n: number) => 1 - a.needs[id * NEED_COUNT + n];
   // The park while it is light; the dog goes out in the dark too, but not in the small hours.
-  const sun = sunTimes(dateOf(world, now), world.latitude);
+  const sun = sunAt(world, now);
   const daylight = m >= sun.rise + 30 && m < sun.set;
   const dogHours = m >= 390 && m < 1290;
   const options: Option[] = [];

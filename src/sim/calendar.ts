@@ -4,8 +4,8 @@
  * and the school terms follow the real calendar. Pure integer date arithmetic (no `Date`), so it runs the same
  * in the worker and in tests.
  *
- * The one way to ask what day it is: `dateOf`. Weather (src/sim/weather.ts, the sky thread) and the renderer's sun read
- * the season and `sunTimes` from here.
+ * The one way to ask what day it is: `dateOf`. Weather (src/sim/weather.ts) and the renderer's sun read the season and
+ * `sunAt` from here.
  */
 import { hashCombine } from '@futuremagic/core';
 import { dayOf, MINUTES_PER_DAY } from './time';
@@ -113,6 +113,10 @@ export function sunTimes(d: GameDate, latitude: number): { rise: number; set: nu
   return { rise: Math.round(noon - half), set: Math.round(noon + half) };
 }
 
+/** Sunrise and sunset on the day of `clock` in the town (minutes from midnight, clock time). */
+export const sunAt = (world: Dated & { readonly latitude: number }, clock: number): { rise: number; set: number } =>
+  sunTimes(dateOf(world, clock), world.latitude);
+
 /** Default latitude of the town (a temperate, snowy-wintered western place). */
 export const DEFAULT_LATITUDE = 51;
 
@@ -170,34 +174,30 @@ export function christmasMarket(year: number): [number, number] {
   return [advent4 - 21 - 2, daysOf(year, 12, 23)];
 }
 
-/** Every holiday and town event on the day of `clock` (most days: none). */
-export function holidaysOn(world: Dated, clock: number): Holiday[] {
+/** The holiday or town-wide occasion on the day of `clock`, or null (they never overlap). */
+export function holidayOn(world: Dated, clock: number): Holiday | null {
   const d = dateOf(world, clock);
-  const out: Holiday[] = [];
   const fixed = FIXED[`${d.month}-${d.day}`];
-  if (fixed) out.push(fixed);
+  if (fixed) return fixed;
   if (d.month === 3 || d.month === 4) {
     const e = easter(d.year), ed = daysOf(e.year, e.month, e.day);
-    if (d.days === ed - 2) out.push(GOOD_FRIDAY);
-    else if (d.days === ed) out.push(EASTER);
-    else if (d.days === ed + 1) out.push(EASTER_MONDAY);
+    if (d.days === ed - 2) return GOOD_FRIDAY;
+    if (d.days === ed) return EASTER;
+    if (d.days === ed + 1) return EASTER_MONDAY;
   }
   if (d.month === 7 || d.month === 8) {
     const f = festivalStart(world, d.year);
-    if (d.days === f || d.days === f + 1) out.push(FESTIVAL);
+    if (d.days === f || d.days === f + 1) return FESTIVAL;
   }
   if (d.month >= 11) {
     const [a, b] = christmasMarket(d.year);
-    if (d.days >= a && d.days <= b) out.push(MARKET);
+    if (d.days >= a && d.days <= b) return MARKET;
   }
-  return out;
+  return null;
 }
 
 /** Is the day of `clock` a public holiday (runs like a Sunday)? */
-export function dayOff(world: Dated, clock: number): boolean {
-  for (const h of holidaysOn(world, clock)) if (h.dayOff) return true;
-  return false;
-}
+export const dayOff = (world: Dated, clock: number): boolean => holidayOn(world, clock)?.dayOff ?? false;
 
 /** What the schedules ask about a day, worked out once per day (they ask thousands of times a minute). */
 interface DayFacts { runsLike: number; feast: boolean; eve: boolean; school: boolean }
@@ -215,7 +215,7 @@ function factsOf(world: Dated, clock: number): DayFacts {
     runsLike: off ? 6 : weekdayOfDays(world.epoch + g),
     feast: (d.month === 12 && d.day === 25) || (d.month === 1 && d.day === 1),
     eve: d.month === 12 && (d.day === 24 || d.day === 31),
-    school: !off && weekdayOfDays(world.epoch + g) < 5 && schoolHoliday(world, clock) === null,
+    school: !off && weekdayOfDays(world.epoch + g) < 5 && termOn(world, clock).inTerm,
   };
   if (m.size > 16) m.clear();
   m.set(g, f);
@@ -264,12 +264,12 @@ export function schoolHolidays(year: number): [string, number, number][] {
   ];
 }
 
-/** The school holiday the day of `clock` falls in, or null on a term day (weekends count as term). */
-export function schoolHoliday(world: Dated, clock: number): string | null {
+/** School term on the day of `clock`: in term (weekends included), or the name of the holiday it falls in. */
+export function termOn(world: Dated, clock: number): { inTerm: boolean; holiday: string | null } {
   const days = world.epoch + dayOf(clock);
   const { year } = civilOf(days);
-  for (const y of [year - 1, year]) for (const [name, a, b] of schoolHolidays(y)) if (days >= a && days <= b) return name;
-  return null;
+  for (const y of [year - 1, year]) for (const [name, a, b] of schoolHolidays(y)) if (days >= a && days <= b) return { inTerm: false, holiday: name };
+  return { inTerm: true, holiday: null };
 }
 
 /** Is the day of `clock` a school day (term, a weekday, not a public holiday)? */
