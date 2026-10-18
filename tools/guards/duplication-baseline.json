@@ -546,5 +546,9 @@
   {
     "key": "same name: simworld/app/chatPanel.ts#describe + simworld/game/street.ts#describe",
     "reason": "Unrelated: the chat panel's line for a change a conversation made, and the street's HUD line about the person followed."
+  },
+  {
+    "key": "idiom: [.atan2 .x .z Math] in simworld/build/streetProps.ts + simworld/game/street.ts + simworld/plan/terrace.ts",
+    "reason": "Each turns something to face a point (a person to the player, a chair to its table, a prop to a corner) with one Math.atan2 over its own axes; a shared yawToward would be a one-line seam across three layers. Baselined to unblock main after #91 and #95 met; fold if a fourth appears."
   }
 ]
