@@ -133,7 +133,8 @@ export function planStorey(b: BuildingDesc, poly: Poly, floor: number, y: number
   const closedHall = closed ? plan.rooms.findIndex((q) => q.type === 'stairs') : -1;
   // Just inside a street door: the way in's first metre.
   const inside = (q: Poly | null): [number, number][] => (q ? [[(q[4] + q[6]) / 2 * 0.4 + (q[0] + q[2]) / 2 * 0.6, (q[5] + q[7]) / 2 * 0.4 + (q[1] + q[3]) / 2 * 0.6]] : []);
-  const homesWay = ground && closedHall >= 0 && cores.entryDoor ? doorWay(poly, cores.entryDoor, 2.2, 0.75) : null;
+  // (The flats' own door: into their hall, or into the workplace where no hall fits.)
+  const homesWay = ground && cores.entryDoor ? doorWay(poly, cores.entryDoor, 2.2, 0.75) : null;
   const inner = [...inside(way), ...inside(homesWay)];
   const arrival: Arrival = ground
     ? { rooms: inner.length ? [] : closedHall >= 0 ? [closedHall] : [], at: inner }

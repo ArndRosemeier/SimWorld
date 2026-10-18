@@ -4,13 +4,16 @@
  * Keys: Enter goes down to the street (at the town's centre, or where the drone looks), F follows the
  * nearest person (F again: the next one), Esc goes back up a level. Playing as an inhabitant (`play`), the
  * camera eases to them from wherever it was (from the drone: the flight down) and stays with them: behind them
- * out of doors, circling their building while they are inside; drag turns it around them.
+ * out of doors, circling their building while they are inside; drag turns it around them. While steering, the
+ * mouse wheel zooms from far behind them down to their own eyes (first person: their body is not drawn); the
+ * distance is kept between sessions.
  *
  * `?at=x,z&r=…&h=…&a=…` fixes the drone; `?street=x,z&yaw=…` starts on the street there; `?follow=<id>`
  * starts behind that inhabitant (screenshots and checks).
  */
 import type { PerspectiveCamera } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
+import { readNumPref, writePref } from '../persist/prefs';
 
 export type CameraMode = 'drone' | 'street' | 'follow' | 'play' | 'free';
 
@@ -27,8 +30,13 @@ export interface PlayTarget extends Followed { outside: boolean }
 
 /** How fast the play camera closes in (1/s); slower while shaders still compile, so the flight hides them. */
 const EASE = 1.4, EASE_COMPILING = 0.45;
-/** While steering: how far behind the head the camera stays when nothing is in the way (m). */
-const STEER_BACK = 3.4;
+/** While steering: how far behind the head the camera stays when nothing is in the way (m): the wheel sets it, from
+ * 0 (first person, at the eyes) through ZOOM_MIN up to ZOOM_MAX; STEER_BACK at first. */
+const STEER_BACK = 3.4, ZOOM_MIN = 0.8, ZOOM_MAX = 14;
+/** One wheel notch (deltaY 100) zooms by this factor. */
+const ZOOM_STEP = 1.25;
+/** Nearer than this (m) the camera is at the eyes: first person. */
+const FIRST_AT = 0.06;
 /**
  * The steering camera as a ball this big (m): it stops this far short of walls, ceilings and furniture, so the
  * near plane (NEAR_CLOSE) never cuts into them.
@@ -60,6 +68,9 @@ export class CameraControl {
   private readonly at = { x: 0, y: 0, z: 0 };
   /** Turn around the player's person, from dragging (while steering: the absolute direction the camera looks). */
   private orbit = 0;
+  /** While steering: how far behind the head the player wants the camera (the wheel; 0: first person), and how far it is now (easing there). */
+  private zoom = clamp(readNumPref('camera.zoom', STEER_BACK), 0, ZOOM_MAX);
+  private zoomNow = this.zoom;
   /** While steering: how far the camera looks down (negative) or up. */
   private lookPitch = -0.22;
   /** Steering last frame (to carry the view over when it starts). */
@@ -92,6 +103,11 @@ export class CameraControl {
       e.target.setPointerCapture(e.pointerId);
       this.drag = { x: e.clientX, y: e.clientY };
     });
+    // The wheel zooms the steering camera, over the game view only (the minimap and the map take theirs first).
+    window.addEventListener('wheel', (e) => {
+      if (this.mode !== 'play' || !(e.target instanceof HTMLCanvasElement) || e.defaultPrevented) return;
+      this.zoomBy(e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1));
+    }, { passive: true });
     window.addEventListener('pointerup', () => { this.drag = null; });
     window.addEventListener('pointercancel', () => { this.drag = null; });
     blockBrowserDefaults();
@@ -99,7 +115,9 @@ export class CameraControl {
       if (!this.drag || this.mode === 'drone') return;
       if (this.mode === 'play') {
         this.orbit -= (e.clientX - this.drag.x) * 0.005;
-        this.lookPitch = clamp(this.lookPitch - (e.clientY - this.drag.y) * 0.004, -1.1, 0.6);
+        // From the eyes you can look further up and down than from behind.
+        const fp = this.firstPerson;
+        this.lookPitch = clamp(this.lookPitch - (e.clientY - this.drag.y) * 0.004, fp ? -1.45 : -1.1, fp ? 1.3 : 0.6);
         this.drag = { x: e.clientX, y: e.clientY };
         return;
       }
@@ -225,6 +243,23 @@ export class CameraControl {
     this.steering = true;
   }
 
+  /**
+   * Zoom the steering camera by a wheel movement (`delta`: pixels, out positive): each notch a step further or
+   * nearer; in from ZOOM_MIN it goes to the eyes, out from the eyes back to ZOOM_MIN.
+   */
+  zoomBy(delta: number): void {
+    const f = Math.pow(ZOOM_STEP, delta / 100);
+    if (this.zoom === 0) this.zoom = delta > 0 ? ZOOM_MIN : 0;
+    else if (this.zoom * f < ZOOM_MIN * 0.99) this.zoom = delta < 0 ? 0 : ZOOM_MIN;
+    else this.zoom = Math.min(ZOOM_MAX, this.zoom * f);
+    writePref('camera.zoom', this.zoom.toFixed(2));
+  }
+
+  /** The steering camera is at the person's eyes (zoomed all the way in). */
+  get firstPerson(): boolean {
+    return this.zoom === 0 && this.zoomNow < FIRST_AT;
+  }
+
   /** Which way the steering camera looks: its turn round the person and its tilt (a report, src/game/report.ts). */
   get look(): { orbit: number; pitch: number } {
     return { orbit: this.orbit, pitch: this.lookPitch };
@@ -243,9 +278,16 @@ export class CameraControl {
       this.orbit = Math.atan2(e[8], e[10]);
       this.steering = true;
     }
+    // Out of the eyes again: back to the tilt a camera behind can have.
+    if (!this.firstPerson) this.lookPitch = clamp(this.lookPitch, -1.1, 0.6);
     const cp = Math.cos(this.lookPitch), dx = Math.sin(this.orbit) * cp, dy = -Math.sin(this.lookPitch), dz = Math.cos(this.orbit) * cp;
+    // The wheel's distance, eased (a notch is a glide, not a jump); at the eyes it stays there.
+    this.zoomNow += (this.zoom - this.zoomNow) * (1 - Math.exp(-dt * 10));
+    if (Math.abs(this.zoom - this.zoomNow) < 0.01) this.zoomNow = this.zoom;
+    if (!this.firstPerson && this.zoomNow < FIRST_AT && this.zoom > 0) this.zoomNow = FIRST_AT;
     // As far back as there is room for the camera ball (a wall, a ceiling, a wardrobe, a shut door pulls it in).
-    const back = Math.max(0.05, Math.min(STEER_BACK, clear(dx, dy, dz, STEER_BACK) - 0.02));
+    const want = this.zoomNow;
+    const back = want < FIRST_AT ? 0 : Math.max(0.05, Math.min(want, clear(dx, dy, dz, want) - 0.02));
     const ex = head.x + dx * back, ey = head.y + dy * back, ez = head.z + dz * back;
     const e = this.eye, l = this.at;
     const far = Math.hypot(ex - e.x, ey - e.y, ez - e.z) > 8;
@@ -260,9 +302,11 @@ export class CameraControl {
     this.camera.lookAt(l.x, l.y, l.z);
     this.x = head.x; this.z = head.z;
     const toHead = Math.hypot(e.x - head.x, e.y - head.y, e.z - head.z);
-    // Nothing nearer than the near plane: the nearest solid, and the body (about 0.35 m round the head).
-    this.setNear(far ? NEAR_FAR : clamp(Math.min(room(e.x, e.y, e.z) * 0.6, (toHead - 0.35) * 0.8), NEAR_MIN, NEAR_FAR));
-    this.tooClose = !far && toHead < HIDE_AT;
+    // Nothing nearer than the near plane: the nearest solid, and the body (about 0.35 m round the head; not drawn
+    // when the camera is that close, so then only the solids count).
+    const hidden = !far && toHead < HIDE_AT;
+    this.setNear(far ? NEAR_FAR : clamp(Math.min(room(e.x, e.y, e.z) * 0.6, hidden ? Infinity : (toHead - 0.35) * 0.8), NEAR_MIN, NEAR_FAR));
+    this.tooClose = hidden;
   }
 
   /** The steering camera is so close to the head that the body would fill the view: the game leaves it undrawn. */

@@ -19,7 +19,7 @@ import { type Poly, frameToWorld, minAreaRect, polyArea, ensureCCW, polyCentroid
 import { offset, shapesToPolys } from '../geom/clip';
 import type { Terrain } from '../world/terrain';
 import { CURB_H } from '../world/ground';
-import { baysOf, doorBayOf, flatsDoorBay, type BuildingDesc } from '../plan/building';
+import { baysOf, doorBayOf, flatsDoorBay, STREET_DOOR, type BuildingDesc } from '../plan/building';
 import type { Landmark } from '../plan/landmarks';
 import { landmarkParts, partOutline, latheClosed, helixFloorAt, HELIX_SLAB, PK, type LmPart, type PartMat } from '../plan/landmarkParts';
 import type { MeshBuilder, AttrSpec } from './meshBuilder';
@@ -291,6 +291,35 @@ export function windowOpenings(b: BuildingDesc): WallWindows[] {
       if (open.length) out.push({ ax, az, bx, bz, nx: (bz - az) / L, nz: -(bx - ax) / L, open });
     }
   });
+  return out;
+}
+
+/** A door the facade shader paints: its middle at the foot of the wall (x, z), its width and height, the wall's outward normal. */
+export interface PaintedDoor { x: number; z: number; w: number; h: number; nx: number; nz: number }
+
+/**
+ * The doors the facade shader paints on a building (src/render/tsl/facade.ts: the front's door bay and the flats'
+ * door bay on the ground floor, none on a curtain wall), by the same rule: for the check that every painted door
+ * is a real street door of its interior and the other way round (test/doorsAlign.test.ts).
+ */
+export function paintedDoors(b: BuildingDesc): PaintedDoor[] {
+  const r = new Rng(b.seed);
+  buildingTint(b, r);
+  const flags = styleFlags(b, r), poly = buildingTiers(b)[0].poly, n = poly.length >> 1, out: PaintedDoor[] = [];
+  const i = b.front % n, j = (i + 1) % n, ax = poly[i * 2], az = poly[i * 2 + 1], bx = poly[j * 2], bz = poly[j * 2 + 1];
+  const L = Math.hypot(bx - ax, bz - az);
+  if (L < 0.05) return out;
+  const bays = baysOf(b, L), bay = L / bays, ef = edgeFlags(flags, b, true, poly, i, bays);
+  if (ef & FF.Curtain) return out;
+  const at = new Set<number>([(ef >> 9) & 3]);
+  if (ef & FF.FlatsDoor) at.add(0);
+  if (ef & (FF.FlatsDoor << 1)) at.add(1);
+  const w = Math.min(STREET_DOOR.maxW, bay * STREET_DOOR.bayShare), h = Math.min(STREET_DOOR.h, b.groundH - 0.35);
+  for (const k of at) {
+    if (k >= bays) continue;
+    const t = ((k + 0.5) * bay) / L;
+    out.push({ x: ax + (bx - ax) * t, z: az + (bz - az) * t, w, h, nx: (bz - az) / L, nz: -(bx - ax) / L });
+  }
   return out;
 }
 

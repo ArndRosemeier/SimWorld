@@ -1,19 +1,19 @@
 /**
  * SimWorld's wardrobe for the humanoid package (its `Wardrobe` hook): which clothes exist and how they sit,
- * as garment shells the package fits to any body, plus hats as small rigid parts on the head.
+ * as garment shells the package fits to any body, plus hats as rigid parts on the head, built to fit it (hats.ts).
  *
  * Ported from Dunfinity (src/render/humans/wardrobe.ts, `everyday`: today's clothes, themselves Scale's city
  * wardrobe); the dungeon kit, rags and weapons stayed behind. Hats are built with the MeshBuilder in the
  * VERTEX_COLOR_SOLID kind, so they need no shader of their own.
  */
-import type { BodyFit, ItemVisual, ShellLayer, ShellMaterial, WearableSpec } from '@futuremagic/humanoid';
+import { HEAD_AZ, HEAD_EL, type BodyFit, type HeadShape, type ItemVisual, type ShellLayer, type ShellMaterial, type WearableSpec } from '@futuremagic/humanoid';
 import type { Wardrobe } from '@futuremagic/humanoid/three';
 import { Group, type Mesh, type Object3D } from 'three/webgpu';
 import { MeshBuilder } from '../../build/meshBuilder';
 import { meshFromData } from '../meshes';
 import { VERTEX_COLOR_SOLID } from '../materials';
+import { HAIR_BANDS, beanieMesh, capMesh, earsMesh, shade, witchHatMesh } from './hats';
 
-type Rgb = [number, number, number];
 
 const cloth = (v: ItemVisual, pattern: ShellMaterial['pattern'], o: Partial<ShellMaterial> = {}): ShellMaterial => ({
   color: v.primary,
@@ -40,7 +40,6 @@ const limbs = (upper: 'upperarm' | 'thigh', lower: 'forearm' | 'shin', to: numbe
 const ARMS = (to: number): ShellLayer['regions'] => limbs('upperarm', 'forearm', to);
 const LEGS = (to: number): ShellLayer['regions'] => [{ region: 'pelvis' }, { region: 'buttocks' }, ...limbs('thigh', 'shin', to)];
 const FEET: ShellLayer['regions'] = [{ region: 'foot.L' }, { region: 'foot.R' }];
-const shade = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k];
 
 /** Today's clothes: the item's pattern in `visual.material` ('plain', 'stripes', 'checks', 'leather'), the fine cut from its seed. */
 function resolve(defId: string, v: ItemVisual): WearableSpec | null {
@@ -68,75 +67,27 @@ function resolve(defId: string, v: ItemVisual): WearableSpec | null {
     case 'sneakers': return shell(FEET, 0.012, 1, fab('plain', { roughness: 0.7 }), { trim: { width: 0.02, color: [0.95, 0.95, 0.95] } });
     case 'shoes': return shell(FEET, 0.01, 1, fab('leather', { roughness: 0.4 }));
     case 'boots': return shell([...FEET, { region: 'shin.L', from: 0.65 }, { region: 'shin.R', from: 0.65 }], 0.012, 2, fab('leather', { roughness: 0.5 }));
-    /** A knitted beanie: a dome over the crown, the hair tucked under. */
-    case 'beanie': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => beanie(fit, c) }], hideHair: true };
-    /** A baseball cap: a shallow dome and a stiff peak forward. */
-    case 'cap': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => cap(fit, c) }], hideHair: true };
-    /** A witch's hat: a tall dome with a wide brim. */
-    case 'witchHat': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => witchHat(fit, c, c2) }], hideHair: false };
-    /** Cat's ears on a band. */
-    case 'ears': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => ears(fit, c) }], hideHair: false };
+    // Hats fit the head (hats.ts); the hair above their band is under them, the rest shows.
+    /** A knitted beanie with a folded cuff (some with a bobble). */
+    case 'beanie': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => hat(fit, (mb, h) => beanieMesh(mb, h, c, c2, v.seed % 5 < 2)) }], hairBand: HAIR_BANDS.beanie };
+    /** A baseball cap: six panels and a stiff peak over the brow. */
+    case 'cap': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => hat(fit, (mb, h) => capMesh(mb, h, c, shade(c, 0.6))) }], hairBand: HAIR_BANDS.cap };
+    /** A witch's hat: a tall bent crown, a wide brim and a band. */
+    case 'witchHat': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => hat(fit, (mb, h) => witchHatMesh(mb, h, c, c2, v.seed)) }], hairBand: HAIR_BANDS.witchHat };
+    /** Cat's ears on a hair band. */
+    case 'ears': return { layers: [{ kind: 'rigid', socket: 'head', build: (fit: BodyFit) => hat(fit, (mb, h) => earsMesh(mb, h, c, [0.85, 0.55, 0.6])) }] };
     default: return null;
   }
 }
 
-/** A witch's hat: a wide flat brim and a tall narrow crown over it, the band in `band`. */
-function witchHat(fit: BodyFit, c: Rgb, band: Rgb): Object3D {
-  return domes(fit.headRadius, [[0, 0.55, -0.08, 1.9, 0.01, 1.9, c, 20, 1], [0, 0.6, -0.08, 1, 0.12, 1, band, 16, 0.5], [0, 0.6, -0.1, 0.95, 2.6, 0.95, c, 16, 0.5]]);
+/** A hat built over the head's shape (hats.ts); a round head of `fit.headRadius` when the body has no shape. */
+function hat(fit: BodyFit, build: (mb: MeshBuilder, h: HeadShape) => void): Object3D {
+  return solid((mb) => build(mb, fit.head ?? roundHead(fit.headRadius)));
 }
 
-/** Two pointed ears up on the crown. */
-function ears(fit: BodyFit, c: Rgb): Object3D {
-  return domes(fit.headRadius, [-1, 1].map((s): DomePart => [s * 0.55, 0.75, -0.05, 0.3, 0.6, 0.14, c, 8, 0.5]));
-}
-
-/**
- * A beanie in head-socket space (+z forward, y up, from between the ears): a dome over the skull, whose
- * centre sits a little up and back from there.
- */
-function beanie(fit: BodyFit, c: Rgb): Object3D {
-  const r = fit.headRadius;
-  return solid((mb) => dome(mb, 0, r * 0.3, -r * 0.08, r * 1.12, r * 1.25, r * 1.22, c, 18, 0.5));
-}
-
-/** A cap: a shallow dome over the skull and a flat peak over the brow. */
-function cap(fit: BodyFit, c: Rgb): Object3D {
-  return domes(fit.headRadius, [
-    [0, 0.35, -0.06, 1.1, 1.12, 1.18, c, 18, 0.5],
-    [0, 0.42, 1.1, 0.8, 0.006, 0.62, shade(c, 0.85), 16, 1],
-  ]);
-}
-
-/** A head piece of domes (`dome`'s arguments, sizes in head radii `r`). */
-type DomePart = [x: number, y: number, z: number, rx: number, ry: number, rz: number, c: Rgb, seg: number, frac: number];
-function domes(r: number, parts: DomePart[]): Object3D {
-  return solid((mb) => { for (const [x, y, z, rx, ry, rz, c, seg, frac] of parts) dome(mb, x * r, y * r, z * r, rx * r, ry * r, rz * r, c, seg, frac); });
-}
-
-/**
- * The top `frac` of an ellipsoid (1: the whole of it) around (x, y, z) with radii (rx, ry, rz), `seg`
- * segments round, coloured `c`: hats and the like.
- */
-function dome(mb: MeshBuilder, x: number, y: number, z: number, rx: number, ry: number, rz: number, c: Rgb, seg: number, frac: number): void {
-  mb.set('color', c[0], c[1], c[2]);
-  const rings = Math.max(2, Math.round(seg / 2)), base = 0;
-  const first = mb.v(x, y + ry, z, 0, 1, 0) - base;
-  let prev: number[] = [];
-  for (let i = 1; i <= rings; i++) {
-    const th = (i / rings) * Math.PI * frac, sy = Math.cos(th), sr = Math.sin(th);
-    const ring: number[] = [];
-    for (let k = 0; k < seg; k++) {
-      const a = (k / seg) * Math.PI * 2, cx = Math.cos(a) * sr, cz = Math.sin(a) * sr;
-      const nx = cx / rx, ny = sy / ry, nz = cz / rz, nl = Math.hypot(nx, ny, nz) || 1;
-      ring.push(mb.v(x + cx * rx, y + sy * ry, z + cz * rz, nx / nl, ny / nl, nz / nl));
-    }
-    for (let k = 0; k < seg; k++) {
-      const k1 = (k + 1) % seg;
-      if (i === 1) mb.tri(first, ring[k1], ring[k]);
-      else mb.quad(prev[k], prev[k1], ring[k1], ring[k]);
-    }
-    prev = ring;
-  }
+/** A plain round head (a body built before heads were measured). */
+function roundHead(r: number): HeadShape {
+  return { c: [0, r * 0.12, r * 0.08], r: new Array(HEAD_AZ * HEAD_EL).fill(r), radius: r, brow: r * 0.35, earTop: r * 0.3, earZ: 0, top: r * 1.12 };
 }
 
 /** A small solid object from MeshBuilder parts, in the vertex-coloured kind. */

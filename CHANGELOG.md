@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.151 — Zoom with the mouse wheel, all the way into first person
+
+- While you play someone, the mouse wheel zooms the camera in and out, from far behind them down to their own eyes.
+- At the closest step you see through their eyes: their body is hidden, and dragging looks around, further up and down than from behind.
+- Walls and ceilings still pull the camera in when you are zoomed out.
+- The wheel only zooms over the game view. The minimap and the town map keep their own zoom, and panels scroll as before.
+- Your zoom is remembered for next time.
+
+## v0.150 — Hats fit the head
+
+- Caps, beanies, witch hats and cat ears are built over each person's own head shape. No skin or hair pokes through any more, on adults or children.
+- A cap's peak sits at the brow. The cap has six panels and a button. Beanies have a folded, ribbed cuff, and some have a bobble.
+- Hair shows below a hat instead of disappearing, so nobody looks bald under a cap.
+- Hair is drawn as fine strands again instead of solid ribbons.
+
+## v0.149 — One door per doorway
+
+- A house's front door is one door now. The painted door on the outside wall no longer shows behind or above the real one, and when the real door opens you see the street, not a second door.
+- Painted doors are the same size as the real ones, so nothing changes shape when you walk up to a house.
+- Flats over a shop always have their own working street door where one is drawn on the front; where no hall to the stairs fits, it opens into the shop and its stairs.
+
 ## v0.148 — Inside the town hall and the farms
 
 - The town hall has a way in now: a wide front door opens on the hall with the public counters, the council chamber (the bench for the mayor and the clerks, the councillors' desks facing it), offices, a meeting room and toilets, with more offices upstairs. Whoever works or has business there is inside when you take them over.
