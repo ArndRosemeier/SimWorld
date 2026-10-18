@@ -12,6 +12,7 @@
  * Pure (no three, no DOM). New in SimWorld.
  */
 import { pointInPoly, polyBounds } from '../geom/geom2';
+import { eachBuilding } from '../plan/placeGraph';
 import { PEOPLE_PER_HOME, type Town } from '../plan/town';
 import type { PlaceGraph } from '../sim/places';
 import type { SimView } from '../sim/view';
@@ -44,12 +45,12 @@ const WORK_FULL = 6;
 export function windowSlots(town: Town, graph: PlaceGraph, maxSquares = 2048): WindowSlots {
   const polys: number[][] = [], codes = new Map<number, number>();
   let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
-  town.cells.forEach((plan, ci) => plan.buildings.forEach((b, bi) => {
-    codes.set(ci * 65536 + bi, polys.length);
+  eachBuilding(town.cells, (b, code) => {
+    codes.set(code, polys.length);
     polys.push(b.poly);
     const [ax, az, bx, bz] = polyBounds(b.poly);
     x0 = Math.min(x0, ax); z0 = Math.min(z0, az); x1 = Math.max(x1, bx); z1 = Math.max(z1, bz);
-  }));
+  });
   if (!polys.length) { x0 = z0 = 0; x1 = z1 = 1; }
   const cell = Math.max(1, Math.ceil(Math.max(x1 - x0, z1 - z0) / (maxSquares - 4)));
   x0 = Math.floor(x0 / cell) * cell - cell; z0 = Math.floor(z0 / cell) * cell - cell;

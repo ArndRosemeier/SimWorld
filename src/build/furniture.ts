@@ -9,7 +9,8 @@
  *  - uv     text atlas coordinates (src/build/textAtlasLayout.ts pictures) where a panel shows one
  *  - aFurn  vec3: x FMat id, y 0..1 emissive mask (lamp lenses, signal lenses, back-lit signs),
  *           z sub-material code: 0 plain, 1 red / 2 amber / 3 green signal lens, 4 pedestrian
- *           "don't walk" / 5 "walk" lens, 7 back-lit sign, 8 foliage, 9 fixed paint (ignores the
+ *           "don't walk" / 5 "walk" lens, 6 lettering from the instance's own atlas slot (iSign;
+ *           uv 0..1 over the face), 7 back-lit sign, 8 foliage, 9 fixed paint (ignores the
  *           instance tint), 10 status LED (EV chargers)
  *  - aColor vec3 default paint / plastic colour (linear). The instance tint (iTint.rgb, sRGB)
  *           replaces it for PaintedMetal / Plastic vertices when non-zero.
@@ -28,9 +29,10 @@ import {
 
 export type FurnitureKind = 'lampModern' | 'lampClassic' | 'lampDouble' | 'trafficLight' | 'bench' | 'bin' | 'hydrant' | 'mailbox' | 'bollard' | 'planter' | 'busStop' | 'fountain' | 'statue' | 'kiosk' | 'stopSign' | 'playground' | 'manhole' | 'newsStand' | 'bikeRack' | 'phoneBooth' | 'evCharger'
   | 'cafeTable' | 'cafeChair' | 'parasol' | 'awning' | 'menuBoard' | 'terraceRail' | 'parklet'
-  | 'cemWall' | 'gravestone' | 'grave' | 'tomb';
+  | 'cemWall' | 'gravestone' | 'grave' | 'tomb'
+  | 'signBoard' | 'signPost' | 'signFrame' | 'signBracket';
 
-export const FURNITURE_KINDS: FurnitureKind[] = ['lampModern', 'lampClassic', 'lampDouble', 'trafficLight', 'bench', 'bin', 'hydrant', 'mailbox', 'bollard', 'planter', 'busStop', 'fountain', 'statue', 'kiosk', 'stopSign', 'playground', 'manhole', 'newsStand', 'bikeRack', 'phoneBooth', 'evCharger', 'cafeTable', 'cafeChair', 'parasol', 'awning', 'menuBoard', 'terraceRail', 'parklet', 'cemWall', 'gravestone', 'grave', 'tomb'];
+export const FURNITURE_KINDS: FurnitureKind[] = ['lampModern', 'lampClassic', 'lampDouble', 'trafficLight', 'bench', 'bin', 'hydrant', 'mailbox', 'bollard', 'planter', 'busStop', 'fountain', 'statue', 'kiosk', 'stopSign', 'playground', 'manhole', 'newsStand', 'bikeRack', 'phoneBooth', 'evCharger', 'cafeTable', 'cafeChair', 'parasol', 'awning', 'menuBoard', 'terraceRail', 'parklet', 'cemWall', 'gravestone', 'grave', 'tomb', 'signBoard', 'signPost', 'signFrame', 'signBracket'];
 
 /** The vertex attributes of furniture meshes besides position and normal (the `FURNITURE` kind's). */
 export const FURNITURE_SPECS: AttrSpec[] = [{ name: 'uv', size: 2 }, { name: 'aFurn', size: 3 }, { name: 'aColor', size: 3 }];
@@ -422,33 +424,24 @@ function hydrant(fb: FB, v: number): number {
   return 0.76;
 }
 
+/**
+ * The town's post box: one invented design (plan R7: neither a red pillar box nor a blue collection box), a
+ * deep teal box with a cream band on a short post, the slot under a sloping hood. v1: a lower wall-side box.
+ */
 function mailbox(fb: FB, v: number): number {
-  if (v % 2 === 1) {
-    // pillar box
-    const red = paint([0.72, 0.05, 0.04], true);
-    fb.lathe(paint([0.05, 0.05, 0.05], true), [[0, 0], [0.3, 0], [0.3, 0.12], [0, 0.12]], 20);
-    fb.lathe(red, [[0, 0.12], [0.27, 0.12], [0.27, 0.18], [0.25, 0.2], [0.25, 1.1], [0.29, 1.14], [0.29, 1.2], [0.26, 1.23], [0.2, 1.36], [0.1, 1.42], [0, 1.44]], 20);
-    fb.box(paint([0.03, 0.03, 0.03], true), 0.26, 0.035, 0.04, 0, 1.0, -0.245);
-    fb.box(red, 0.3, 0.03, 0.06, 0, 1.03, -0.25);
-    fb.panel(sign(), 0.2, 0.26, 0, 0.75, -0.252, 0, 12);
-    fb.panel(sign(), 0.24, 0.07, 0, 1.17, -0.292, 0, 11);
-    return 1.44;
-  }
-  const blue = paint([0.1, 0.2, 0.48]);
-  const W = 0.46, D = 0.52, bodyH = 0.75, y0 = 0.32;
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) fb.box(blue, 0.05, y0 + 0.02, 0.05, sx * (W / 2 - 0.04), (y0 + 0.02) / 2, sz * (D / 2 - 0.04));
-  fb.box(blue, W, bodyH, D, 0, y0 + bodyH / 2, 0);
-  // rounded top (half cylinder along Z)
-  const g = cylinder(W / 2, W / 2, D, 18, false, Math.PI / 2, Math.PI);
-  xform(g, rotX(Math.PI / 2));
-  fb.add(g, M(0, y0 + bodyH, 0), blue);
-  // pull-down chute handle
-  fb.box(blue, 0.32, 0.14, 0.04, 0, y0 + bodyH + 0.06, -D / 2 - 0.02, 0, 0.35);
-  fb.box(METAL, 0.16, 0.025, 0.03, 0, y0 + bodyH + 0.14, -D / 2 - 0.05);
-  fb.panel(sign(), 0.34, 0.3, 0, y0 + bodyH * 0.5, -D / 2 - 0.002, 0, 11);
-  fb.panel(sign(), 0.36, 0.3, -W / 2 - 0.002, y0 + bodyH * 0.55, 0, -Math.PI / 2, 11);
-  fb.panel(sign(), 0.36, 0.3, W / 2 + 0.002, y0 + bodyH * 0.55, 0, Math.PI / 2, 11);
-  return y0 + bodyH + W / 2;
+  const teal = paint([0.07, 0.3, 0.32], true);
+  const cream = paint([0.86, 0.82, 0.7], true);
+  const H = v % 2 === 1 ? 0.55 : 0.85, W = 0.44, D = 0.32, BH = 0.62;
+  fb.box(CONCRETE, 0.3, 0.05, 0.3, 0, 0.025, 0);
+  fb.box(teal, 0.12, H, 0.12, 0, 0.05 + H / 2, 0);
+  const y0 = 0.05 + H;
+  fb.box(teal, W, BH, D, 0, y0 + BH / 2, 0);
+  fb.box(cream, W + 0.01, 0.07, D + 0.01, 0, y0 + BH - 0.12, 0);
+  // Sloping hood over the slot, and the slot.
+  fb.box(teal, W + 0.04, 0.04, D + 0.08, 0, y0 + BH + 0.03, -0.02, 0, 0.18);
+  fb.box(paint([0.03, 0.03, 0.03], true), 0.26, 0.03, 0.02, 0, y0 + BH - 0.2, -D / 2 - 0.005);
+  fb.panel(sign(), 0.24, 0.24, 0, y0 + 0.24, -D / 2 - 0.003, 0, 12);
+  return y0 + BH + 0.06;
 }
 
 function bollard(fb: FB, v: number): number {
@@ -821,42 +814,28 @@ function bikeRack(fb: FB, v: number): number {
   return 0.85;
 }
 
+/**
+ * Public phones in one invented, modern style (plan R7: no red kiosk). v0: an enclosed booth, a slim grey frame,
+ * glass on three sides and a lit header; v1: an open stand.
+ */
 function phoneBooth(fb: FB, v: number): number {
   if (v % 2 === 0) {
-    // classic red kiosk
-    const red = paint([0.72, 0.05, 0.04]);
-    const W = 0.95, H = 2.45;
-    fb.box(CONCRETE, W + 0.15, 0.12, W + 0.15, 0, 0.06, 0);
-    fb.box(red, W, 0.18, W, 0, 0.21, 0);
-    for (const x of [-1, 1]) for (const z of [-1, 1]) fb.box(red, 0.1, H - 0.3, 0.1, x * (W / 2 - 0.05), 0.3 + (H - 0.3) / 2, z * (W / 2 - 0.05));
-    // glazed sides with glazing bars (3 x 8 panes)
+    const frame = paint([0.32, 0.35, 0.37], true);
+    const W = 0.95, H = 2.3;
+    fb.box(CONCRETE, W + 0.1, 0.08, W + 0.1, 0, 0.04, 0);
+    for (const x of [-1, 1]) for (const z of [-1, 1]) fb.box(frame, 0.06, H, 0.06, x * (W / 2 - 0.03), 0.08 + H / 2, z * (W / 2 - 0.03));
+    // Glass on the front and the sides (-Z, ±X), the phone on the back wall (+Z).
+    fb.box(GLASS, W - 0.08, H - 0.3, 0.01, 0, 0.22 + (H - 0.3) / 2, -(W / 2 - 0.03));
+    for (const x of [-1, 1]) fb.box(GLASS, 0.01, H - 0.3, W - 0.08, x * (W / 2 - 0.03), 0.22 + (H - 0.3) / 2, 0);
+    fb.box(frame, W - 0.06, H - 0.1, 0.04, 0, 0.08 + (H - 0.1) / 2, W / 2 - 0.03);
+    fb.box(frame, W + 0.04, 0.22, W + 0.04, 0, 0.08 + H + 0.05, 0);
     for (let s = 0; s < 4; s++) {
-      const ry = (s * Math.PI) / 2;
-      const nx = Math.sin(ry), nz = -Math.cos(ry);
-      const cx = nx * (W / 2 - 0.04), cz = nz * (W / 2 - 0.04);
-      fb.box(GLASS, W - 0.2, 1.65, 0.01, cx, 1.18, cz, ry);
-      for (let i = 0; i <= 3; i++) {
-        const o = -0.375 + i * 0.25;
-        fb.box(red, 0.03, 1.65, 0.035, cx + Math.cos(ry) * o, 1.18, cz + Math.sin(ry) * o, ry);
-      }
-      for (let j = 0; j <= 8; j++) fb.box(red, W - 0.2, 0.03, 0.035, cx, 0.36 + j * (1.65 / 8), cz, ry);
-      // header sign
-      fb.box(red, W - 0.1, 0.22, 0.04, nx * (W / 2 - 0.02), 2.15, nz * (W / 2 - 0.02), ry);
-      fb.panel(sign(1), W - 0.25, 0.14, nx * (W / 2 + 0.002), 2.15, nz * (W / 2 + 0.002), ry, 6);
+      const ry = (s * Math.PI) / 2, nx = Math.sin(ry), nz = -Math.cos(ry);
+      fb.panel(sign(1), W - 0.25, 0.14, nx * (W / 2 + 0.025), 0.08 + H + 0.05, nz * (W / 2 + 0.025), ry, 6);
     }
-    // stepped domed roof
-    fb.box(red, W + 0.06, 0.08, W + 0.06, 0, 2.3, 0);
-    const g = cylinder(W / 2 + 0.02, W / 2 + 0.02, W + 0.04, 12, false, 0, Math.PI);
-    xform(g, rotZ(Math.PI / 2));
-    fb.add(g, M(0, 2.34, 0, 0, 0, 0, 1, 0.4, 1), red);
-    const g2 = cylinder(W / 2 + 0.02, W / 2 + 0.02, W + 0.04, 12, false, 0, Math.PI);
-    xform(g2, rotZ(Math.PI / 2));
-    fb.add(g2, M(0, 2.34, 0, 0, Math.PI / 2, 0, 1, 0.4, 1), red);
-    fb.box(red, 0.18, 0.08, 0.18, 0, 2.55, 0);
-    fb.box({ m: FMat.Light, e: 0.6, c: [1, 0.95, 0.85] }, 0.25, 0.04, 0.25, 0, 2.27, 0);
-    // phone inside
-    fb.box(METAL, 0.3, 0.4, 0.15, 0, 1.4, W / 2 - 0.15);
-    return 2.6;
+    fb.box({ m: FMat.Light, e: 0.6, c: [0.95, 0.95, 1] }, 0.5, 0.02, 0.5, 0, 0.08 + H - 0.08, 0);
+    fb.box(METAL, 0.3, 0.4, 0.12, 0, 1.4, W / 2 - 0.12);
+    return 0.08 + H + 0.16;
   }
   // modern open phone stand
   fb.box(METAL, 0.12, 2.2, 0.12, 0, 1.1, 0.25);
@@ -1026,6 +1005,69 @@ function menuBoard(fb: FB, v: number): number {
   fb.box(dark, 0.42, 0.56, 0.08, 0, 1.18, 0, 0, -0.25);
   fb.box({ m: FMat.Light, e: 0.3, c: [1, 0.95, 0.85] }, 0.36, 0.48, 0.01, 0, 1.18, -0.045, 0, -0.25);
   return 1.45;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Signs that say something of their own (src/build/signs.ts): the lettering is the instance's
+// atlas slot (iSign), so one model serves every shop, street and notice.
+// ---------------------------------------------------------------------------------------------
+
+/** The lettered face of a sign board: uv 0..1 over the face, read from the instance's slot. */
+const LETTERING: PO = { m: FMat.Signage, e: 1, s: 6, c: [1, 1, 1] };
+
+/**
+ * A sign board 1 m × 1 m centred on its origin in x and y, scaled per instance (iSize: width,
+ * height; the depth scales with the width). v0: one lettered face (-Z) on a body 2 cm deep behind
+ * it (z 0 … -0.02: the origin is its back, against a wall); v1: lettered on both faces, 2 cm thick
+ * centred (blades, hanging signs, estate boards). The body takes the instance's paint.
+ */
+function signBoard(fb: FB, v: number): number {
+  const body = paint([0.12, 0.13, 0.14]);
+  if (v % 2 === 0) {
+    fb.box(body, 1, 1, 0.018, 0, 0, -0.009);
+    fb.add(xform(plane(0.985, 0.97), rotY(Math.PI)), M(0, 0, -0.0185), LETTERING);
+  } else {
+    fb.box(body, 1, 1, 0.016, 0, 0, 0);
+    fb.add(xform(plane(0.985, 0.97), rotY(Math.PI)), M(0, 0, -0.0085), LETTERING);
+    fb.add(plane(0.985, 0.97), M(0, 0, 0.0085), LETTERING);
+  }
+  return 1;
+}
+
+/** v0: a street-name post, galvanised, 3 m (blades at 2.55 and 2.8 m); v1: an estate agent's timber post, 1.9 m, with an arm the board hangs from (at 1.45 m, 0.35 m out). */
+function signPost(fb: FB, v: number): number {
+  if (v % 2 === 0) {
+    fb.cyl(METAL, 0.032, 0.035, 3.0, 0, 0, 0, 10);
+    fb.sphere(METAL, 0.04, 0, 3.0, 0, 1, 0.6, 1, 10, 6, Math.PI / 2);
+    return 3.04;
+  }
+  const timber: PO = { m: FMat.Wood, c: [0.92, 0.9, 0.86] };
+  fb.box(timber, 0.075, 1.9, 0.075, 0, 0.95, 0);
+  fb.box(timber, 0.7, 0.06, 0.06, 0.35, 1.84, 0);
+  for (const x of [0.12, 0.58]) fb.rod(METAL, [x, 1.81, 0], [x, 1.72, 0], 0.004, 4);
+  return 1.9;
+}
+
+/** The legs of a free-standing board: v0 the town sign (two posts 2.1 m apart, 2.3 m tall), v1 a public building's name board (two low posts 1.4 m apart, 1.3 m tall). */
+function signFrame(fb: FB, v: number): number {
+  const leg = paint([0.2, 0.22, 0.24]);
+  const [half, h] = v % 2 === 0 ? [1.05, 2.3] : [0.7, 1.3];
+  for (const x of [-half, half]) {
+    fb.cyl(leg, 0.045, 0.05, h, x, 0, 0.06, 10);
+    fb.cyl(CONCRETE, 0.12, 0.13, 0.06, x, 0, 0.06, 10);
+  }
+  return h;
+}
+
+/** A wrought-iron bracket for a hanging sign: a wall plate at the origin, the arm out along +X (0.95 m), two hooks at 0.3 and 0.8 m. */
+function signBracket(fb: FB): number {
+  const iron = paint([0.05, 0.05, 0.05], true);
+  fb.box(iron, 0.02, 0.22, 0.08, 0.01, -0.05, 0);
+  fb.box(iron, 0.95, 0.03, 0.025, 0.475, 0, 0);
+  fb.rod(iron, [0.02, -0.15, 0], [0.45, -0.01, 0], 0.01, 5);
+  fb.tube(iron, [[0.6, 0.015, 0], [0.75, 0.09, 0], [0.9, 0.04, 0]], 0.008, 5, 8);
+  for (const x of [0.3, 0.8]) fb.rod(iron, [x, -0.015, 0], [x, -0.08, 0], 0.005, 4);
+  return 0.2;
 }
 
 /** Low glass windscreen with a fabric band in the café's colour, 2 m long (along X). */
@@ -1225,6 +1267,10 @@ export function buildFurniture(kind: FurnitureKind, variant = 0): FurnitureModel
     case 'gravestone': height = gravestone(fb, v); radius = 0.35; breakable = 'topple'; break;
     case 'grave': height = grave(fb, v); radius = v === 0 ? 0.6 : 0.4; breakable = v === 0 ? 'solid' : 'topple'; break;
     case 'tomb': height = tomb(fb, v); radius = v === 0 ? 2.0 : 1.0; breakable = 'solid'; break;
+    case 'signBoard': height = signBoard(fb, v); radius = 0.5; breakable = 'solid'; break;
+    case 'signPost': height = signPost(fb, v); radius = 0.06; breakable = 'bend'; break;
+    case 'signFrame': height = signFrame(fb, v); radius = v === 0 ? 1.3 : 0.9; breakable = 'solid'; break;
+    case 'signBracket': height = signBracket(fb); radius = 0.5; breakable = 'solid'; break;
   }
   return { kind, mesh: fb.mb.build(), height, radius, lights, breakable };
 }

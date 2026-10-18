@@ -6,7 +6,7 @@
  * itself comes from `@futuremagic/humanoid/three/nodes/peopleNoise`.
  */
 import { Fn, vec3, fract, sin, cos, dot, max, sub, dFdx, dFdy, cross, inverseSqrt, select, sqrt, normalize, uniform, attribute, positionGeometry, normalLocal } from 'three/tsl';
-import type { NodeMaterial } from 'three/webgpu';
+import { Vector3, Vector4, type NodeMaterial } from 'three/webgpu';
 import { h_hash12 } from '@futuremagic/humanoid/three/nodes/peopleNoise';
 
 /** float → [0, 1) hash. */
@@ -45,12 +45,14 @@ export const LIGHT = {
   eatLit: uniform(1),
   /** Wet walls and ground after rain, 0 … 1. */
   wet: uniform(0),
+  /** Lying snow, 0 none … 1 a full white cover (from the weather's snow depth). */
+  snow: uniform(0),
 };
 
 /**
  * The season as the vegetation shows it (src/render/tsl/vegetation.ts), set by the season clock.
- * `leaf` is Scale's autumn turn of the leaves and far canopies; `bare` and `blossom` are not read
- * yet (Scale has neither).
+ * `leaf` is Scale's autumn turn of the leaves and far canopies; `bare` and `blossom` drop and flower
+ * the deciduous trees; `litter` is the fallen leaves on the ground (src/render/tsl/ground.ts).
  */
 export const SEASON = {
   /** 0 green … 1 full autumn. */
@@ -59,6 +61,15 @@ export const SEASON = {
   bare: uniform(0),
   /** 0 none … 1 in full blossom. */
   blossom: uniform(0),
+  /** Fallen leaves on the town's ground, 0 none … 1 the most (late autumn); snow lies over them. */
+  litter: uniform(0),
+  /**
+   * Each crop's look today (world/landuse `Crop` order, `cropLook`): linear colour and cover (under 0.08 a
+   * ploughed field), read by the ground's fields.
+   */
+  crops: Array.from({ length: 8 }, () => uniform(new Vector4(0.3, 0.3, 0.1, 0.8))),
+  /** The fields' average colour (linear), for parcels too far away to resolve. */
+  fieldFar: uniform(new Vector3(0.22, 0.24, 0.06)),
 };
 
 /**
@@ -87,3 +98,7 @@ export function poseByInstance(mat: NodeMaterial, position = posed(positionGeome
     return base.call(this, builder);
   };
 }
+
+/** The look of fresh snow (linear albedo) and of trodden, gritted slush on roads. */
+export const SNOW_ALBEDO = [0.86, 0.88, 0.92] as const;
+export const SLUSH_ALBEDO = [0.32, 0.31, 0.3] as const;

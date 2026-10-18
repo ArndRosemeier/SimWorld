@@ -10,13 +10,15 @@
 import { Rng, deriveSeed, clamp } from '@futuremagic/core';
 import { alongLine, polyArea, polyCentroid, pointInPoly, slicePolyline, upperBound, type Poly } from '../geom/geom2';
 import type { Place, PlaceGraph, PlaceKind, RoadEdge, RoadNode } from '../sim/places';
-import { KINDS, defaultHours, defaultStaff } from '../sim/placeKinds';
-import { dwellingsOf, flatsDoor } from './building';
+import { CARE_ROOMS_PER_PERSON, KINDS, defaultHours, defaultStaff } from '../sim/placeKinds';
+import { dwellingsOf, flatsDoor, type BuildingDesc } from './building';
+import type { CellPlan } from './cell';
 import { eateryName, type Eatery } from './eatery';
-import { AMENITY_LABEL, PLACE_KIND_OF } from './amenities';
+import { PLACE_KIND_OF } from './amenities';
+import { signWord } from '../lang/words';
 import { ROOTS, cityName, shopName } from './names';
 import { LineSource, townRoads } from './roads';
-import { siteToWorld, inSite, type LandmarkKind } from './landmarks';
+import { careHomeRooms, siteToWorld, inSite, type LandmarkKind } from './landmarks';
 import { frontDoor } from './terrace';
 import { PEOPLE_PER_HOME, type Town } from './town';
 
@@ -25,6 +27,11 @@ import { PEOPLE_PER_HOME, type Town } from './town';
  * building's site is SITE + landmark id; a farm is FARM + farm id.
  */
 export const SITE = 0x40000000, FARM = 0x50000000;
+
+/** Every building of the town's cells with its `Place.building` code (and its cell and index in it). */
+export function eachBuilding(cells: readonly CellPlan[], fn: (b: BuildingDesc, code: number, cell: number, index: number) => void): void {
+  cells.forEach((plan, ci) => plan.buildings.forEach((b, bi) => fn(b, ci * 65536 + bi, ci, bi)));
+}
 
 /** Decode `Place.building` (null for -1). */
 export function buildingRef(code: number): { cell: number; index: number } | { site: number } | { farm: number } | null {
@@ -36,10 +43,10 @@ export function buildingRef(code: number): { cell: number; index: number } | { s
 
 const SITE_KIND: Record<LandmarkKind, PlaceKind> = {
   townhall: 'townhall', church: 'church', school: 'school', kindergarten: 'kindergarten', clinic: 'doctor',
-  fire: 'fire', supermarket: 'supermarket', sports: 'sports', station: 'station',
+  fire: 'fire', supermarket: 'supermarket', sports: 'sports', station: 'station', carehome: 'carehome', petrol: 'petrol',
 };
 /** Kinds whose staff and capacity grow with the town (one school for the whole town). */
-const BY_TOWN: ReadonlySet<PlaceKind> = new Set(['school', 'kindergarten', 'townhall', 'supermarket', 'doctor', 'police', 'fire']);
+const BY_TOWN: ReadonlySet<PlaceKind> = new Set(['school', 'kindergarten', 'townhall', 'supermarket', 'doctor', 'police', 'fire', 'carehome']);
 
 /** Share of the town's inhabitants employed by each kind of workplace without customers. */
 const JOBS: Partial<Record<PlaceKind, number>> = { factory: 0.1, office: 0.08, workshop: 0.04 };
@@ -80,6 +87,7 @@ export function placeGraphOf(town: Town): PlaceGraph {
       const edge: RoadEdge = { a: a.node, b: b.node, length: Math.round(Math.max(length, Math.hypot(nodes[b.node].x - nodes[a.node].x, nodes[b.node].z - nodes[a.node].z)) * 10) / 10, walk: Math.round((L.walk / (1 + 4 * grade)) * 100) / 100 };
       // Where people walk (src/street): the middle of the sidewalk, the verge of a country road, a path's middle.
       edge.side = round1(L.sidewalk > 0 ? L.width / 2 + L.sidewalk / 2 : L.source === LineSource.Country ? L.width / 2 + 0.7 : 0);
+      edge.walkWidth = round1(L.sidewalk > 0 ? L.sidewalk : 1.4);
       const pts = slicePolyline(L, a.s, b.s);
       if (pts.length > 4) edge.pts = pts.map(round1);
       edges.push(edge);
@@ -146,7 +154,10 @@ export function placeGraphOf(town: Town): PlaceGraph {
     const kind = SITE_KIND[lm.kind];
     const [x, z] = siteToWorld(lm, 0, -lm.hv);
     const at = attach(x, z);
-    placeOf(kind, lm.name, at.street, x, z, at.node, SITE + lm.id, 0, BY_TOWN.has(kind) ? townScale : 1);
+    // The care home's rooms are homes of its own (residents move in, src/sim/economy.ts), sized
+    // to the town and to what the building holds.
+    const homes = lm.kind === 'carehome' ? Math.min(careHomeRooms(lm), Math.max(8, Math.round(pop * CARE_ROOMS_PER_PERSON))) : 0;
+    placeOf(kind, lm.name, at.street, x, z, at.node, SITE + lm.id, homes, BY_TOWN.has(kind) ? townScale : 1);
   }
   // Workplaces share out the town's jobs of their kind by floor area: a town of 1000 has about
   // 100 factory, 80 office and 40 workshop jobs, however many halls the planner built.
@@ -163,19 +174,18 @@ export function placeGraphOf(town: Town): PlaceGraph {
   };
 
   // Homes and ground-floor uses in the town's buildings.
-  cells.forEach((plan, ci) => plan.buildings.forEach((b, bi) => {
+  eachBuilding(cells, (b, code, ci, bi) => {
     const homes = dwellingsOf(b);
     const kind = b.amenity ? PLACE_KIND_OF[b.amenity] : null;
     if (!homes && !kind) return;
     const door = frontDoor(b);
     const at = attach(door.x, door.z);
-    const code = ci * 65536 + bi;
     if (kind && b.amenity) {
       const scale = kind in JOBS ? workScale(kind, floorArea(b)) : BY_TOWN.has(kind) ? townScale : 1;
       const name = b.eatery ? eateryName(seed, ci, bi, b.eatery as Eatery)
-        : kind === 'shop' ? shopName(seed, ci * 65536 + bi).name
+        : kind === 'shop' ? shopName(seed, code).name
         : kind === 'police' ? `${city} Police`
-        : `${street(at.street).split(' ')[0]} ${AMENITY_LABEL[b.amenity]}`.replace(/^\d+\w* /, `${city} `);
+        : `${street(at.street).split(' ')[0]} ${signWord(b.amenity)}`.replace(/^\d+\w* /, `${city} `);
       placeOf(kind, name, at.street, door.x, door.z, at.node, code, 0, scale);
     }
     if (homes) {
@@ -184,7 +194,7 @@ export function placeGraphOf(town: Town): PlaceGraph {
       const n = houseNumber(at.street, at.s, at.side);
       placeOf(homes > 1 ? 'apartments' : 'house', `${n} ${street(at.street)}`, at.street, hd.x, hd.z, at.node, code, homes);
     }
-  }));
+  });
   // Farms: the farmhouse, the farm (work) and its fields.
   const fr = new Rng(deriveSeed(seed, 'farm-names'));
   for (const f of rural.farms) {

@@ -11,6 +11,7 @@
  * New in SimWorld: the railway, the level crossings and the bridge decks (a much reduced
  * stand-in for Scale's src/build/bridges.ts).
  */
+import { smoothstep } from '@futuremagic/core';
 import type { Terrain } from '../world/terrain';
 import { RoadKind, type RuralPlan, type RuralRoad } from '../world/rural';
 import type { Railway } from '../plan/types';
@@ -19,12 +20,24 @@ import { TERRAIN_DROP } from '../world/ground';
 import { closestOnPolyline, resample } from '../geom/geom2';
 import { MeshBuilder } from './meshBuilder';
 import { drapeShape, groundSpecs, GroundLayer } from './ground';
+import { terrainMeshHeight } from './terrainMesh';
 
 /** A square of the world (corner and edge length, m). */
 export interface TileBox { x0: number; z0: number; size: number }
 
-/** Height of the road surfaces above the natural ground (the terrain mesh sits TERRAIN_DROP lower). */
-const DY = [0.06, 0.05, 0.04];
+/**
+ * Height of the road surfaces (Main, Lane, Dirt) and the farmyards above the ground they stand
+ * on (`standOn`). Where two of them overlap (a junction, a track running into a yard) they are
+ * at least 4 cm apart: more than both their chords stray from the terrain (COURSE_TOL) plus the
+ * depth precision some hundred metres off, so the upper one always wins.
+ */
+const DY = [0.12, 0.08, 0.04], YARD_DY = 0.16;
+/** A course follows the terrain under its centreline to within COURSE_TOL (no closer than COURSE_MIN m). */
+const COURSE_TOL = 0.01, COURSE_MIN = 2;
+/** Length (m) over which a road leaving the town rises to its DY. */
+const RAMP = 8;
+/** Radius (m) within which the terrain tiles are all the finest (terrainTiles). */
+const FINE_R = 1000;
 const DASH_ON = 3, DASH_OFF = 6;
 /** Draped edges slope this far out and this far down, under the terrain mesh (no raised slab from the side). */
 const LIP_W = 0.6, LIP_DOWN = TERRAIN_DROP + 0.12;
@@ -48,6 +61,7 @@ export function buildCountryRoads(rural: RuralPlan, rail: Railway | null, terrai
   for (const R of rural.roads) {
     if (tile && !nearTile(R.pts, tile, 80)) continue;
     const full = courseOf(terrain, R.pts, R.bridges, CLEAR_ROAD);
+    full.rise = riseOf(R);
     const C = slice(full, R.trim, full.length);
     if (C.n < 2) continue;
     const dy = DY[R.kind], hw = R.hw;
@@ -57,7 +71,7 @@ export function buildCountryRoads(rural: RuralPlan, rail: Railway | null, terrai
       // Dashed centre line, from 20 m beyond the town's ground.
       const P = DASH_ON + DASH_OFF;
       for (let d = Math.ceil((R.trim + 20) / P) * P; d + DASH_ON < full.length; d += P) {
-        sweep(ctx, slice(full, d, d + DASH_ON), [-0.08, dy + 0.012, GroundLayer.PaintWhite, 0.08, dy + 0.012, GroundLayer.PaintWhite]);
+        sweep(ctx, slice(full, d, d + DASH_ON), [-0.08, dy + 0.03, GroundLayer.PaintWhite, 0.08, dy + 0.03, GroundLayer.PaintWhite]);
       }
     }
     for (const sp of full.spans) bridge(ctx, slice(full, Math.max(sp.s0, R.trim), sp.s1), hw + LIP_W + 0.1, dy);
@@ -66,8 +80,8 @@ export function buildCountryRoads(rural: RuralPlan, rail: Railway | null, terrai
   for (const f of rural.farms) {
     if (!inTile(f.x, f.z)) continue;
     for (const p of rural.layout(f.id).paved) {
-      drapeShape(mb, { outer: p.poly, holes: [] }, terrain, 0.045, p.layer, undefined, 6);
-      lip(mb, terrain, p.poly, 0.045, p.layer);
+      drapeShape(mb, { outer: p.poly, holes: [] }, terrain, YARD_DY, p.layer, standOn(terrain), 6);
+      lip(mb, terrain, p.poly, YARD_DY, p.layer);
     }
   }
 
@@ -92,7 +106,7 @@ function railway(ctx: Sweep, rail: Railway, rural: RuralPlan): void {
   const gaps: { s: number; h: number; layer: number }[] = [];
   for (const X of rural.crossings) {
     const R = rural.roads[X.road];
-    const q = closestOnPolyline(pts, X.x, X.z), i = q.seg;
+    const q = closestOnPolyline(pts, X.x, X.z), i = segAt(full, q.s)[0];
     const r = closestOnPolyline(R.pts, X.x, X.z), k = r.seg * 2;
     const dx = R.pts[k + 2] - R.pts[k], dz = R.pts[k + 3] - R.pts[k + 1], l = Math.hypot(dx, dz) || 1;
     const sin = Math.abs((full.lx[i] * dx + full.lz[i] * dz) / l);
@@ -151,15 +165,55 @@ interface Course {
   spans: Span[];
   /** Terrain height at each point (NaN until measured: centreHeight). */
   yc: Float64Array;
+  /** How much of the profile's height above the ground stands at arc length s (0…1; 1 without). */
+  rise?: (s: number) => number;
+}
+
+const stands = new WeakMap<Terrain, (x: number, z: number) => number>();
+/**
+ * The height country surfaces are draped at: the natural ground, or a little higher where the
+ * coarse terrain mesh far out (`terrainMeshHeight`) would poke through it.
+ */
+function standOn(T: Terrain): (x: number, z: number) => number {
+  let f = stands.get(T);
+  // (Within FINE_R of the centre the grid is 8 m: it never comes near the surfaces there.)
+  const grid = new Map<number, number>();
+  if (!f) { f = (x, z) => x * x + z * z < FINE_R * FINE_R ? T.height(x, z) : Math.max(T.height(x, z), terrainMeshHeight(T, x, z, grid) + TERRAIN_DROP); stands.set(T, f); }
+  return f;
+}
+
+/** Points added along a polyline where the ground under it bends (to COURSE_TOL), so its sweep follows the terrain. */
+function followGround(T: Terrain, pts: number[]): number[] {
+  const H = standOn(T), out: number[] = [pts[0], pts[1]];
+  const halve = (ax: number, az: number, ha: number, bx: number, bz: number, hb: number, depth: number) => {
+    const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+    if (depth < 8 && Math.hypot(bx - ax, bz - az) > COURSE_MIN) {
+      const hm = H(mx, mz);
+      if (Math.abs(hm - (ha + hb) / 2) > COURSE_TOL) {
+        halve(ax, az, ha, mx, mz, hm, depth + 1);
+        halve(mx, mz, hm, bx, bz, hb, depth + 1);
+        return;
+      }
+    }
+    out.push(bx, bz);
+  };
+  let hp = H(pts[0], pts[1]);
+  for (let i = 2; i < pts.length; i += 2) {
+    const h = H(pts[i], pts[i + 1]);
+    halve(pts[i - 2], pts[i - 1], hp, pts[i], pts[i + 1], h, 0);
+    hp = h;
+  }
+  return out;
 }
 
 function centreHeight(C: Course, T: Terrain, i: number): number {
   let y = C.yc[i];
-  if (y !== y) y = C.yc[i] = T.height(C.x[i], C.z[i]);
+  if (y !== y) y = C.yc[i] = standOn(T)(C.x[i], C.z[i]);
   return y;
 }
 
-function courseOf(T: Terrain, pts: number[], bridges: readonly [number, number][], clear: number): Course {
+function courseOf(T: Terrain, line: number[], bridges: readonly [number, number][], clear: number): Course {
+  const pts = followGround(T, line);
   const n = pts.length >> 1;
   const C: Course = { n, x: new Float64Array(n), z: new Float64Array(n), lx: new Float64Array(n), lz: new Float64Array(n), s: new Float64Array(n), length: 0, spans: [], yc: new Float64Array(n).fill(NaN) };
   for (let i = 0; i < n; i++) {
@@ -173,7 +227,7 @@ function courseOf(T: Terrain, pts: number[], bridges: readonly [number, number][
   for (const [a, b] of bridges) {
     const s0 = Math.max(0, a), s1 = Math.min(C.length, b);
     if (s1 - s0 < 2) continue;
-    const ya = T.height(...pointAt(C, s0)), yb = T.height(...pointAt(C, s1));
+    const ya = standOn(T)(...pointAt(C, s0)), yb = standOn(T)(...pointAt(C, s1));
     const [mx, mz] = pointAt(C, (s0 + s1) / 2);
     let wl = T.waterLevel(mx, mz);
     if (wl === -Infinity) wl = T.water(mx, mz).level;
@@ -201,7 +255,7 @@ function deckAt(C: Course, T: Terrain, s: number, x: number, z: number): number 
   for (const b of C.spans) {
     if (s < b.s0 || s > b.s1) continue;
     const t = (s - b.s0) / (b.s1 - b.s0);
-    return Math.max(T.height(x, z), b.ya + (b.yb - b.ya) * t + b.k * Math.min(1, 2.5 * Math.sin(Math.PI * t)));
+    return Math.max(standOn(T)(x, z), b.ya + (b.yb - b.ya) * t + b.k * Math.min(1, 2.5 * Math.sin(Math.PI * t)));
   }
   return NaN;
 }
@@ -211,18 +265,24 @@ function deckAt(C: Course, T: Terrain, s: number, x: number, z: number): number 
  * car drives on. `y(s)` for the road's centreline.
  */
 export function countryRoadSurface(road: RuralRoad, terrain: Terrain): (s: number) => number {
-  const C = courseOf(terrain, road.pts, road.bridges, CLEAR_ROAD), dy = DY[road.kind];
+  const C = courseOf(terrain, road.pts, road.bridges, CLEAR_ROAD), dy = DY[road.kind], rise = riseOf(road) ?? (() => 1);
   return (s) => {
     const [x, z] = pointAt(C, s);
     const deck = deckAt(C, terrain, s, x, z);
-    return (deck === deck ? deck : terrain.height(x, z)) + dy;
+    if (deck === deck) return deck + dy;
+    return s <= road.trim ? terrain.height(x, z) : standOn(terrain)(x, z) + dy * rise(s);
   };
+}
+
+/** A road leaving the town rises from the town's carriageway to its own height over its first RAMP m. */
+function riseOf(R: RuralRoad): ((s: number) => number) | undefined {
+  return R.trim > 0 ? (s) => smoothstep(R.trim, R.trim + RAMP, s) : undefined;
 }
 
 /** The part of a course between arc lengths a and b (end points interpolated). */
 function slice(C: Course, a: number, b: number): Course {
   a = Math.max(0, a); b = Math.min(C.length, b);
-  const out: Course = { n: 0, x: new Float64Array(0), z: new Float64Array(0), lx: new Float64Array(0), lz: new Float64Array(0), s: new Float64Array(0), length: Math.max(0, b - a), spans: C.spans, yc: new Float64Array(0) };
+  const out: Course = { n: 0, x: new Float64Array(0), z: new Float64Array(0), lx: new Float64Array(0), lz: new Float64Array(0), s: new Float64Array(0), length: Math.max(0, b - a), spans: C.spans, yc: new Float64Array(0), rise: C.rise };
   if (C.n < 2 || b - a < 0.05) return out;
   const [i0, t0] = segAt(C, a), [i1, t1] = segAt(C, b);
   const X: number[] = [], Z: number[] = [], LX: number[] = [], LZ: number[] = [], S: number[] = [];
@@ -266,9 +326,10 @@ function sweep(ctx: Sweep, C: Course, prof: number[], level = -1): void {
     const cx = C.x[i], cz = C.z[i], lx = C.lx[i], lz = C.lz[i];
     const deck = deckAt(C, T, C.s[i], cx, cz);
     const yc = deck === deck ? deck : level >= 0 ? centreHeight(C, T, i) : 0;
+    const k = C.rise ? C.rise(C.s[i]) : 1;
     for (let e = 0; e <= segs; e++) {
-      const o = prof[e * 3];
-      ys[e] = (deck === deck || Math.abs(o) <= level ? yc : T.height(cx + lx * o, cz + lz * o)) + prof[e * 3 + 1];
+      const o = prof[e * 3], dy = prof[e * 3 + 1];
+      ys[e] = (deck === deck || Math.abs(o) <= level ? yc : standOn(T)(cx + lx * o, cz + lz * o)) + (dy > 0 ? dy * k : dy);
     }
     for (let k = 0; k < segs; k++) {
       mb.set('aLayer', prof[k * 3 + 2]);
@@ -317,7 +378,7 @@ function lip(mb: MeshBuilder, T: Terrain, poly: number[], dy: number, layer: num
     const [anx, anz] = nrm(i), [bnx, bnz] = nrm(j);
     const base = mb.vcount;
     const pts = [[ax, az, dy], [bx, bz, dy], [bx + bnx * W, bz + bnz * W, -DOWN], [ax + anx * W, az + anz * W, -DOWN]];
-    for (const [x, z, d] of pts) mb.v(x, T.height(x, z) + d, z, 0, 1, 0, x, z);
+    for (const [x, z, d] of pts) mb.v(x, standOn(T)(x, z) + d, z, 0, 1, 0, x, z);
     // Faces up: clockwise in x/z as in drapeShape (the outline runs counter-clockwise, the lip outside it).
     mb.tri(base, base + 1, base + 2);
     mb.tri(base, base + 2, base + 3);

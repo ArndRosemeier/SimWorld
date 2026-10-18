@@ -1,6 +1,7 @@
 /**
  * The town's public buildings as landmark parts (plan/landmarkParts Kit): the parish church, the
- * primary school, the kindergarten, the health centre, the fire station and the supermarket.
+ * primary school, the kindergarten, the health centre, the fire station, the supermarket, the
+ * care home and the petrol station.
  * New in SimWorld (Scale's landmarks were a city's). Massing with windows, roofs and a few
  * details; interiors come later. Site frame as everywhere: the front (entrance, street) at -v.
  */
@@ -135,6 +136,58 @@ export function supermarket(k: Kit, lm: Landmark): void {
   k.box(-P.bw / 4, front - 2, P.bw / 4, 2, B + 3.4, B + 3.7, mat(METAL_ROOF, [0.9, 0.9, 0.92]), { solid: false });
   // Trolley shelter in the car park.
   k.box(P.bw / 2 - 6, front - P.park * 0.5, 3, 1.2, B + 2.2, B + 2.35, mat(METAL_ROOF, [0.85, 0.85, 0.88]), { solid: false, detail: true });
+}
+
+export function careHome(k: Kit, lm: Landmark, r: Rng): void {
+  const P = lm.p, B = k.B;
+  const fh = 3.1, H = 0.4 + P.floors * fh;
+  const wallL = [PLASTER, BRICK, BRICK_WHITE, STUCCO][P.wall % 4];
+  const tint: RGB = wallL === PLASTER || wallL === STUCCO ? r.pick<RGB>([[1, 0.97, 0.9], [0.97, 0.95, 0.92], [0.95, 0.97, 1]]) : WHITE;
+  const wall = mat(wallL, tint, WIN, 2.6, fh, fh + 0.4);
+  const plain = mat(wallL, tint);
+  const v = -lm.hv + 6 + P.bd / 2;
+  // The main block along the street, a pitched roof or a flat one.
+  k.box(0, v, P.bw / 2, P.bd / 2, B, B + H, wall, lm.style ? { foot: true, top: flatTop() } : { foot: true });
+  if (!lm.style) pitched(k, 0, v, P.bw / 2, P.bd / 2, B + H, 0.5, plain, roofOf(P.roof));
+  // The wing back into the garden, one storey lower.
+  if (P.wing) {
+    const wu = P.bw / 2 - 6, wv = v + P.bd / 2 + P.wingL / 2 - 0.5, wh = H - (P.floors > 2 ? fh : 0);
+    k.box(wu, wv, 6, P.wingL / 2, B, B + wh, wall, lm.style ? { foot: true, top: flatTop() } : { foot: true });
+    if (!lm.style) pitched(k, wu, wv, 6, P.wingL / 2, B + wh, 0.5, plain, roofOf(P.roof), Math.PI / 2);
+  }
+  // A glazed entrance porch with a canopy where the cars drop visitors off.
+  k.box(0, v - P.bd / 2 - 1.3, 3, 1.3, B, B + 3, mat(GLASS, [0.85, 0.92, 0.95], WIN | CURTAIN, 1.2, 3, 3), { top: mat(METAL_ROOF, WHITE, ROOF) });
+  // A conservatory (the day room) on the garden side.
+  k.box(-P.bw / 4, v + P.bd / 2 + 2, 4, 2, B, B + 3, mat(GLASS, [0.9, 0.95, 0.95], WIN | CURTAIN, 1.2, 3, 3), { top: mat(METAL_ROOF, WHITE, ROOF), solid: false });
+}
+
+export function petrolStation(k: Kit, lm: Landmark): void {
+  const P = lm.p, B = k.B;
+  const brand = PAINT[P.colour % PAINT.length];
+  // The kiosk at the back: glazed towards the pumps, the brand's band along the top.
+  const kv = lm.hv - 2 - P.kd / 2;
+  k.box(0, kv, P.kw / 2, P.kd / 2, B, B + 3.6, mat(PANEL, [0.92, 0.92, 0.9], 0, 3, 3.6, 3.6), { foot: true, top: mat(TAR, WHITE, ROOF) });
+  k.box(0, kv - P.kd / 2 - 0.1, P.kw / 2 - 1, 0.1, B, B + 2.8, mat(GLASS, [0.8, 0.88, 0.92], WIN | CURTAIN, 1.5, 2.8, 2.8), { solid: false });
+  k.box(0, kv - P.kd / 2 - 0.15, P.kw / 2, 0.15, B + 2.9, B + 3.6, mat(PANEL, brand), { solid: false });
+  // The canopy over the forecourt on four posts, its fascia in the brand's colour. (Posts, pumps
+  // and the sign are not solid: the forecourt's asphalt runs under them without holes.)
+  const cv = -lm.hv + 5 + P.cd / 2, ch = B + 5;
+  k.box(0, cv, P.cw / 2, P.cd / 2, ch, ch + 0.8, mat(PANEL, brand), { solid: false, top: mat(METAL_ROOF, [0.92, 0.92, 0.94], ROOF) });
+  k.box(0, cv, P.cw / 2 - 0.3, P.cd / 2 - 0.3, ch - 0.05, ch, mat(PANEL, [0.95, 0.95, 0.95]), { solid: false, detail: true });
+  const post = mat(METAL, [0.85, 0.85, 0.87]);
+  for (const su of [-1, 1]) for (const sv of [-1, 1]) k.box(su * (P.cw / 2 - 1.5), cv + sv * (P.cd / 2 - 1.5), 0.2, 0.2, B, ch, post, { solid: false });
+  // The pump islands (a kerb with two pumps each) under the canopy, along v.
+  const kerb = mat(CONC, [0.95, 0.95, 0.93]), pump = mat(PANEL, [0.9, 0.9, 0.9]);
+  for (let i = 0; i < P.islands; i++) {
+    const u = (i - (P.islands - 1) / 2) * (P.cw / P.islands);
+    k.box(u, cv, 0.6, P.cd / 2 - 1.2, B, B + 0.15, kerb, { detail: true, solid: false });
+    for (const sv of [-1, 1]) {
+      k.box(u, cv + sv * (P.cd / 4), 0.35, 0.5, B + 0.15, B + 1.8, pump, { detail: true, solid: false });
+      k.box(u, cv + sv * (P.cd / 4), 0.37, 0.52, B + 1.5, B + 1.8, mat(PANEL, brand), { detail: true, solid: false });
+    }
+  }
+  // The price sign by the road.
+  k.box(lm.hu - 2, -lm.hv + 1.5, 0.6, 0.2, B, B + 5.5, mat(PANEL, brand), { detail: true, solid: false });
 }
 
 export function station(k: Kit, lm: Landmark): void {

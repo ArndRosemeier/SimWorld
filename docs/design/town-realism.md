@@ -23,14 +23,14 @@ decoration is fine for wear and clutter, but anything that changes over time sho
 | Item | Status | Prio | Notes |
 |---|---|---|---|
 | Street hierarchy (arterial, avenue, street, lane), widths, sidewalks, curbs | E | P1 | `RoadClass`, `buildGround`. Arterials look too wide for a 1,500-person town (screenshot); tune widths per town size. |
-| Centre lines, lane dashes, zebra crossings | E | P1 | `PaintWhite`/`PaintYellow` layers. |
+| Centre lines, lane dashes, zebra crossings | E | P1 | `PaintWhite`/`PaintYellow` layers. Crossings are data: `crossingsOf(plan)` (`src/plan/crossings.ts`), for people crossing the street. |
 | Stop lines, turn arrows, "SLOW / SCHOOL" text, bus-stop boxes, parking bays painted, disabled bays, bike lanes, yellow no-parking edges | N | P2 | Ground decals on the same ground kind (a decal atlas layer, no new shader). |
 | Curb ramps at crossings, dropped curbs at driveways | N | P2 | Geometry in `buildGround`. |
 | Driveways from street to garage/carport | N | P1 | Biggest gap in suburbs: every house sits on unbroken lawn. Plan + ground. |
 | Front paths from sidewalk to the front door | N | P1 | The door is known (facade), the path is not. |
 | Back alleys / service lanes behind the main street (bins, deliveries) | N | P3 | Where deliveries and bins go. |
 | Parking lots (supermarket, station, church, sports ground, school) with painted bays | partly E | P1 | `cell.ts` has asphalt yards; needs bays, lamps, trolley shelters, cars by occupancy. |
-| Petrol station with forecourt, canopy, pumps | N | P2 | Region lore mentions one; the town itself should have one on the arterial. |
+| Petrol station with forecourt, canopy, pumps | E | P2 | A landmark site (`petrol`) on an arterial towards the edge: forecourt, canopy on posts, pump islands, kiosk, price sign. Place kind `petrol`. |
 | Road surface variety and wear: patches, cracks, tar lines, manholes, drains, puddle spots | S/N | P2 | Scale texgen ground layers have some; manholes are a Scale prop. Wear mask in the ground shader. |
 | Gutters, storm drains, leaves collecting in gutters (autumn) | N | P3 | Ties to seasons. |
 | Speed bumps near school and in residential streets | N | P3 | |
@@ -90,9 +90,9 @@ church, school, kindergarten, doctor, dentist, vet, fire station, station, super
 cemetery, farms.
 
 Missing for a believable town of this size (N unless noted, P2 unless noted):
-- **Petrol station** (P1, also a late-night hub), **supermarket on the edge with a car park** (P1, if not placed yet).
-- **Care home / retirement home** (P1: a 1,500 town with an age pyramid has one; it is where many deaths happen and
-  many visits go).
+- ~~**Petrol station**~~ (E: a landmark site on an arterial at the edge), ~~**supermarket on the edge with a car park**~~ (E: the supermarket site, car park in front, towards the edge).
+- ~~**Care home / retirement home**~~ (E: a landmark site on a residential edge, two or three storeys, about 2.5 rooms
+  per 100 inhabitants as the place's `homes`; residents move in through the economy).
 - Hardware/DIY store, clothes shop, florist, newsagent/tobacconist, charity shop, takeaway (kebab, Chinese, chips),
   hotel or B&B, estate agent, insurance/tax adviser, driving school, physiotherapist, beauty salon/nails, gym,
   funeral home, car dealer, builder's merchant, agricultural supplier.

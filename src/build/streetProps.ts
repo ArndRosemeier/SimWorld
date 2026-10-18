@@ -17,12 +17,13 @@ import type { Terrain } from '../world/terrain';
 import { FURNITURE_KINDS, furnitureModel, type FurnitureKind } from './furniture';
 import { farVehicle, paintColor, standingVehicle, type VehicleKind } from './vehicles';
 import type { MeshData } from './meshBuilder';
+import { InstanceLists, type ModelInstances } from './instanceLists';
 
 /** Floats per instance: x, y, z, yaw, scale, then four for the kind's instance attributes (furniture: tint rgb + noise offset; vehicles: paint rgb + 0). */
 export const PROP_STRIDE = 9;
 
 /** One model's instances. `model`: 'f:<FurnitureKind>:<variant>' or 'v:<VehicleKind>:<variant>'. */
-export interface PropGroup { model: string; inst: Float32Array }
+export type PropGroup = ModelInstances;
 
 /** Mesh data of a model named by a `PropGroup.model` key (a furniture mesh, or a standing vehicle with its wheels). */
 export function propModel(key: string): MeshData {
@@ -46,15 +47,15 @@ export const isVehicleModel = (key: string): boolean => key.startsWith('v:');
 const PARKED: VehicleKind[] = ['sedan', 'sedan', 'hatch', 'suv', 'wagon', 'suv', 'hatch', 'van', 'pickup', 'sports', 'sedan', 'delivery'];
 /** Share of parking bays with an EV charging post, by district. */
 const EV_SHARE: Partial<Record<District, number>> = { downtown: 0.14, commercial: 0.12, apartments: 0.1, rowhouses: 0.07, oldtown: 0.05, suburban: 0.04, industrial: 0.04, port: 0.03 };
+/** A manhole stands this much above the street: its flat rim clears the draped carriageway (DRAPE_TOL) on a sloping street. */
+const MANHOLE_LIFT = 0.035;
 
 /** Every cell's props (trees and shrubs excepted) as instance lists. */
-export function propInstances(cells: readonly CellPlan[], terrain: Terrain): PropGroup[] {
-  const lists = new Map<string, number[]>();
-  const put = (key: string, x: number, y: number, z: number, yaw: number, scale: number, c: [number, number, number] = [0, 0, 0], w = 0) => {
-    let l = lists.get(key);
-    if (!l) lists.set(key, (l = []));
-    l.push(x, y, z, yaw, scale, c[0], c[1], c[2], w);
-  };
+export function propInstances(cells: readonly CellPlan[], terrain: Terrain, opts: { kerbCars?: boolean } = {}): PropGroup[] {
+  const kerbCars = opts.kerbCars ?? true;
+  const lists = new InstanceLists();
+  const put = (key: string, x: number, y: number, z: number, yaw: number, scale: number, c: [number, number, number] = [0, 0, 0], w = 0) =>
+    lists.add(key, x, y, z, yaw, scale, c[0], c[1], c[2], w);
   /** A noise offset per prop (so alike props differ in the shader). */
   const jitter = (x: number, z: number) => hashToFloat(hash32(Math.round(x * 10) * 7919 + Math.round(z * 10) * 104729)) * 50;
   const curb = (x: number, z: number) => terrain.height(x, z) + CURB_H;
@@ -80,7 +81,7 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain): Pro
         case PropType.Kiosk: furn('kiosk', v, x, z, yaw, sc); break;
         case PropType.PlayGround: furn('playground', v, x, z, yaw, sc); break;
         case PropType.BusStop: furn('busStop', v, x, z, yaw, sc); break;
-        case PropType.Manhole: put('f:manhole:0', x, terrain.height(x, z) + 0.01, z, yaw, sc, undefined, jitter(x, z)); break;
+        case PropType.Manhole: put('f:manhole:0', x, terrain.height(x, z) + MANHOLE_LIFT, z, yaw, sc, undefined, jitter(x, z)); break;
         case PropType.TrafficLight: case PropType.StopSign: {
           const k = `${Math.round(x)},${Math.round(z)}`;
           if (signalled.has(k)) break;
@@ -112,12 +113,15 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain): Pro
         case PropType.Gravestone: furn('gravestone', v, x, z, yaw, sc); break;
         case PropType.Grave: furn('grave', v, x, z, yaw, sc); break;
         case PropType.Tomb: furn('tomb', v, x, z, yaw, sc); break;
-        case PropType.ParkedCar: {
-          const kind = PARKED[v % PARKED.length], variant = (v >> 4) % 4;
-          // Level on the road: the higher of the centre and the mean of front and back (Scale's settle).
-          const fx = -Math.sin(yaw), fz = -Math.cos(yaw), h = (dx: number, dz: number) => terrain.height(x + dx, z + dz);
-          const y = Math.max(h(0, 0), (h(fx * 2, fz * 2) + h(-fx * 2, -fz * 2)) / 2);
-          put(`v:${kind}:${variant}`, x, y, z, yaw, sc, paintColor(kind, 1_000_000 + plan.id * 4096 + i / 6));
+        case PropType.ParkedCar: case PropType.KerbCar: {
+          // Kerbside bays hold the traffic's household cars instead when it draws them (`kerbCars` false).
+          if (t === PropType.ParkedCar || kerbCars) {
+            const kind = PARKED[v % PARKED.length], variant = (v >> 4) % 4;
+            // Level on the road: the higher of the centre and the mean of front and back (Scale's settle).
+            const fx = -Math.sin(yaw), fz = -Math.cos(yaw), h = (dx: number, dz: number) => terrain.height(x + dx, z + dz);
+            const y = Math.max(h(0, 0), (h(fx * 2, fz * 2) + h(-fx * 2, -fz * 2)) / 2);
+            put(`v:${kind}:${variant}`, x, y, z, yaw, sc, paintColor(kind, 1_000_000 + plan.id * 4096 + i / 6));
+          }
           // Near-future kerbs: some parking bays have an EV charging post (more in dense districts).
           if (hashToFloat(hash32(seed * 31 + i * 7 + 11)) < (EV_SHARE[plan.district] ?? 0.03)) {
             const ev = evChargerSpot(plan.streets, x, z, yaw);
@@ -129,7 +133,7 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain): Pro
       }
     }
   }
-  return [...lists].map(([model, l]) => ({ model, inst: Float32Array.from(l) }));
+  return lists.groups();
 }
 
 /** Floats per lamp head in `lampsOf`: x, y, z (world, the light's place in the head), kind. */

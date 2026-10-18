@@ -77,8 +77,12 @@ export const gameDayOf = (world: Dated, y: number, m: number, d: number): number
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+/** "March" for month 3. */
+export const monthName = (month: number): string => MONTHS[month - 1];
 /** "Monday 19 October 2026" */
-export const formatDate = (d: GameDate): string => `${WEEKDAYS[d.weekday]} ${d.day} ${MONTHS[d.month - 1]} ${d.year}`;
+export const formatDate = (d: GameDate): string => `${dayAndMonth(d)} ${d.year}`;
+/** "Saturday 12 July": a date in a notice or a paper's What's on. */
+export const dayAndMonth = (d: GameDate): string => `${WEEKDAYS[d.weekday]} ${d.day} ${MONTHS[d.month - 1]}`;
 /** "Monday" */
 export const weekdayName = (weekday: number): string => WEEKDAYS[weekday];
 

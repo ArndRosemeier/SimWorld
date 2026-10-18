@@ -20,13 +20,24 @@ import {
   normalGeometry, normalLocal, positionView, positionViewDirection, normalView, normalViewGeometry, diffuseColor, varying, dFdx, dFdy,
 } from 'three/tsl';
 import { srgbToLinear } from '@futuremagic/core';
-import { SEASON, perturbNormalUV, posed, poseByInstance } from './common';
+import { LIGHT, SEASON, SNOW_ALBEDO, perturbNormalUV, posed, poseByInstance } from './common';
 import { CONIFER_CELLS, LEAF_AUTUMN, LEAF_ATLAS_SIZE } from '../../build/vegetationTex';
 import { BARK_STRIPS } from '../../build/vegetation';
 
 /** The vegetation's wind strength (0 calm, 1 breeze, 2 storm); the season is common.ts `SEASON`. */
 export const VEG = {
   wind: uniform(0.5),
+};
+
+/** Share of the deciduous trees that blossom in spring (fruit and ornamental trees), by instance. */
+const BLOSSOM_SHARE = 0.14;
+/** Blossom colour (linear): white with a touch of pink. */
+const BLOSSOM = [srgbToLinear(0.96), srgbToLinear(0.9), srgbToLinear(0.92)];
+
+/** A steady random number per instance (from where it stands). */
+const instanceHash = () => {
+  const at = attribute('iPose', 'vec4').xz;
+  return fract(sin(dot(at, vec2(12.9898, 78.233))).mul(43758.5453));
 };
 
 /** The textures the looks sample (src/render/textures.ts `loadVegetationTextures`). */
@@ -129,7 +140,10 @@ export function barkLook(mat: NodeMaterial, tex: VegetationTextures): void {
 
   afterDiffuse(mat, () => {
     const c = texture(tex.bark, bAt).grad(bGx, bGy);
-    diffuseColor.assign(vec4(diffuseColor.rgb.mul(c.rgb).mul(sub(1.0, vOcc.mul(0.6))), diffuseColor.a));
+    // Lying snow dusts the tops of the branches (the trees stand upright: local up is world up).
+    const dust = LIGHT.snow.mul(smoothstep(0.25, 0.75, normalGeometry.y)).mul(0.85);
+    const col = mix(diffuseColor.rgb.mul(c.rgb), vec3(...SNOW_ALBEDO), dust);
+    diffuseColor.assign(vec4(col.mul(sub(1.0, vOcc.mul(0.6))), diffuseColor.a));
   });
   mat.normalNode = Fn(() => {
     const m = texture(tex.barkNormal, bAt).grad(bGx, bGy).xyz.mul(2.0).sub(1.0);
@@ -158,12 +172,20 @@ export function leafLook(mat: NodeMaterial, tex: VegetationTextures): void {
   const conifer = CONIFER_CELLS.reduce((acc, c) => acc.or(ci.equal(c)), ci.equal(-1));
   const trans = select(conifer, 0.35, 0.85);
 
+  // Deciduous cells (an autumn colour) drop their cards over the winter (SEASON.bare), each card
+  // at its own point; the blossoming trees keep theirs while they flower.
+  const ih = varying(instanceHash(), 'vInstHash');
+  const deciduous = uAutumn.element(ci).a;
+  const blossoms = deciduous.mul(select(ih.lessThan(BLOSSOM_SHARE), 1.0, 0.0));
   mat.colorNode = Fn(() => {
     const c = texture(tex.leaves, vMapUv).toVar();
     // Keep thin leaves from vanishing in the smaller mips.
     const dxA = dFdx(vMapUv.mul(LEAF_ATLAS_SIZE)), dyA = dFdy(vMapUv.mul(LEAF_ATLAS_SIZE));
     const lodA = max(0.0, mul(0.5, log2(max(dot(dxA, dxA), dot(dyA, dyA)))));
-    return vec4(c.rgb, clamp(c.a.mul(add(1.0, lodA.mul(0.32))), 0.0, 1.0));
+    const card = fract(vTint.mul(7.31).add(ih.mul(3.7)));
+    const fall = SEASON.bare.mul(deciduous).mul(sub(1.0, SEASON.blossom.mul(blossoms))).mul(1.02);
+    const kept = select(card.lessThan(fall), 0.0, 1.0);
+    return vec4(c.rgb, clamp(c.a.mul(add(1.0, lodA.mul(0.32))), 0.0, 1.0).mul(kept));
   })();
   // fade cards seen edge-on (they would read as streaks)
   mat.opacityNode = Fn(() => {
@@ -178,8 +200,13 @@ export function leafLook(mat: NodeMaterial, tex: VegetationTextures): void {
     c.mulAssign(add(1.0, tv.mul(0.4)));
     c.assign(mix(c, c.mul(vec3(1.12, 1.06, 0.7)), max(tv, 0.0).mul(0.5)));
     const lum = dot(c, vec3(0.3, 0.59, 0.11));
-    const turn = clamp(SEASON.leaf.mul(1.6).sub(vTint.mul(0.6)), 0.0, 1.0).mul(aut.a);
+    // Each tree turns at its own pace (by instance), each card a little apart within it.
+    const turn = clamp(SEASON.leaf.mul(1.7).sub(vTint.mul(0.4)).sub(ih.mul(0.5)), 0.0, 1.0).mul(aut.a);
     c.assign(mix(c, aut.rgb.mul(lum.mul(3.2).add(0.015)), turn));
+    c.assign(mix(c, vec3(BLOSSOM[0], BLOSSOM[1], BLOSSOM[2]).mul(add(0.85, vTint.mul(0.3))), SEASON.blossom.mul(blossoms).mul(select(fract(vTint.mul(13.7)).lessThan(0.7), 0.85, 0.0))));
+    // Lying snow sits on the conifers' sprays (and on any leaves left), card by card.
+    const snowy = LIGHT.snow.mul(select(conifer, 0.7, 0.35)).mul(smoothstep(0.25, 0.65, fract(vTint.mul(5.3).add(ih))));
+    c.assign(mix(c, vec3(...SNOW_ALBEDO).mul(add(0.85, vTint.mul(0.15))), snowy));
     c.mulAssign(sub(1.0, vOcc.mul(0.62)));
     diffuseColor.assign(vec4(c, diffuseColor.a));
   });
@@ -215,16 +242,24 @@ export function farLook(mat: NodeMaterial): void {
   const vKind = uv();
   const vObjPos = varying(positionGeometry.add(attribute('iPose', 'vec4').xyz.mul(0.37)), 'vObjPos');
 
+  const ih = varying(instanceHash(), 'vInstHash');
+  const blossoms = vKind.y.mul(select(ih.lessThan(BLOSSOM_SHARE), 1.0, 0.0));
   afterDiffuse(mat, () => {
     const nV = normalViewGeometry.toVar();
     const nz = vnoise3(vObjPos.mul(2.2)).mul(0.6).add(vnoise3(vObjPos.mul(5.1)).mul(0.4)).toVar();
+    // A deciduous crown thins to its branches over the winter (to a sparse twiggy hull).
+    const bare = SEASON.bare.mul(vKind.y).mul(sub(1.0, SEASON.blossom.mul(blossoms)));
     If(vKind.x.greaterThan(0.75), () => {
       const edge = sub(1.0, abs(dot(nV, normalize(positionView.negate()))));
-      If(edge.mul(edge).mul(1.25).greaterThan(nz.add(0.12)), () => { Discard(); });
+      If(edge.mul(edge).mul(1.25).add(bare.mul(0.7)).greaterThan(nz.add(0.12)), () => { Discard(); });
     });
     If(vKind.x.greaterThan(0.25), () => {
       const c = diffuseColor.rgb.mul(add(0.78, nz.mul(0.45))).toVar();
-      c.assign(mix(c, vAutumn.mul(add(0.78, nz.mul(0.45))), clamp(SEASON.leaf.mul(1.4).sub(nz.mul(0.4)), 0.0, 1.0).mul(vKind.y)));
+      c.assign(mix(c, vAutumn.mul(add(0.78, nz.mul(0.45))), clamp(SEASON.leaf.mul(1.6).sub(nz.mul(0.4)).sub(ih.mul(0.45)), 0.0, 1.0).mul(vKind.y)));
+      c.assign(mix(c, vec3(0.05, 0.04, 0.032).mul(add(0.8, nz.mul(0.4))), bare));
+      c.assign(mix(c, vec3(BLOSSOM[0], BLOSSOM[1], BLOSSOM[2]).mul(add(0.8, nz.mul(0.3))), SEASON.blossom.mul(blossoms).mul(smoothstep(0.3, 0.6, nz)).mul(0.75)));
+      // Lying snow in patches on the crowns, more on the evergreen ones.
+      c.assign(mix(c, vec3(...SNOW_ALBEDO).mul(add(0.85, nz.mul(0.15))), LIGHT.snow.mul(select(vKind.y.greaterThan(0.5), 0.35, 0.6)).mul(smoothstep(0.35, 0.65, nz))));
       diffuseColor.assign(vec4(c, diffuseColor.a));
     });
   });

@@ -6,15 +6,18 @@
  * Every mesh of a kind uses the kind's one material, so a kind is one shader; variation goes in
  * vertex attributes or uniforms, never in a new material. Ported from Dunfinity.
  */
-import { DoubleSide, MeshPhysicalNodeMaterial, MeshStandardNodeMaterial, type Material } from 'three/webgpu';
+import { BackSide, DoubleSide, MeshPhysicalNodeMaterial, MeshStandardNodeMaterial, NodeMaterial, type Material } from 'three/webgpu';
 import { groundLook, terrainLook, waterLook } from './tsl/ground';
 import { facadeLook } from './tsl/facade';
+import { skyLook } from './tsl/sky';
 import { furnitureLook } from './tsl/furniture';
 import { vehicleLook } from './tsl/vehicles';
 import { textAtlas } from './textAtlas';
 import { FURNITURE_SPECS } from '../build/furniture';
 import { VEHICLE_SPECS } from '../build/vehicles';
 import { interiorLook } from './tsl/interior';
+import { precipLook } from './tsl/precip';
+import { smokeLook } from './tsl/smoke';
 import type { MaterialArrays } from './textures';
 import { facadeSpecs } from '../build/massing';
 import { INTERIOR_SPECS } from '../build/interior';
@@ -116,23 +119,25 @@ export const FACADE = defineKind('facade', facadeSpecs(), () => {
 /**
  * Street furniture (src/build/furniture.ts: uv into the sign atlas, aFurn material id / emissive
  * / sub-material, aColor), instanced (INSTANCE_SPECS, and iTint: the paint override, rgb sRGB, 0 =
- * the model's, and a noise offset; src/render/propsView.ts).
+ * the model's, and a noise offset; iSign: a sign's own lettering slot in the text atlas;
+ * src/render/propsView.ts, src/render/signsView.ts).
  */
 export const FURNITURE = defineKind('furniture', FURNITURE_SPECS, () => {
   const m = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
   furnitureLook(m, textAtlas());
   return m;
-}, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iTint', size: 4 }]);
+}, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iTint', size: 4 }, { name: 'iSign', size: 4 }]);
 
 /**
- * Vehicles (src/build/vehicles.ts: uv, aPart), instanced (INSTANCE_SPECS, and iPaint: the paint,
- * sRGB). Double-sided: the loft leaves open edges.
+ * Vehicles (src/build/vehicles.ts: uv, aPart), instanced (INSTANCE_SPECS, iPaint: the paint, sRGB,
+ * and iState: the lights, zero for a parked car; src/render/vehiclesView.ts). Double-sided: the loft
+ * leaves open edges.
  */
 export const VEHICLE = defineKind('vehicle', VEHICLE_SPECS, () => {
   const m = new MeshPhysicalNodeMaterial({ roughness: 0.5, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, side: DoubleSide });
   vehicleLook(m);
   return m;
-}, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iPaint', size: 3 }]);
+}, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iPaint', size: 3 }, { name: 'iState', size: 4 }]);
 
 /**
  * Tree and shrub wood (src/build/vegetation.ts `BARK_SPECS`: uv into the bark atlas, aWind,
@@ -170,3 +175,50 @@ export const INTERIOR = defineKind('interior', INTERIOR_SPECS, () => {
   interiorLook(m, needTextures('interior'));
   return m;
 });
+
+/**
+ * The sky dome (src/render/sky.ts): scattering, sun and moon discs, stars, clouds and weather in one shader
+ * (src/render/tsl/sky.ts). Drawn at the far plane behind everything; unlit, no fog, no depth writes.
+ */
+export const SKY_DOME = defineKind('sky', [], () => {
+  const m = new NodeMaterial();
+  m.side = BackSide;
+  m.depthWrite = false;
+  m.fog = false;
+  m.lights = false;
+  skyLook(m);
+  return m;
+}, { cast: false, receive: false });
+
+/**
+ * Falling rain and snow round the camera (src/render/precip.ts): quads that wrap through a box round the camera
+ * (src/render/tsl/precip.ts). `position` is the quad corner, `aDrop` the drop's random. Unlit, see-through.
+ */
+export const RAIN_SNOW = defineKind('precip', [{ name: 'aDrop', size: 4 }], () => {
+  const m = new NodeMaterial();
+  m.lights = false;
+  m.fog = false;
+  m.transparent = true;
+  m.depthWrite = false;
+  m.side = DoubleSide;
+  m.forceSinglePass = true; // one pass, not three's back-then-front pair for see-through double-sided
+  precipLook(m);
+  return m;
+}, { cast: false, receive: false });
+
+/**
+ * Chimney smoke (src/render/smoke.ts): puff quads per chimney, geometry-instanced (`INSTANCE_SPECS`: iPose the
+ * chimney top, iSize.x the plume's scale), rising and drifting in the shader (src/render/tsl/smoke.ts).
+ * `position` is the puff corner and its place in the round. Unlit, see-through.
+ */
+export const SMOKE_PUFFS = defineKind('smoke', [], () => {
+  const m = new NodeMaterial();
+  m.lights = false;
+  m.fog = false;
+  m.transparent = true;
+  m.depthWrite = false;
+  m.side = DoubleSide;
+  m.forceSinglePass = true; // one pass, as RAIN_SNOW
+  smokeLook(m);
+  return m;
+}, { cast: false, receive: false }, INSTANCE_SPECS);

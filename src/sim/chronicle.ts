@@ -12,7 +12,7 @@ import type { Rng } from '@futuremagic/core';
 import { A, type ActorId } from './actors';
 import { encounter } from './encounters';
 import { clubEvenings } from './groups';
-import { factText, SOURCE_WITNESSED } from './knowledge';
+import { factText, isAbout, SOURCE_WITNESSED } from './knowledge';
 import { HABIT_COUNT, T_EXTRA } from './people';
 import { KINDS } from './placeKinds';
 import type { PlaceId } from './places';
@@ -61,7 +61,8 @@ export function history(world: World, years: number): void {
   const total = historyDays(years);
   const recent = Math.min(total, 28), year = Math.min(total - recent, 336);
   // Far back only the life events matter: what was said then is long forgotten.
-  chronicle(world, total - recent - year, { step: 56, talksPerDay: 0 });
+  // (Only when there is a far back: `chronicle` with no days still finishes the day, which would add one.)
+  if (total - recent - year > 0) chronicle(world, total - recent - year, { step: 56, talksPerDay: 0 });
   chronicle(world, year, { step: 28 });
   chronicle(world, recent, { step: 7 });
 }
@@ -195,7 +196,7 @@ export function digest(world: World, id: ActorId, since: number, max = 20): Dige
     if (c.heardAt[r] < since) continue;
     const f = k.facts[c.fact[r]];
     // What happened to them they lived, not heard; their memories tell it.
-    if (seen.has(f.root) || (c.source[r] === SOURCE_WITNESSED && (f.subject === id || f.object === id))) continue;
+    if (seen.has(f.root) || (c.source[r] === SOURCE_WITNESSED && isAbout(f, id))) continue;
     seen.add(f.root);
     const src = c.source[r];
     const from = src >= 0 ? ` (${firstName(world, src)} told me)` : '';

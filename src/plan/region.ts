@@ -9,6 +9,7 @@
  */
 import { Rng, deriveSeed } from '@futuremagic/core';
 import type { Compass, LoreLine, Region, RegionPlace, RegionService } from '../sim/region';
+import { isRealPlace } from '../lang/places';
 import { cityName } from './names';
 import type { Town } from './town';
 
@@ -23,8 +24,6 @@ export interface RegionHints {
   hilliness: number;
   /** 0 cold … 1 warm. */
   warmth: number;
-  /** American naming (counties, "the Elk River") rather than old-world ("the River Elk", districts). */
-  american: boolean;
   /** Old-world architecture weight 0..1 (castles, mills). */
   oldWorld: number;
   /** Where the railway leads away from town, null without a railway. */
@@ -50,7 +49,7 @@ export function regionOf(town: Town): Region {
   }
   return planRegion({
     seed: pr.seed, town: cityName(pr.seed), coastal: pr.coastal, seaBearing: bearing(pr.seaDir[0], -pr.seaDir[1]),
-    hilliness: pr.hilliness, warmth: pr.warmth, american: pr.arch.american > pr.arch.oldWorld, oldWorld: pr.arch.oldWorld,
+    hilliness: pr.hilliness, warmth: pr.warmth, oldWorld: pr.arch.oldWorld,
     railBearing: rail && rail.pts.length >= 2 ? bearingTo(rail.pts[0], rail.pts[1]) : null, railTerminus: rail?.terminus ?? false,
     downstreamBearing: downstream,
   });
@@ -82,10 +81,10 @@ export function planRegion(h: RegionHints): Region {
     name: names.city(h.coastal), kind: 'city', dir: compass(cityBearing), km: cityKm, population: cityPop, services: cityServices,
     travel: byTrain
       ? `about ${duration(cityKm / 80 * 60 + (h.railTerminus ? 20 : 10))} by train${h.railTerminus ? ', with a change on the way' : ''}, or ${duration(cityKm / 85 * 60 + 10)} by car`
-      : `about ${duration(cityKm / 85 * 60 + 10)} by car on the highway; the bus takes much longer`,
+      : `about ${duration(cityKm / 85 * 60 + 10)} by car on the main road; the bus takes much longer`,
   };
 
-  // ---- the larger town nearby (the hospital, the county seat) ------------------------------------------------
+  // ---- the larger town nearby (the hospital, the district's main town) ------------------------------------------------
   const nearBearing = land(rng.range(0, 360));
   const nearKm = Math.round(rng.range(12, 28));
   const near: RegionPlace = {
@@ -120,8 +119,8 @@ export function planRegion(h: RegionHints): Region {
   };
 
   // ---- lore: where the town is ------------------------------------------------------------------------------
-  const county = h.american ? `${names.word()} County` : `the ${names.word()} district`;
-  say('place', `${T} is in ${county}.`, 1, 0.2);
+  const district = `the ${names.word()} district`;
+  say('place', `${T} is in ${district}.`, 1, 0.2);
   say('place', `The nearest big city is ${city.name}, about ${cityKm} km to the ${city.dir}, with around ${thousands(cityPop)} people.`, 1, 0.5, city.name);
   say('place', `Getting to ${city.name} from ${T} takes ${city.travel}.`, 0.95, 0.35, city.name);
   if (byTrain) say('place', h.railTerminus ? `${T} is at the end of a branch line: every train out goes towards ${city.name}.` : `The trains through ${T} station run to ${city.name} one way and out into the country the other.`, 0.9, 0.25, city.name);
@@ -129,9 +128,9 @@ export function planRegion(h: RegionHints): Region {
   if (cityServices.includes('airport')) say('place', `The nearest airport is outside ${city.name}.`, 0.85, 0.25, city.name);
   say('place', `${near.name}, about ${nearKm} km to the ${near.dir}, is the nearest larger town, with around ${thousands(near.population)} people.`, 1, 0.4, near.name);
   say('health', `The nearest hospital is in ${near.name}; an ambulance from ${T} takes about ${duration(nearKm / 70 * 60 + 5)} to get there.`, 1, 0.45, near.name);
-  say('place', h.american ? `${near.name} is the county seat, with the courthouse and the county offices.` : `${near.name} is the main town of the district, with the court and the district offices.`, 0.8, 0.2, near.name);
+  say('place', `${near.name} is the main town of the district, with the court and the district offices.`, 0.8, 0.2, near.name);
   say('place', `A bus runs from the square in ${T} to ${near.name} every hour, less often at weekends.`, 0.85, 0.25, near.name);
-  say('place', `Older pupils from around here go to the secondary school in ${near.name}.`, 0.8, 0.25, near.name);
+  say('place', `Older children from around here go to the secondary school in ${near.name}.`, 0.8, 0.25, near.name);
 
   // ---- lore: the villages -----------------------------------------------------------------------------------
   villages.forEach((v, i) => {
@@ -140,13 +139,13 @@ export function planRegion(h: RegionHints): Region {
     const r = rng.fork('village', i);
     const feats = r.sample(ch.features, r.int(1, 2));
     if (r.chance(0.45)) feats.push(r.pick(EXTRAS));
-    if (r.chance(0.35)) feats.push(`a pub called ${pubName(r, h.coastal)}`);
+    if (r.chance(0.35)) feats.push(`an old inn, ${innName(r, h.coastal)}`);
     for (const f of feats) say('place', `${v.name} has ${f.replace('{city}', city.name)}.`, r.range(0.4, 0.65), 0.25, v.name);
   });
 
   // ---- lore: the land ---------------------------------------------------------------------------------------
-  const riverName = names.river(h.american);
-  say('place', `The ${riverName} runs through ${T}.`, 1, 0.25);
+  const riverName = names.river();
+  say('place', `The ${riverName} is the river that runs through ${T}.`, 1, 0.25);
   if (h.downstreamBearing !== null) {
     const past = villageToward(h.downstreamBearing);
     say('place', `Downstream, the ${riverName} flows on to the ${compass(h.downstreamBearing)}${past ? `, past ${past.name}` : ''}${h.coastal ? ' and into the sea' : ''}.`, 0.75, 0.2, past?.name);
@@ -171,7 +170,7 @@ export function planRegion(h: RegionHints): Region {
   }
   const hwBearing = norm(cityBearing + rng.range(-35, 35));
   const junction = villageToward(hwBearing);
-  say('place', `The highway to ${city.name} passes about ${Math.round(rng.range(4, 12))} km to the ${compass(hwBearing)} of town${junction ? `, with a junction by ${junction.name}` : ''}.`, 0.8, 0.2, junction?.name);
+  say('place', `The main road to ${city.name} passes about ${Math.round(rng.range(4, 12))} km to the ${compass(hwBearing)} of town${junction ? `, with a junction by ${junction.name}` : ''}.`, 0.8, 0.2, junction?.name);
 
   // ---- lore: what people say -------------------------------------------------------------------------------
   const rival = rng.pick(villages);
@@ -180,7 +179,7 @@ export function planRegion(h: RegionHints): Region {
   const commuters = rng.pick(villages);
   say('opinion', `Houses in ${commuters.name} have got expensive since people from ${city.name} started buying there.`, 0.4, 0.3, commuters.name);
 
-  return { town: T, county, places: [city, near, ...villages], lore, coastal: h.coastal, rail: byTrain ? (h.railTerminus ? 'terminus' : 'through') : null };
+  return { town: T, district, places: [city, near, ...villages], lore, coastal: h.coastal, rail: byTrain ? (h.railTerminus ? 'terminus' : 'through') : null };
 }
 
 // ---- village characters -------------------------------------------------------------------------------------
@@ -200,40 +199,42 @@ const CHARACTERS: Character[] = [
   { weight: () => 3, features: ['mostly dairy farms, and a farm shop that sells eggs, honey and cheese', 'a big harvest festival every September', 'a cattle market on the first Monday of the month'] },
   { weight: () => 1.2, features: ['a small lake where people swim in summer and skate when it freezes', 'a campsite by the lake that fills up with tourists in August'] },
   { weight: (h) => (h.hilliness > 0.35 ? 1.5 : 0), features: ['the best view over the valley, from an old lookout tower', 'a steep road up that the cyclists love'] },
-  { weight: () => 1.5, features: ['a new estate of houses where young families from {city} have moved', 'no shop of its own any more, only a bakery van that comes twice a week'] },
+  { weight: () => 1.5, features: ['a new neighbourhood of houses where young families from {city} have moved', 'no shop of its own any more, only a bakery van that comes twice a week'] },
   { weight: (h) => h.oldWorld * 1.5, features: ['a ruined castle on the hill above the houses', 'an old watermill that is now a small museum'] },
   { weight: (h) => (h.warmth > 0.6 ? 1.5 : 0), features: ['vineyards on the south slopes and a wine festival in October', 'a family winery that sells wine at the door'] },
   { weight: () => 0.8, features: ['a stone quarry that employs a few dozen people', 'a sawmill at the edge of the forest'] },
 ];
 
 const EXTRAS = [
-  'a riding stable', 'a garden centre people drive out to at weekends', 'a petrol station that is open all night',
+  'a riding stable', 'a garden centre people drive out to at weekends', 'a fuel station that is open all night',
   'a volunteer fire brigade that throws the best summer party around', 'a care home for the elderly',
   'a Sunday flea market in an old barn', 'a tiny old chapel that is popular for weddings',
 ];
 
-function pubName(r: Rng, coastal: boolean): string {
-  const noun = r.pick(['Lion', 'Swan', 'Fox', 'Plough', 'Bell', 'Stag', 'Horse', 'Oak', 'Crown', 'Wheatsheaf', ...(coastal ? ['Anchor', 'Ship'] : [])]);
-  return r.chance(0.4) ? `The ${noun}` : `The ${r.pick(['Red', 'Black', 'White', 'Golden', 'Old', 'Green'])} ${noun}`;
+function innName(r: Rng, coastal: boolean): string {
+  const noun = r.pick(['Lantern', 'Orchard', 'Linden', 'Mill', 'Bridge', 'Heron', 'Kestrel', 'Hearth', 'Waymark', ...(coastal ? ['Harbour', 'Lighthouse'] : [])]);
+  return r.chance(0.5) ? `the ${noun} Inn` : `the ${r.pick(['Old', 'Blue', 'Silver', 'Quiet'])} ${noun}`;
 }
 
 // ---- names ----------------------------------------------------------------------------------------------------
 
 const STEMS = [
   'Ash', 'Bram', 'Brook', 'Cal', 'Clay', 'Dun', 'Elder', 'Fen', 'Gar', 'Hal', 'Har', 'Kel', 'Lang', 'Mar', 'Mor', 'Nor',
-  'Oak', 'Red', 'Sal', 'Stan', 'Thorn', 'Wal', 'Wen', 'Wyn', 'Alder', 'Bar', 'Corn', 'Dray', 'Hol', 'Kings', 'Lyn',
-  'Mill', 'Pen', 'Rook', 'Sand', 'Stour', 'Til', 'Whit', 'Yar', 'Bel', 'Car', 'Glen', 'Lark', 'Brack', 'Hazel', 'Ever',
+  'Oak', 'Red', 'Sal', 'Stan', 'Thorn', 'Wal', 'Wen', 'Wyn', 'Alder', 'Bar', 'Corn', 'Dray', 'Hol',
+  'Mill', 'Pen', 'Rook', 'Sand', 'Til', 'Whit', 'Bel', 'Car', 'Lark', 'Brack', 'Hazel', 'Ever',
 ];
+/** River names: invented, never a real river (the lore says "the Varle"). */
+const RIVERS = ['Varle', 'Brenna', 'Dorrin', 'Tarrow', 'Maddle', 'Wendle', 'Ketter', 'Lisk', 'Haddle', 'Sallow', 'Fenner', 'Orrin', 'Calla', 'Merrow'];
 const VILLAGE_ENDS = ['by', 'ton', 'ham', 'wick', 'field', 'ford', 'stead', 'well', 'dale', 'leigh', 'worth', 'cote', 'combe', 'thorpe', 'hurst', 'bourne'];
 const TOWN_ENDS = ['ford', 'bury', 'ton', 'wick', 'field', 'bridge', 'ham'];
 const CITY_ENDS = ['chester', 'ford', 'bury', 'minster', 'borough', 'ton', 'field'];
 
-/** Unique region names (never the town's own). */
+/** Unique region names (never the town's own, never a well-known real place). */
 class NameBag {
   private used = new Set<string>();
   constructor(private r: Rng, town: string) { this.used.add(town); }
   private fresh(make: () => string): string {
-    for (let i = 0; i < 50; i++) { const s = make(); if (!this.used.has(s)) { this.used.add(s); return s; } }
+    for (let i = 0; i < 50; i++) { const s = make(); if (!this.used.has(s) && !isRealPlace(s)) { this.used.add(s); return s; } }
     const s = `${make()} ${this.used.size}`;
     this.used.add(s);
     return s;
@@ -255,9 +256,7 @@ class NameBag {
       return base;
     });
   }
-  river(american: boolean): string {
-    return this.fresh(() => { const s = this.r.pick(STEMS); return american ? `${s} River` : `River ${s}`; });
-  }
+  river(): string { return this.fresh(() => this.r.pick(RIVERS)); }
 }
 
 // ---- small helpers ------------------------------------------------------------------------------------------

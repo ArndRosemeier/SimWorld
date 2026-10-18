@@ -1,5 +1,254 @@
 # Changelog
 
+## v0.085 — Neutral names for the country around the town
+
+- The region's city, towns, villages and river no longer use real place names, and the town is in "the … district" instead of a county.
+- The country around the town no longer switches between British and American naming. The town hall is always the Town Hall, and the lore talks of the main road, a fuel station and an old inn.
+
+## v0.084 — Chat: no toddlers, no lost lines, plainer words
+
+- You can no longer start a full conversation with a toddler (nobody under four answers T).
+- A line you send while someone is still answering is no longer ignored: it goes out as soon as they finish.
+- People in chats talk plainly, without British or American turns of phrase (the town is in no real country).
+
+## v0.083 — One invented post box and phone booth
+
+- Post boxes are one invented design everywhere: a deep teal box with a cream band on a short post. There is no British red pillar box or American blue mailbox any more.
+- The red British-style phone kiosk is replaced by a modern glass booth with a grey frame.
+
+## v0.082 — Club words from the town's word list
+
+- The church coffee circle's yearly sale is now a second-hand sale.
+- Club names, office titles, big days and their results now come from the town's one word list, so a word changes everywhere at once.
+
+## v0.081 — Invented town and street names
+
+- Street, park and town names no longer use real people or famous streets (no Lincoln, Madison, Hudson, Bowery or Tesla), and there are no more boulevards or numbered avenues. The new roots are plain nature, trade and landscape words such as Hawthorn, Heron, Flint and Weaver.
+- The town's name is never a well-known real place (no Springfield, Ashford or Riverdale). A new deny list catches them and the name is drawn again.
+- Supermarkets have invented names, and "Busy Bees" (a real nursery chain) is gone.
+
+## v0.080 — NPCs stay in the invented world
+
+- Townspeople in chats and the time-skip summary no longer mention real cities, brands, institutions or currencies, avoid strongly British or American words, and say prices as plain numbers.
+
+## v0.079 — Neutral words for clubs, offices and council issues
+
+- Small offices in former shops are called "Law Office" and "Rentals" now, no longer "Solicitors" and "Lettings".
+- The allotment society is now the community garden club, the jumble sale is a rummage sale, the church fete is a church fair, and the churchwarden is a church elder.
+- The council argues about a housing development and the local property tax, no longer a housing estate and the rates.
+
+## v0.078 — The council's traffic rules on the roads
+
+- When the council passes the 30 km/h limit through the centre, cars on the centre's faster roads slow to 30.
+- Once the bypass round the town is open, most through traffic goes round the town instead of through it.
+- When parking in the centre costs money, fewer people from the region drive in to shop.
+
+## v0.077 — An invented world
+
+- Recorded Arnd's setting rule: the town lies in a made-up, western-adjacent country with right-hand traffic and English names, and nothing in it points to a real region.
+- Prices, licence plates, phone numbers, school grades and words that differ between British and American English all follow one set of conventions.
+
+## v0.076 — Place and business names fit an invented western town
+
+- Shop signs and landmark names no longer point to one country: a Mini Market instead of a Corner Shop, a Second-hand Shop, Food to Go, a Property Agency, Funeral Services, a Fuel Station, and church names without "Parish Church".
+- All of these words now come from one table, so a wording change is made in one place.
+
+## v0.075 — Snow on the trees
+
+- When snow lies, the conifers carry it on their branches, the bare branches of leafy trees get a dusting on top, and distant crowns show white patches.
+
+## v0.074 — Visitors from the region
+
+- Cars from the surrounding towns now come into town and park: tradespeople's vans calling at houses on working days, people shopping or running errands at places that are open, and relatives visiting family (more at weekends and in the evening). They stay a while and drive home on the road they came in by.
+- More through traffic in the morning and evening rush, so the rush hours show on the country roads.
+- When the town is loaded, the visitors who arrived earlier are already parked.
+
+## v0.073 — Talk to the people of the town
+
+- Walk up to someone on the street (or follow them) and press T: they stop, turn to you, and a chat panel opens on the right with plenty of room to talk.
+- With your own OpenRouter key (Chat button, then Models) replies stream in from a language model, written from only what that person knows: their life, the people they know, their memories and the news they have heard.
+- Conversations have consequences: what you say changes how they feel about you, what they believe and what they plan to do, a lie you tell can spread as a rumour, news they pass on is something you now know, and both of you remember the talk afterwards.
+- Without a key, or when the model is unavailable, the town answers on its own with simpler replies.
+- You choose which models do what (chat replies, reading the replies, memories) and can add any OpenRouter model; the defaults are cheap ones that write well.
+- The Usage tab shows what the language model has cost, by task, model, person and session.
+- The "Mind" switch in the chat panel shows what each reply changed in the person's mind.
+
+## v0.072 — Autumn: each tree turns at its own pace, fallen leaves on the ground
+
+- Leafy trees no longer all turn colour together: each tree turns at its own pace, so in October the town shows green, yellow, orange and red-brown side by side.
+- Fallen leaves gather on lawns, gardens and bare earth from mid-October, fewer on swept paving and a few on the roads. They are yellow and orange at first and turn brown as the trees go bare, then are cleared or rot away by the new year.
+- Rain darkens the fallen leaves, and snow covers them.
+
+## v0.071 — Parked cars in the planned bays
+
+- The town's parked cars now stand in the parking bays the town planner laid out along the kerbs, which keep clear of junctions, zebra crossings and driveways. Before, the cars had their own bays every few metres, which could block a driveway or a crossing.
+- Each parked car faces the same way as the traffic on its side of the street.
+
+## v0.070 — People stop walking through buildings, cars and street furniture
+
+- People no longer cut through buildings, car parks, fountains or hedges: where a walk can't just step aside, it goes the long way round.
+- People keep clear of the cars parked at the kerb, which now come and go with the traffic.
+- Walks start and end at the front door in the wall, not in the middle of the house, and the doorstep moves aside when a mailbox or hydrant stands right outside.
+- Joggers and strollers at the sports ground no longer squeeze through the parked cars, and a dog or child walking beside someone falls in behind at a lamp post instead of passing through it.
+
+## v0.069 — Townsfolk talk to each other
+
+- When two people meet, what they say is now written out: the news that really passes between them, told in their own voice ("Have you heard? My sister lost her job at the bakery. Marta told me."), and answered in the listener's.
+- Each reply answers what was just said: "How are you?" gets how they are, news gets sympathy, glee or doubt, a doubter hears who it came from, a story raises a question ("Do you know when the wedding is?") that is answered from what is really on in town, and someone who heard a different version says so ("That's not what I heard") until one of them gives way.
+- Your own news is announced, not passed on as hearsay ("Did I tell you? We're off to the seaside"), and bad news about someone's family gets sympathy, not gossip.
+- With no news to share, people talk about the weather, the season, the weekend, what is on in town, what the other one is up to, local lore, work, the family, being tired or hungry, and the place they are in. They talk to their dogs and to toddlers too.
+- Two people who meet again the same day don't go over the same ground, and phrases are not repeated all day long.
+- Toddlers don't gossip any more, young children only tell their family, and nobody tells you news about your own household.
+- Children, teenagers and old people sound different, the chatty say more, and some people have a pet phrase. American towns say "mom" and "fall".
+- The street view and the chat panel can now show these lines (speech bubbles and the "Nearby" channel come next).
+
+## v0.068 — Council decisions change the town
+
+- When the council passes something, it happens about a month later and the town hears of it: the pool closes, the 30 km/h limit is in force, parking in the centre costs money, the street lights go off at midnight.
+- Sunday trading: the supermarket and the bigger shops open on Sunday afternoons, with new Sunday shifts that locals take.
+- Cutting the library's hours really shuts it on Tuesdays and Thursdays and at five, and the librarians work less.
+- Higher local rates and parking charges come out of households' budgets.
+- Building projects (the bypass, the new estate, wind turbines, a skate park) start months after the vote, take their time, and are news when they open.
+- A passed issue is settled and does not come up again.
+- The game now gets the town's face from the sim once a day: what each shop is now and its name, to-let and for-sale boards, upkeep and wealth, and the council's rules, ready for signs, boards and street lights to show.
+
+## v0.067 — Trees follow the seasons
+
+- Deciduous trees drop their leaves through November and stand bare over the winter; they leaf again in April. Conifers keep their needles.
+- Distant trees thin to a twiggy crown in winter too.
+- In spring some trees (about one in seven) blossom white and pink for a few weeks.
+
+## v0.066 — Cars on the streets
+
+- The town's traffic is now on screen: household cars drive their owners' real trips and park near where they are going. Buses keep to their timetable, and the bin lorry, the post van and the delivery vans make their rounds.
+- Each household's car stands in a bay near home or wherever its driver went, always the same model and colour. When someone drives off, their car leaves its bay, so no car is ever shown twice.
+- Cars light up as they should: headlights after dark, brake lights, indicators at turns, and hazard lights when a bus or van stops.
+- The cars in car parks stay as they were.
+
+## v0.065 — Shop signs, street names and the town sign
+
+- Every shop, café, pub, office and works now has its real name on the front: a painted fascia over the shop window in its own colours and type, a hanging sign by a café's or pub's door, a brass plate by an office door, big letters on a works' wall.
+- The opening hours hang by each shop's door, day by day.
+- Street-name signs stand at the corners of junctions, and public buildings have their name boards out front.
+- "Welcome to" signs with the town's name stand beside the roads into town, with a thank-you on the back.
+- An empty shop unit shows the estate agent's TO LET board on its fascia instead of a name.
+
+## v0.064 — Choose who to be, and live their life
+
+- When the town has loaded, a picker opens over it: "Who will you be?" Every inhabitant has a card with their work, who they live with and what is going on in their life (recently widowed, new in town, engaged, not speaking to a brother, out of work…). Search by name, job or street, filter by "in love", "has a secret", "grieving" and more, sort by "most going on", or press "Surprise me".
+- Open a card to see the whole story, including the secrets only you will know, then press "Be …". The camera flies down to them and stays with them: behind them out of doors, circling their house while they are inside.
+- A panel shows who you are, what you are doing and how fed, rested and happy you are. Autopilot lets your routine run your day; switch it off and you decide. "What now?" lists what you can do: at home, at work, visiting the people closest to you, and the town's cafés, shops and parks, with how far each is and whether it is open.
+- "Skip time" moves on a day, a week, a month or up to a year; afterwards you read what your character lived through and heard in that time. "Save" saves the town, and "Someone else" brings the picker back.
+- The town now starts with a year of history behind it, so people have pasts, and it starts on the right day (it used to begin a day late).
+
+## v0.063 — Saves and the time skip in the game
+
+- The game saves the town when you switch away from the tab and every five minutes. Open it with `?resume` to play on from the last save.
+- `?skip=N` skips N days on start, to the same time of day; the town lives through them (life events, gossip) and everyone is drawn afresh.
+- Saves go to the browser's IndexedDB, gzipped, one per town.
+
+## v0.062 — The fields change through the farming year
+
+- The countryside follows the calendar: winter wheat and barley are green shoots in the winter, ripen gold in July and leave pale stubble until the autumn ploughing.
+- Rapeseed flowers bright yellow in late April and May. Maize and beet fields are bare ploughed soil in spring, green all summer and harvested in the autumn.
+- From far away the patchwork's average colour changes with them.
+
+## v0.061 — People walk around trees, cars and street furniture
+
+- People on the sidewalk step around street trees, lamps, benches, bins, café tables and parked cars instead of walking through them, and keep off building walls.
+- Each person stays inside the sidewalk: a narrow sidewalk has one walking line, a wide one room for several.
+- Corners no longer send walkers past the corner and back.
+- A walk to a door across the street crosses it where no parked car, lamp or tree is in the way, near the door, and not in the middle of a junction.
+- People leave and enter by the front of the building, not through the wall beside the door.
+- People strolling on squares, in parks and up and down a street keep walking most of the time, with a short pause, instead of standing about.
+- A save that no longer fits (an older save version, a changed town) no longer stops `?resume` from starting: play starts afresh and the old save is dropped.
+
+## v0.060 — The seam index names the paper and notices in the sim view
+
+- The SimView row in the architecture notes now lists the town's media (newest paper and board notices).
+
+## v0.059 — Chimney smoke
+
+- When it is cold, smoke rises from the chimneys of houses with the heating on: none on a mild day, most chimneys near freezing, more in the morning and the evening than in the small hours.
+- The smoke drifts with the wind, rises straight on a still day and is torn along low in a gale; it is pale by day, faint at night and thinner in the rain.
+
+## v0.058 — Front doors open onto the street
+
+- No front door opens into the house next door any more: on corner plots and narrow wedges the front was sometimes put on the shared wall.
+- Oddly pinched building outlines are gone.
+
+## v0.057 — The town map
+
+- A "Map" button opens a map of the town in the style of a printed town plan: every street with its name, the main roads in yellow, buildings, parks, the river or sea, the woods, the railway, and the town's landmarks by name.
+- An arrow shows where you are and which way you face when you are down in the street.
+- Drag to move around; zoom with the mouse wheel or the + and − buttons.
+
+## v0.056 — Read the town's paper
+
+- A "Paper" button beside Sound opens this week's issue of the town's paper: the front page, news around town, business, police news, births, marriages and deaths, what's on in the coming week, and the notices on the boards (lost pets, funerals, coming events).
+- There is a paper to read from the moment you arrive: last week's issue, with what's on from today.
+- Council stories say when the council meets next.
+
+## v0.055 — Saves and the time skip in the game
+
+- The game saves the town when you switch away from the tab and every five minutes. Open it with `?resume` to play on from the last save.
+- `?skip=N` skips N days on start, to the same time of day; the town lives through them (life events, gossip) and everyone is drawn afresh.
+- Saves go to the browser's IndexedDB, gzipped, one per town.
+
+## v0.054 — No more flickering ground, and parked cars that leave junctions free
+
+- The ground no longer flickers: lawns, squares and the church grounds no longer lie a centimetre over the block beneath them, and dirt tracks, lanes and main roads keep clear of each other and of the farmyards where they meet.
+- Far out in the country the roads no longer sink into the hills.
+- Parked cars keep five metres back from every cross street and off the zebra crossings, so a side street is never blocked.
+- Street trees, lamps, bins and benches stand in a strip along the kerb, leaving the sidewalk free to walk on.
+
+## v0.053 — A care home, a petrol station, and fewer empty-looking shop fronts
+
+- The town has a care home now: a two- or three-storey house with a garden behind it, on a quiet street at the edge of the residential part. The oldest townspeople living alone move in there.
+- A petrol station stands on a main road at the edge of town: a forecourt with a canopy, pumps and a small kiosk.
+- The supermarket sits further out towards the edge of town, with its car park in front.
+- Fewer shop fronts: a town keeps about one ordinary shop per 85 inhabitants. The fronts it cannot fill have become flats on the ground floor or small offices, and only a few units stand empty.
+- Tiny or wedge-shaped plots no longer carry tall narrow houses: they hold a single-storey kiosk, bungalow, shed or lock-up garage.
+- Zebra crossings are now known to the town itself, so people will be able to cross the street where the stripes are.
+
+## v0.052 — Street lamps light the street
+
+- At night the street lamps around you cast real light on the pavement, the walls and the people walking by, warmer under the old-style lamps.
+
+## v0.051 — The bin lorry, the post van and deliveries
+
+- On bin day the bin lorry works its way along every street whose bins are out, early in the morning.
+- The post van does its round from Monday to Saturday, out to the farms as well.
+- A delivery lorry brings the morning goods to the food shops, pubs and cafés that open that day, and a parcel van calls at a few homes on weekdays.
+- Vans and lorries pull in to the kerb while they unload, so traffic goes past them. A bus that finds another bus at its stop now pulls in behind it instead of waiting in the road.
+
+## v0.050 — The town's weekly paper, notice boards and lost pets
+
+- The town has its own weekly paper. Each Thursday or Friday it prints what really happened that week: deaths with the funeral time, births, weddings, burglaries and shoplifting, shops opening and closing, and what's on in the coming week.
+- Notice boards at the town hall, church, supermarket, library, post office, newsagent and square carry posters for the festival, the Christmas market, matches, club nights and council meetings, plus funeral notices. A new shop puts a "Grand opening" poster in its window; a closed one says thank you to its customers.
+- People who read the paper or walk past a poster come to know what it says, so news spreads through the town the way it would in real life.
+- Pets sometimes go missing. The family puts up "Lost cat" or "Lost dog" posters, and the more people know, the sooner someone finds it and brings it home. Some come home on their own; a few never do.
+
+## v0.049 — Lightning and thunder together
+
+- Each lightning flash in the sky now has its thunder: the sky and the sound draw the same strikes, and the thunder follows the flash after the time sound takes to travel.
+
+## v0.048 — Day and night, sun and moon, clouds and storms
+
+- The sky follows the real date and time: the sun rises and sets where and when it really would, with sunsets, twilight and a starry night.
+- The moon shows its real phase and rides high on winter nights.
+- The town's weather is in the sky: clear, fair, cloudy, overcast, grey rain, fog and thunderstorms with lightning; the distant haze matches the sky.
+- Windows light up after dusk and go dark late at night.
+- For looking around: `?date=2026-12-24&time=18:30` picks the moment, `?speed=60` runs time faster, `?wx=storm` picks the weather.
+
+## v0.047 — Rain and snow
+
+- Rain falls as thin streaks slanted by the wind; snow drifts down in flakes; sleet is a mix of both.
+- After rain the streets turn dark and glossy and puddles gather; lawns darken a little.
+- In winter snow lies on fields, lawns, roofs and ledges, thinner under the forest and on steep roofs; roads turn to grey slush.
+- The weather belongs to the date: Christmas looks the same whatever day you start the town.
+- The trees turn in autumn by the date (from mid-September, full colour late October), and their branches move with the weather's wind.
+
 ## v0.046 — People take the car like real townsfolk
 
 - People with a car now drive most trips over a kilometre or so, as in a real western town. Each person has their own habit: some walk fifteen minutes, others drive three hundred metres.

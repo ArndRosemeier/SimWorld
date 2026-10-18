@@ -10,6 +10,7 @@
 import type { ActorId } from '../sim/actors';
 import type { PlaceId } from '../sim/places';
 import { hasCar, householdOf, type World } from '../sim/world';
+import { walkLimit } from '../sim/schedule';
 
 export interface CarTrip {
   driver: ActorId;
@@ -51,7 +52,7 @@ export function carPlace(world: World, household: number): PlaceId {
   for (const t of world.trips) if (t.mode === 'car' && t.leader < 0 && hh.members.includes(t.who)) return here(t.to);
   for (const m of hh.members) {
     const p = a.place[m];
-    if (p >= 0 && p !== hh.home && a.with[m] < 0 && world.travel.mode(hh.home, p, true) === 'car' && a.dest[m] < 0 && hasCar(world, m)) return here(p);
+    if (p >= 0 && p !== hh.home && a.with[m] < 0 && world.travel.mode(hh.home, p, true, walkLimit(world, m, p, a.activity[m])) === 'car' && a.dest[m] < 0 && hasCar(world, m)) return here(p);
   }
   return hh.home;
 }

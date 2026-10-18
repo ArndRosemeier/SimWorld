@@ -1,6 +1,6 @@
 /**
  * Local politics (plan R7, town-realism §4, track F): the mayor, the council and the issues the town argues about.
- * Politics is local only: whether to close the pool, build a bypass, let a housing estate onto the farmland.
+ * Politics is local only: whether to close the pool, build a bypass, let a housing development onto the farmland.
  *
  * An issue comes up now and then and is talked about (news); the council votes on it at a monthly meeting a few
  * months later, each councillor by their own stance, and the vote is news that pleases some and angers others.
@@ -24,7 +24,9 @@ import { T_CONSC, T_EXTRA, V_AMBITION, type Job } from './people';
 import { liking } from './relations';
 import { fitRoutine, settle } from './synth';
 import { dayOf, MINUTES_PER_DAY } from './time';
-import { ageOf, householdOf, isPerson, jobOf, nameOf, placesOf, tickRng, traitOf, valueOf, weighed, type Weights, type World } from './world';
+import { ageOf, householdOf, isPerson, jobOf, nameOf, placesOf, setPlaceKind, tickRng, traitOf, valueOf, weighed, type Weights, type World } from './world';
+import { openOnSundays } from './economy';
+import type { PlaceId } from './places';
 
 // ---- the issues ------------------------------------------------------------------------------------------
 
@@ -41,21 +43,71 @@ interface Drivers extends Weights {
   centre?: number;
 }
 
-interface IssueSpec { key: string; what: string; drivers: Drivers }
+/** A building project the council approves: days from the vote until work starts, and how long it takes. */
+interface Build { start: number; takes: number; done: string }
+
+interface IssueSpec {
+  key: string;
+  what: string;
+  drivers: Drivers;
+  /** The news when a passed vote takes effect (or, for a building project, when work starts). */
+  enacted: string;
+  /** The rule it sets in `TownRules` (none for a building project). */
+  flag?: Flag;
+  build?: Build;
+}
 
 const ISSUES: IssueSpec[] = [
-  { key: 'pool', what: 'closing the open-air pool', drivers: { base: -0.1, age: 0.15, kids: -0.9, consc: 0.4, open: -0.2 } },
-  { key: 'bypass', what: 'building a bypass round the town', drivers: { base: 0, car: 0.5, centre: 0.6, open: -0.5, loyal: 0.1 } },
-  { key: 'estate', what: 'a new housing estate on the farmland', drivers: { base: -0.1, ambition: 0.5, age: -0.15, open: 0.3, loyal: -0.5 } },
-  { key: 'turbines', what: 'wind turbines on the ridge', drivers: { base: 0, open: 0.7, age: -0.12, loyal: -0.4 } },
-  { key: 'speed', what: 'a 30 km/h limit through the centre', drivers: { base: 0, kids: 0.6, car: -0.5, centre: 0.5, neuro: 0.3 } },
-  { key: 'parking', what: 'parking charges in the centre', drivers: { base: -0.2, car: -0.8, centre: 0.3, consc: 0.2 } },
-  { key: 'skatepark', what: 'a skate park by the sports ground', drivers: { base: 0.1, age: -0.2, kids: 0.5, consc: -0.3, agree: 0.2 } },
-  { key: 'library', what: 'cutting the library\'s opening hours', drivers: { base: -0.2, open: -0.7, consc: 0.4, age: -0.05 } },
-  { key: 'lights', what: 'switching the street lights off after midnight', drivers: { base: 0, consc: 0.4, neuro: -0.7, age: -0.05 } },
-  { key: 'rates', what: 'raising the local rates to mend the roads', drivers: { base: -0.3, car: 0.4, ambition: -0.3, consc: 0.3 } },
-  { key: 'sunday', what: 'letting the shops open on Sundays', drivers: { base: 0, faith: -1, age: -0.1, ambition: 0.4, loyal: -0.2 } },
+  { key: 'pool', what: 'closing the open-air pool', drivers: { base: -0.1, age: 0.15, kids: -0.9, consc: 0.4, open: -0.2 },
+    enacted: 'the open-air pool has closed for good', flag: 'poolClosed' },
+  { key: 'bypass', what: 'building a bypass round the town', drivers: { base: 0, car: 0.5, centre: 0.6, open: -0.5, loyal: 0.1 },
+    enacted: 'work has started on the bypass round the town', build: { start: 180, takes: 540, done: 'the bypass round the town is open' } },
+  { key: 'estate', what: 'a new housing development on the farmland', drivers: { base: -0.1, ambition: 0.5, age: -0.15, open: 0.3, loyal: -0.5 },
+    enacted: 'building has started on the new housing development on the farmland', build: { start: 240, takes: 720, done: 'the new housing development on the farmland is finished' } },
+  { key: 'turbines', what: 'wind turbines on the ridge', drivers: { base: 0, open: 0.7, age: -0.12, loyal: -0.4 },
+    enacted: 'the wind turbines are going up on the ridge', build: { start: 300, takes: 240, done: 'the wind turbines on the ridge are turning' } },
+  { key: 'speed', what: 'a 30 km/h limit through the centre', drivers: { base: 0, kids: 0.6, car: -0.5, centre: 0.5, neuro: 0.3 },
+    enacted: 'the 30 km/h limit through the centre is now in force', flag: 'speed30' },
+  { key: 'parking', what: 'parking charges in the centre', drivers: { base: -0.2, car: -0.8, centre: 0.3, consc: 0.2 },
+    enacted: 'parking in the centre now costs money', flag: 'parkingCharges' },
+  { key: 'skatepark', what: 'a skate park by the sports ground', drivers: { base: 0.1, age: -0.2, kids: 0.5, consc: -0.3, agree: 0.2 },
+    enacted: 'work has started on the skate park by the sports ground', build: { start: 60, takes: 90, done: 'the skate park by the sports ground is open' } },
+  { key: 'library', what: 'cutting the library\'s opening hours', drivers: { base: -0.2, open: -0.7, consc: 0.4, age: -0.05 },
+    enacted: 'the library now opens only three days a week', flag: 'libraryCut' },
+  { key: 'lights', what: 'switching the street lights off after midnight', drivers: { base: 0, consc: 0.4, neuro: -0.7, age: -0.05 },
+    enacted: 'the street lights now go off at midnight', flag: 'lightsOffAtMidnight' },
+  { key: 'tax', what: 'raising the local property tax to mend the roads', drivers: { base: -0.3, car: 0.4, ambition: -0.3, consc: 0.3 },
+    enacted: 'the local property tax has gone up, and the roads are being mended', flag: 'taxUp' },
+  { key: 'sunday', what: 'letting the shops open on Sundays', drivers: { base: 0, faith: -1, age: -0.1, ambition: 0.4, loyal: -0.2 },
+    enacted: 'the bigger shops in town now open on Sunday afternoons', flag: 'sundayShops' },
 ];
+
+/** Days from a passed vote until a rule takes effect (the start of the next month or so). */
+const TAKES_EFFECT = 28;
+
+/**
+ * What the council's decisions have changed in town: the rules in force and the building works. The sim acts on
+ * them (library and Sunday hours, property tax and parking in the household budgets); the views get them through `viewOf`
+ * (lamps that go dark at midnight, 30 signs, parking meters, a fenced-off pool, building sites).
+ */
+export interface TownRules {
+  poolClosed: boolean;
+  libraryCut: boolean;
+  lightsOffAtMidnight: boolean;
+  speed30: boolean;
+  parkingCharges: boolean;
+  sundayShops: boolean;
+  taxUp: boolean;
+  works: Work[];
+}
+type Flag = Exclude<keyof TownRules, 'works'>;
+
+/** A building project: a site from `start`, the finished thing from `done` (game days). */
+export interface Work { key: string; what: string; start: number; done: number }
+
+export const newRules = (): TownRules => ({
+  poolClosed: false, libraryCut: false, lightsOffAtMidnight: false, speed30: false, parkingCharges: false, sundayShops: false, taxUp: false, works: [],
+});
 
 export interface Issue {
   key: string;
@@ -92,9 +144,20 @@ export interface Politics {
   announced: boolean;
   slate: Slate | null;
   elections: ElectionResult[];
+  /** What the council's decisions have changed (read it through `rulesOf`). */
+  rules: TownRules;
+  /** Passed decisions waiting to take effect: issue key and game day. */
+  due: { key: string; day: number }[];
 }
 
-export const newPolitics = (): Politics => ({ issues: [], election: -1, byElection: -1, announced: false, slate: null, elections: [] });
+export const newPolitics = (): Politics => ({ issues: [], election: -1, byElection: -1, announced: false, slate: null, elections: [], rules: newRules(), due: [] });
+
+/** The rules in force (a world saved before there were any gets none in force). */
+export function rulesOf(world: World): TownRules {
+  const pol = world.politics as Partial<Politics> & Politics;
+  pol.due ??= [];
+  return (pol.rules ??= newRules());
+}
 
 /** Where someone stands on an issue: -1 dead against .. 1 all for it. Derived, never stored. */
 export function stanceOf(world: World, id: ActorId, key: string): number {
@@ -164,6 +227,13 @@ export function politicsDay(world: World, days: number): void {
   const day = dayOf(world.clock);
   const rng = tickRng(world, 'politics');
   for (const issue of pol.issues) if (issue.status === 'open' && issue.vote <= day) vote(world, issue, rng.fork('vote', issue.raised));
+  const rules = rulesOf(world);
+  for (const d of pol.due.filter((x) => x.day <= day)) enact(world, d.key);
+  pol.due = pol.due.filter((x) => x.day > day);
+  for (const w of rules.works) if (w.done > day - days && w.done <= day) {
+    const spec = ISSUES.find((s) => s.key === w.key)!;
+    news(world, spec.build!.done, 0.5);
+  }
   if (!pol.announced && pol.election - day <= 30) { callElection(world, pol.election, false, rng.fork('announce')); pol.announced = true; }
   if (day >= pol.election) {
     elect(world, pol.election, false, rng.fork('election'));
@@ -186,7 +256,8 @@ export function politicsDay(world: World, days: number): void {
 
 function raise(world: World, rng: Rng): void {
   const day = dayOf(world.clock);
-  const fresh = ISSUES.filter((s) => !world.politics.issues.some((i) => i.key === s.key && day - i.raised < 3 * 365));
+  // A rejected issue may come back after a few years; a passed one is settled.
+  const fresh = ISSUES.filter((s) => !world.politics.issues.some((i) => i.key === s.key && (i.status === 'passed' || day - i.raised < 3 * 365)));
   if (fresh.length === 0) return;
   const spec = fresh[rng.int(0, fresh.length - 1)];
   const fact = addFact(world, { topic: 'politics', text: `the council is talking about ${spec.what}`, magnitude: 0.55 });
@@ -207,6 +278,11 @@ function vote(world: World, issue: Issue, rng: Rng): void {
   }
   issue.status = yes > no ? 'passed' : 'rejected';
   issue.yes = yes; issue.no = no;
+  if (yes > no) {
+    const spec = ISSUES.find((s) => s.key === issue.key)!;
+    rulesOf(world);
+    world.politics.due.push({ key: issue.key, day: issue.vote + (spec.build ? spec.build.start : TAKES_EFFECT) });
+  }
   const text = yes > no ? `the council voted ${yes} to ${no} for ${issue.what}` : `the council voted ${no} to ${yes} against ${issue.what}`;
   issue.outcome = addFact(world, { topic: 'politics', text, place: council.place, magnitude: 0.6 });
   witness(world, issue.outcome, council.members);
@@ -219,6 +295,35 @@ function vote(world: World, issue: Issue, rng: Rng): void {
     if (s < -0.7) feel(world, id, 'anger', 0.25);
     else if (s > 0.7) feel(world, id, 'joy', 0.15);
   }
+}
+
+/** A passed decision takes effect: the rule is in force (and acted on), or the building work starts. News. */
+function enact(world: World, key: string): void {
+  const spec = ISSUES.find((s) => s.key === key);
+  if (!spec) return;
+  const rules = rulesOf(world), day = dayOf(world.clock);
+  if (spec.build) rules.works.push({ key, what: spec.what, start: day, done: day + spec.build.takes });
+  if (spec.flag) rules[spec.flag] = true;
+  if (spec.flag === 'libraryCut') for (const pl of placesOf(world, ['library'])) cutHours(world, pl);
+  if (spec.flag === 'sundayShops') for (const pl of world.graph.places) openOnSundays(world, pl.id);
+  news(world, spec.enacted, 0.45);
+}
+
+/** The library shuts on Tuesdays and Thursdays and closes at five; its staff work those hours. */
+const CUT = (1 << 1) | (1 << 3);
+function cutHours(world: World, place: PlaceId): void {
+  const p = world.graph.places[place];
+  const hours = p.hours.map((h) => ({ ...h, days: h.days & ~CUT, close: Math.min(h.close, 17 * 60) })).filter((h) => h.days);
+  setPlaceKind(world, place, p.kind, { hours });
+  for (const j of world.jobs) if (j.place === place && j.days & CUT) { j.days &= ~CUT; j.end = Math.min(j.end, 17 * 60 + 15); }
+}
+
+/** Council news everyone may hear: the council knows first. */
+function news(world: World, text: string, share: number): void {
+  const council = groupsOfKind(world, 'council')[0];
+  const fact = addFact(world, { topic: 'politics', text, place: council?.place ?? -1, magnitude: 0.5 });
+  if (council) witness(world, fact, council.members);
+  broadcast(world, fact, share);
 }
 
 // ---- elections -------------------------------------------------------------------------------------------

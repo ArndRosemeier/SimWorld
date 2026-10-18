@@ -11,9 +11,9 @@
  * Pure; a function of the planned town.
  */
 import { MinHeap } from '@futuremagic/core';
-import type { Town } from '../plan/town';
+import { CENTRAL_DISTRICTS, type Town } from '../plan/town';
 import { LineSource, townRoads, type RoadLine } from '../plan/roads';
-import { slicePolyline } from '../geom/geom2';
+import { pointInPoly, slicePolyline } from '../geom/geom2';
 import { RoadClass } from '../plan/types';
 import { boundaryAt } from '../world/boundary';
 import { bridgeDeckSurface } from '../build/bridges';
@@ -49,17 +49,23 @@ export interface REdge {
   source: LineSource;
   /** Kerbside parking strip each side (m), 0 where there is none. */
   park: number;
-  /** Speed limit (km/h): what the signs say. */
+  /** Speed limit (km/h): what the signs say (without the council's 30 zone, see `RoadNet.zone30`). */
   kmh: number;
+  /** In the town centre (its central districts): where the council's 30 zone applies. */
+  centre: boolean;
   /** What a car arriving at node a (index 0) and at node b (index 1) must do there. */
   rule: [Rule, Rule];
   /** Road surface height every SURF_STEP metres from a. */
   ys: Float32Array;
   /** The town road line it is a piece of, and the arc length where it starts on it. */
   line: number;
+  /** Its street (`RoadNet.streets`), -1 for unnamed tracks. */
+  street: number;
   s0: number;
 }
 
+/** The council's limit through the centre (km/h), and how far off a road its central cell may lie (m). */
+const ZONE_KMH = 30, CENTRE_PAD = 10;
 /** Spacing of the surface height samples (m). */
 export const SURF_STEP = 4;
 const GRID = 32;
@@ -72,13 +78,19 @@ export const LIMITS = { main: 50, street: 30, lane: 20, country: 80, countryLane
 export class RoadNet {
   readonly nodes: RNode[];
   readonly edges: REdge[] = [];
+  /** Street names (the place graph's street places carry the same names). */
+  readonly streets: string[];
   private readonly grid = new Map<number, number[]>();
+  /** The council's 30 km/h zone through the centre is in force (`TownRules.speed30`): faster roads there are 30. */
+  zone30 = false;
 
   constructor(town: Town) {
     const roads = townRoads(town);
+    this.streets = roads.streets.map((st) => st.name);
     const { terrain, macro } = town;
     this.nodes = roads.nodes.map((n) => ({ x: n.x, z: n.z, edges: [], signal: false, exit: false }));
     const bridgeOf = new Map(macro.bridges.map((b) => [b.edge, b]));
+    const central = macro.cells.filter((c) => CENTRAL_DISTRICTS.has(c.district)).map((c) => c.poly);
     roads.lines.forEach((L, li) => {
       if (L.cls === RoadClass.Path) return;
       const surf = surfaceOf(L);
@@ -96,11 +108,13 @@ export class RoadNet {
         }
         const [mx, mz] = pointOn(pts, cum, len / 2);
         const inTown = Math.hypot(mx, mz) < boundaryAt(macro.boundary, mx, mz) + 60;
+        // (A main road runs along the edge of its cells: in the centre if a central cell is on either side.)
+        const centre = central.some((p) => [[0, 0], [CENTRE_PAD, 0], [-CENTRE_PAD, 0], [0, CENTRE_PAD], [0, -CENTRE_PAD]].some(([dx, dz]) => pointInPoly(p, mx + dx, mz + dz)));
         const id = this.edges.length;
         this.edges.push({
           a: A.node, b: B.node, pts, cum, len, width: L.width, sidewalk: L.sidewalk, lanes: Math.max(1, L.lanes), cls: L.cls, source: L.source,
           park: L.source === LineSource.Local && L.cls === RoadClass.Street ? 2 : 0,
-          kmh: limitOf(L, inTown), rule: [Rule.Free, Rule.Free], ys, line: li, s0: A.s,
+          kmh: limitOf(L, inTown), centre, rule: [Rule.Free, Rule.Free], ys, line: li, s0: A.s, street: L.street,
         });
         this.nodes[A.node].edges.push(id);
         this.nodes[B.node].edges.push(id);
@@ -135,7 +149,8 @@ export class RoadNet {
       }
       if (L.source === LineSource.Country || L.source === LineSource.Track) {
         const r = town.rural.roads[L.ref];
-        return r.bridges.length ? countryRoadSurface(r, terrain) : null;
+        // The drawn surface: a little above the ground (more on the bigger roads), decks on bridges.
+        return countryRoadSurface(r, terrain);
       }
       return null;
     }
@@ -177,7 +192,7 @@ export class RoadNet {
 
   /** Speed limit in m/s. */
   limit(e: REdge): number {
-    return e.kmh / 3.6;
+    return (this.zone30 && e.centre ? Math.min(e.kmh, ZONE_KMH) : e.kmh) / 3.6;
   }
 
   /** Surface height at arc length s along an edge. */

@@ -54,6 +54,48 @@ export const enum Crop { Wheat = 0, Barley = 1, Green = 2, Maize = 3, Ploughed =
 /** Parcel id (mod 16) → crop. */
 export const CROP_OF = [0, 0, 0, 1, 2, 2, 2, 3, 3, 4, 4, 5, 5, 5, 6, 7];
 
+/**
+ * How a parcel of each crop looks through the year (the farming calendar of a temperate climate): `out` gets the
+ * crop's colour (sRGB) and how much of the soil it covers (0 bare … 1 closed; under 0.08 the field is ploughed and
+ * shows furrows). Winter wheat and barley come up green in the autumn, ripen gold in July and leave stubble until
+ * the plough; rapeseed flowers yellow in late April and May; maize and beet are sown in spring into ploughed
+ * fields and harvested in the autumn. The parcels of `Ploughed` grow spring barley and those of `Stubble` a late
+ * sown wheat, so every field changes with the seasons. `doy`: day of the year, 0 … 365.
+ */
+export function cropLook(crop: Crop, doy: number, out: number[]): number[] {
+  const keys = CROP_YEAR[crop];
+  const d = ((doy % 365) + 365) % 365;
+  let k = 0;
+  while (k + 1 < keys.length && keys[k + 1][0] <= d) k++;
+  const a = keys[k], b = keys[(k + 1) % keys.length];
+  const span = (b[0] - a[0] + 365) % 365 || 365;
+  const t = ((d - a[0] + 365) % 365) / span;
+  for (let i = 0; i < 4; i++) out[i] = a[i + 1] + (b[i + 1] - a[i + 1]) * t;
+  return out;
+}
+
+type CropKey = readonly [day: number, r: number, g: number, b: number, cover: number];
+const SOIL: [number, number, number, number] = [0.38, 0.29, 0.2, 0];
+const SHOOTS = (cover: number): [number, number, number, number] => [0.42, 0.55, 0.2, cover];
+const GREEN: [number, number, number, number] = [0.36, 0.5, 0.17, 0.85];
+const STUBBLE: [number, number, number, number] = [0.64, 0.58, 0.4, 0.75];
+const cereal = (ripe: number, colour: [number, number, number]): CropKey[] => [
+  [0, ...SHOOTS(0.3)], [70, ...SHOOTS(0.4)], [ripe - 95, ...GREEN], [ripe - 40, 0.4, 0.5, 0.2, 0.92],
+  [ripe - 18, 0.6, 0.55, 0.28, 0.9], [ripe, ...colour, 0.9], [ripe + 12, ...colour, 0.9], [ripe + 16, ...STUBBLE],
+  [ripe + 50, ...STUBBLE], [ripe + 57, ...SOIL], [ripe + 80, ...SOIL], [ripe + 100, ...SHOOTS(0.15)],
+];
+/** Key days of each crop's year (`Crop` order): [day, r, g, b, cover], interpolated, wrapping at the year's end. */
+const CROP_YEAR: readonly CropKey[][] = [
+  cereal(200, [0.66, 0.56, 0.3]),
+  cereal(190, [0.72, 0.66, 0.42]),
+  [[0, ...SOIL], [100, ...SOIL], [135, ...SHOOTS(0.15)], [175, ...GREEN], [260, ...GREEN], [280, 0.45, 0.48, 0.22, 0.7], [290, ...SOIL]],
+  [[0, 0.55, 0.5, 0.35, 0.5], [85, 0.55, 0.5, 0.35, 0.5], [92, ...SOIL], [130, ...SOIL], [150, ...SHOOTS(0.12)], [190, 0.3, 0.45, 0.15, 0.6], [215, 0.25, 0.37, 0.13, 0.95], [262, 0.25, 0.37, 0.13, 0.95], [278, 0.6, 0.55, 0.35, 0.9], [288, 0.55, 0.5, 0.35, 0.5]],
+  [[0, ...SOIL], [78, ...SOIL], [95, ...SHOOTS(0.15)], [150, ...GREEN], [185, 0.6, 0.55, 0.28, 0.9], [205, 0.72, 0.66, 0.42, 0.9], [215, 0.72, 0.66, 0.42, 0.9], [219, ...STUBBLE], [300, ...STUBBLE], [307, ...SOIL]],
+  [[0, 0.4, 0.5, 0.22, 1]],
+  [[0, ...SHOOTS(0.55)], [100, ...SHOOTS(0.8)], [112, 0.8, 0.74, 0.2, 0.95], [140, 0.8, 0.74, 0.2, 0.95], [152, 0.42, 0.5, 0.22, 0.9], [188, 0.5, 0.45, 0.28, 0.85], [196, ...STUBBLE], [238, ...STUBBLE], [244, ...SOIL], [250, ...SOIL], [262, ...SHOOTS(0.2)]],
+  cereal(212, [0.66, 0.56, 0.3]),
+];
+
 export const WARP_K1 = 1 / 730, WARP_K2 = 1 / 910;
 
 export function parcelParams(seed: number): ParcelParams {

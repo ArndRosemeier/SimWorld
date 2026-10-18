@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { CHANNELS, type SoundMap, type SoundSource } from '../src/audio/soundMap';
 import { Soundscape, SCHOOL_BELLS, type Listener, type SoundEnv } from '../src/audio/soundscape';
 import { moodOf, nextPiece, parseTracks } from '../src/audio/music';
-import { LiveClock } from '../src/audio/env';
-import { strikesIn } from '../src/audio/soundscape';
+import { soundEnvOf, soundOverrides } from '../src/audio/env';
+import { DEFAULT_LATITUDE, daysOf, epochFor } from '../src/sim/calendar';
+import { strikesIn } from '../src/sim/weather';
 
 /** A 1 km square town: built in the middle, a river along the east edge, gardens, a church, a school, a farm. */
 function testMap(): SoundMap {
@@ -127,7 +128,14 @@ test('music: the piece fits the hour and the weather, falls back to a day piece,
 });
 
 test('the environment comes from the calendar and the weather: night by the sun, Christmas rings like a Sunday, no school then', () => {
-  const at = (date: string, time: string) => new LiveClock(7, new URLSearchParams({ date, time })).now();
+  // The world as the screen hands it to the sound (src/game/SimClient.ts screenWorld): the date's week, the minute.
+  const hear = (q: URLSearchParams) => {
+    const [y, mo, d] = q.get('date')!.split('-').map(Number), [hh, mm] = q.get('time')!.split(':').map(Number);
+    const epoch = epochFor({ year: y, month: mo, day: d }, 0);
+    const world = { seed: 7, epoch, latitude: DEFAULT_LATITUDE, clock: (daysOf(y, mo, d) - epoch) * 1440 + hh * 60 + mm };
+    return soundEnvOf(world, undefined, soundOverrides(q));
+  };
+  const at = (date: string, time: string) => hear(new URLSearchParams({ date, time }));
   const xmas = at('2026-12-25', '09:45');
   assert.equal(xmas.feast, true);
   assert.equal(xmas.schoolDay, false);
@@ -137,7 +145,7 @@ test('the environment comes from the calendar and the weather: night by the sun,
   assert.equal(tue.schoolDay, true);
   assert.ok(tue.night < 0.05 && at('2026-10-20', '02:00').night > 0.95);
   assert.ok(at('2026-06-20', '21:00').night < at('2026-12-20', '21:00').night + 1e-9 && at('2026-12-20', '17:30').night > 0.9, 'December dusk comes early');
-  const wet = new LiveClock(7, new URLSearchParams({ date: '2026-10-20', time: '12:00', rain: '0.8' })).now();
+  const wet = hear(new URLSearchParams({ date: '2026-10-20', time: '12:00', rain: '0.8' }));
   assert.equal(wet.rain, 0.8);
   assert.deepEqual(strikesIn(3, 100, 0), []);
   assert.deepEqual(strikesIn(3, 100, 1), strikesIn(3, 100, 1));

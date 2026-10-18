@@ -48,8 +48,8 @@ export interface LoreLine {
 export interface Region {
   /** The town's own name. */
   town: string;
-  /** The county or district the town lies in ("Calder County", "the Calder district"). */
-  county: string;
+  /** The district the town lies in ("the Calder district"). */
+  district: string;
   /** places[0] is the big city, places[1] the larger town nearby, the rest are villages. */
   places: RegionPlace[];
   lore: LoreLine[];

@@ -7,9 +7,10 @@
  *  - memory.summary  a finished conversation as an episodic memory (structured, cheap)
  *  - npc.reflection  occasional insights from many memories (reasoning; rare)
  *  - skip.digest     what the player's person learned during a time skip (cheap, long context)
+ *  - talk.judge      scores generated background chatter for coherence and naturalness (authoring and slow tests only)
  */
 import { APPRAISAL_SCHEMA, appraisalMessages, parseAppraisal, stripFence, type AppraisalInput, type AppraisalResult } from './appraisal';
-import { backgroundBlock, escapeRe, refsFor, RefTable, speechMessages, transcript, type Memory, type Message, type NpcCard, type NpcPromptInput, type PersonRef, type PlaceRef } from './prompt';
+import { backgroundBlock, escapeRe, refsFor, RefTable, SETTING_RULE, speechMessages, transcript, type Memory, type Message, type NpcCard, type NpcPromptInput, type PersonRef, type PlaceRef } from './prompt';
 import type { Effort } from './roster';
 import type { Routing } from './router';
 import type { JsonSchema } from './wire';
@@ -99,6 +100,43 @@ export interface DigestInput {
   events: { when: string; text: string; importance: number }[];
 }
 
+// --- talk.judge -----------------------------------------------------------------------------------
+
+/** Overheard exchanges to score, each as plain "Name: line" text. */
+export interface JudgeInput { exchanges: string[] }
+
+export interface JudgeScore {
+  /** 1-5: every reply answers the line before it, nothing contradicts. */
+  coherence: number;
+  /** 1-5: sounds like people talking, not a machine. */
+  naturalness: number;
+  /** The worst problem, or '' when there is none. */
+  note: string;
+}
+
+const JUDGE_SCHEMA: JsonSchema = {
+  type: 'object',
+  properties: {
+    scores: {
+      type: 'array',
+      description: 'One entry per exchange, in the order given.',
+      items: {
+        type: 'object',
+        properties: {
+          exchange: { type: 'integer', description: 'The number of the exchange this scores.' },
+          coherence: { type: 'integer', minimum: 1, maximum: 5, description: '5: every line answers what was said before it and nothing contradicts; 1: random lines stitched together' },
+          naturalness: { type: 'integer', minimum: 1, maximum: 5, description: '5: real people in a small town; 1: robotic or ungrammatical' },
+          note: { type: 'string', description: 'The single worst problem, quoting the line; empty when there is none.' },
+        },
+        required: ['exchange', 'coherence', 'naturalness', 'note'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['scores'],
+  additionalProperties: false,
+};
+
 // --- the table ------------------------------------------------------------------------------------
 
 export interface TaskIO {
@@ -107,6 +145,7 @@ export interface TaskIO {
   'memory.summary': { input: NpcPromptInput; output: SummaryOutput };
   'npc.reflection': { input: ReflectionInput; output: ReflectionOutput };
   'skip.digest': { input: DigestInput; output: string };
+  'talk.judge': { input: JudgeInput; output: JudgeScore[] };
 }
 
 export type TaskName = keyof TaskIO;
@@ -238,7 +277,7 @@ export const TASKS: { [K in TaskName]: TaskSpec<TaskIO[K]['input'], TaskIO[K]['o
         npc: input.pov.id,
         refs,
         messages: [
-          { role: 'system', content: `Time passed in a town while the player was away. The player is ${input.pov.name}. Tell them what ${input.pov.name} lived through, in the second person: "you" is ${input.pov.name} ("Tom asked you to the dance"), never "I". Lead with what matters most to this person. Only what is in the list: invent no events, words or feelings beyond it. Sum up routine things in a sentence. A few short paragraphs, plain and warm, no headings.` },
+          { role: 'system', content: `Time passed in a town while the player was away. The player is ${input.pov.name}. Tell them what ${input.pov.name} lived through, in the second person: "you" is ${input.pov.name} ("Tom asked you to the dance"), never "I". Lead with what matters most to this person. Only what is in the list: invent no events, words or feelings beyond it. Sum up routine things in a sentence. A few short paragraphs, plain and warm, no headings. ${SETTING_RULE}` },
           { role: 'user', content: `From ${input.from} to ${input.to}:\n${events.map((e) => `- ${e.when}: ${e.text}`).join('\n')}` },
         ],
       };
@@ -247,6 +286,37 @@ export const TASKS: { [K in TaskName]: TaskSpec<TaskIO[K]['input'], TaskIO[K]['o
       const s = text.trim();
       if (!s) throw new Error('empty digest');
       return s;
+    },
+  },
+
+  'talk.judge': {
+    routing: { needs: ['structured', 'cheap'], rank: 'cost' },
+    effort: 'none',
+    maxTokens: 2500,
+    temperature: 0,
+    timeoutMs: 90_000,
+    schema: { name: 'judge', schema: JUDGE_SCHEMA },
+    build(input) {
+      return {
+        refs: new RefTable(),
+        messages: [
+          { role: 'system', content: 'You review short conversations overheard in the street of a small modern town; a game generates them. People greet, pass on gossip (which may be wrong or exaggerated, and listeners may doubt it or know another version), make small talk and part. Score each exchange. Coherence: does every line answer the line before it (an answer fits its question, a reaction fits the news, nobody contradicts themselves, the topic does not jump without reason)? Naturalness: would people say it like this? Short and plain is fine; do not mark down brevity, small talk or a quick goodbye. Be strict and specific.' },
+          { role: 'user', content: input.exchanges.map((x, i) => `Exchange ${i + 1}:\n${x}`).join('\n\n') },
+        ],
+      };
+    },
+    parse(text, input) {
+      const v = parseJson(text);
+      const list = Array.isArray(v.scores) ? (v.scores as Record<string, unknown>[]) : [];
+      const rating = (n: unknown) => (typeof n === 'number' ? Math.max(1, Math.min(5, Math.round(n))) : 3);
+      // By the exchange's number (a model may skip or repeat one); every exchange needs its score.
+      const out: JudgeScore[] = [];
+      list.forEach((s, i) => {
+        const k = typeof s.exchange === 'number' ? s.exchange - 1 : i;
+        if (k >= 0 && k < input.exchanges.length && !out[k]) out[k] = { coherence: rating(s.coherence), naturalness: rating(s.naturalness), note: typeof s.note === 'string' ? s.note : '' };
+      });
+      if (out.filter(Boolean).length !== input.exchanges.length) throw new Error(`scores for ${out.filter(Boolean).length} of ${input.exchanges.length} exchanges`);
+      return out;
     },
   },
 };

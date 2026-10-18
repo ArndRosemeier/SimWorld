@@ -22,10 +22,10 @@
 import { Rng, hash32 } from '@futuremagic/core';
 import { Rule, gridKey as cellKey, type REdge, type RoadNet } from './roadNet';
 import type { Parking, Spot } from './parking';
+import type { VehicleKind } from '../build/vehicles';
 
-export type VKind =
-  | 'sedan' | 'hatch' | 'wagon' | 'suv' | 'van' | 'pickup' | 'taxi' | 'police' | 'sports' | 'bus' | 'truck' | 'delivery' | 'shuttle'
-  | 'ambulance' | 'firetruck' | 'flatbed';
+/** A vehicle's kind: the vehicle models' (src/build/vehicles.ts). */
+export type VKind = VehicleKind;
 
 /** Length and width (m) per kind (Scale's DIMS). */
 export const DIMS: Record<VKind, [number, number]> = {
@@ -371,7 +371,7 @@ export class Traffic {
     const remaining = e.len - along;
     const last = v.ri + 1 >= v.route.edges.length;
     // ---- leader: the next car on this lane, cars from it still in the box, anything else in the way
-    let gap = Infinity, leadV = 0, passing = false;
+    let gap = Infinity, leadV = 0, passing = false, bayQueue = false;
     const lk = laneKey(v.edge, v.fwd, v.lane);
     const lane = this.laneIndex.get(lk);
     if (lane) for (const o of lane) {
@@ -379,8 +379,12 @@ export class Traffic {
       const oa = v.fwd ? o.s : e.len - o.s;
       if (oa > along || (oa === along && o.id < v.id)) {
         if (v.siren && o.pull > 0.5) { if (oa - along < 30) passing = true; continue; }
-        // A bus in the lay-by at its stop is off the carriageway (another bus for the stop queues behind it).
-        if (o.halted >= 0 && o.pull > 0.9 && !(last && 'bay' in v.goal && v.goal.bay)) continue;
+        // A vehicle pulled in at the kerb is off the carriageway (one that wants the same kerb queues behind it).
+        if (o.halted >= 0 && o.pull > 0.9) {
+          if (!(last && 'bay' in v.goal && v.goal.bay && Math.abs(o.s - v.stopAt) < (o.length + v.length) / 2 + 2)) continue;
+          // It stands at my stop: I pull in right behind it.
+          bayQueue = true;
+        }
         const g = oa - along - (o.length + v.length) / 2;
         if (g < gap) { gap = g; leadV = o.speed; }
         break;
@@ -423,7 +427,7 @@ export class Traffic {
         // The stop as a standing obstacle just beyond it (IDM keeps s0 to a leader).
         const dStop = v.fwd ? v.stopAt - v.s : v.s - v.stopAt;
         if (dStop + S0 - 0.2 < gap) { gap = Math.max(0, dStop + S0 - 0.2); leadV = 0; }
-        if (dStop < 0.8 && v.speed < 1.5) {
+        if ((dStop < 0.8 || (bayQueue && gap < 1.2)) && v.speed < 1.5) {
           if ('halt' in v.goal) { this.haltNow(v, dt); return; }
           this.parkNow(v);
           return;

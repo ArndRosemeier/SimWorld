@@ -16,7 +16,7 @@ import { RuralPlan } from '../world/rural';
 import { buildMacroPlan } from './macro';
 import { planCell, type CellPlan } from './cell';
 import { placeEateries } from './terrace';
-import { dwellingsOf, type BuildingDesc } from './building';
+import { asLockUp, dwellingsOf, isSliver, type BuildingDesc } from './building';
 import { EATERY_OF, PREFER, amenityCounts, type AmenityKind } from './amenities';
 import type { District, MacroPlan } from './types';
 import type { LandmarkKind } from './landmarks';
@@ -28,6 +28,9 @@ export const PEOPLE_PER_HOME = 2.2;
 export function dwellingTarget(size: number): number {
   return Math.round(450 + 450 * clamp(size, 0, 1));
 }
+
+/** The districts that make up the town centre (the main streets, the council's 30 zone). */
+export const CENTRAL_DISTRICTS: ReadonlySet<District> = new Set<District>(['commercial', 'downtown', 'oldtown']);
 
 export interface Town {
   settings: TownSettings;
@@ -70,6 +73,9 @@ function planAt(settings: TownSettings, scale: number, target: number): Omit<Tow
   const rural = new RuralPlan(terrain, land, macro);
   land.settle = rural;
   const cells = macro.cells.map((c) => planCell(macro, c, terrain));
+  let homes = rural.farms.length;
+  for (const c of cells) for (const b of c.buildings) homes += dwellingsOf(b);
+  trimFronts(macro, cells, Math.min(homes, target * 1.1) * PEOPLE_PER_HOME, profile.warmth, settings.seed);
   const dwellings = calibrate(cells, rural.farms.length, target, settings.seed);
   return { terrain, land, macro, cells, rural, dwellings };
 }
@@ -106,12 +112,60 @@ function calibrate(cells: CellPlan[], farms: number, target: number, seed: numbe
   return total;
 }
 
+/**
+ * How many of the town's ground floors are general shops, offices and small trades' workshops
+ * behind a shop front, besides the services of `amenityCounts`: about one shop per 85
+ * inhabitants (a town of 2,000 keeps some two dozen going), one office front per 110, one
+ * workshop per 350. VACANT_SHARE of the fronts stand empty (a business may move in).
+ */
+export function frontQuotas(pop: number): { shop: number; office: number; workshop: number } {
+  return { shop: Math.round(pop / 85), office: Math.round(pop / 110), workshop: Math.round(pop / 350) };
+}
+export const VACANT_SHARE = 0.06;
+
+/** Shop fronts a town of `pop` fills: its services, its shops, offices and workshops, and the empty ones. */
+function frontsWanted(pop: number, warmth: number): number {
+  const q = frontQuotas(pop);
+  const named = amenityCounts(pop, warmth).reduce((s, [, n]) => s + n, 0);
+  return Math.ceil((named + q.shop + q.office + q.workshop) / (1 - VACANT_SHARE));
+}
+
+/**
+ * The cell planner gives more buildings a shop front than a town keeps busy. The surplus, the
+ * fronts furthest from the main streets first, becomes homes on the ground floor (a block of
+ * flats), small offices (a shop pavilion) or, on a sliver of a lot, a lock-up garage. Before
+ * `calibrate`, so the new homes count towards the target.
+ */
+function trimFronts(macro: MacroPlan, cells: CellPlan[], pop: number, warmth: number, seed: number): void {
+  const [cx, cz] = macro.core, R = Math.max(...macro.boundary);
+  const fronts: { b: BuildingDesc; score: number }[] = [];
+  cells.forEach((plan, ci) => {
+    for (const b of plan.buildings) {
+      if (!b.shopfront) continue;
+      const [x, z] = polyCentroid(b.poly);
+      const jitter = (hash32(deriveSeed(seed, 'fronts') ^ b.seed) >>> 8) / 0x1000000;
+      fronts.push({ b, score: Math.hypot(x - cx, z - cz) / R + (CENTRAL_DISTRICTS.has(macro.cells[ci].district) ? 0 : 0.6) + (isSliver(b.poly) ? 0.4 : 0) + 0.25 * jitter });
+    }
+  });
+  const surplus = fronts.length - frontsWanted(pop, warmth);
+  if (surplus <= 0) return;
+  fronts.sort((a, b) => b.score - a.score || a.b.seed - b.b.seed);
+  for (const { b } of fronts.slice(0, surplus)) {
+    if (isSliver(b.poly)) asLockUp(b);
+    else if ((b.use === 'mixed' || b.use === 'residential') && b.units > 0) { b.shopfront = false; b.use = 'residential'; }
+    else { b.shopfront = false; b.use = 'office'; }
+  }
+}
+
 /** Kinds that belong in the middle of town (scored by closeness to the core). */
 const CENTRAL = new Set<AmenityKind>(['police', 'post', 'bank', 'library', 'pharmacy', 'cafe', 'pub', 'bakery', 'butcher', 'hairdresser', 'restaurant', 'bar', 'icecream', 'pizzeria']);
 /** Kinds that like being near a site. */
 const NEAR_SITE: Partial<Record<AmenityKind, LandmarkKind>> = { pharmacy: 'clinic', library: 'school', police: 'townhall', post: 'townhall', bank: 'townhall', cafe: 'townhall', pub: 'church' };
 
-interface Cand { b: BuildingDesc; cell: number; x: number; z: number; district: District; open: boolean; area: number }
+interface Cand { b: BuildingDesc; cell: number; x: number; z: number; district: District; open: boolean; area: number; kiosk: boolean }
+
+/** What a single-storey kiosk on a sliver of a lot can be. */
+const KIOSK = new Set<AmenityKind>(['newsagent', 'takeaway', 'florist', 'icecream', 'grocer', 'shop', 'hairdresser', 'beauty', 'estateagent', 'charity', 'cafe', 'bakery', 'vacant']);
 
 /**
  * Decide what every shop front and workplace is. The services every town has go first, each
@@ -130,7 +184,7 @@ function allocateAmenities(macro: MacroPlan, cells: CellPlan[], pop: number, war
     const open = [...plan.plazas, ...plan.parks];
     for (const b of plan.buildings) {
       const [x, z] = polyCentroid(b.poly);
-      const c: Cand = { b, cell: ci, x, z, district, open: false, area: Math.abs(polyArea(b.poly)) };
+      const c: Cand = { b, cell: ci, x, z, district, open: false, area: Math.abs(polyArea(b.poly)), kiosk: b.floors === 1 && isSliver(b.poly) };
       if (b.shopfront) {
         // Facing a square or a park (within 30 m of its bounds): cafés like those spots.
         c.open = open.some((s) => { const q = polyBounds(s.outer); return x > q[0] - 30 && x < q[2] + 30 && z > q[1] - 30 && z < q[3] + 30; });
@@ -155,7 +209,7 @@ function allocateAmenities(macro: MacroPlan, cells: CellPlan[], pop: number, war
   const give = (kind: AmenityKind, pool: Cand[]): boolean => {
     let best: Cand | null = null, bs = -Infinity;
     for (const c of pool) {
-      if (c.b.amenity) continue;
+      if (c.b.amenity || (c.kiosk && !KIOSK.has(kind))) continue;
       const s = score(kind, c);
       if (s > bs) { bs = s; best = c; }
     }
@@ -174,14 +228,17 @@ function allocateAmenities(macro: MacroPlan, cells: CellPlan[], pop: number, war
       if (!give(kind, shops) && kind === 'garage') give(kind, halls);
     }
   }
-  // The other shop fronts: as many shops and offices as a town this size keeps going (about
-  // one shop per 30 inhabitants), the rest small trades' workshops or empty.
-  const left = { shop: Math.round(pop / 30), office: Math.round(pop / 45) };
+  // The other shop fronts: the town's shops, offices and workshops (frontQuotas) and a few
+  // empty ones, drawn in proportion to what is left of each; any beyond those are offices.
+  const q = frontQuotas(pop);
+  const left: Record<'shop' | 'office' | 'workshop' | 'vacant', number> = { ...q, vacant: Math.round(VACANT_SHARE * shops.length) };
+  const KINDS = ['shop', 'office', 'workshop', 'vacant'] as const;
   for (const c of shops) {
     if (c.b.amenity) continue;
     const r = rng.fork(c.cell, c.b.id);
-    const k = r.weighted<AmenityKind>(['shop', 'office', 'workshop', 'vacant'], (k) => (k === 'shop' ? (left.shop > 0 ? 0.68 : 0) : k === 'office' ? (left.office > 0 ? 0.2 : 0) : k === 'workshop' ? 0.06 : 0.06));
-    if (k === 'shop' || k === 'office') left[k]--;
+    const open = KINDS.filter((k) => left[k] > 0 && (!c.kiosk || KIOSK.has(k)));
+    const k = open.length ? r.weighted(open, (k) => left[k]) : 'office';
+    if (open.length) left[k]--;
     c.b.amenity = k;
   }
   // Industrial halls: workshops, the big ones factories.

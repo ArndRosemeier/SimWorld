@@ -9,7 +9,7 @@ import { COMPASS, regionDestination } from '../src/sim/region';
 import { Rng } from '@futuremagic/core';
 
 const hints: RegionHints = {
-  seed: 7, town: 'Testford', coastal: true, seaBearing: 270, hilliness: 0.6, warmth: 0.7, american: false, oldWorld: 0.8,
+  seed: 7, town: 'Testford', coastal: true, seaBearing: 270, hilliness: 0.6, warmth: 0.7, oldWorld: 0.8,
   railBearing: 90, railTerminus: false, downstreamBearing: 250,
 };
 const region = planRegion(hints);

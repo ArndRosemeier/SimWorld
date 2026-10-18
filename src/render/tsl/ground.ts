@@ -15,6 +15,7 @@ import {
 } from 'three/tsl';
 import { h_fbm2 as fbm2, h_noise2 as vnoise } from '@futuremagic/humanoid/three/nodes/peopleNoise';
 import { WARP_K1, WARP_K2, type ParcelParams } from '../../world/landuse';
+import { LIGHT, SEASON, SNOW_ALBEDO, SLUSH_ALBEDO } from './common';
 
 /** Sets the diffuse colour without colorNode (the shadow pass would evaluate colorNode). */
 export function setDiffuse(mat: NodeMaterial, node: () => unknown): void {
@@ -76,8 +77,8 @@ const parcelAt = Fn(([p]) => {
 
 /** A value per crop (world/landuse `Crop` order) as a chain of selects. */
 const byCrop = (crop, values: unknown[]) => values.slice(0, -1).reduceRight((rest, v, i) => select(crop.lessThan(i + 0.5), v, rest), values[values.length - 1]);
-const cropColor = (crop) => byCrop(crop, [srgb(0.66, 0.56, 0.3), srgb(0.72, 0.66, 0.42), srgb(0.37, 0.49, 0.18), srgb(0.25, 0.37, 0.13), srgb(0.38, 0.29, 0.2), srgb(0.4, 0.5, 0.22), srgb(0.8, 0.74, 0.2), srgb(0.64, 0.58, 0.4)]);
-const cropCover = (crop) => byCrop(crop, [0.9, 0.88, 0.7, 0.6, 0.5, 1.0, 0.85, 0.8]);
+/** The crop's look today (SEASON.crops, written by the sky from world/landuse `cropLook`): colour, cover. */
+const cropLookNow = (crop) => byCrop(crop, SEASON.crops);
 const rowPeriod = (crop) => byCrop(crop, [0.17, 0.17, 0.22, 0.75, 0.6, 0.35, 0.35, 0.2]);
 
 // ---------------------------------------------------------------- terrain
@@ -115,13 +116,14 @@ export function terrainLook(mat: NodeMaterial): void {
       // Fields: the parcel patchwork, crop rows (fading out before they alias), tramlines, grass margins.
       const pc = parcelAt(wPos.xz).toVar();
       const crop = pc.w;
-      const pasture = crop.greaterThan(4.5).and(crop.lessThan(5.5)), ploughed = crop.greaterThan(3.5).and(crop.lessThan(4.5));
-      const cc = select(pasture, meadow.mul(mix(0.92, 1.1, pc.y)), cropColor(crop).mul(mix(0.86, 1.12, pc.y)).mul(mix(0.93, 1.05, big)));
+      const look = cropLookNow(crop).toVar();
+      const pasture = crop.greaterThan(4.5).and(crop.lessThan(5.5)), ploughed = look.w.lessThan(0.08).and(pasture.not());
+      const cc = select(pasture, meadow.mul(mix(0.92, 1.1, pc.y)), look.xyz.mul(mix(0.86, 1.12, pc.y)).mul(mix(0.93, 1.05, big)));
       const soil = srgb(0.34, 0.27, 0.19);
       const rowM = pc.z.div(rowPeriod(crop));
       const rows = sub(1.0, smoothstep(0.2, 0.55, fwidth(rowM)));
       const stripe = add(0.5, mul(0.5, sin(rowM.mul(6.2831853))));
-      const cover = cropCover(crop);
+      const cover = look.w;
       const soilShare = mix(sub(1.0, cover), mix(sub(1.0, cover), smoothstep(cover.sub(0.15), cover.add(0.15), stripe), 0.75), rows).toVar();
       const field = select(ploughed, cc.mul(mix(1.0, add(0.78, mul(0.4, stripe)), rows)), mix(cc, soil, soilShare)).toVar();
       If(pasture.not().and(ploughed.not()), () => {
@@ -132,13 +134,22 @@ export function terrainLook(mat: NodeMaterial): void {
       const fwB = fwidth(pc.x);
       field.assign(mix(field, meadow.mul(0.95), sub(1.0, smoothstep(1.1, add(1.1, fwB.mul(1.5)), pc.x)).mul(sub(1.0, smoothstep(2.0, 8.0, fwB)))));
       // Too far to resolve the parcels: their average colour.
-      field.assign(mix(field, srgb(0.5, 0.52, 0.27).mul(mix(0.85, 1.1, big)), smoothstep(25.0, 70.0, foot)));
+      field.assign(mix(field, SEASON.fieldFar.mul(mix(0.85, 1.1, big)), smoothstep(25.0, 70.0, foot)));
       const c = vLand.x.mul(forest).add(vLand.y.mul(field)).add(vLand.z.mul(meadow)).div(rural).toVar();
       c.assign(mix(c, bank, clamp(vLand.w.div(rural), 0.0, 1.0)));
       a.assign(mix(a, c, rural.mul(sub(1.0, wRock.mul(0.6)))));
     });
     a.assign(mix(a, sand, wSand));
-    return a.mul(mix(0.85, 1.1, n)).mul(mix(0.92, 1.06, fine));
+    a.assign(a.mul(mix(0.85, 1.1, n)).mul(mix(0.92, 1.06, fine)));
+    // Rain darkens the ground a little; snow lies on the flat and thins on slopes and under the forest canopy.
+    a.mulAssign(sub(1.0, mul(0.18, LIGHT.wet)));
+    If(LIGHT.snow.greaterThan(0.001), () => {
+      const forest = attribute('aLand', 'vec4').x;
+      const lie = smoothstep(0.55, 0.85, wN.y).mul(sub(1.0, mul(0.55, forest))).mul(sub(1.0, wSand.mul(0.7)));
+      const patchy = smoothstep(0.15, 0.6, LIGHT.snow.mul(1.3).add(n.sub(0.5).mul(0.5)).sub(fine.mul(0.15)));
+      a.assign(mix(a, vec3(...SNOW_ALBEDO).mul(mix(0.9, 1.02, fine)), lie.mul(patchy)));
+    });
+    return a;
   });
   const albedo = S().toVar('terrainAlbedo');
   setDiffuse(mat, () => albedo);
@@ -147,6 +158,11 @@ export function terrainLook(mat: NodeMaterial): void {
 }
 
 // ---------------------------------------------------------------- the town's ground surfaces
+
+/** Fallen leaves (linear): fresh yellow, orange, and brown once they have lain a while. */
+const LITTER_YELLOW = [0.78, 0.58, 0.14].map((c) => c ** 2.2) as [number, number, number];
+const LITTER_ORANGE = [0.72, 0.34, 0.08].map((c) => c ** 2.2) as [number, number, number];
+const LITTER_BROWN = [0.4, 0.26, 0.13].map((c) => c ** 2.2) as [number, number, number];
 
 /** Colour and roughness per `GroundLayer` (src/build/ground.ts), the averages of Scale's ground textures. */
 const LAYERS: [number, number, number, number][] = [
@@ -182,7 +198,41 @@ export function groundLook(mat: NodeMaterial): void {
       const g = abs(fract(p.div(s)).sub(0.5)).mul(2.0);
       alb.mulAssign(mix(1.0, 0.82, smoothstep(0.88, 0.97, max(g.x, g.y))));
     });
-    return vec4(alb, c.a);
+    const rough = c.a.toVar();
+    // Hard surfaces: asphalt, paving, curbs, plazas, cobbles, promenade, markings, quay walls.
+    const soft = layer.equal(3).or(layer.equal(6)).or(layer.equal(11));
+    const road = layer.equal(0).or(layer.equal(8)).or(layer.equal(9)).or(layer.equal(10));
+    // Fallen leaves: drifts on lawns and bare earth, fewer on paving (swept), a few on the roads; yellow and
+    // orange at first, browner as the trees go bare. Rain darkens them and snow covers them (below).
+    If(SEASON.litter.greaterThan(0.001), () => {
+      const share = select(soft, 1.0, select(road, 0.15, 0.4));
+      const dens = SEASON.litter.mul(share).mul(mix(0.35, 1.5, fbm2(p.mul(0.08).add(17.1))));
+      const blot = vnoise(p.mul(6.3)).mul(0.6).add(vnoise(p.mul(15.7).add(4.1)).mul(0.4));
+      const cov = smoothstep(0.0, 0.07, blot.sub(sub(1.0, dens.mul(0.75))));
+      const hue = vnoise(p.mul(1.9).add(3.3));
+      const col = mix(mix(vec3(...LITTER_YELLOW), vec3(...LITTER_ORANGE), smoothstep(0.3, 0.6, hue)), vec3(...LITTER_BROWN),
+        max(smoothstep(0.62, 0.85, hue), SEASON.bare.mul(0.75)));
+      alb.assign(mix(alb, col.mul(mix(0.8, 1.1, grain)), cov));
+      rough.assign(mix(rough, 0.9, cov));
+    });
+    // Rain: hard surfaces darken and turn glossy, puddles gather in the hollows (Scale's wet streets); lawns and
+    // gravel only darken.
+    If(LIGHT.wet.greaterThan(0.001), () => {
+      const dip = fbm2(p.mul(0.15).add(5.3)).add(grain.mul(0.08));
+      const pud = select(soft, 0.0, smoothstep(0.7, 0.76, dip.add(LIGHT.wet.mul(0.2)).sub(0.14)).mul(smoothstep(0.45, 0.9, LIGHT.wet)));
+      alb.mulAssign(mix(1.0, select(soft, 0.82, 0.62), LIGHT.wet).mul(sub(1.0, mul(0.35, pud))));
+      rough.assign(mix(rough, select(soft, rough.mul(0.85), rough.mul(0.38)), LIGHT.wet));
+      rough.assign(mix(rough, 0.05, pud));
+    });
+    // Snow: a white cover on lawns, yards and sidewalks (shovelled thinner), trodden slush on the roads.
+    If(LIGHT.snow.greaterThan(0.001), () => {
+      const cover = LIGHT.snow.mul(select(soft, 1.0, select(road, 0.4, 0.8)));
+      const patchy = smoothstep(0.1, 0.55, cover.mul(1.2).add(macro.sub(0.5).mul(0.5)).sub(grain.mul(0.1)));
+      const col = select(road, mix(vec3(...SLUSH_ALBEDO), vec3(...SNOW_ALBEDO), smoothstep(0.55, 0.95, macro).mul(0.6)), vec3(...SNOW_ALBEDO));
+      alb.assign(mix(alb, col.mul(mix(0.92, 1.03, grain)), patchy));
+      rough.assign(mix(rough, select(road, 0.45, 0.75), patchy));
+    });
+    return vec4(alb, rough);
   });
   const v = S().toVar('groundS');
   setDiffuse(mat, () => v.rgb);
