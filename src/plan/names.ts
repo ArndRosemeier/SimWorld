@@ -1,12 +1,12 @@
 /**
  * Procedural names for streets, shops and the town. Every name is invented (plan R7): the roots are plain
  * nature, trade and landscape words (no real people, no famous streets), and a town name that is a real place
- * is drawn again (src/lang/realPlaces.ts).
+ * is drawn again (src/lang/places.ts).
  *
  * Ported from Scale (src/plan/names.ts), without its US grid idioms (boulevards, numbered avenues).
  */
 import { Rng, deriveSeed } from '@futuremagic/core';
-import { isRealPlace } from '../lang/realPlaces';
+import { isRealPlace } from '../lang/places';
 
 export const ROOTS = [
   'Ash', 'Birch', 'Cedar', 'Elm', 'Hazel', 'Linden', 'Maple', 'Oak', 'Pine', 'Willow', 'Rowan', 'Alder',

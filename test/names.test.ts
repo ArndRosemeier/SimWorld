@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ROOTS, cityName, shopName, streetName } from '../src/plan/names';
-import { isRealPlace } from '../src/lang/realPlaces';
+import { isRealPlace } from '../src/lang/places';
 
 test('names: no town name is a real place (plan R7), and the deny list catches real ones in any form', () => {
   for (let seed = 1; seed <= 3000; seed++) {
