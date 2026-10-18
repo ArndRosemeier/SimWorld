@@ -15,12 +15,15 @@ import type { Rng } from '@futuremagic/core';
  */
 export class TalkMemory {
   private readonly bySpeaker = new Map<number, string[]>();
+  /** Recent phrasings on the street, oldest first, and how often each is in that window. */
   private readonly recent: string[] = [];
+  private readonly counts = new Map<string, number>();
 
-  constructor(readonly perSpeaker = 24, readonly overall = 96) {}
+  /** A speaker remembers their last `perSpeaker` phrasings (about a day of their talk); the street its last `overall`. */
+  constructor(readonly perSpeaker = 80, readonly overall = 400) {}
 
   used(speaker: number, key: string): boolean {
-    return this.recent.includes(key) || (this.bySpeaker.get(speaker)?.includes(key) ?? false);
+    return this.counts.has(key) || (this.bySpeaker.get(speaker)?.includes(key) ?? false);
   }
 
   note(speaker: number, key: string): void {
@@ -29,9 +32,28 @@ export class TalkMemory {
     l.push(key);
     if (l.length > this.perSpeaker) l.shift();
     this.recent.push(key);
-    if (this.recent.length > this.overall) this.recent.shift();
+    this.counts.set(key, (this.counts.get(key) ?? 0) + 1);
+    if (this.recent.length > this.overall) {
+      const old = this.recent.shift()!;
+      const n = this.counts.get(old)! - 1;
+      if (n) this.counts.set(old, n); else this.counts.delete(old);
+    }
     // Forget speakers once there are many (the street moves on).
     if (this.bySpeaker.size > 4096) this.bySpeaker.delete(this.bySpeaker.keys().next().value!);
+  }
+
+  /** Per pair of people, today: how often they have talked and what about. */
+  private readonly pairs = new Map<number, { day: number; met: number; topics: Set<string> }>();
+
+  /** What `a` and `b` already talked about on `day` (a met count of 0: they have not talked yet today). */
+  today(a: number, b: number, day: number): { met: number; topics: Set<string> } {
+    const k = a < b ? a * 65536 + b : b * 65536 + a;
+    let p = this.pairs.get(k);
+    if (!p || p.day !== day) {
+      if (!p && this.pairs.size > 16384) for (const [key, v] of this.pairs) if (v.day !== day) this.pairs.delete(key);
+      this.pairs.set(k, (p = { day, met: 0, topics: new Set() }));
+    }
+    return p;
   }
 }
 
@@ -50,8 +72,14 @@ export function pick(bank: readonly string[], ctx: PickContext, id: string): str
   if (bank.length === 0) return '';
   let i = ctx.rng.int(0, bank.length - 1);
   if (ctx.memory) {
-    for (let t = 0; t < 6 && ctx.memory.used(ctx.speaker, `${id}#${i}`); t++) i = ctx.rng.int(0, bank.length - 1);
-    ctx.memory.note(ctx.speaker, `${id}#${i}`);
+    // Among the phrases nobody used lately (this speaker or the street); when all were, any.
+    const mem = ctx.memory;
+    if (mem.used(ctx.speaker, `${id}#${i}`)) {
+      const fresh: number[] = [];
+      for (let k = 0; k < bank.length; k++) if (!mem.used(ctx.speaker, `${id}#${k}`)) fresh.push(k);
+      if (fresh.length) i = fresh[ctx.rng.int(0, fresh.length - 1)];
+    }
+    mem.note(ctx.speaker, `${id}#${i}`);
   }
   return expand(bank[i], ctx.rng);
 }
@@ -72,7 +100,7 @@ export function fillSlots(text: string, vars: Readonly<Record<string, string | u
 const CONTRACTIONS: readonly [RegExp, string][] = [
   [/\bI am\b(?![.,!?]|$)/g, "I'm"],
   [/\b(you|we|they) are\b(?![.,!?]|$)/gi, "$1're"],
-  [/\b(he|she|it|that|there|what|who|where) is\b(?![.,!?]|$)/gi, "$1's"],
+  [/\b(he|she|it|that|there|what|who|where) is\b(?![.,!?]| indeed|$)/gi, "$1's"],
   [/\b(I|you|we|they) have\b(?= (?:been|got|had|done|seen|heard|lost|found|landed|moved|gone|left|finally|just|never|always|to)\b)/gi, "$1've"],
   [/\b(he|she|it|that|there|who) has\b(?= (?:been|got|had|done|seen|heard|lost|found|landed|moved|gone|left|finally|just|never|always)\b)/gi, "$1's"],
   [/\b(I|you|he|she|we|they) will\b/gi, "$1'll"],
@@ -90,11 +118,9 @@ export function contract(text: string): string {
   return s;
 }
 
-/** Formal speech undoes the casual contractions the banks are written with. */
+/** Formal speech undoes a few casual contractions ("cannot", "I am afraid"); most formal speakers still say "don't". */
 export function uncontract(text: string): string {
-  return text
-    .replace(/\bdon't\b/g, 'do not').replace(/\bcan't\b/g, 'cannot').replace(/\bwon't\b/g, 'will not')
-    .replace(/\bisn't\b/g, 'is not').replace(/\bdidn't\b/g, 'did not').replace(/\bI'm\b/g, 'I am');
+  return text.replace(/\bcan't\b/g, 'cannot').replace(/\bI'm (sure|afraid|not)\b/g, 'I am $1');
 }
 
 /** Words that take "an" although they start with a consonant letter, and "a" although they start with a vowel. */
@@ -127,7 +153,7 @@ export const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(
 
 /** "The nearest hospital…" → "the nearest hospital…" (only for ordinary words, never a name). */
 export function lowerStart(s: string): string {
-  const w = s.split(/\s/, 1)[0];
+  const w = s.split(/\s/, 1)[0].replace(/[,;:]$/, '');
   return /^(The|A|An|In|On|At|Older|Getting|Many|People|Houses|Downstream|Some|Most|There|It|Every|Each|When|If|Our)$/.test(w) ? s[0].toLowerCase() + s.slice(1) : s;
 }
 

@@ -42,8 +42,8 @@ const PET: Record<AgeGroup, readonly string[]> = {
   child: ['for real', 'I promise', 'cross my heart', 'it is true'],
   teen: ['literally', 'no joke', 'for real', 'honestly', 'I swear', 'no lie', 'like, seriously'],
   young: ['to be fair', 'honestly', 'no joke', 'I swear', 'if you ask me', 'at the end of the day', 'to be honest'],
-  adult: ['mark my words', 'if you ask me', 'at the end of the day', 'to be fair', 'I tell you', 'and that is the truth', 'you know what I mean', 'between you and me', 'as it happens'],
-  old: ['mark my words', 'in my day', 'bless them', 'I tell you', 'as sure as eggs is eggs', 'mind you', 'heaven knows', 'if you ask me', 'as it were'],
+  adult: ['mark my words', 'if you ask me', 'at the end of the day', 'to be fair', 'and that is the truth', 'you know what I mean', 'between you and me', 'as it happens', 'to be honest'],
+  old: ['mark my words', 'in my day', 'bless them', 'as sure as eggs is eggs', 'mind you', 'heaven knows', 'if you ask me', 'as it were'],
 };
 
 /** The dialect of the town: American towns say "mom" and "line", the others "mum" and "queue". */
@@ -79,7 +79,7 @@ export const FILLERS: Record<AgeGroup | 'nervous', readonly string[]> = {
   child: ['Um,', 'Hey,', 'Guess what,'],
   teen: ['Like,', 'So,', 'Okay so', 'Honestly,', 'Wait,'],
   young: ['So,', 'Well,', 'Honestly,', 'Okay,', 'Right,'],
-  adult: ['Well,', 'You know,', 'Anyway,', 'Now,', 'Right,', 'Mind you,'],
+  adult: ['Well,', 'You know,', 'Now,', 'Right,', 'So,'],
   old: ['Well,', 'Oh,', 'Now then,', 'I must say,', 'Well now,'],
   nervous: ['Um,', 'Er,', 'I mean,', 'Well, um,'],
 };
@@ -92,6 +92,8 @@ const US: readonly [RegExp, string][] = [
   [/\bthe sack\b/g, 'fired'], [/\bnicking\b/g, 'stealing'], [/\bmate\b/g, 'buddy'],
   [/\bholiday\b/g, 'vacation'], [/\bautumn\b/g, 'fall'], [/\bpub\b/g, 'bar'], [/\brubbish\b/g, 'garbage'],
   [/\bfortnight\b/g, 'two weeks'], [/\bpoorly\b/g, 'sick'], [/\bjumper\b/g, 'sweater'], [/\bbrolly\b/g, 'umbrella'],
+  [/\b([Rr])umour\b/g, '$1umor'], [/\bneighbour/g, 'neighbor'], [/\bcolour/g, 'color'], [/\bfavourite\b/g, 'favorite'],
+  [/\bKnackered\b/g, 'Beat'], [/\bknackered\b/g, 'beat'], [/\b, ta\b/g, ', thanks'], [/\bta\.$/g, 'thanks.'],
 ];
 
 /** British phrasing (the banks are written in it) → the town's dialect. */

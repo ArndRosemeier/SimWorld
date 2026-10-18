@@ -13,7 +13,7 @@ import type { ActorId } from './actors';
 import { T_AGREE, T_CONSC, T_EXTRA, T_OPEN } from './people';
 import type { PlaceId } from './places';
 import { Columns, f32, i32, u8, u16 } from './table';
-import { ageOf, isPerson, nameOf, tickRng, traitOf, type World } from './world';
+import { ageOf, householdOf, isPerson, nameOf, tickRng, traitOf, type World } from './world';
 
 /** Fact topics (closed set) and how newsworthy each is by default. */
 export const FACT_TOPICS = ['job', 'romance', 'family', 'health', 'crime', 'politics', 'business', 'place', 'opinion', 'event', 'other'] as const;
@@ -303,13 +303,20 @@ export function tell(world: World, teller: ActorId, listener: ActorId, fact: num
  * trust, and a promised secret needs more (and a less agreeable, less conscientious teller). Returns the fact told
  * or -1.
  */
+/** Age from which a child passes stories on to anyone (younger ones tell their family). */
+const CHILD_TELLS = 10;
+
 export function exchange(world: World, teller: ActorId, listener: ActorId, hub: number, roll: Roll): number {
   const k = world.knowledge;
   const list = k.byHolder[teller];
   if (!list || list.length === 0) return -1;
+  // Toddlers pass on no stories and nobody tells them one; a young child tells only family.
+  const age = ageOf(world, teller);
+  if (age < 4 || ageOf(world, listener) < 4 || (age < CHILD_TELLS && !world.relations.isFamily(teller, listener))) return -1;
   const c = k.beliefs.cols;
   const rel = world.relations;
   const rr = rel.row(teller, listener);
+  const home = householdOf(world, listener);
   const familiarity = rr >= 0 ? rel.t.cols.familiarity[rr] : 0;
   const trust = rr >= 0 ? rel.t.cols.trust[rr] : 0.3;
   let best = -1, bestScore = 0;
@@ -318,6 +325,7 @@ export function exchange(world: World, teller: ActorId, listener: ActorId, hub: 
     if (s <= bestScore) continue; // cheap test first: most stories lose here
     const f = k.facts[c.fact[r]];
     if (f.subject === listener) continue; // you don't gossip to someone about themselves
+    if (f.subject >= 0 && home !== null && householdOf(world, f.subject) === home) continue; // nor about their own household
     if (f.secret) {
       const need = c.flags[r] & F_PROMISED ? 0.85 + 0.15 * (traitOf(world, teller, T_AGREE) + traitOf(world, teller, T_CONSC)) / 2 : 0.7;
       if (trust < need) continue;

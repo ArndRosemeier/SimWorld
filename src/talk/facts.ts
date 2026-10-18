@@ -13,11 +13,14 @@ import type { Fact } from '../sim/knowledge';
 
 export type Tone = 'tragic' | 'sad' | 'bad' | 'good' | 'scandal' | 'crime' | 'news' | 'politics' | 'event';
 
+/** Whether someone could have seen it happen ("I saw it myself" fits a fight or a break-in, not someone's holiday). */
+export const isSeeable = (t: Tone): boolean => t === 'crime' || t === 'scandal' || t === 'event' || t === 'politics';
+
 interface Rule { re: RegExp; tone: Tone; lines: readonly string[] }
 
 const RULES: readonly Rule[] = [
   { re: /^\{subject\} died$/, tone: 'tragic', lines: [
-    '{S} {S:has} died', '{S} passed away', '{S} died[ last night| in the night|, did you know|]', 'we lost {S:obj}', '{S} {S:is} gone',
+    '{S} {S:has} died', '{S} passed away', '{S} died[ last night| in the night|, did you know|]', '{S} {S:has} died, sadly',
     '{S} {S:has} passed[ on| away]', '{S} died[, God rest {S:poss} soul|, poor soul|]',
   ] },
   { re: /^\{object\}'s (\w+) \{subject\} died$/, tone: 'sad', lines: [
@@ -25,7 +28,7 @@ const RULES: readonly Rule[] = [
   ] },
   { re: /^\{subject\} is seriously ill$/, tone: 'sad', lines: [
     '{S} {S:is} [really|seriously|very] ill', '{S} {S:is} in a bad way', '{S} {S:has} been taken [badly|seriously] ill',
-    '{S} {S:is} [not well at all|poorly, really poorly]', 'things look bad for {S:obj}[, health-wise|]', '{S} {S:is} quite ill[, they say|]',
+    '{S} {S:is} [not well at all|poorly, really poorly]', 'things look bad for {S:obj}[, health-wise|]', '{S} {S:is} quite ill',
   ] },
   { re: /^\{subject\} was taken to hospital$/, tone: 'sad', lines: [
     '{S} {S:was} taken to hospital', '{S} {S:is} in hospital', 'they took {S:obj} to hospital', 'an ambulance came for {S:obj}',
@@ -100,17 +103,17 @@ const RULES: readonly Rule[] = [
     'new people moved into {P}{1}', '{S:family} moved into {P}{1}', 'there\'s a new family at {P}: {S:family}{1}', 'someone\'s moved into {P} - {S:family}{1}',
   ] },
   { re: /^\{subject\}'s family are away (.+)$/, tone: 'news', lines: [
-    '{S:family} are away {1}', '{S:poss} family are away {1}', '{S:family} have gone away {1}', '{S:family} are off {1}',
+    '{S:family} are away {1}', '{S:poss} family are away {1}', '{S:family} are away {1} this week',
   ] },
   { re: /^\{subject\} got an? (\w+)$/, tone: 'good', lines: [
     '{S:family} got a {1}', '{S} got a {1}', '{S:family} have got a new {1}', 'there\'s a new {1} at {S:family}\'',
   ] },
   { re: /^someone broke into \{object\}'s house$/, tone: 'crime', lines: [
     'someone broke into {O:poss} house', '{O:poss} house got broken into', '{O} got burgled', '{O:poss} place was burgled',
-    'there was a break-in at {O:poss}', 'burglars got into {O:poss} house',
+    'there was a break-in at {O:poss} place', 'burglars got into {O:poss} house',
   ] },
   { re: /^\{subject\} broke into \{object\}'s house$/, tone: 'scandal', lines: [
-    '{S} broke into {O:poss} house', '{S} {S:was} the one who broke into {O:poss} house', 'it was {S} who did the break-in at {O:poss}',
+    '{S} broke into {O:poss} house', '{S} {S:was} the one who broke into {O:poss} house', 'it was {S} who did the break-in at {O:poss} house',
     '{S} burgled {O:poss} place',
   ] },
   { re: /^\{subject\} got into a fight with \{object\} at \{place\}$/, tone: 'scandal', lines: [

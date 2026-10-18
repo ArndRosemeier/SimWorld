@@ -6,7 +6,7 @@ export { createLlm, requestFor, THINKING_ROOM, type Llm, type LlmConfig, type Ru
 export { openRouterTransport, fetchCatalog, LlmError, OPENROUTER_BASE, type Transport, type CatalogModel, type LlmErrorKind } from './openrouter';
 export { DEFAULT_ROSTER, DEFAULT_TASK_MODELS, CAPABILITIES, rosterFromCatalog, entryFromCatalog, derivedTags, effortFor, type Roster, type ModelEntry, type Capability, type Effort } from './roster';
 export { route, qualifies, blendedPrice, type Routing } from './router';
-export { TASKS, cleanSpeech, type TaskName, type TaskIO, type TaskSpec, type SummaryOutput, type ReflectionInput, type ReflectionOutput, type Insight, type DigestInput } from './tasks';
+export { TASKS, cleanSpeech, type TaskName, type TaskIO, type TaskSpec, type SummaryOutput, type ReflectionInput, type ReflectionOutput, type Insight, type DigestInput, type JudgeInput, type JudgeScore } from './tasks';
 export { UsageLedger, estimateCost, type UsageEntry, type UsageTotals, type UsageAxis, type LedgerSnapshot } from './usage';
 export { RefTable, refsFor, speechMessages, SPEECH_RULES, type NpcPromptInput, type NpcCard, type PersonRef, type PlaceRef, type Belief, type Memory, type Turn, type Feelings, type Traits } from './prompt';
 export { APPRAISAL_SCHEMA, parseAppraisal, atMinute, PLAUSIBILITY, type AppraisalInput, type AppraisalResult } from './appraisal';

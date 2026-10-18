@@ -232,7 +232,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 
 | Question | The one way | Where |
 |---|---|---|
-| Call a language model for anything | `createLlm(cfg).run(task, input)`: routes the task to roster models best first, streams, parses, falls back on retryable errors, records usage. Tasks: `npc.speech`, `npc.appraisal`, `memory.summary`, `npc.reflection`, `skip.digest` | `src/llm/llm.ts`, `src/llm/tasks.ts` |
+| Call a language model for anything | `createLlm(cfg).run(task, input)`: routes the task to roster models best first, streams, parses, falls back on retryable errors, records usage. Tasks: `npc.speech`, `npc.appraisal`, `memory.summary`, `npc.reflection`, `skip.digest`, `talk.judge` (scores generated chatter; slow tests only) | `src/llm/llm.ts`, `src/llm/tasks.ts` |
 | Talk to openrouter.ai | `openRouterTransport({ apiKey })` (guarded: `openrouter.ai` only in `src/llm`); the public model list via `fetchCatalog()` | `src/llm/openrouter.ts` |
 | Which models does the player have, what can they do? | the roster: `DEFAULT_ROSTER`, `rosterFromCatalog`, capability tags (`fast`, `cheap`, `structured`, `writing`, `reasoning`, `long_context`) | `src/llm/roster.ts` |
 | Which model runs a task? | `route(roster, task.routing, pins)`; pins are the player's per-task picks, else `DEFAULT_TASK_MODELS` (the settings screen shows `llm.plan(task)`) | `src/llm/router.ts`, `src/llm/roster.ts` |
@@ -247,6 +247,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | How a person talks (formality, verbosity, fillers, pet phrase, swearing, dialect) | `voiceOf(world, id)`; `voiced(text, voice, ctx)` puts any line in it | `src/talk/voice.ts`, `src/talk/realise.ts` |
 | Words for a kind of news, phrase banks per speech act | `phrasings(fact)` (keyed by the sim's fact templates; unknown ones fall back to `slotted(template)`); `ACTS` banks by register | `src/talk/facts.ts`, `src/talk/acts.ts` |
 | Pick a phrase without repeating, fill slots, polish a sentence | `pick`, `expand` (`[a\|b]`), `fillSlots`, `finish`, `contract` | `src/talk/grammar.ts` |
+| Read or score generated chatter (a day of overheard talk as Markdown; an LLM judge's coherence and naturalness scores) | `sampleTown`, `sampleDay`, `asText`, `asMarkdown` (`node --import tsx tools/talk/samples.ts <out.md>`); the `talk.judge` task in `test/slow/chatter.slow.test.ts` | `tools/talk/samples.ts` |
 | Background chatter, a fallback answer, any generated sentence | the procedural text engine (rows above) | `src/talk/` |
 
 ### Sound

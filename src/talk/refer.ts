@@ -96,7 +96,8 @@ export function kinWord(world: World, who: ActorId, bond: Bond, voice: Voice | n
 }
 
 /** How well `of` knows `who` (0 when not at all). */
-const familiarity = (world: World, of: ActorId, who: ActorId): number => {
+/** How well `of` knows `who` (0 for strangers). */
+export const familiarity = (world: World, of: ActorId, who: ActorId): number => {
   const r = world.relations.row(of, who);
   return r >= 0 ? world.relations.t.cols.familiarity[r] : 0;
 };
@@ -111,7 +112,8 @@ function describe(world: World, who: ActorId, d: Discourse): string {
   const options: string[] = [];
   // By their job (an appositive closes with a comma: "Leo, the baker, got…"), unless the story is about that place.
   if (job && job.role !== 'owner' && job.role !== 'paper round' && job.place !== d.topicPlace) {
-    options.push(`${nameOf(world, who)}, the ${job.role},`, `${firstName(world, who)}, the ${job.role} [at|from] ${placeName(world, job.place, d)},`, `the ${job.role} [at|from] ${placeName(world, job.place, d)}`);
+    const role = f ? job.role.replace(/man$/, 'woman') : job.role;
+    options.push(`${nameOf(world, who)}, the ${role},`, `${firstName(world, who)}, the ${role} [at|from] ${placeName(world, job.place, d)},`, `the ${role} [at|from] ${placeName(world, job.place, d)}`);
   }
   if (age >= 72) options.push(`old ${f ? 'Mrs' : 'Mr'} ${surname}`, `[old |]${f ? 'Mrs' : 'Mr'} ${surname}`);
   else if (age < 13) options.push(`the ${surname}s' little ${f ? 'girl' : 'boy'}`, `the ${surname} [kid|${f ? 'girl' : 'boy'}]`);
@@ -162,7 +164,7 @@ function firstReference(world: World, who: ActorId, d: Discourse, voice: Voice |
   if (mine === 'colleague' && fl < 0.3) return `${first} from work`;
   if (mine === 'neighbour' && fl < 0.3) return rng.float() < 0.5 ? `${first} next door` : `my neighbour ${first}`;
   if (fl >= 0.3 || (yours && yours !== 'neighbour')) return first;
-  if (fl >= 0.12) return rng.float() < 0.5 ? nameOf(world, who) : `${first} - you know, ${describe(world, who, d)}`.replace(/ - you know, (.*), the/, ' - you know, the');
+  if (fl >= 0.12) return nameOf(world, who);
   if (fs >= 0.3 && rng.float() < 0.3) return `${first}, a friend of mine`;
   return describe(world, who, d);
 }
@@ -202,6 +204,12 @@ const NAMES = new WeakMap<World, Set<string>>();
 const NAME_COUNT = new WeakMap<World, number>();
 
 /** A place as people say it: "our place", "your place", "the Crown", "a house on Vine Lane". */
+/** Whether a place is somebody's home (a house, the flats, a farmhouse). */
+export const isDwelling = (world: World, place: PlaceId): boolean => {
+  const k = world.graph.places[place]?.kind;
+  return k === 'house' || k === 'apartments' || k === 'farmhouse';
+};
+
 export function placeName(world: World, place: PlaceId, d: Discourse | null): string {
   if (place < 0) return 'somewhere';
   const p = world.graph.places[place];
@@ -209,7 +217,7 @@ export function placeName(world: World, place: PlaceId, d: Discourse | null): st
     if (world.actors.cols.home[d.speaker] === place) return 'our place';
     if (world.actors.cols.home[d.listener] === place) return 'your place';
   }
-  if (p.kind === 'house' || p.kind === 'apartments' || p.kind === 'farmhouse') {
+  if (isDwelling(world, place)) {
     return d && d.rng.float() < 0.5 ? `${p.kind === 'apartments' ? 'the flats' : 'a house'} on ${p.street}` : p.name;
   }
   return p.name.startsWith('The ') ? 'the' + p.name.slice(3) : p.name;

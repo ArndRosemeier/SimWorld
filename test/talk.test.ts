@@ -165,11 +165,64 @@ test('talk: a listener who heard another version argues', () => {
     w.clock += 1;
     const x = overhear(w, talk(5, a, b, f))!;
     const reply = x.lines.filter((l) => l.speaker === b).map((l) => l.text).join(' ');
-    if (/heard|not right|mistaken|not it|no, no/i.test(reply)) argued++;
+    if (/heard|not right|mistaken|not it|no, no|told me|way I|got it wrong|muddled|funny/i.test(reply)) argued++;
     const mention = [firstName(w, s2), nameOf(w, s2), w.actors.cols.sex[s2] === 0 ? 'she' : 'he'];
     assert.ok(x.lines.some((l) => l.speaker === b && mention.some((m) => l.text.toLowerCase().includes(m.toLowerCase())) || /someone|my |your /i.test(l.text)), `b says whom they heard it about: ${reply}`);
   }
   assert.equal(argued, 6);
+});
+
+test('talk: each reply answers the line before it', () => {
+  const w = fresh();
+  const ps = adults(w);
+  const [a, b, s1] = [ps[20], ps[21], ps[22]];
+  // Only the size differs between their versions: b says it was worse, and a takes that up (no "No, no" first).
+  const f = addFact(w, { topic: 'crime', subject: s1, place: 2, text: '{subject} stole from {place}', magnitude: 0.4 });
+  const v = addFact(w, { topic: 'crime', subject: s1, place: 2, text: '{subject} stole from {place}', magnitude: 0.9 });
+  Object.assign(w.knowledge.facts[v], { root: f, parent: f });
+  witness(w, f, [a]);
+  believe(w, b, v, 0.9, ps[23]);
+  for (let k = 0; k < 6; k++) {
+    w.clock += 1;
+    const x = overhear(w, talk(5, a, b, f))!;
+    const i = x.lines.findIndex((l) => l.fact === f);
+    const [reply, back] = [x.lines[i + 1], x.lines[i + 2]];
+    assert.equal(reply.speaker, b);
+    assert.match(reply.text, /worse|mildly/i);
+    assert.doesNotMatch(reply.text, /^no\b|not what I heard/i);
+    assert.equal(back?.speaker, a, x.lines.map((l) => l.text).join(' | '));
+    assert.match(back.text, /worse|hadn't heard|half of it|really|oh/i);
+  }
+  // "How are you?" gets how they are, and a turn back; nobody speaks twice in a row.
+  const mem = new TalkMemory();
+  let asked = 0;
+  for (let i = 0; i < 80; i++) {
+    w.clock += 11;
+    const [p, q] = [ps[i % ps.length], ps[(i * 5 + 1) % ps.length]];
+    if (p === q) continue;
+    const x = overhear(w, talk(7, p, q), mem);
+    if (!x) continue;
+    x.lines.forEach((l, j) => assert.ok(j === 0 || x.lines[j - 1].speaker !== l.speaker, 'one turn per speaker'));
+    // A greeting that asks after them opens the exchange.
+    const k = /(how are|how's (it|life|things)|alright|keeping|you (good|okay|well)|are you well)[^?]*\?$/i.test(x.lines[0].text) && !/ at |busy/i.test(x.lines[0].text) ? 0 : -1;
+    if (k < 0 || !x.lines[k + 1]) continue;
+    asked++;
+    assert.match(x.lines[k + 1].text, /fine|good|bad|complain|well|alright|surviving|same|grumble|better|tired|ask|up and down|knackered|still|middling/i, x.lines.map((l) => l.text).join(' | '));
+  }
+  assert.ok(asked >= 3, `${asked} asked how the other was`);
+});
+
+test('talk: two people who already talked today do not go over the same ground', () => {
+  const w = fresh();
+  const ps = adults(w);
+  const mem = new TalkMemory();
+  const [a, b] = [ps[3], ps[4]];
+  const first = overhear(w, talk(7, a, b), mem)!;
+  w.clock += 30;
+  const second = overhear(w, talk(7, a, b), mem);
+  const says = (x: typeof first | null) => new Set((x?.lines ?? []).map((l) => l.text));
+  for (const t of says(second)) assert.ok(!says(first).has(t) || t.split(' ').length <= 2, `said again: ${t}`);
+  assert.ok(!second?.lines.some((l) => /how are you/i.test(l.text)), 'no second "how are you"');
 });
 
 test('talk: small talk when no news passes, and it varies', () => {
