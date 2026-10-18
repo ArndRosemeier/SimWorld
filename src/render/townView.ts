@@ -27,7 +27,8 @@ export interface TownView {
   vegetation?: VegetationShown;
 }
 
-export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town: TownSummary, onProgress: (done: number, total: number) => void = () => {}): TownView {
+/** `onChimneys`: the chimney tops (x, y, z each) of each piece's buildings, as they come in. */
+export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town: TownSummary, onProgress: (done: number, total: number) => void = () => {}, onChimneys: (tops: number[]) => void = () => {}): TownView {
   const root = new Group();
   root.name = 'town';
   stage.scene.add(root);
@@ -59,7 +60,8 @@ export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town:
     switch (r.type) {
       case 'terrain': await place(r.mesh, TERRAIN); break;
       case 'water': await place(r.mesh, WATER); break;
-      case 'cell': case 'country': case 'bridges': await place(r.ground, GROUND); await place(r.buildings, FACADE); break;
+      case 'cell': case 'country': if (r.chimneys.length) onChimneys(r.chimneys); await place(r.ground, GROUND); await place(r.buildings, FACADE); break;
+      case 'bridges': await place(r.ground, GROUND); await place(r.buildings, FACADE); break;
       case 'landmark': await place(r.mesh, FACADE); break;
     }
     onProgress(++view.done, view.total);

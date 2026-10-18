@@ -21,6 +21,7 @@ import { Stage } from './render/stage';
 import { fitSunShadow, makeLights, placeLamps } from './render/lights';
 import { DaySky } from './render/sky';
 import { Precipitation } from './render/precip';
+import { ChimneySmoke } from './render/smoke';
 import { WEATHER_KINDS, describeWeather, forceWeather, weatherAt, type Weather, type WeatherKind } from './sim/weather';
 import { setParcels } from './render/tsl/ground';
 import { showTown } from './render/townView';
@@ -129,6 +130,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   void stage.add(sky.dome);
   const precip = new Precipitation(settings.seed);
   void stage.add(precip.mesh);
+  const smoke = new ChimneySmoke(settings.seed);
+  void stage.add(smoke.mesh);
   step('Planning the town', 0.15);
 
   const [ready] = await planned;
@@ -140,7 +143,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   // What the town sounds like where: one worker works it out alongside the meshes.
   void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { time.region = { region: { coastal: r.map.coastal } }; audio.setTown(r.map); });
-  const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total));
+  const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total), (tops) => smoke.addChimneys(tops));
 
   step('Waking the town', 0.15);
   const sim = await simulated;
@@ -186,6 +189,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.night);
     else placeLamps(lights, undefined, 0, 0, 0);
     precip.fall(dt, camera, w, w.windDir, sky.day, sky.flash);
+    smoke.puff(dt, w, minuteOfDay(sim.clock), sky.day);
     renderer.render(scene, camera);
     const e = camera.matrixWorld.elements;
     fwd.x = -e[8]; fwd.y = -e[9]; fwd.z = -e[10];
