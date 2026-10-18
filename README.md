@@ -4,6 +4,8 @@ A living, breathing procedural town in the browser. Every inhabitant, animals in
 
 Status: foundation. The plan is in [docs/design/simworld-plan.md](docs/design/simworld-plan.md).
 
+Play the newest build: https://arndrosemeier.github.io/SimWorld/ (deployed after every merge).
+
 ## Run
 
 ```sh

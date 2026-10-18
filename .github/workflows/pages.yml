@@ -1,0 +1,49 @@
+name: Pages
+# Publishes main to GitHub Pages, so every merge can be checked in a browser. It runs after the
+# Changelog fold (whose push, made with the workflow token, starts no other workflow), so the
+# deployed What's new button shows the version that merge became. Separate from CI: the PR check
+# job never waits on a deploy. Start it by hand with Actions → Pages → Run workflow.
+on:
+  workflow_run:
+    workflows: [Changelog]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer merge replaces a deploy still waiting to start.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - id: pages
+        uses: actions/configure-pages@v5
+      - run: npm ci
+      # The publish mode builds for a subpath; Pages names it (e.g. /SimWorld).
+      - run: npx vite build --mode publish
+        env:
+          SIMWORLD_BASE: ${{ steps.pages.outputs.base_path }}/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
