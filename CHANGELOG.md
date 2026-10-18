@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.080 — NPCs stay in the invented world
+
+- Townspeople in chats and the time-skip summary no longer mention real cities, brands, institutions or currencies, avoid strongly British or American words, and say prices as plain numbers.
+
 ## v0.079 — Neutral words for clubs, offices and council issues
 
 - Small offices in former shops are called "Law Office" and "Rentals" now, no longer "Solicitors" and "Lettings".
