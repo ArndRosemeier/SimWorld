@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.128 — No browser menu over the game
+
+- Right-click dragging to look around no longer opens the browser's menu.
+- Middle-click, the mouse wheel and Space or the arrow keys no longer make the browser scroll or zoom the page while you play; the chat and the menus still scroll as before.
+- Dragging the view no longer selects text on the screen, and the drag keeps going when the mouse leaves the window.
+
+## v0.127 — Cyclists on the roads
+
+- People with a bike now cycle in town in dry weather when the way is longer than they like to walk. Most children from nine and half the grown-ups have one. Car owners cycle only if they are keen.
+- They ride their own bikes near the kerb at their own pace: town bikes with mudguards and a rack, some with a basket, sports bikes, and smaller bikes for children.
+- Cars overtake them with room to spare. At the door they get off, and the bike is put away.
+- The riders are the inhabitants themselves, in today's clothes, with their hands on the bars and pedalling as fast as they ride.
+
 ## v0.126 — People can ride bicycles
 
 - A rider sits on the saddle, leans to the bars with both hands on the grips, and pedals: the cranks turn with the distance ridden, and a stopped rider rests with one pedal down.
