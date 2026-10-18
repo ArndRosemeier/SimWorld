@@ -19,7 +19,7 @@ import { Rng, deriveSeed } from '@futuremagic/core';
 import type { Poly } from '../geom/geom2';
 import type { Terrain } from '../world/terrain';
 import type { Landmark } from './landmarks';
-import { church, school, kindergarten, clinic, fireStation, supermarket, station } from './civicParts';
+import { church, school, kindergarten, clinic, fireStation, supermarket, station, careHome, petrolStation } from './civicParts';
 import {
   PK, Kit, mat, type LmPart, type LmInterior, type PartMat, type PartObstacle, type RGB,
   type Opt, WHITE, WIN, CURTAIN, ARCH, ROOF, COPPER, GOLD, BRONZE, PAINT, STONES,
@@ -765,6 +765,8 @@ export function landmarkParts(lm: Landmark, terrain: Terrain): LmPart[] {
     case 'fire': fireStation(k, lm); break;
     case 'supermarket': supermarket(k, lm); break;
     case 'station': station(k, lm); break;
+    case 'carehome': careHome(k, lm, r); break;
+    case 'petrol': petrolStation(k, lm); break;
   }
   parts = k.parts;
   cache.set(lm, parts);

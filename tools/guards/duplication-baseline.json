@@ -136,14 +136,6 @@
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
   {
-    "key": "idiom: [.Path .cls .streets] in simworld/build/ground.ts + simworld/build/streetProps.ts + simworld/plan/terrace.ts",
-    "reason": "Each reads the plan's street segments (path, class) for its own job: ground strips, signal approaches, terrace frontage."
-  },
-  {
-    "key": "idiom: [.add .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vegetation.ts",
-    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
-  },
-  {
     "key": "idiom: [.and .greaterThan .lessThan] in simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vehicles.ts",
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
@@ -165,10 +157,6 @@
   },
   {
     "key": "idiom: [.equal .or] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vehicles.ts",
-    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
-  },
-  {
-    "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
   {
@@ -214,6 +202,10 @@
   {
     "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/fill/area.ts + simworld/interior/storey.ts",
     "reason": "The length of a wall segment ({ax, az, bx, bz}, the interior's IWall and the filler's Edge) before walking along it."
+  },
+  {
+    "key": "idiom: [.cornerGap] in simworld/interior/fill/home.ts + simworld/interior/fill/place.ts + simworld/interior/fill/work.ts",
+    "reason": "Furnishing rules score a wall spot by its gap to the corner (the one seam is the filler's cornerGap); each rule weighs it differently. Entered the finder's top idioms when the street layer grew."
   },
   {
     "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
@@ -316,7 +308,7 @@
     "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
   },
   {
-    "key": "idiom: [.junctions .length] in simworld/build/ground.ts + simworld/plan/cell.ts + simworld/plan/terrace.ts",
+    "key": "idiom: [.junctions .length] in simworld/plan/cell.ts + simworld/plan/crossings.ts + simworld/plan/terrace.ts",
     "reason": "A loop over a cell plan's flat junction list (x, z, degree triples), the plan's own format; each use asks something different of it."
   },
   {
@@ -334,10 +326,6 @@
   {
     "key": "same name: simworld/render/vegetationView.ts#update + simworld/traffic/townTraffic.ts#update",
     "reason": "Per-frame update methods of two different views (vegetation LOD re-split, traffic stepping); the conventional name of a frame hook."
-  },
-  {
-    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
     "key": "idiom: [.filter .households .length .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
@@ -380,22 +368,6 @@
     "reason": "Different questions about a list of members (a household's grown-up at home, a club member who holds an office, a councillor who agrees with an issue): each is one Array.some with its own predicate; the shared part is Array.some itself."
   },
   {
-    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts + simworld/street/tracks.ts + simworld/workers/sim.worker.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/economy.ts + simworld/sim/encounters.ts + simworld/street/tracks.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/phone.ts + simworld/sim/schedule.ts + simworld/street/tracks.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
     "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
@@ -434,5 +406,65 @@
   {
     "key": "same name: simworld/render/propsView.ts#update + simworld/render/signsView.ts#update",
     "reason": "The town views' once-a-frame camera hook (PropsShown.update, SignsShown.update, VegetationShown.update): the same name on purpose, so the main loop calls them alike."
+  },
+  {
+    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/media.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
+    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
+  },
+  {
+    "key": "idiom: [.beginPath .lineTo .lineWidth .moveTo] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
+  },
+  {
+    "key": "idiom: [.save .translate] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
+  },
+  {
+    "key": "idiom: [.assign .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/smoke.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/smoke.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.vertexNode] in simworld/render/tsl/precip.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/smoke.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.cornerGap] in simworld/interior/fill/home.ts + simworld/interior/fill/place.ts + simworld/interior/fill/work.ts",
+    "reason": "Furnishing rules scoring a candidate spot by the filler's own cornerGap (one seam, Filler.cornerGap); each room's rule weighs it differently, nothing to fold."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts + simworld/street/tracks.ts + simworld/workers/sim.worker.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/economy.ts + simworld/sim/encounters.ts + simworld/street/tracks.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/lostPets.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.actors .cols] in simworld/sim/phone.ts + simworld/sim/schedule.ts + simworld/street/tracks.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.add .mul] in simworld/render/tsl/furniture.ts + simworld/render/tsl/smoke.ts + simworld/render/tsl/vegetation.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.front .length .poly] in simworld/plan/building.ts + simworld/plan/cell.ts + simworld/plan/signs.ts",
+    "reason": "A building's front edge read from its footprint (plan/building.ts streetDoor, cell.ts, signs.ts): each reads the edge for its own purpose (the door, the lot, the sign mounts); the door itself has one seam (streetDoor)."
   }
 ]

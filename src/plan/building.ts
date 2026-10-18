@@ -4,9 +4,9 @@
  * and massing rules.
  *
  * Ported from Scale (src/plan/building.ts) with town-sized floor counts; `dwellingsOf`,
- * `doorBayOf` and `streetDoor` are new here.
+ * `doorBayOf`, `streetDoor`, `isSliver` and `asLockUp` are new here.
  */
-import { polyArea, type Poly } from '../geom/geom2';
+import { polyArea, minAreaRect, rectangularity, type Poly } from '../geom/geom2';
 import { type Rng } from '@futuremagic/core';
 import type { District } from './types';
 import type { AmenityKind } from './amenities';
@@ -276,4 +276,36 @@ export function dwellingsOf(b: BuildingDesc): number {
   // A floor too small for a flat beside the stairs: the building is one narrow town house.
   if (floors > 1 && Math.abs(polyArea(b.poly)) < MIN_FLAT_FLOOR) return 1;
   return b.units * floors;
+}
+
+/**
+ * A footprint too small, thin or triangular for more than one storey (the stairs would eat the
+ * floor): under MIN_FLAT_FLOOR, under 4.5 m across, or a small wedge. The cell planner builds
+ * a single storey on it (a kiosk, a shed, a lock-up garage); SimWorld, for the interiors.
+ */
+export function isSliver(poly: Poly): boolean {
+  const a = Math.abs(polyArea(poly));
+  if (a < MIN_FLAT_FLOOR) return true;
+  const o = minAreaRect(poly);
+  return Math.min(o.hu, o.hv) * 2 < 4.5 || (a < 110 && rectangularity(poly) < 0.6);
+}
+
+/** Turn a building into a single-storey lock-up garage or shed (no home, no shop front, no use). */
+export function asLockUp(b: BuildingDesc): void {
+  const g = STYLES.garage;
+  b.style = 'garage';
+  b.use = g.use;
+  b.floors = 1;
+  b.groundH = g.groundH[0];
+  b.floorH = g.floorH[0];
+  b.roof = 'flat';
+  b.pitch = 0.2;
+  b.setbacks = [];
+  b.wall = g.walls[0];
+  b.roofMat = g.roofMats[0];
+  b.bay = g.bay[0];
+  b.shopfront = false;
+  b.units = 0;
+  b.amenity = undefined;
+  b.eatery = 0;
 }

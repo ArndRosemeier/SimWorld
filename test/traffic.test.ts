@@ -101,7 +101,7 @@ test('busy streets: nobody drives through anybody, every car arrives', () => {
       if (a.edge === b.edge && a.fwd === b.fwd && a.lane === b.lane && Math.abs(a.s - b.s) < (a.length + b.length) / 2 - 0.5) overlaps++;
     }
   };
-  run(tr, 300, check);
+  run(tr, 420, check); // (the longest trip across town takes five and a half minutes)
   assert.equal(overlaps, 0);
   assert.equal(stuck, 0);
   assert.equal(parked, started);

@@ -2,13 +2,16 @@
  * Landmarks: the town's public buildings with grounds of their own, planned once from the seed
  * (pure data, part of the macro plan). Ported from Scale (src/plan/landmarks.ts); SimWorld keeps
  * the town hall, turns Scale's stadium into the town's sports ground and adds the church, the
- * school, the kindergarten, the health centre, the fire station and the supermarket. Scale's
+ * school, the kindergarten, the health centre, the fire station, the supermarket, the care home
+ * and the petrol station. Scale's
  * attractions, marvels and the airport are not part of a town.
  *
  *  * Town hall: at the historic core, a civic square in front (clock tower, dome or belfry).
  *  * Church: near the core, its tower towards the street, a churchyard round it.
  *  * School and kindergarten: among the houses, with a schoolyard, a garden, a playing field.
  *  * Health centre near the middle; fire station and supermarket out towards the edge.
+ *  * Care home on a quiet residential edge, a garden behind; petrol station on an arterial at
+ *    the edge of town, its forecourt open to the road.
  *  * Sports ground: towards the edge of the centre, on open land: a pitch with a running track
  *    now and then, a clubhouse with changing rooms, a small covered stand and a car park.
  *
@@ -35,12 +38,13 @@ import { RAIL_HW } from './rail';
  * The town's public buildings with grounds of their own. Smaller institutions (the pharmacy,
  * the bakery, the post office, …) take over ordinary buildings instead (plan/institutions).
  */
-export type LandmarkKind = 'townhall' | 'sports' | 'church' | 'school' | 'kindergarten' | 'clinic' | 'fire' | 'supermarket' | 'station';
+export type LandmarkKind = 'townhall' | 'sports' | 'church' | 'school' | 'kindergarten' | 'clinic' | 'fire' | 'supermarket' | 'station' | 'carehome' | 'petrol';
 
 /** What a landmark is, in words (map tooltips). */
 export const LANDMARK_KIND_NAME: Record<LandmarkKind, string> = {
   townhall: 'town hall', sports: 'sports ground', church: 'church', school: 'school', kindergarten: 'kindergarten',
   clinic: 'health centre', fire: 'fire station', supermarket: 'supermarket', station: 'railway station',
+  carehome: 'care home', petrol: 'petrol station',
 };
 
 export interface Landmark {
@@ -330,6 +334,43 @@ function supermarketDesign(): Designer {
   };
 }
 
+/**
+ * A care home: a long two- or three-storey block along the street (an L with a wing back into
+ * the garden in a bigger town), a small forecourt for visitors in front, a garden behind. The
+ * bigger the town, the more storeys and the longer the block (`careHomeRooms`).
+ */
+function careHomeDesign(terrain: Terrain): Designer {
+  const s = clamp(terrain.profile.size, 0, 1);
+  return (r, k) => {
+    if (k < 0.6) return null;
+    const bw = Math.round((30 + 14 * s) * r.range(0.95, 1.08) * k), bd = Math.round(r.range(12, 14));
+    const wing = s > 0.5 || r.chance(0.4) ? 1 : 0, wingL = wing ? Math.round(r.range(12, 18) * k) : 0;
+    const garden = Math.round(r.range(14, 20) * k);
+    return {
+      style: r.int(0, 1), hu: bw / 2 + 5, hv: (bd + wingL + garden) / 2 + 6, maxRange: 3,
+      p: { bw, bd, wing, wingL, garden, floors: s < 0.4 ? 2 : 3, wall: r.int(0, 3), roof: r.int(0, 2) },
+    };
+  };
+}
+
+/** Residents' rooms a care home holds: its floor area over all storeys, about 18 m² a room with its share of the corridors. */
+export function careHomeRooms(lm: Landmark): number {
+  const P = lm.p;
+  return Math.floor((P.floors * (P.bw * P.bd + (P.wing ? 12 * P.wingL : 0)) * 0.6) / 18);
+}
+
+/**
+ * A petrol station: the forecourt open to the road (-v), the canopy over two or three pump
+ * islands, the kiosk (the shop and the till) at the back, a price sign by the road.
+ */
+function petrolDesign(): Designer {
+  return (r, k) => {
+    if (k < 0.7) return null;
+    const cw = Math.round(r.range(14, 20)), cd = Math.round(r.range(9, 12)), kw = Math.round(r.range(10, 14)), kd = Math.round(r.range(7, 9));
+    return { style: r.int(0, 3), hu: Math.max(cw, kw) / 2 + 6, hv: (cd + kd + 10) / 2 + 3, maxRange: 2, p: { cw, cd, kw, kd, islands: cw >= 17 ? 3 : 2, colour: r.int(0, 7) } };
+  };
+}
+
 /** The railway station: a platform along the track, the station building behind it, a forecourt. */
 function stationDesign(terrain: Terrain): Designer {
   const a = terrain.profile.arch;
@@ -357,6 +398,8 @@ function landmarkName(kind: LandmarkKind, r: Rng, city: string, american: boolea
     case 'fire': return `${city} Fire Station`;
     case 'station': return `${city}`;
     case 'supermarket': return r.pick(['FreshMart', 'ValueFoods', 'Greenway', 'Harvest Market', 'DailyFare', 'Corner Basket']);
+    case 'carehome': return r.pick([`${root} House`, `${root} Court Care Home`, `${root} Lodge`, `${root} Manor Care Home`, 'The Willows', 'Evergreen House']);
+    case 'petrol': return r.pick([`${root} Service Station`, `${city} Filling Station`, 'QuickFuel', 'Roadside Fuel', `${root} Garage Fuels`]);
   }
 }
 
@@ -374,7 +417,7 @@ export function planLandmarks(plan: MacroPlan, field: CityField, terrain: Terrai
   const dist = (c: CellInfo, x: number, z: number) => Math.hypot(c.centroid[0] - x, c.centroid[1] - z);
   const land = plan.cells.filter((c) => c.district !== 'water');
 
-  const fronted = new Set<LandmarkKind>(['townhall', 'church', 'school', 'kindergarten', 'clinic', 'fire', 'supermarket']);
+  const fronted = new Set<LandmarkKind>(['townhall', 'church', 'school', 'kindergarten', 'clinic', 'fire', 'supermarket', 'carehome', 'petrol']);
   const place = (kind: LandmarkKind, des: Designer, cells: CellInfo[], target?: FitOpts['target'], accept?: FitOpts['accept'], key: string = kind): Landmark | null => {
     const r = rng.fork(key);
     for (const k of [1, 0.85, 0.7, 0.55]) {
@@ -442,7 +485,16 @@ export function planLandmarks(plan: MacroPlan, field: CityField, terrain: Terrai
   if (!place('clinic', clinicDesign(), land.slice().sort(ring(R * 0.2, { oldtown: 0, commercial: 0, apartments: 20, rowhouses: 40, suburban: 60 })).slice(0, 40))) outside('clinic', clinicDesign());
   if (!place('fire', fireDesign(), land.slice().sort(ring(R * 0.4, { industrial: 0, suburban: 20, apartments: 30, rowhouses: 30, commercial: 60, oldtown: 300 })).slice(0, 40))) outside('fire', fireDesign());
   // An edge-of-town supermarket (by the road out) when no cell has room for it.
-  if (!place('supermarket', supermarketDesign(), land.slice().sort(ring(R * 0.55, { commercial: 0, industrial: 0, suburban: 20, apartments: 40, rowhouses: 60, oldtown: 300 })).slice(0, 40))) outside('supermarket', supermarketDesign());
+  if (!place('supermarket', supermarketDesign(), land.slice().sort(ring(R * 0.7, { commercial: 0, industrial: 0, suburban: 20, apartments: 40, rowhouses: 60, oldtown: 300 })).slice(0, 40))) outside('supermarket', supermarketDesign());
+  // The care home on a quiet residential edge; the petrol station on an arterial at the edge
+  // of town (the spot on the cell's outer side, its forecourt towards the road).
+  if (!place('carehome', careHomeDesign(terrain), land.slice().sort(ring(R * 0.7, { suburban: 0, rowhouses: 30, apartments: 40, park: 80, oldtown: 250, commercial: 250, industrial: 600, port: 600 })).slice(0, 40))) outside('carehome', careHomeDesign(terrain));
+  const outer = (c: CellInfo): [number, number] => {
+    let bx = c.centroid[0], bz = c.centroid[1], bd = -1;
+    for (let i = 0; i < c.poly.length; i += 2) { const d = Math.hypot(c.poly[i] - c0.x, c.poly[i + 1] - c0.z); if (d > bd) { bd = d; bx = c.poly[i]; bz = c.poly[i + 1]; } }
+    return [bx, bz];
+  };
+  if (!place('petrol', petrolDesign(), land.slice().sort(ring(R * 0.85, { industrial: 0, suburban: 10, commercial: 10, port: 30, apartments: 40, rowhouses: 40, oldtown: 400 })).slice(0, 40), outer)) outside('petrol', petrolDesign());
   void field;
   return out;
 }
@@ -553,7 +605,8 @@ export function siteZones(lm: Landmark): { base: ZoneKind; zones: SiteZone[] } {
       return { base: 'park', zones };
     }
     case 'kindergarten': return { base: 'park', zones: [{ kind: 'plaza', poly: R(-lm.hu + 2, -lm.hv, lm.hu - 2, -lm.hv + 5) }] };
-    case 'fire': case 'supermarket': return { base: 'paved', zones: [] };
+    case 'fire': case 'supermarket': case 'petrol': return { base: 'paved', zones: [] };
+    case 'carehome': return { base: 'park', zones: [{ kind: 'paved', poly: R(-lm.hu + 2, -lm.hv, lm.hu - 2, -lm.hv + 5.5) }] };
     case 'station': {
       // The forecourt paved, a strip of lawn either side of the building.
       return { base: 'paved', zones: [] };

@@ -19,6 +19,7 @@ import { polyBounds } from '../geom/geom2';
 import { planTown, type Town } from '../plan/town';
 import { parcelParams } from '../world/landuse';
 import { soundMapOf, soundMapTransferables } from '../audio/soundMap';
+import { townMapOf, townMapTransferables } from '../plan/townMap';
 import type { FromTown, ToTown } from './townProtocol';
 import { serve } from './serve';
 import { signInstances } from '../build/signs';
@@ -58,8 +59,9 @@ function handle(m: ToTown): FromTown {
       const ground = buildGround(plan, terrain, [(x0 + x1) / 2, 0, (z0 + z1) / 2]);
       const mb = new MeshBuilder(facadeSpecs());
       mb.setOrigin((x0 + x1) / 2, 0, (z0 + z1) / 2);
-      buildBuildings(mb, plan.buildings, terrain);
-      return { type: 'cell', ground: out(ground), buildings: out(mb), ms: ms() };
+      const chimneys: number[] = [];
+      buildBuildings(mb, plan.buildings, terrain, chimneys);
+      return { type: 'cell', ground: out(ground), buildings: out(mb), chimneys, ms: ms() };
     }
     case 'terrain': {
       const { x0, z0, size, res } = m.tile;
@@ -79,8 +81,9 @@ function handle(m: ToTown): FromTown {
     }
     case 'country': {
       const mb = new MeshBuilder(facadeSpecs());
-      for (const f of rural.farms) buildBuildings(mb, rural.layout(f.id).buildings, terrain);
-      return { type: 'country', ground: out(buildCountryRoads(rural, macro.rail, terrain)), buildings: out(mb), ms: ms() };
+      const chimneys: number[] = [];
+      for (const f of rural.farms) buildBuildings(mb, rural.layout(f.id).buildings, terrain, chimneys);
+      return { type: 'country', ground: out(buildCountryRoads(rural, macro.rail, terrain)), buildings: out(mb), chimneys, ms: ms() };
     }
     case 'bridges': {
       const b = buildBridges(macro.bridges, terrain, macro.edges);
@@ -100,6 +103,7 @@ function handle(m: ToTown): FromTown {
       };
       return { type: 'signs', signs: signInstances(town, roads, graph.places, cityName(town.settings.seed)), facts, ms: ms() };
     }
+    case 'map': return { type: 'map', map: townMapOf(town), ms: ms() };
     case 'interior': {
       const b = cells[m.cell]?.buildings.find((q) => q.id === m.building);
       if (!b) throw new Error(`no building ${m.building} in cell ${m.cell}`);
@@ -128,4 +132,4 @@ function meshesOf(r: FromTown): MeshData[] {
   }
 }
 
-serve<ToTown, FromTown>(handle, (r) => (r.type === 'sound' ? soundMapTransferables(r.map) : meshesOf(r).flatMap(meshTransferables)));
+serve<ToTown, FromTown>(handle, (r) => (r.type === 'sound' ? soundMapTransferables(r.map) : r.type === 'map' ? townMapTransferables(r.map) : meshesOf(r).flatMap(meshTransferables)));

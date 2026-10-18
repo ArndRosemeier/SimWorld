@@ -2,6 +2,7 @@
  * Messages between the main thread and the town workers (src/workers/town.worker.ts). Every
  * worker plans the same town from the settings (deterministic), then builds mesh data on request.
  */
+import type { TownMap } from '../plan/townMap';
 import type { MeshData } from '../build/meshBuilder';
 import type { PropGroup } from '../build/streetProps';
 import type { SignsData } from '../build/signs';
@@ -39,6 +40,8 @@ export type ToTown =
   | { type: 'sound' }
   /** Every sign (shop names, hours, estate boards, street names, town signs) as instance lists, with the planner's places as the signs' first facts (src/build/signs.ts). */
   | { type: 'signs' }
+  /** The town map (src/plan/townMap.ts). */
+  | { type: 'map' }
   /** The cutaway of one storey of a building (`building`: its id in the cell). */
   | { type: 'interior'; cell: number; building: number; floor: number };
 
@@ -61,11 +64,12 @@ export interface TownSummary {
 
 export type FromTown =
   | { type: 'ready'; town: TownSummary; ms: number }
-  | { type: 'cell'; ground: MeshData | null; buildings: MeshData | null; ms: number }
+  /** `chimneys`: the chimney tops (x, y, z each, world metres) of the buildings, for the smoke. */
+  | { type: 'cell'; ground: MeshData | null; buildings: MeshData | null; chimneys: number[]; ms: number }
   | { type: 'terrain'; mesh: MeshData; ms: number }
   | { type: 'water'; mesh: MeshData | null; ms: number }
   | { type: 'landmark'; mesh: MeshData | null; ms: number }
-  | { type: 'country'; ground: MeshData | null; buildings: MeshData | null; ms: number }
+  | { type: 'country'; ground: MeshData | null; buildings: MeshData | null; chimneys: number[]; ms: number }
   | { type: 'bridges'; ground: MeshData | null; buildings: MeshData | null; ms: number }
   /** `lamps`: the street lamp heads (`lampsOf`, LAMP_STRIDE floats each). */
   | { type: 'props'; groups: PropGroup[]; lamps: Float32Array; ms: number }
@@ -77,6 +81,7 @@ export type FromTown =
   | { type: 'sound'; map: SoundMap; ms: number }
   /** `facts`: what the planner made each place (kind as a PLACE_KINDS index, name, the kind's default hours) until the sim's town face comes. */
   | { type: 'signs'; signs: SignsData; facts: SignFacts; ms: number }
+  | { type: 'map'; map: TownMap; ms: number }
   /** `at`: the storey's centre (floor level), `radius` its reach; `about`: what the building is, for the HUD. */
   | { type: 'interior'; mesh: MeshData | null; at: [number, number, number]; radius: number; floors: number; about: string; ms: number }
   | { type: 'error'; message: string };

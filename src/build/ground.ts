@@ -8,13 +8,14 @@
  * `groundSpecs()` and the `GroundLayer` numbers, so they share the ground material.
  */
 import earcut from 'earcut';
-import type { Shape } from '../geom/clip';
+import { difference, shapesToPolys, type Shape } from '../geom/clip';
 import type { Terrain } from '../world/terrain';
 import type { CellPlan } from '../plan/cell';
 import { RoadClass } from '../plan/types';
 import { CURB_H } from '../world/ground';
 import { MeshBuilder, type AttrSpec } from './meshBuilder';
-import { resample, polylineLength, reversePoly } from '../geom/geom2';
+import { resample, polylineLength } from '../geom/geom2';
+import { crossingsOf, markedEnds } from '../plan/crossings';
 
 export const enum GroundLayer {
   Asphalt = 0,
@@ -160,28 +161,49 @@ export function ringWall(mb: MeshBuilder, ring: number[], terrain: Terrain, yTop
   }
 }
 
+/** One kind of draped surface of a cell: its shapes, height above the ground, layer. */
+export interface GroundSurface { shapes: Shape[]; dy: number; layer: GroundLayer }
+
+/**
+ * The draped surfaces of a cell. They never overlap: two drapes a centimetre apart cross
+ * wherever their triangles follow the terrain differently (DRAPE_TOL), and fight in the depth
+ * buffer further off, so a block's ground has holes where anything else lies on it.
+ */
+export function groundSurfaces(plan: CellPlan): GroundSurface[] {
+  const oldTown = plan.district === 'oldtown';
+  // Blocks: lots and yards. Lot surfaces of dense districts are paved, gardens are grass.
+  const dense = plan.district === 'downtown' || plan.district === 'commercial' || plan.district === 'oldtown';
+  const industrial = plan.district === 'industrial' || plan.district === 'port';
+  // Highest first: each lies where none above it does.
+  const S: GroundSurface[] = [
+    { shapes: plan.cemPaths, dy: CURB_H + 0.01, layer: GroundLayer.Gravel },
+    { shapes: plan.yards, dy: CURB_H + 0.01, layer: industrial ? GroundLayer.Gravel : GroundLayer.Grass },
+    { shapes: plan.sidewalks, dy: CURB_H, layer: oldTown ? GroundLayer.PlazaStone : GroundLayer.Paving },
+    { shapes: plan.promenade, dy: CURB_H, layer: GroundLayer.Promenade },
+    { shapes: plan.plazas, dy: CURB_H, layer: GroundLayer.PlazaStone },
+    { shapes: plan.paved, dy: CURB_H, layer: GroundLayer.AsphaltLight },
+    { shapes: plan.parks, dy: CURB_H, layer: GroundLayer.Grass },
+    { shapes: plan.cemeteries, dy: CURB_H, layer: GroundLayer.Grass },
+    { shapes: plan.blocks, dy: CURB_H - 0.01, layer: industrial ? GroundLayer.AsphaltLight : dense ? GroundLayer.Paving : GroundLayer.Grass },
+  ];
+  const above: Shape[] = [];
+  for (const g of S) {
+    const own = g.shapes;
+    g.shapes = uncovered(own, above);
+    above.push(...own);
+  }
+  return [{ shapes: plan.carriageway, dy: 0, layer: oldTown ? GroundLayer.Cobble : GroundLayer.Asphalt }, ...S];
+}
+
 export function buildGround(plan: CellPlan, terrain: Terrain, origin: [number, number, number]): MeshBuilder {
   const mb = new MeshBuilder(groundSpecs());
   mb.setOrigin(...origin);
-  const oldTown = plan.district === 'oldtown';
-  for (const s of plan.carriageway) drapeShape(mb, s, terrain, 0, oldTown ? GroundLayer.Cobble : GroundLayer.Asphalt);
+  for (const g of groundSurfaces(plan)) for (const s of g.shapes) drapeShape(mb, s, terrain, g.dy, g.layer);
   // Curbs: carriageway outline walls facing the road.
   for (const s of plan.carriageway) {
     ringWall(mb, s.outer, terrain, CURB_H, -0.05, GroundLayer.Curb, false);
     for (const h of s.holes) ringWall(mb, h, terrain, CURB_H, -0.05, GroundLayer.Curb, false);
   }
-  for (const s of plan.sidewalks) drapeShape(mb, s, terrain, CURB_H, oldTown ? GroundLayer.PlazaStone : GroundLayer.Paving);
-  for (const s of plan.promenade) drapeShape(mb, s, terrain, CURB_H, GroundLayer.Promenade);
-  for (const s of plan.plazas) drapeShape(mb, s, terrain, CURB_H, GroundLayer.PlazaStone);
-  for (const s of plan.paved) drapeShape(mb, s, terrain, CURB_H, GroundLayer.AsphaltLight);
-  for (const s of plan.parks) drapeShape(mb, s, terrain, CURB_H, GroundLayer.Grass);
-  for (const s of plan.cemeteries) drapeShape(mb, s, terrain, CURB_H, GroundLayer.Grass);
-  for (const s of plan.cemPaths) drapeShape(mb, s, terrain, CURB_H + 0.01, GroundLayer.Gravel);
-  // Blocks: lots and yards. Lot surfaces of dense districts are paved, gardens are grass.
-  const dense = plan.district === 'downtown' || plan.district === 'commercial' || plan.district === 'oldtown';
-  const industrial = plan.district === 'industrial' || plan.district === 'port';
-  for (const s of plan.blocks) drapeShape(mb, s, terrain, CURB_H - 0.01, industrial ? GroundLayer.AsphaltLight : dense ? GroundLayer.Paving : GroundLayer.Grass);
-  for (const s of plan.yards) drapeShape(mb, s, terrain, CURB_H + 0.01, industrial ? GroundLayer.Gravel : GroundLayer.Grass);
   // Quay walls along the water side of promenades.
   for (const s of plan.promenade) {
     const n = s.outer.length >> 1;
@@ -199,9 +221,15 @@ export function buildGround(plan: CellPlan, terrain: Terrain, origin: [number, n
   return mb;
 }
 
+/** The parts of `shapes` that none of `over` covers. */
+function uncovered(shapes: Shape[], over: Shape[]): Shape[] {
+  return shapes.length && over.length ? difference(shapesToPolys(shapes), shapesToPolys(over)) : shapes;
+}
+
 /** Lane markings, crosswalks and stop lines as thin draped quads. */
 function buildMarkings(mb: MeshBuilder, plan: CellPlan, terrain: Terrain): void {
-  const lift = 0.025;
+  // Above the carriageway by more than its drape tolerance (DRAPE_TOL) plus depth precision far off.
+  const lift = 0.04;
   const strip = (pts: number[], off: number, halfW: number, dash: number, gap: number, layer: number, trim0: number, trim1: number) => {
     const L = polylineLength(pts);
     if (L < trim0 + trim1 + 1) return;
@@ -227,20 +255,11 @@ function buildMarkings(mb: MeshBuilder, plan: CellPlan, terrain: Terrain): void 
       upQuad(mb, base, p);
     }
   };
-  const junctionNear = (x: number, z: number) => {
-    for (let i = 0; i < plan.junctions.length; i += 3) if (Math.hypot(plan.junctions[i] - x, plan.junctions[i + 1] - z) < 4) return true;
-    return false;
-  };
   for (const st of plan.streets) {
-    if (st.cls === RoadClass.Path) continue;
-    // Arterials are marked by one cell only: the one whose id is lower among its two sides
-    // is unknown here, so mark arterials from the side where the polyline runs CCW (left side owns).
-    if (st.arterial >= 0 && !ownsArterial(plan, st.pts)) continue;
-    const n = st.pts.length;
-    const j0 = junctionNear(st.pts[0], st.pts[1]) || st.arterial >= 0;
-    const j1 = junctionNear(st.pts[n - 2], st.pts[n - 1]) || st.arterial >= 0;
+    const ends = markedEnds(plan, st);
+    if (!ends) continue;
+    const [j0, j1] = ends;
     const trim0 = j0 ? st.width * 0.75 + 2.5 : 1, trim1 = j1 ? st.width * 0.75 + 2.5 : 1;
-    if (plan.district === 'oldtown' && st.cls >= RoadClass.Street) continue;
     if (st.cls <= RoadClass.Avenue) {
       // Double yellow centre (or median edge), dashed lane dividers, edge lines.
       if (st.cls === RoadClass.Boulevard) {
@@ -259,57 +278,29 @@ function buildMarkings(mb: MeshBuilder, plan: CellPlan, terrain: Terrain): void 
     } else if (st.cls === RoadClass.Street) {
       strip(st.pts, 0, 0.07, 3, 5, GroundLayer.PaintWhite, trim0, trim1);
     }
-    // Crosswalks (zebra) near junction ends.
-    for (const end of [0, 1]) {
-      if (!(end === 0 ? j0 : j1)) continue;
-      const pts = end === 0 ? st.pts : reversePoly(st.pts);
-      const L = polylineLength(pts);
-      const d = st.width * 0.75 + 1.2;
-      if (L < d + 3) continue;
-      const rs = resample(pts.slice(0, Math.min(pts.length, 8)), 0.5);
-      // Point at distance d along the start.
-      let acc = 0, px = pts[0], pz = pts[1], dxv = 1, dzv = 0;
-      for (let i = 2; i < rs.length; i += 2) {
-        const seg = Math.hypot(rs[i] - rs[i - 2], rs[i + 1] - rs[i - 1]);
-        if (acc + seg >= d) {
-          const t = (d - acc) / seg;
-          px = rs[i - 2] + (rs[i] - rs[i - 2]) * t; pz = rs[i - 1] + (rs[i + 1] - rs[i - 1]) * t;
-          dxv = (rs[i] - rs[i - 2]) / seg; dzv = (rs[i + 1] - rs[i - 1]) / seg;
-          break;
-        }
-        acc += seg;
-      }
-      const nx = -dzv, nz = dxv;
-      const half = st.width / 2 - 0.3;
-      mb.set('aLayer', GroundLayer.PaintWhite);
-      for (let o = -half + 0.25; o < half - 0.2; o += 1.0) {
-        const cx = px + nx * o, cz = pz + nz * o;
-        const p = [
-          cx - nx * 0.25 - dxv * 1.5, cz - nz * 0.25 - dzv * 1.5,
-          cx + nx * 0.25 - dxv * 1.5, cz + nz * 0.25 - dzv * 1.5,
-          cx + nx * 0.25 + dxv * 1.5, cz + nz * 0.25 + dzv * 1.5,
-          cx - nx * 0.25 + dxv * 1.5, cz - nz * 0.25 + dzv * 1.5,
-        ];
-        const base = mb.vcount;
-        for (let k = 0; k < 4; k++) mb.v(p[k * 2], terrain.height(p[k * 2], p[k * 2 + 1]) + lift, p[k * 2 + 1], 0, 1, 0, p[k * 2], p[k * 2 + 1]);
-        upQuad(mb, base, p);
-      }
-      // Stop line on the approach side (right-hand traffic: the lane arriving at the junction).
-      const sx = px + dxv * 2.2, sz = pz + dzv * 2.2;
-      strip([sx - nx * 0.05, sz - nz * 0.05, sx + nx * half, sz + nz * half], 0, 0.2, 0, 0, GroundLayer.PaintWhite, 0, 0);
-    }
   }
-}
-
-/** A cell owns an arterial's markings when the cell lies to the left of the polyline direction. */
-function ownsArterial(plan: CellPlan, pts: number[]): boolean {
-  const n = pts.length >> 1;
-  const i = Math.max(0, (n >> 1) - 1);
-  const ax = pts[i * 2], az = pts[i * 2 + 1], bx = pts[i * 2 + 2], bz = pts[i * 2 + 3];
-  const mx = (ax + bx) / 2, mz = (az + bz) / 2;
-  const [x0, z0, x1, z1] = plan.bounds;
-  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-  return (bx - ax) * (cz - mz) - (bz - az) * (cx - mx) > 0;
+  // Crosswalks (zebra) near junction ends (src/plan/crossings.ts), with a stop line on the
+  // approach side (right-hand traffic: the lane arriving at the junction).
+  for (const c of crossingsOf(plan)) {
+    const px = c.x, pz = c.z, dxv = Math.sin(c.heading), dzv = Math.cos(c.heading);
+    const nx = -dzv, nz = dxv;
+    const half = c.width / 2 - 0.3;
+    mb.set('aLayer', GroundLayer.PaintWhite);
+    for (let o = -half + 0.25; o < half - 0.2; o += 1.0) {
+      const cx = px + nx * o, cz = pz + nz * o;
+      const p = [
+        cx - nx * 0.25 - dxv * 1.5, cz - nz * 0.25 - dzv * 1.5,
+        cx + nx * 0.25 - dxv * 1.5, cz + nz * 0.25 - dzv * 1.5,
+        cx + nx * 0.25 + dxv * 1.5, cz + nz * 0.25 + dzv * 1.5,
+        cx - nx * 0.25 + dxv * 1.5, cz - nz * 0.25 + dzv * 1.5,
+      ];
+      const base = mb.vcount;
+      for (let k = 0; k < 4; k++) mb.v(p[k * 2], terrain.height(p[k * 2], p[k * 2 + 1]) + lift, p[k * 2 + 1], 0, 1, 0, p[k * 2], p[k * 2 + 1]);
+      upQuad(mb, base, p);
+    }
+    const sx = px + dxv * 2.2, sz = pz + dzv * 2.2;
+    strip([sx - nx * 0.05, sz - nz * 0.05, sx + nx * half, sz + nz * half], 0, 0.2, 0, 0, GroundLayer.PaintWhite, 0, 0);
+  }
 }
 
 /** Emit a quad (4 verts already added at `base`, xz corners in p) facing +y. */

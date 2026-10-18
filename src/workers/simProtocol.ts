@@ -11,14 +11,22 @@ import type { TownSettings } from '../world/settings';
 export type ToSim =
   /**
    * Plan the town, make the world (play starting on the real date `start`, game day `startDay`: its weekday) and
-   * run it to `clock` (game minutes since day 0, 00:00).
+   * run it to `clock` (game minutes since day 0, 00:00). With `save` (bytes of `saveWorld`), the world is that save
+   * instead, on the same town planned again, and play resumes at its clock (`start`, `startDay`, `clock` are unused).
    */
-  | { type: 'init'; settings: TownSettings; start: CivilDate; startDay: number; clock: number }
+  | { type: 'init'; settings: TownSettings; start: CivilDate; startDay: number; clock: number; save?: Uint8Array | null }
   /**
    * Run the world up to `clock` (whole minutes are ticked; the fraction only places the tracks), then report
    * the street around (x, z): tracks that are new or changed within `r` metres, and who went out of it.
    */
-  | { type: 'update'; clock: number; x: number; z: number; r: number };
+  | { type: 'update'; clock: number; x: number; z: number; r: number }
+  /** The world as save bytes (`saveWorld`), at its clock now. */
+  | { type: 'save' }
+  /**
+   * Skip `days` whole days (the time skip, `chronicle`), to the same time of day; the street starts afresh, so
+   * the main thread drops everyone it has.
+   */
+  | { type: 'skip'; days: number };
 
 /** What the view needs to know about an actor once (looks, names). */
 export interface ActorInfo {
@@ -56,7 +64,10 @@ export interface HeightGrid {
 }
 
 export type FromSim =
-  | { type: 'ready'; clock: number; people: number; ground: HeightGrid; view: SimView; ms: number }
+  /** `resumed`: the world is the save sent with init (false when there was none or it no longer fits). */
+  | { type: 'ready'; resumed: boolean; clock: number; people: number; ground: HeightGrid; view: SimView; ms: number }
   /** `view`: the snapshot, when the game minute has moved on since the last one sent (else null). */
   | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; ms: number }
+  | { type: 'saved'; clock: number; bytes: Uint8Array; ms: number }
+  | { type: 'skipped'; clock: number; view: SimView; ms: number }
   | { type: 'error'; message: string };

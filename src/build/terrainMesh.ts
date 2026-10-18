@@ -46,6 +46,39 @@ export function terrainTiles(terrain: Terrain): TerrainTileSpec[] {
   return out;
 }
 
+/**
+ * Height of the drawn terrain mesh at (x, z): the grid of the tile `terrainTiles` puts there,
+ * interpolated over its triangles as the GPU does. Far from the town the grid is coarse, and
+ * in a hollow the mesh can rise more than TERRAIN_DROP above the natural ground; whatever is
+ * draped on the ground there must stand on this instead. `cache` keeps the grid heights met.
+ */
+export function terrainMeshHeight(terrain: Terrain, x: number, z: number, cache?: Map<number, number>): number {
+  let size = ROOT, x0 = Math.floor(x / ROOT) * ROOT, z0 = Math.floor(z / ROOT) * ROOT;
+  for (;;) {
+    const split = SPLIT[size];
+    const dx = Math.max(0, x0, -(x0 + size)), dz = Math.max(0, z0, -(z0 + size));
+    if (split === undefined || Math.hypot(dx, dz) >= split) break;
+    size /= 2;
+    if (x >= x0 + size) x0 += size;
+    if (z >= z0 + size) z0 += size;
+  }
+  const step = size / RES;
+  const fi = Math.min(RES - 1e-9, (x - x0) / step), fj = Math.min(RES - 1e-9, (z - z0) / step);
+  const i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
+  // Grid points lie on whole metres (the tile corners and steps do): the cache key.
+  const H = (ii: number, jj: number) => {
+    const gx = x0 + ii * step, gz = z0 + jj * step, key = (gx + 65536) * 131072 + gz + 65536;
+    let h = cache?.get(key);
+    if (h === undefined) { h = terrain.height(gx, gz) - TERRAIN_DROP; cache?.set(key, h); }
+    return h;
+  };
+  const a = H(i, j), c = H(i + 1, j + 1);
+  // The quad's triangles (a, d, c) and (a, c, b), split along a–c (buildTerrainTile).
+  if (v > u) { const d = H(i, j + 1); return a + (c - d) * u + (d - a) * v; }
+  const b = H(i + 1, j);
+  return a + (b - a) * u + (c - b) * v;
+}
+
 /** Skirt depth of a tile (deep enough to hide the crack to a coarser neighbour). */
 export function terrainSkirt(size: number): number {
   return Math.max(2, size / 40);
