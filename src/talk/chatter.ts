@@ -826,7 +826,7 @@ const QUESTIONS: readonly { re: RegExp; q: string | readonly string[]; known?: b
 /** Answers that say nothing ("I didn't ask", "No idea"): what follows cannot build on them. */
 const DUNNO = /^(I'm not sure|I don't know|No idea|I didn't ask|Nobody|Not yet|I haven't|If they do|I couldn't|Couldn't|Who knows)/;
 
-/** A household away on holiday. */
+/** A household away on a trip. */
 const AWAY = /^\{subject\}'s family are away/;
 
 /** Stories about two people as a pair. */
@@ -842,7 +842,7 @@ const RECENT: ReadonlySet<string> = new Set(['just now', 'this morning', 'earlie
 const OPINION = /^(weather\.(rain|drizzle|storm|snow|ice|cold|hot|nice|fog|grey|windy|mild)|place\.\w+\.(good|moan)|season\.\w+)$/;
 
 const HOLIDAY_ACT: Partial<Record<string, ActName>> = {
-  christmas: 'holiday.christmas', boxingDay: 'holiday.christmas', christmasEve: 'holiday.christmasEve', newYear: 'holiday.newYear',
+  christmas: 'holiday.christmas', dayAfterChristmas: 'holiday.christmas', christmasEve: 'holiday.christmasEve', newYear: 'holiday.newYear',
   newYearsEve: 'holiday.newYearsEve', easter: 'holiday.easter', easterMonday: 'holiday.easter', halloween: 'holiday.halloween',
   summerFestival: 'holiday.summerFestival', christmasMarket: 'holiday.christmasMarket',
 };

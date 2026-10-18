@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.105 — Halloween posters
+
+- Trick-or-treating now gets posters on every notice board and along the centre's streets in the two weeks before Halloween, like the summer festival and the Christmas market.
+
+## v0.104 — Building wear and fresh paint
+
+- Walls of run-down buildings get grime and rain streaks, from the upkeep the economy keeps for each place.
+- Well-off homes look a touch brighter, as if freshly painted.
+- Both follow the sim's town face, so a building that is let go slowly greys and one that is done up cleans again.
+
+## v0.103 — People sit down on benches
+
+- People out in parks, squares, the cemetery and at sports grounds now and then sit down on a free bench for a few minutes, then get up and stroll on. Only one person sits on each seat.
+- Sitting down and getting up are smooth movements, and people turn to face the right way instead of snapping round.
+- People can now also lie down on a bed and sit up again. The furnished homes will use this for family members at home.
+
+## v0.102 — Holiday decorations follow the calendar
+
+- From mid-October, homes put pumpkins in their windows for Halloween (their faces glow after dark), far more often where children live.
+- At Christmas, fairy lights go up from the start of the market and trees appear in windows from the second week of December; all come down after 6 January.
+- Easter brings a few strings of painted eggs, and the summer festival week brings bunting.
+- Each household decides for itself: its taste, children, money and mood all count, and a household that lost someone recently does not decorate.
+
+## v0.101 — Names, jobs and holidays fit the invented world
+
+- People now have English-sounding names: the German-sounding given names and surnames are gone (Lena, Jonas, Schmidt, Becker and the like).
+- Job titles no longer point to one country: the principal, the school maintenance worker, the pub owner, a dental assistant, the postal worker, newspaper delivery, care workers, the supermarket manager and stock workers.
+- School breaks are called breaks (the winter, Easter, May, summer, October and Christmas breaks), and 26 December is "the day after Christmas".
+- Families go "away on a trip" instead of "on holiday", and people say they live in "an apartment" on a street.
+
+## v0.100 — Steer the person you play
+
+- When you pick someone, you take over their body straight away: W A S D to walk, Shift to hurry, drag the mouse to look around. The camera stays close behind them.
+- You walk on the real ground and step up kerbs. Buildings, posts, trees and parked cars stop you, and you slide along walls.
+- Someone at home steps out of their front door when you take over. Walking into houses comes with the interiors.
+- Their routine pauses while you steer. "Autopilot on" hands them back, and pressing a walking key on autopilot takes over again on the spot.
+- Skipping time hands your person to their routine for the skipped days, then gives them back to you.
+
 ## v0.099 — Interiors you can go into
 
 - A whole building's interior can now be loaded and drawn while you are inside it: every storey furnished, with the outer walls, the street door open, floors, ceilings and stairs.

@@ -3,7 +3,7 @@
  * authoring time (Arnd's decision: authoring-time LLM = Claude) and curated; shipped as static data.
  *
  * Region-neutral English (Arnd, 2026-10-18: an invented, western-adjacent world, nothing that identifies a region):
- * no "mom" or "mum", "vacation" or "holiday", "fall" or "autumn", "Alright?" or "y'all"; British spelling where a
+ * no "mom" or "mum", "vacation" or "holiday", "fall" or "autumn" (people go "away", school has "breaks"), "Alright?" or "y'all"; British spelling where a
  * word differs, but such words are avoided. `DIALECT_MARKED` (src/lang/dialect.ts) is the gate the tests run.
  *
  * Banks come in adjacency pairs: every act that expects an answer has its answering acts, and a bank holds only
@@ -331,7 +331,7 @@ export const ACTS = {
   "react.yours.answer": { any: ["We're managing, thanks.", "Getting there, thanks.", "Day by day.", "Oh, you know. We'll be all right.", "As well as can be."] },
   "react.self.close": { any: ["Thanks.", "Thank you!", "Thanks, I'm [so|really] pleased.", "Thanks. We're [pleased|thrilled|very happy]."] },
   "react.self.close.bad": { any: ["Thanks.", "Thank you.", "Thanks, that's kind.", "Thanks. It's [been hard|not easy], [I won't lie|to be honest]."] },
-  // A household away on holiday: the teller's own, or someone else's.
+  // A household away on a trip: the teller's own, or someone else's.
   "react.away.self": {
     any: ["Oh, lovely. How long for?", "Lucky them! [How long for?|When are they back?]", "Oh, how nice for them." ],
     kid: ["Cool."],

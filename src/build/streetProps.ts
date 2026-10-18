@@ -10,7 +10,6 @@
  */
 import { hash32, hashToFloat } from '@futuremagic/core';
 import { CURB_H } from '../world/ground';
-import { facing } from '../geom/geom2';
 import { PropType, type CellPlan, type StreetSeg } from '../plan/cell';
 import { RoadClass, type District } from '../plan/types';
 import { TERRACE_PALETTE } from '../plan/terrace';
@@ -19,6 +18,7 @@ import { FURNITURE_KINDS, furnitureModel, type FurnitureKind } from './furniture
 import { farVehicle, paintColor, standingVehicle, type VehicleKind } from './vehicles';
 import type { MeshData } from './meshBuilder';
 import { InstanceLists, type ModelInstances } from './instanceLists';
+import { yawToward } from '../geom/geom2';
 
 /** Floats per instance: x, y, z, yaw, scale, then four for the kind's instance attributes (furniture: tint rgb + noise offset; vehicles: paint rgb + 0). */
 export const PROP_STRIDE = 9;
@@ -228,5 +228,5 @@ function evChargerSpot(streets: StreetSeg[], x: number, z: number, yaw: number):
   if (!isFinite(da) || Math.abs(da - db) < 0.5) return null;
   const p = da > db ? a : b;
   // Front (−Z) of the post towards the car.
-  return { x: p.x, z: p.z, yaw: facing(cx - p.x, cz - p.z) };
+  return { x: p.x, z: p.z, yaw: yawToward(p.x, p.z, cx, cz) };
 }

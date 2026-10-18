@@ -5,20 +5,25 @@
 import type { EquipmentVisuals } from '@futuremagic/humanoid';
 import { appearanceOf, bodyKey, coldOf, outfitOf } from '../street/looks';
 import { ACTOR_PERSON } from '../sim/actors';
-import { facing } from '../geom/geom2';
 import { isWetOut } from '../sim/weather';
-import type { Figure, Look, PeopleView } from '../render/people/peopleView';
+import type { Figure, Look, PeopleView, Rest } from '../render/people/peopleView';
+import { restAt } from '../street/tracks';
+import { yawToward } from '../geom/geom2';
 import type { SimClient, Walker } from './SimClient';
 
 /** Game minutes ahead a walker's velocity is measured over. */
 const DT = 0.02;
 
+/** Where the player's body is and how it moves (feet, m/s, facing as the camera's yaw). */
+export interface SelfPose { x: number; y: number; z: number; vx: number; vz: number; yaw: number }
+
 class WalkerFigure implements Figure {
   x = 0; y = 0; z = 0; vx = 0; vz = 0;
   face: number | undefined = undefined;
+  rest: Rest | undefined = undefined;
   private cached: { key: string; look: Look } | null = null;
   private outfit: { key: string; eq: EquipmentVisuals } | null = null;
-  constructor(readonly w: Walker, private readonly street: Street) {}
+  constructor(readonly w: Pick<Walker, 'id' | 'info'>, private readonly street: Street) {}
   get id(): number { return this.w.id; }
   look(): Look {
     const s = this.street, clock = s.sim.clock, info = this.w.info;
@@ -34,8 +39,11 @@ class WalkerFigure implements Figure {
   }
 }
 
-/** Someone drawn where the game puts them, not on their street track: where they stand and which way they face. */
-export interface Held { x: number; y: number; z: number; face: number; w: Walker }
+/**
+ * Someone drawn where the game puts them, not on their street track: where they stand and which way they face,
+ * and whether they sit or lie there (the people view's `Rest` conventions: a sitter stands SEAT_REACH in front).
+ */
+export interface Held { x: number; y: number; z: number; face: number; w: Walker; rest?: Rest }
 
 export class Street {
   private readonly figures = new Map<number, WalkerFigure>();
@@ -46,11 +54,25 @@ export class Street {
   /** People inside the building the player is in (src/game/inside.ts), at their spots. */
   private readonly indoors = new Map<number, Held>();
 
+  /** Your own person while you walk them yourself: drawn where the body you steer is (src/game/avatar.ts). */
+  private self: { fig: WalkerFigure; at: SelfPose } | null = null;
+
   constructor(readonly sim: SimClient, readonly people: PeopleView, readonly seed: number) {}
+
+  /** Draw `id` from `at` (the player's body) instead of their track; null `at` stops it. */
+  setSelf(id: number, at: SelfPose | null): void {
+    const info = at ? this.sim.infoOf(id) : null;
+    this.self = at && info ? { fig: this.self?.fig.id === id ? this.self.fig : new WalkerFigure({ id, info }, this), at } : null;
+  }
 
   /** People out of doors around the camera this frame, placed on their tracks. */
   figuresNow(): Figure[] {
-    const clock = this.sim.clock, out: Figure[] = [];
+    const clock = this.sim.clock, out: Figure[] = [], self = this.self;
+    if (self) {
+      const f = self.fig, a = self.at;
+      f.x = a.x; f.y = a.y; f.z = a.z; f.vx = a.vx; f.vz = a.vz; f.face = a.yaw;
+      out.push(f);
+    }
     // Real seconds per game minute: velocities in m/s for the animator.
     const secPerMin = 60 / this.sim.rate;
     // Pinned people stay where they stopped, even if the sim moves their track elsewhere meanwhile.
@@ -58,11 +80,11 @@ export class Street {
       if (pin !== this.pins.get(id) && this.pins.has(id)) continue;
       let f = this.figures.get(id);
       if (!f || f.w !== pin.w) this.figures.set(id, (f = new WalkerFigure(pin.w, this)));
-      f.x = pin.x; f.y = pin.y; f.z = pin.z; f.vx = 0; f.vz = 0; f.face = pin.face;
+      f.x = pin.x; f.y = pin.y; f.z = pin.z; f.vx = 0; f.vz = 0; f.face = pin.face; f.rest = pin.rest;
       out.push(f);
     }
     for (const w of this.sim.walkers.values()) {
-      if (w.info.kind !== ACTOR_PERSON || clock > w.hideAfter || this.pins.has(w.id) || this.indoors.has(w.id)) continue;
+      if (w.info.kind !== ACTOR_PERSON || clock > w.hideAfter || this.pins.has(w.id) || this.indoors.has(w.id) || w.id === self?.fig.id) continue;
       let f = this.figures.get(w.id);
       if (!f || f.w !== w) this.figures.set(w.id, (f = new WalkerFigure(w, this)));
       this.sim.where(w, clock, this.p0);
@@ -70,7 +92,10 @@ export class Street {
       f.x = this.p0[0]; f.y = this.p0[1]; f.z = this.p0[2];
       f.vx = (this.p1[0] - this.p0[0]) / (DT * secPerMin);
       f.vz = (this.p1[2] - this.p0[2]) / (DT * secPerMin);
-      f.face = undefined;
+      // Sitting on a bench: facing out, on its seat (they stand in front of it on their track).
+      const r = restAt(w.rests, clock);
+      f.face = r >= 0 ? w.rests[r + 2] : undefined;
+      f.rest = r >= 0 ? { kind: 'sit', seat: w.rests[r + 3] } : undefined;
       out.push(f);
     }
     for (const id of this.figures.keys()) if (!this.sim.walkers.has(id) && !this.pins.has(id) && !this.indoors.has(id)) this.figures.delete(id);
@@ -87,7 +112,7 @@ export class Street {
   pin(id: number, tx: number, tz: number): boolean {
     const f = this.where(id), w = this.sim.walkers.get(id) ?? this.indoors.get(id)?.w;
     if (!f || !w) return false;
-    this.pins.set(id, { x: f.x, y: f.y, z: f.z, face: facing(tx - f.x, tz - f.z), w });
+    this.pins.set(id, { x: f.x, y: f.y, z: f.z, face: yawToward(f.x, f.z, tx, tz), w });
     return true;
   }
 

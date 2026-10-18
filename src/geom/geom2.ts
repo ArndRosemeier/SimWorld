@@ -24,6 +24,11 @@ export function worldToFrame(f: Frame, x: number, z: number): P2 {
   return [dx * c + dz * s, -dx * s + dz * c];
 }
 
+/** The yaw that looks from (x, z) to (tx, tz), in the models' and figures' convention (yaw 0 looks to -z). */
+export function yawToward(x: number, z: number, tx: number, tz: number): number {
+  return Math.atan2(-(tx - x), -(tz - z));
+}
+
 export function polyArea(p: Poly): number {
   let a = 0;
   const n = p.length >> 1;
@@ -437,6 +442,3 @@ export function joinPolylines(lines: readonly number[][], reach = 6): number[] {
   }
   return out;
 }
-
-/** Instance yaw whose model front (−Z) faces along (nx, nz): `facing(tx − x, tz − z)` turns something at (x, z) towards (tx, tz). */
-export const facing = (nx: number, nz: number): number => Math.atan2(-nx, -nz);

@@ -69,6 +69,8 @@ export interface Walker {
   keys: Float64Array;
   hideAfter: number;
   activity: number;
+  /** When they sit (Track.rests). */
+  rests: Float64Array;
   doing: string;
 }
 
@@ -161,7 +163,13 @@ export class SimClient {
   async ask(op: PlayerOp): Promise<PlayerReply> {
     const r = await this.pool.run<PlayerReply>({ type: 'player', op }, 0);
     this.player = r.status;
+    if (r.info) this.infos.set(r.info.id, r.info);
     return r;
+  }
+
+  /** An actor's looks and name, once the worker has sent them (null before). */
+  infoOf(id: number): ActorInfo | null {
+    return this.infos.get(id) ?? null;
   }
 
   /** Who is inside building `building` (a `Place.building` code) now (src/street/inside.ts). */
@@ -218,8 +226,8 @@ export class SimClient {
         const info = this.infos.get(t.id);
         if (!info) continue;
         const w = this.walkers.get(t.id);
-        if (w) Object.assign(w, { keys: t.keys, hideAfter: t.hideAfter, activity: t.activity, doing: t.doing });
-        else this.walkers.set(t.id, { id: t.id, info, keys: t.keys, hideAfter: t.hideAfter, activity: t.activity, doing: t.doing });
+        if (w) Object.assign(w, { keys: t.keys, hideAfter: t.hideAfter, activity: t.activity, rests: t.rests, doing: t.doing });
+        else this.walkers.set(t.id, { id: t.id, info, keys: t.keys, hideAfter: t.hideAfter, activity: t.activity, rests: t.rests, doing: t.doing });
       }
     }).catch((e) => console.error('sim worker', e)).finally(() => { this.busy = false; });
   }

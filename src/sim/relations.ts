@@ -1,7 +1,7 @@
 /**
  * Relationships (plan §3.1, R3): sparse and directed. A row exists only for pairs who know of each other; how A feels
  * about B is A's row, how B feels about A is B's. Animals use the same table for familiarity and fear (the dog that
- * barks at the postman), so there is one answer to "how do these two feel about each other".
+ * barks at the postal worker), so there is one answer to "how do these two feel about each other".
  */
 import type { ActorId } from './actors';
 import { Columns, f32, i32, u16 } from './table';

@@ -109,7 +109,7 @@ const RULES: readonly Rule[] = [
   { re: /^\{subject\}'s family are away abroad$/, tone: 'news', lines: ['{S:family} are abroad', '{S:family} went abroad for a while', '{S:family} flew off somewhere warm'] },
   { re: /^\{subject\}'s family are away at a campsite$/, tone: 'news', lines: ['{S:family} went camping', '{S:family} are off camping', '{S:family} are camping this week'] },
   { re: /^\{subject\}'s family are away visiting family$/, tone: 'news', lines: ['{S:family} are away visiting relatives', '{S:family} went to see relatives', '{S:family} are staying with relatives'] },
-  { re: /^\{subject\}'s family are away on a city break$/, tone: 'news', lines: ['{S:family} went off to the city for a few days', '{S:family} are away in the city', '{S:family} took a trip to the city'] },
+  { re: /^\{subject\}'s family are away on a city trip$/, tone: 'news', lines: ['{S:family} went off to the city for a few days', '{S:family} are away in the city', '{S:family} took a trip to the city'] },
   { re: /^\{subject\}'s family are away (.+)$/, tone: 'news', lines: ['{S:family} are away {1}', '{S:family} went away {1}'] },
   { re: /^\{subject\} got an? (\w+)$/, tone: 'news', lines: [
     '{S:family} got a {1}', '{S} got a {1}', '{S:family} have a new {1}', '{S:family} got themselves a {1}',

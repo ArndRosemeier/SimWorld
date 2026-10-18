@@ -271,7 +271,7 @@ function strongRoom(): Item[] {
   return [{ kind: 'safe', at: 'wall', w: 1.0, d: 0.8, h: 1.6, color: [0.3, 0.32, 0.34], front: 0.9, score: plainWall }, ...officeStore().slice(0, 2)];
 }
 
-/** A post office's sorting room: tables to sort at (one per postman on the early shift), racks of parcels. */
+/** A post office's sorting room: tables to sort at (one per postal worker on the early shift), racks of parcels. */
 function sorting(need: Need): Item[] {
   return [
     ...many(Math.max(1, need.staff - 1), { kind: 'workTable', at: 'free', sym: true, w: 1.8, d: 0.9, h: 0.9, color: [0.7, 0.6, 0.45], use: 'work', front: 0.8 }),
