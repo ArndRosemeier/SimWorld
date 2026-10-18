@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.067 — Trees follow the seasons
+
+- Deciduous trees drop their leaves through November and stand bare over the winter; they leaf again in April. Conifers keep their needles.
+- Distant trees thin to a twiggy crown in winter too.
+- In spring some trees (about one in seven) blossom white and pink for a few weeks.
+
+## v0.066 — Cars on the streets
+
+- The town's traffic is now on screen: household cars drive their owners' real trips and park near where they are going. Buses keep to their timetable, and the bin lorry, the post van and the delivery vans make their rounds.
+- Each household's car stands in a bay near home or wherever its driver went, always the same model and colour. When someone drives off, their car leaves its bay, so no car is ever shown twice.
+- Cars light up as they should: headlights after dark, brake lights, indicators at turns, and hazard lights when a bus or van stops.
+- The cars in car parks stay as they were.
+
 ## v0.065 — Shop signs, street names and the town sign
 
 - Every shop, café, pub, office and works now has its real name on the front: a painted fascia over the shop window in its own colours and type, a hanging sign by a café's or pub's door, a brass plate by an office door, big letters on a works' wall.
