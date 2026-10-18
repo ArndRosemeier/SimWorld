@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.052 — Street lamps light the street
+
+- At night the street lamps around you cast real light on the pavement, the walls and the people walking by, warmer under the old-style lamps.
+
 ## v0.051 — The bin lorry, the post van and deliveries
 
 - On bin day the bin lorry works its way along every street whose bins are out, early in the morning.
