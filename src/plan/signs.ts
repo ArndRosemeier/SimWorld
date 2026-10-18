@@ -13,7 +13,12 @@
  *  - corners: a street-name post at each junction of two differently named streets;
  *  - gateways: a town sign beside each road where it enters the town;
  *  - posters: a few lamp posts per street where posters for the street's notices go up (on the
- *    pavement side of the post).
+ *    pavement side of the post);
+ *  - boards: a notice board for each place that has one (BOARD_KINDS): beside a public building's
+ *    name board, in a shop's window (or on the wall by its door), at a square's edge by the street.
+ *
+ * `signFootprints` lists what of it stands on the ground (posts and legs), for the walkers'
+ * footprints (src/plan/footprints.ts).
  *
  * Heights are above the building's floor level (`buildingBase`) for wall mounts and above the
  * ground for free-standing ones; the build layer adds the terrain. Yaw is the instance yaw of the
@@ -24,7 +29,10 @@
  */
 import { alongLine } from '../geom/geom2';
 import { dwellingsOf, flatsDoorBay, streetDoor, type BuildingDesc } from './building';
-import { PropType } from './cell';
+import { kerbStrip, PropType } from './cell';
+import { SITE } from './placeGraph';
+import { BOARD_KINDS } from '../sim/placeKinds';
+import type { PlaceKind } from '../sim/places';
 import { siteToWorld } from './landmarks';
 import { eachBuilding } from './placeGraph';
 import { LineSource, type TownRoads } from './roads';
@@ -61,6 +69,15 @@ export interface GatewaySign { x: number; z: number; yaw: number; street: number
 /** A poster on a lamp post (`street`: the street's index, `k`: the post's number on that street, 0..). Its centre, facing the pavement. */
 export interface PosterSpot { street: number; k: number; x: number; z: number; yaw: number }
 
+/**
+ * A notice board for `place`: `stand` a free-standing one on legs (its board's centre `y` above the
+ * ground), else on a wall or in a window (`y` above the floor level of building `code`).
+ */
+export interface BoardSpot { place: number; stand: boolean; code: number; x: number; z: number; y: number; yaw: number }
+
+/** The planner's places as far as notice boards need them (`placeGraphOf(town).places`). */
+export type BoardPlaces = readonly { id: number; kind: string; building: number; x: number; z: number }[];
+
 export interface SignSpots {
   fronts: FrontSign[];
   homes: HomeSign[];
@@ -68,6 +85,7 @@ export interface SignSpots {
   corners: CornerSign[];
   gateways: GatewaySign[];
   posters: PosterSpot[];
+  boards: BoardSpot[];
 }
 
 /** Instance yaw whose model front (-Z) faces along (nx, nz). */
@@ -85,13 +103,15 @@ export const HANG_OUT = 0.55;
 /** How far out from the wall a mounted sign stands (m): clear of the facade's own relief. */
 const OFF_WALL = 0.06;
 
-export function signSpots(town: Town, roads: TownRoads): SignSpots {
+/** Every sign spot of the town; `places` (the planner's) place the notice boards. */
+export function signSpots(town: Town, roads: TownRoads, places: BoardPlaces = []): SignSpots {
   const fronts: FrontSign[] = [], homes: HomeSign[] = [];
   eachBuilding(town.cells, (b, code) => {
     if (b.amenity && b.amenity !== 'vacant' || b.shopfront) fronts.push(frontSign(b, code));
     if (dwellingsOf(b) > 0) homes.push(homeSign(b, code, roads));
   });
-  return { fronts, homes, sites: siteSigns(town), corners: cornerSigns(roads), gateways: gatewaySigns(town, roads), posters: posterSpots(town, roads) };
+  const sites = siteSigns(town);
+  return { fronts, homes, sites, corners: cornerSigns(roads), gateways: gatewaySigns(town, roads), posters: posterSpots(town, roads), boards: noticeBoards(fronts, sites, roads, places) };
 }
 
 /** Lamp posts per street that carry posters, and how far apart along the street they are at least (m). */
@@ -128,6 +148,58 @@ function posterSpots(town: Town, roads: TownRoads): PosterSpot[] {
       out.push({ street, k: k++, x: l.x + nx * POSTER_OUT, z: l.z + nz * POSTER_OUT, yaw: l.yaw });
     }
   }
+  return out;
+}
+
+/** A free-standing notice board's centre above the ground, and how far beside a public building's name board it stands (m). */
+const STAND_Y = 0.85, BESIDE_SITE = 1.9;
+
+function noticeBoards(fronts: readonly FrontSign[], sites: readonly SiteSign[], roads: TownRoads, places: BoardPlaces): BoardSpot[] {
+  const out: BoardSpot[] = [];
+  const frontOf = new Map(fronts.map((f) => [f.code, f])), siteOf = new Map(sites.map((g) => [SITE + g.site, g]));
+  for (const p of places) {
+    if (!BOARD_KINDS.includes(p.kind as PlaceKind)) continue;
+    const site = siteOf.get(p.building), f = frontOf.get(p.building);
+    if (site) {
+      // Beside the name board (along its +X), on the same kind of legs.
+      const { ax, az } = yawAxes(site.yaw);
+      out.push({ place: p.id, stand: true, code: -1, x: site.x + ax * BESIDE_SITE, z: site.z + az * BESIDE_SITE, y: STAND_Y, yaw: site.yaw });
+    } else if (f) {
+      const { ax, az, nx, nz } = yawAxes(f.yaw);
+      const side = (f.hours.x - f.x) * ax + (f.hours.z - f.z) * az >= 0 ? 1 : -1;
+      if (f.style === 'fascia') {
+        // A shop's cards in its window, away from the door, against the glass (the window's room is painted on it).
+        const off = -side * Math.min(1.2, Math.max(0, f.width / 2 - 0.7));
+        out.push({ place: p.id, stand: false, code: f.code, x: f.x + ax * off - nx * 0.04, z: f.z + az * off - nz * 0.04, y: 1.25, yaw: f.yaw });
+      } else out.push({ place: p.id, stand: false, code: f.code, x: f.hours.x + ax * side * 0.75, z: f.hours.z + az * side * 0.75, y: 1.55, yaw: f.yaw });
+    } else if (p.building < 0) {
+      // A square's: at its edge by the street, facing the pavement.
+      const hit = roads.nearest(p.x, p.z, 120);
+      if (!hit) continue;
+      const L = roads.lines[hit.li], d = Math.hypot(hit.px - p.x, hit.pz - p.z) || 1, nx = (hit.px - p.x) / d, nz = (hit.pz - p.z) / d;
+      const back = L.width / 2 + Math.max(L.sidewalk, 0) + 1.2;
+      if (d < back) continue;
+      out.push({ place: p.id, stand: true, code: -1, x: hit.px - nx * back, z: hit.pz - nz * back, y: STAND_Y, yaw: facing(nx, nz) });
+    }
+  }
+  return out;
+}
+
+/** The legs of the town sign's frame and of a name or notice board's frame, either side of its centre (m, along the board). */
+export const TOWN_SIGN_LEGS = 1.05, BOARD_LEGS = 0.7;
+
+/** What of the signs stands on the ground, as circles (x, z, r per circle): posts and frame legs. */
+export function signFootprints(spots: SignSpots): number[] {
+  const out: number[] = [];
+  const legs = (x: number, z: number, yaw: number, half: number) => {
+    const { ax, az } = yawAxes(yaw);
+    out.push(x + ax * half, z + az * half, 0.12, x - ax * half, z - az * half, 0.12);
+  };
+  for (const c of spots.corners) out.push(c.x, c.z, 0.1);
+  for (const h of spots.homes) if (!h.onWall) out.push(h.x, h.z, 0.1);
+  for (const s of spots.sites) legs(s.x, s.z, s.yaw, BOARD_LEGS);
+  for (const b of spots.boards) if (b.stand) legs(b.x, b.z, b.yaw, BOARD_LEGS);
+  for (const g of spots.gateways) legs(g.x, g.z, g.yaw, TOWN_SIGN_LEGS);
   return out;
 }
 
@@ -231,14 +303,15 @@ function cornerSigns(roads: TownRoads): CornerSign[] {
     for (let k = 0; k < sorted.length; k++) {
       const a = sorted[k], b = sorted[(k + 1) % sorted.length];
       if (a.street === b.street || a.walk <= 0 || b.walk <= 0) continue;
-      // Off street A by its half width and part of its pavement, and off street B likewise: along
-      // arm b and arm a, stretched by the angle between them.
+      // In the furniture strip along both kerbs (with the lamps, clear of the walk): off street A by
+      // its half width and the strip, and off street B likewise, along arm b and arm a, stretched by
+      // the angle between them.
       const sin = Math.max(0.35, Math.abs(a.dx * b.dz - a.dz * b.dx));
-      const offA = (a.half + a.walk * 0.55) / sin, offB = (b.half + b.walk * 0.55) / sin;
+      const offA = (a.half + kerbStrip(a.walk)) / sin, offB = (b.half + kerbStrip(b.walk)) / sin;
       const x = n.x + a.dx * offB + b.dx * offA, z = n.z + a.dz * offB + b.dz * offA;
       if (!Number.isFinite(x) || Math.hypot(x - n.x, z - n.z) > 30) continue;
       const hit = roads.nearest(x, z, 30);
-      if (hit && hit.d < roads.lines[hit.li].width / 2 + 0.4) continue;
+      if (hit && hit.d < roads.lines[hit.li].width / 2 + 0.2) continue;
       out.push({ x, z, blades: [{ street: a.street, yaw: along(a.dx, a.dz) }, { street: b.street, yaw: along(b.dx, b.dz) }] });
       return;
     }
