@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.048 — Day and night, sun and moon, clouds and storms
+
+- The sky follows the real date and time: the sun rises and sets where and when it really would, with sunsets, twilight and a starry night.
+- The moon shows its real phase and rides high on winter nights.
+- The town's weather is in the sky: clear, fair, cloudy, overcast, grey rain, fog and thunderstorms with lightning; the distant haze matches the sky.
+- Windows light up after dusk and go dark late at night.
+- For looking around: `?date=2026-12-24&time=18:30` picks the moment, `?speed=60` runs time faster, `?wx=storm` picks the weather.
+
+## v0.047 — Rain and snow
+
+- Rain falls as thin streaks slanted by the wind; snow drifts down in flakes; sleet is a mix of both.
+- After rain the streets turn dark and glossy and puddles gather; lawns darken a little.
+- In winter snow lies on fields, lawns, roofs and ledges, thinner under the forest and on steep roofs; roads turn to grey slush.
+- The weather belongs to the date: Christmas looks the same whatever day you start the town.
+- The trees turn in autumn by the date (from mid-September, full colour late October), and their branches move with the weather's wind.
+
+## v0.046 — People take the car like real townsfolk
+
+- People with a car now drive most trips over a kilometre or so, as in a real western town. Each person has their own habit: some walk fifteen minutes, others drive three hundred metres.
+- The weekly shop goes in the car, and so do trips in the rain, the cold or the dark. Older people and parents with small children drive more, and on a fine day people walk further.
+- There is about three times as much traffic in town as before, with a proper rush hour.
+
+## v0.045 — Local politics: the mayor, the council and the town's issues
+
+- The town argues about its own issues: closing the open-air pool, a bypass, a housing estate on the farmland, wind turbines, a 30 km/h limit, parking charges, a skate park, shops open on Sundays, and more.
+- Everyone has their own view, shaped by who they are: parents want to keep the pool, drivers dislike parking charges, the faithful want quiet Sundays.
+- A few months after an issue comes up, the council votes on it at its monthly meeting. The result is news that pleases some people and angers others.
+- Every four years, on a Sunday in May, the town elects its mayor and council. Candidates are announced a month ahead, people go to vote, and each voter picks the candidate they like and agree with most.
+- A mayor who retires, dies or moves away brings a by-election, and the mayor no longer quits for another job mid-term.
+
 ## v0.044 — Clubs, a congregation and the council
 
 - The town has its clubs: football, choir, volunteer fire brigade, rifle club, allotment society, church coffee circle, youth club, book club, running club, card club and local history society, each with members, a chair or organiser and its own meeting nights.

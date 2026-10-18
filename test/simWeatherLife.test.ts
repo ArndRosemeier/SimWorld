@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorld } from '../src/sim/synth';
 import { testTown } from '../src/sim/testTown';
-import { isPerson, tick } from '../src/sim/world';
+import { ageOf, hasCar, isPerson, placesOf, tick } from '../src/sim/world';
+import { walkLimit } from '../src/sim/schedule';
 import { isNiceOut, isWetOut, weatherAt } from '../src/sim/weather';
 import { KINDS } from '../src/sim/placeKinds';
 import { A } from '../src/sim/actors';
@@ -34,4 +35,23 @@ test('weather: on a wet weekend afternoon fewer people are out in the park than 
   };
   const onFine = outside(fine), onWet = outside(wet);
   assert.ok(onWet < onFine * 0.6, `out on a wet afternoon ${onWet}, on a fine one ${onFine}`);
+});
+
+test('travel: people drive for the big shop, in the rain and in the dark, and walk further on a fine day', () => {
+  const w = createWorld(testTown(42, 120), 42, { start: { year: 2026, month: 5, day: 4 } });
+  const driver = Array.from({ length: w.actors.count }, (_, i) => i).find((id) => isPerson(w, id) && hasCar(w, id) && ageOf(w, id) < 60)!;
+  const market = placesOf(w, ['supermarket'])[0], park = placesOf(w, ['park'])[0];
+  // A dry, fine midday and a wet one.
+  let fine = -1, wet = -1;
+  for (let t = 12 * 60; t < 120 * 1440 && (fine < 0 || wet < 0); t += 1440) {
+    if (fine < 0 && isNiceOut(weatherAt(w, t))) fine = t;
+    if (wet < 0 && isWetOut(weatherAt(w, t))) wet = t;
+  }
+  w.clock = fine;
+  const walk = walkLimit(w, driver, park, A.leisure);
+  assert.ok(walkLimit(w, driver, market, A.shop) <= 3, 'the weekly shop goes in the car');
+  w.clock = wet;
+  assert.ok(walkLimit(w, driver, park, A.leisure) < walk * 0.5, 'rain puts people in the car');
+  w.clock = fine - 12 * 60 + 60; // 01:00, dark
+  assert.ok(walkLimit(w, driver, park, A.leisure) < walk, 'the dark puts people in the car');
 });

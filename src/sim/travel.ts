@@ -34,7 +34,7 @@ export const WALK_M_PER_MIN = 80;
 export const DRIVE_M_PER_MIN = 500;
 /** Minutes to get to the car and park it. */
 export const PARK_MIN = 3;
-/** People with a car drive when walking would take longer than this. */
+/** People with a car drive when walking would take longer than this (the default; each trip has its own, `walkLimit`). */
 export const DRIVE_IF_WALK_OVER = 12;
 /** Out of town (a place's `beyond`): driving on the open road, metres per minute (60 km/h). */
 export const ROAD_M_PER_MIN = 1000;
@@ -153,14 +153,17 @@ export class Travel {
    * How someone with or without a car goes from a to b: in town they drive when walking would take too long; out of
    * town they drive, or take the train (the bus when the town has no station).
    */
-  mode(a: PlaceId, b: PlaceId, car = false): Mode {
+  mode(a: PlaceId, b: PlaceId, car = false, walkUpTo = DRIVE_IF_WALK_OVER): Mode {
     if (a === b) return 'foot';
     if (this.far(a, b) > 0) return car ? 'car' : this.station ? 'train' : 'bus';
-    return car && this.metres(a, b) / WALK_M_PER_MIN > DRIVE_IF_WALK_OVER ? 'car' : 'foot';
+    return car && this.metres(a, b) / WALK_M_PER_MIN > walkUpTo ? 'car' : 'foot';
   }
 
-  /** Whole game minutes from a to b, walking or (with a car, when worth it) driving. At least 1 between places. */
-  minutes(a: PlaceId, b: PlaceId, car = false): number {
+  /**
+   * Whole game minutes from a to b, walking or (with a car, when the walk is over `walkUpTo` minutes and driving is
+   * quicker) driving. At least 1 between places. `walkUpTo` is the traveller's own (`walkLimit` in schedule.ts).
+   */
+  minutes(a: PlaceId, b: PlaceId, car = false, walkUpTo = DRIVE_IF_WALK_OVER): number {
     if (a === b) return 0;
     const m = this.metres(a, b), far = this.far(a, b);
     if (far > 0) {
@@ -168,7 +171,7 @@ export class Travel {
       return Math.max(1, Math.round(t));
     }
     let t = m / WALK_M_PER_MIN;
-    if (car && t > DRIVE_IF_WALK_OVER) t = Math.min(t, m / DRIVE_M_PER_MIN + PARK_MIN);
+    if (car && t > walkUpTo) t = Math.min(t, m / DRIVE_M_PER_MIN + PARK_MIN);
     return Math.max(1, Math.round(t));
   }
 }

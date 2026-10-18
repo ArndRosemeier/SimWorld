@@ -70,6 +70,8 @@ export interface Weather extends SkyParams {
   ice: boolean;
   /** Frost on lawns and windscreens (a clear night or morning below freezing). */
   frost: boolean;
+  /** Where the wind blows to, radians from east (+x) towards south (+z); mostly from the west, veering over days. */
+  windDir: number;
 }
 
 /** The climate: the town's is temperate with snowy winters; the coast brings fog, drizzle and milder winters. */
@@ -117,11 +119,17 @@ const warmthOf = (phase: number): number => 0.5 + 0.5 * Math.cos(2 * Math.PI * (
 
 export class WeatherModel {
   private readonly nSeed: number;
+  /** Civil hours and weeks before game hour 0: the weather is keyed to the date, so a town started on any day sees
+   * the same weather on 21 December (spells and chains don't restart with the game). */
+  private readonly h0: number;
+  private readonly w0: number;
   private weeks = new Map<number, Segment[]>();
   private snowRuns = new Map<number, Float32Array>();
 
   constructor(readonly seed: number, readonly epoch: number, readonly climate: Climate = TEMPERATE) {
     this.nSeed = deriveSeed(seed, 'weather-noise');
+    this.h0 = epoch * 24;
+    this.w0 = Math.floor(epoch / 7);
   }
 
   /** The season's warmth 0 … 1 at absolute game hour h. */
@@ -129,7 +137,7 @@ export class WeatherModel {
 
   /** Unsettled spells 0 (high pressure, settled) … 1 (fronts coming through), over days. */
   unsettled(h: number): number {
-    return clamp(0.65 * vnoise(this.nSeed ^ 0x1234, h, 4.5 * 24) + 0.35 * vnoise(this.nSeed ^ 0x9876, h, 1.7 * 24), 0, 1);
+    return clamp(0.65 * vnoise(this.nSeed ^ 0x1234, h + this.h0, 4.5 * 24) + 0.35 * vnoise(this.nSeed ^ 0x9876, h + this.h0, 1.7 * 24), 0, 1);
   }
 
   /** Next state after `from`, for a change at hour h: Scale's weights, modulated by the hour, the season, the spell. */
@@ -166,13 +174,13 @@ export class WeatherModel {
     let segs = this.weeks.get(wk);
     if (segs) return segs;
     const t0 = wk * WEEK_H - LEAD_H, t1 = (wk + 1) * WEEK_H + HANDOVER_H;
-    const r0 = new Rng(deriveSeed(this.seed, 'weather', wk, 0));
+    const r0 = new Rng(deriveSeed(this.seed, 'weather', wk + this.w0, 0));
     const u = this.unsettled(t0);
     const kind: WeatherKind = r0.chance(0.25 + 0.5 * u) ? (r0.chance(0.5) ? 'overcast' : 'cloudy') : r0.chance(0.6) ? 'fair' : 'clear';
     segs = [{ kind, start: t0, end: t0 + r0.range(...DUR[kind]), blend: 0 }];
     while (segs[segs.length - 1].end <= t1) {
       const prev = segs[segs.length - 1];
-      const r = new Rng(deriveSeed(this.seed, 'weather', wk, segs.length));
+      const r = new Rng(deriveSeed(this.seed, 'weather', wk + this.w0, segs.length));
       const next = this.nextKind(prev.kind, prev.end, r);
       let dur = r.range(...DUR[next]);
       if (next === 'fog') dur = Math.max(0.8, Math.min(dur, 11 - hourOf(prev.end))); // fog burns off by late morning
@@ -209,7 +217,7 @@ export class WeatherModel {
       blendParams(this.tmp, out, f, out);
       if (f < 0.5) kind = prevKind;
     }
-    vary(out, h, this.nSeed);
+    vary(out, h + this.h0, this.nSeed);
     return kind;
   }
 
@@ -218,7 +226,7 @@ export class WeatherModel {
     const c = this.climate;
     const phase = yearPhase(this, h * 60);
     const mean = c.meanC + c.swingC * Math.cos(2 * Math.PI * (phase - 0.55));
-    const spell = (vnoise(this.nSeed ^ 0x7e3f, h, 5 * 24) - 0.5) * 10 + (vnoise(this.nSeed ^ 0x3c1d, h, 17 * 24) - 0.5) * 5;
+    const spell = (vnoise(this.nSeed ^ 0x7e3f, h + this.h0, 5 * 24) - 0.5) * 10 + (vnoise(this.nSeed ^ 0x3c1d, h + this.h0, 17 * 24) - 0.5) * 5;
     const daySwing = (3 + 2 * warmthOf(phase)) * (1 - 0.65 * p.cover);
     return mean + spell + daySwing * Math.cos((2 * Math.PI * (hourOf(h) - 15)) / 24) - 1.5 * p.precip;
   }
@@ -271,6 +279,7 @@ export class WeatherModel {
       wet, snowCm,
       ice: tempC < 0 && wet > 0.15,
       frost: tempC < 0.5 && p.cover < 0.6 && (hr < 10 || hr > 18) && snowCm < 0.5,
+      windDir: (vnoise(this.nSeed ^ 0x5a17, h + this.h0, 30) - 0.5) * 3 + (vnoise(this.nSeed ^ 0x2b3c, h + this.h0, 2) - 0.5) * 0.4,
     };
   }
 }
@@ -338,8 +347,8 @@ export function weatherModel(world: WeatherWorld): WeatherModel {
 
 function entry(world: WeatherWorld) {
   let e = models.get(world);
-  if (!e || e.model.epoch !== world.epoch) {
-    const coastal = !!world.region?.region.coastal;
+  const coastal = !!world.region?.region.coastal;
+  if (!e || e.model.epoch !== world.epoch || e.model.climate.coastal !== coastal) {
     e = { model: new WeatherModel(world.seed, world.epoch, coastal ? { ...TEMPERATE, meanC: 9.5, swingC: 9.5, coastal } : TEMPERATE), last: new Map() };
     models.set(world, e);
   }
@@ -391,4 +400,10 @@ export function describeWeather(w: Weather): string {
   else if (w.ice) extras.push('icy underfoot');
   else if (w.frost) extras.push('frosty');
   return `${s}${extras.length ? `, ${extras.join(', ')}` : ''}, ${t}`;
+}
+
+/** `w` with the sky of state `kind` instead (a chosen weather for looking at the town; the ground state stays). */
+export function forceWeather(w: Weather, kind: WeatherKind): Weather {
+  const p = STATES[kind], sf = snowFraction(w.tempC);
+  return { ...w, ...p, kind, rain: p.precip * (1 - sf), snow: p.precip * sf, wet: p.precip > 0 ? Math.max(w.wet, 0.35 + p.precip * 0.6) : w.wet };
 }
