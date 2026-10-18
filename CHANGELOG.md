@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.094 — Chimney smoke follows who is home
+
+- A house whose people are all out or asleep has its heating turned down, so its chimney smokes less often. Houses with someone up and about smoke the most.
+
 ## v0.093 — Lamps on under storm clouds; street lights off after midnight by vote
 
 - On a dark, rainy or stormy day, people who are at home switch their lights on, so the windows glow by day too. On a normal day only a few rooms are lit.
