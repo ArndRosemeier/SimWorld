@@ -19,7 +19,7 @@ import { type Poly, frameToWorld, minAreaRect, polyArea, ensureCCW, polyCentroid
 import { offset, shapesToPolys } from '../geom/clip';
 import type { Terrain } from '../world/terrain';
 import { CURB_H } from '../world/ground';
-import { doorBayOf, flatsDoorBay, type BuildingDesc } from '../plan/building';
+import { baysOf, doorBayOf, flatsDoorBay, type BuildingDesc } from '../plan/building';
 import type { Landmark } from '../plan/landmarks';
 import { landmarkParts, latheClosed, helixFloorAt, HELIX_SLAB, PK, type LmPart, type PartMat } from '../plan/landmarkParts';
 import type { MeshBuilder, AttrSpec } from './meshBuilder';
@@ -253,10 +253,59 @@ function tierWalls(mb: MeshBuilder, b: BuildingDesc, poly: Poly, footprint: bool
     if (footprint && b.attached && i !== b.front && isSideEdge(poly, i, b.front)) {
       ax -= nx * 0.12; az -= nz * 0.12; bx -= nx * 0.12; bz -= nz * 0.12;
     }
-    const bays = Math.max(1, Math.round(L / b.bay));
+    const bays = baysOf(b, L);
     paint(mb, b.wall, tint, edgeFlags(flags, b, footprint, poly, i, bays), L / bays, b.floorH, b.groundH);
     wallQuad(mb, ax, az, bx, bz, y0, y1, nx, nz, L, base);
   }
+}
+
+/**
+ * The window openings of a building's walls as the facade shader draws them (src/render/tsl/facade.ts: a window
+ * centred in every bay of every storey, a shop window or door on the front's ground floor), for the walls of its
+ * interior: per wall edge (a → b, outward n), openings `[u0, u1, v0, v1]` with u along the edge from a and v above
+ * the ground floor level. The shader varies a building's window size by a GPU hash; the openings are the largest
+ * it draws, so the glass always shows through.
+ */
+export interface WallWindows { ax: number; az: number; bx: number; bz: number; nx: number; nz: number; open: [number, number, number, number][] }
+
+export function windowOpenings(b: BuildingDesc): WallWindows[] {
+  const r = new Rng(b.seed);
+  buildingTint(b, r);
+  const flags = styleFlags(b, r), out: WallWindows[] = [];
+  const tiers = buildingTiers(b);
+  tiers.forEach((tier, t) => {
+    const f0 = tier.fromFloor, f1 = t + 1 < tiers.length ? tiers[t + 1].fromFloor : b.floors, poly = tier.poly, n = poly.length >> 1;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n, ax = poly[i * 2], az = poly[i * 2 + 1], bx = poly[j * 2], bz = poly[j * 2 + 1];
+      const L = Math.hypot(bx - ax, bz - az);
+      if (L < 0.05) continue;
+      const bays = baysOf(b, L), bay = L / bays, ef = edgeFlags(flags, b, t === 0, poly, i, bays);
+      if (!(ef & FF.Windows) || ef & FF.Blind) continue;
+      const doors = new Set<number>();
+      if (ef & FF.Front) {
+        doors.add((ef >> 9) & 3);
+        if (ef & FF.FlatsDoor) doors.add(0);
+        if (ef & (FF.FlatsDoor << 1)) doors.add(1);
+      }
+      const open: WallWindows['open'] = [];
+      for (let f = f0; f < f1; f++) {
+        const v = storeyBottom(b, f), fh = f === 0 ? b.groundH : b.floorH;
+        for (let k = 0; k < bays; k++) {
+          const c = (k + 0.5) * bay;
+          if (ef & FF.Curtain) open.push([k * bay + 0.03, (k + 1) * bay - 0.03, v + 0.9, v + fh - 0.05]);
+          else if (f === 0 && ef & FF.Front && doors.has(k)) continue;
+          else if (f === 0 && ef & FF.Shop) open.push([c - (bay - 0.35) / 2, c + (bay - 0.35) / 2, v + 0.3, v + fh - 0.95]);
+          else if (f === 0) {
+            // The ground floor's sill sits under the window's top, 0.7 m below the ceiling: both window heights.
+            const lo = Math.max(0.9, fh - fh * 0.62 - 0.7), hi = Math.max(0.9, fh - fh * 0.5 - 0.7);
+            open.push([c - bay * 0.3, c + bay * 0.3, v + Math.min(lo, hi), v + Math.max(lo + fh * 0.62, hi + fh * 0.5)]);
+          } else open.push([c - bay * 0.3, c + bay * 0.3, v + fh * 0.3, v + fh * 0.92]);
+        }
+      }
+      if (open.length) out.push({ ax, az, bx, bz, nx: (bz - az) / L, nz: -(bx - ax) / L, open });
+    }
+  });
+  return out;
 }
 
 /** One vertical wall quad from (ax, az) to (bx, bz), outward normal (nx, 0, nz); uv: u 0..L along it, v = y - vBase. */

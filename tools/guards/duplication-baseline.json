@@ -220,10 +220,6 @@
     "reason": "Furnishing rules score a wall spot by its gap to the corner (the one seam is the filler's cornerGap); each rule weighs it differently. Entered the finder's top idioms when the street layer grew."
   },
   {
-    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
-    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
-  },
-  {
     "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/home.ts + simworld/interior/fill/work.ts",
     "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
   },
