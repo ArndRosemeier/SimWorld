@@ -64,14 +64,18 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | What does this person remember? Which memories matter for this conversation? | `memoriesOf`, `recall(world, id, query)` | `src/sim/memory.ts` |
 | How do two actors feel about each other? | `relation(world, a, b)` | `src/sim/relations.ts` |
 | What is this person about to do, and why? | the intention stack: `intentionsOf`, `intend` | `src/sim/intentions.ts` |
-| Apply what an LLM proposed for an NPC (clamped, gated by personality, logged) | `applyProposal(world, id, proposal)`: the only way LLM output changes state | `src/sim/mind/apply.ts` |
+| Apply what an LLM proposed for an NPC (clamped, gated by personality, logged) | `applyProposal(world, id, proposal)`: the only way LLM output changes state. The proposal type is `MindProposal` | `src/sim/mind/apply.ts`, `src/sim/mind/proposal.ts` (types, live) |
 
-### Language (planned)
+### Language
 
 | Question | The one way | Where |
 |---|---|---|
-| Call a language model for anything | `llm.run(task, input)`: picks a roster model by the task's needs, records usage | `src/llm/` |
-| Which models does the player have, what can they do? | the roster (settings), capability tags | `src/llm/roster.ts` |
-| How much has the LLM cost so far? | the usage ledger | `src/llm/usage.ts` |
-| What does an NPC's prompt contain? | `npcCard` + `recall` + the scene; only what that NPC believes | `src/llm/prompt.ts` |
+| Call a language model for anything | `createLlm(cfg).run(task, input)`: routes the task to roster models best first, streams, parses, falls back on retryable errors, records usage. Tasks: `npc.speech`, `npc.appraisal`, `memory.summary`, `npc.reflection`, `skip.digest` | `src/llm/llm.ts`, `src/llm/tasks.ts` |
+| Talk to openrouter.ai | `openRouterTransport({ apiKey })` (guarded: `openrouter.ai` only in `src/llm`); the public model list via `fetchCatalog()` | `src/llm/openrouter.ts` |
+| Which models does the player have, what can they do? | the roster: `DEFAULT_ROSTER`, `rosterFromCatalog`, capability tags (`fast`, `cheap`, `structured`, `writing`, `reasoning`, `long_context`) | `src/llm/roster.ts` |
+| Which model runs a task? | `route(roster, task.routing, pins)` (the settings screen shows `llm.plan(task)`) | `src/llm/router.ts` |
+| How much has the LLM cost so far? | the usage ledger: `UsageLedger` (`total()`, `by('task' \| 'model' \| 'npc' \| 'session')`, `onRecord`) | `src/llm/usage.ts` |
+| What does an NPC's prompt contain? | `NpcPromptInput` (card, state, scene, people, places, beliefs, recalled memories, turns: only what that NPC believes) → `speechMessages`; people and places as refs via `RefTable` | `src/llm/prompt.ts` |
+| Turn an NPC reply into state changes | the `npc.appraisal` task: `APPRAISAL_SCHEMA` → `parseAppraisal` → `MindProposal` for `applyProposal` | `src/llm/appraisal.ts` |
+| Test anything that calls an LLM | `replayTransport(recordings)` (never the network); real recordings from `test/slow/openrouter.slow.test.ts` with `LLM_RECORD=1` | `src/llm/recorded.ts` |
 | Background chatter, a fallback answer, any generated sentence | the procedural text engine | `src/talk/` |
