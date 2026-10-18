@@ -12,7 +12,7 @@
  */
 import { deriveSeed, hash32 } from '@futuremagic/core';
 import { closestOnPolyline, resample } from '../geom/geom2';
-import { RAIL_TRACK, railSurface } from '../build/rural';
+import { RAIL_TRACK, countryRoadSurface, railSurface } from '../build/rural';
 import type { Town } from '../plan/town';
 import type { Railway } from '../plan/types';
 import { RAIL_HW } from '../plan/rail';
@@ -33,6 +33,16 @@ const LAYOVER = 4;
 const CLOSE_S = 28, CLOSE_M = 60, CLEAR_M = 12;
 /** Cars stop this far before the track bed at a closed crossing (m). */
 const STOP_M = 3;
+/** A barrier post stands this far off the road's edge; its arm stops this short of the road's middle (m). */
+const POST_OUT = 0.8, ARM_SHORT = 0.3;
+/** The road surface's height over the ground beside it (a post stands on the ground). */
+const ROAD_DY = 0.05;
+
+/**
+ * A level-crossing barrier post: where it stands (x, y, z), which way its arm points when down (yaw: the arm along
+ * the model's −Z, the cars it stops coming along +X towards the railway) and the arm's length.
+ */
+export interface CrossingPost { x: number; y: number; z: number; yaw: number; arm: number }
 
 /** One car of a train at a moment: its key, model (0 a cab car, 1 a middle car), pose and brakes. */
 export interface TrainCar { key: number; variant: number; x: number; y: number; z: number; yaw: number; brake: number }
@@ -51,7 +61,7 @@ export class Trains {
    * The level crossings: arc length along the line, where the road crosses, and the road's stop lines each side
    * (discs across the road, facing the railway: `Traffic.barriers` while it is closed).
    */
-  readonly crossings: { s: number; x: number; z: number; road: number; stops: { x: number; z: number; r: number; fx: number; fz: number }[] }[];
+  readonly crossings: { s: number; x: number; z: number; road: number; stops: { x: number; z: number; r: number; fx: number; fz: number }[]; posts: CrossingPost[] }[];
   private readonly height: (s: number) => number;
   /** Which end of the line (-1: s = 0, +1: s = length) a line's trains leave by, by line id; 0 where none. */
   private readonly ends = new Map<number, number>();
@@ -74,7 +84,15 @@ export class Trains {
       const sin = Math.abs((dx * (this.pts[j + 3] - this.pts[j + 1]) - dz * (this.pts[j + 2] - this.pts[j])) / ll);
       const d = (RAIL_HW + STOP_M) / Math.max(0.35, sin);
       const stops = [1, -1].map((side) => ({ x: c.x + side * dx * d, z: c.z + side * dz * d, r: R.hw, fx: -side * dx, fz: -side * dz }));
-      return { s: q.s, x: c.x, z: c.z, road: c.road, stops };
+      // A barrier post at each stop line on the kerb to the right of the cars coming up to it, its arm across their side
+      // of the road (to the middle).
+      const ground = countryRoadSurface(R, town.terrain);
+      const posts = stops.map((st) => {
+        const rx = -st.fz, rz = st.fx, out = R.hw + POST_OUT;
+        const x = st.x + rx * out, z = st.z + rz * out;
+        return { x, y: ground(c.s - (st.fx * dx + st.fz * dz) * d) - ROAD_DY, z, yaw: Math.atan2(rx, rz), arm: out - ARM_SHORT };
+      });
+      return { s: q.s, x: c.x, z: c.z, road: c.road, stops, posts };
     });
     const T = transitOf(world);
     const places = regionPlaces(world);

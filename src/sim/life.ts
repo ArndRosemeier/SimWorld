@@ -455,7 +455,7 @@ function moveIn(world: World, day: number, x: ActorId, y: ActorId, rng: Rng): vo
     into = newHome(world, [x, y], free[rng.int(0, free.length - 1)], rng);
   }
   for (const m of movers) moveInto(world, m, into, rng.fork('move', m));
-  const fact = news(world, closeTo(world, x, y), { topic: 'romance', text: '{subject} moved in with {object}', subject: movers[0] ?? x, object: movers[0] === x ? y : x, place: into.home, magnitude: 0.4 });
+  const fact = news(world, closeTo(world, x, y), { topic: 'romance', text: '{subject} moved in with {object}', subject: movers[0] ?? x, object: (movers[0] ?? x) === x ? y : x, place: into.home, magnitude: 0.4 });
   for (const [p, q] of [[x, y], [y, x]]) remember(world, p, { who: [q], summary: `${nameOf(world, q)} and I moved in together`, importance: 0.8, emotion: 'joy', fact });
   log(world, day, 'moveIn', x, y, into.home, fact);
 }
@@ -995,7 +995,7 @@ function holidays(world: World, day: number, rng: Rng): void {
       // In live play they set off this morning (the coarse chronicle only keeps the record).
       if (step === 1) intend(world, m, { kind: 'holiday', place, at: leaveAt, until: back * MINUTES_PER_DAY + 600, priority: 75, origin: 'event', reason: `going on holiday ${where}` });
     }
-    const fact = news(world, closeTo(world, ...hh.members), { topic: 'family', text: `{subject}'s family are away ${where}`, subject: hh.members[0], magnitude: 0.15 });
+    const fact = news(world, closeTo(world, ...hh.members), { topic: 'other', text: `{subject}'s family are away ${where}`, subject: hh.members[0], magnitude: 0.05 });
     log(world, day, 'holiday', hh.members[0], -1, place, fact);
   }
 }

@@ -12,7 +12,7 @@
 import { Rng, deriveSeed, hash32 } from '@futuremagic/core';
 import { largest, offset } from '../geom/clip';
 import { distPointPolyEdge as distPolyEdge, pointInPoly, polyArea, polyBounds, type Poly } from '../geom/geom2';
-import { dwellingsOf, flatsDoor, streetDoor, type BuildingDesc } from '../plan/building';
+import { dwellingsOf, flatsDoor, streetDoor, type BuildingDesc, type FrontDoor } from '../plan/building';
 import { PLACE_KIND_OF, type AmenityKind } from '../plan/amenities';
 import { buildingTiers } from '../build/massing';
 import { KINDS, defaultStaff } from '../sim/placeKinds';
@@ -48,7 +48,19 @@ export interface Interior {
    * The street doors on the ground floor (on the facade): the building's (`streetDoor`) and, for
    * homes over a workplace with their own hall, the flats' (`homes`; plan/building flatsDoor).
    */
-  doors: { x: number; z: number; homes: boolean }[];
+  doors: StreetDoor[];
+}
+
+/** A street door on the facade: its middle, width (m), the facade's outward normal, and whether it is the homes' way in. */
+export interface StreetDoor { x: number; z: number; w: number; nx: number; nz: number; homes: boolean }
+
+/** `d` (a door on b's front edge) as a street door. */
+function streetDoorOf(b: BuildingDesc, d: FrontDoor, homes: boolean): StreetDoor {
+  const P = b.poly, n = P.length >> 1, i = d.edge, j = (i + 1) % n;
+  const L = Math.hypot(P[j * 2] - P[i * 2], P[j * 2 + 1] - P[i * 2 + 1]) || 1;
+  let nx = (P[j * 2 + 1] - P[i * 2 + 1]) / L, nz = -(P[j * 2] - P[i * 2]) / L;
+  if (pointInPoly(P, d.x + nx * 0.3, d.z + nz * 0.3)) { nx = -nx; nz = -nz; }
+  return { x: d.x, z: d.z, w: d.s1 - d.s0, nx, nz, homes };
 }
 
 /** Storey height and level above the ground floor (Scale: buildingLayout floorBottom). */
@@ -167,8 +179,8 @@ export function planInterior(b: BuildingDesc, place?: PlaceUse): Interior {
   const spots = spotsOf(storeys);
   const kind = b.amenity ? PLACE_KIND_OF[b.amenity] : null;
   standIn(storeys, spots, kind ? peakStaff(place?.staff ?? defaultStaff(kind)) : 0);
-  const doors = [{ x: door.x, z: door.z, homes: !fd || !cores.entry ? dwellingsOf(b) > 0 : false }];
-  if (fd && cores.entry) doors.push({ x: fd.x, z: fd.z, homes: true });
+  const doors = [streetDoorOf(b, door, !fd || !cores.entry ? dwellingsOf(b) > 0 : false)];
+  if (fd && cores.entry) doors.push(streetDoorOf(b, fd, true));
   return { storeys, units: unitsOf(storeys), work: workOf(b), spots, doors };
 }
 
@@ -190,7 +202,7 @@ function standIn(storeys: FloorPlan[], spots: Spot[], staff: number): void {
       if (!pointInPoly(r.poly, x, z) || distPolyEdge(r.poly, x, z) < 0.5) continue;
       if (s.furniture.some((f) => f.h > 0.05 && onPiece(f, x, z, 0.35))) continue;
       if (spots.some((p) => p.floor === s.floor && Math.hypot(p.x - x, p.z - z) < 0.8)) continue;
-      spots.push({ use: 'work', floor: s.floor, x, z, yaw: 0, unit: -1 });
+      spots.push({ use: 'work', floor: s.floor, x, z, yaw: 0, seat: 0, unit: -1 });
       short--;
     }
     if (short <= 0) return;
@@ -252,7 +264,8 @@ function spotsOfPiece(f: Furn, floor: number, out: Spot[]): void {
   if (!f.use) return;
   const fx = Math.sin(f.yaw), fz = Math.cos(f.yaw), rx = Math.cos(f.yaw), rz = -Math.sin(f.yaw);
   const unit = f.unit ?? -1;
-  const at = (use: FurnUse, along: number, ahead: number, yaw: number) => out.push({ use, floor, x: f.x + rx * along + fx * ahead, z: f.z + rz * along + fz * ahead, yaw, unit });
+  const seat = (use: FurnUse) => (use === 'sleep' ? f.h : use !== 'sit' ? 0 : f.kind === 'barCounter' ? 0.75 : Math.min(0.48, f.h * 0.5));
+  const at = (use: FurnUse, along: number, ahead: number, yaw: number) => out.push({ use, floor, x: f.x + rx * along + fx * ahead, z: f.z + rz * along + fz * ahead, yaw, seat: seat(use), unit });
   const SEATS = new Set(['chair', 'officeChair', 'sofa', 'armchair', 'bunk']);
   if (f.use === 'sleep') { const k = f.kind === 'bedDouble' ? 2 : 1; for (let i = 0; i < k; i++) at('sleep', k === 2 ? (i - 0.5) * f.w / 2 : 0, 0, f.yaw); return; }
   if (f.kind === 'salonChair') { at('sit', 0, 0, f.yaw); at('work', 0, -(f.d / 2 + 0.35), f.yaw); return; }

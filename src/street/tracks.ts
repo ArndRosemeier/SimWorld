@@ -302,7 +302,7 @@ function stayKeys(world: World, map: StreetMap, id: ActorId, place: PlaceId, t0:
     // (The leg's first key holds them at the last leg's spot until the walk starts: a pause, not a creep.)
     for (let i = keys.length && keys[keys.length - 4] >= ks[0] ? 4 : 0; i < ks.length; i += 4) keys.push(ks[i], ks[i + 1], ks[i + 2], ks[i + 3]);
     // Turn round and sit down; get up a little before the next leg's walk.
-    if (seat && start + walk + SETTLE < start + leg - RISE) rests.push(start + walk + SETTLE, start + leg - RISE, seat.yaw, seat.top);
+    if (seat && start + walk + SETTLE < start + leg - RISE) rests.push(start + walk + SETTLE, start + leg - RISE, seat.yaw + Math.PI, seat.top);
   }
   return keys;
 }

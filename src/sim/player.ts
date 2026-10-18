@@ -12,7 +12,7 @@ import { isHome, KINDS, type Service } from './placeKinds';
 import type { PlaceId } from './places';
 import { bondBit, FAMILY_MASK } from './relations';
 import { capitalize } from './profile';
-import { go, isOpen } from './schedule';
+import { go, isOpen, placeNow } from './schedule';
 import { MINUTES_PER_DAY } from './time';
 import { hasCar, isPerson, jobOf, nameOf, placesWith, type World } from './world';
 
@@ -73,7 +73,7 @@ export function playerActions(world: World): PlayerAction[] {
   const p = world.player;
   if (!p || !isPerson(world, p.id)) return [];
   const id = p.id, a = world.actors.cols, places = world.graph.places;
-  const here = a.dest[id] >= 0 ? a.dest[id] : a.place[id] >= 0 ? a.place[id] : a.home[id];
+  const here = a.dest[id] >= 0 ? a.dest[id] : placeNow(world, id);
   const home = a.home[id];
   const car = hasCar(world, id);
   const minutes = (to: PlaceId): number => (to === here ? 0 : Math.round(world.travel.minutes(here, to, car)));
@@ -140,6 +140,8 @@ export interface PlayerStatus {
   /** Where they are, or where they are heading while on the way. */
   place: PlaceId;
   placeName: string;
+  /** That place's building (`Place.building`: decode with src/plan/placeGraph.ts `buildingRef`; -1 none): the interior to show while they are inside (src/render/interiorView.ts). */
+  building: number;
   /** That place's entrance (the camera looks there while they are indoors). */
   x: number;
   z: number;
@@ -156,11 +158,11 @@ export function playerStatus(world: World): PlayerStatus | null {
   const p = world.player;
   if (!p) return null;
   const id = p.id, a = world.actors.cols, alive = isPerson(world, id);
-  const place = a.dest[id] >= 0 ? a.dest[id] : a.place[id] >= 0 ? a.place[id] : a.home[id];
+  const place = a.dest[id] >= 0 ? a.dest[id] : placeNow(world, id);
   const pl = world.graph.places[Math.max(0, place)];
   return {
     id, name: nameOf(world, id), alive, autopilot: p.autopilot, doing: alive ? doingOf(world, id) : 'gone',
-    place, placeName: pl.name, x: pl.x, z: pl.z, travelling: a.dest[id] >= 0, outdoors: false,
+    place, placeName: pl.name, building: pl.building, x: pl.x, z: pl.z, travelling: a.dest[id] >= 0, outdoors: false,
     needs: Array.from(a.needs.subarray(id * NEED_COUNT, id * NEED_COUNT + NEED_COUNT)), mood: a.mood[id],
   };
 }

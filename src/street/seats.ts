@@ -11,7 +11,10 @@ import { PropType, type CellPlan } from '../plan/cell';
 
 export { SEAT_REACH };
 
-/** A seat place: its middle (x, z), the way the sitter faces (yaw, 0 looks to -z), its height above the ground (m). */
+/**
+ * A seat place: its middle (x, z), the way the sitter faces (sin yaw, cos yaw), as an interior `Spot`; its height
+ * above the ground (m). A figure on it faces yaw + PI (a figure's face 0 looks to -z).
+ */
 export interface Seat {
   readonly x: number;
   readonly z: number;
@@ -39,15 +42,15 @@ export function seatsOf(cells: readonly CellPlan[]): Seat[] {
       const x = P[i + 1], z = P[i + 2], yaw = P[i + 3], k = P[i + 4] || 1;
       // The model's x axis and z axis in the world (rotated by yaw).
       const cx = Math.cos(yaw), sx = -Math.sin(yaw), czx = Math.sin(yaw), czz = Math.cos(yaw);
-      for (const a of s.along) out.push({ x: x + (cx * a + czx * s.z) * k, z: z + (sx * a + czz * s.z) * k, yaw, top: s.top * k });
+      for (const a of s.along) out.push({ x: x + (cx * a + czx * s.z) * k, z: z + (sx * a + czz * s.z) * k, yaw: yaw + Math.PI, top: s.top * k });
     }
   }
   return out;
 }
 
-/** Where someone stands to sit on `s` (and gets up): SEAT_REACH in front of it. */
-export function seatFront(s: Seat, reach = SEAT_REACH): [number, number] {
-  return [s.x - Math.sin(s.yaw) * reach, s.z - Math.cos(s.yaw) * reach];
+/** Where someone stands to sit on `s` (a Seat, an interior Spot) and gets up: SEAT_REACH in front of it. */
+export function seatFront(s: { x: number; z: number; yaw: number }, reach = SEAT_REACH): [number, number] {
+  return [s.x + Math.sin(s.yaw) * reach, s.z + Math.cos(s.yaw) * reach];
 }
 
 /**
