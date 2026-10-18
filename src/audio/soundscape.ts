@@ -327,7 +327,8 @@ export function ambienceAt(s: SoundSample, l: Listener, env: SoundEnv): Ambience
     amb_country_night: Math.max(s.rural, s.green * 0.6) * night * warm * (1 - smoothstep(0.02, 0.3, rain)) * ground,
     amb_river: s.water * 0.8 * ground,
     amb_sea: s.sea * 0.85 * ground,
-    amb_interior: indoor * 0.55,
+    // (Indoors the room's own hum plays on the room bus: src/audio/room.ts.)
+    amb_interior: 0,
     amb_rain_light: clamp(rain * 4, 0, 1) * (1 - smoothstep(0.35, 0.8, rain) * 0.6) * shut,
     amb_rain_heavy: smoothstep(0.25, 0.85, rain) * shut,
     // Gusts with the wind, and the wind of open air high above the roofs.

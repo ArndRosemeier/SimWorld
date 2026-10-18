@@ -11,6 +11,8 @@
  */
 import { buildingRef } from '../plan/placeGraph';
 import { A } from '../sim/actors';
+import { PLACE_KINDS } from '../sim/places';
+import { roomKindOf, type Room, type RoomPerson } from '../audio/room';
 import { spotsFor } from '../street/inside';
 import { seatFront } from '../street/seats';
 import type { Inside, InteriorView } from '../render/interiorView';
@@ -39,6 +41,8 @@ export class GoingInside {
   private solidsTo: ((building: number, shut: Box[]) => void) | null = null;
   /** The spot each person in was given (bed, seat, desk), by actor id. */
   private readonly spots = new Map<number, IndoorSpot>();
+  /** Who is in (at their spots) for the room's sound: where, which place, awake or not. */
+  private present: (RoomPerson & { place: number })[] = [];
 
   /** `outside`: shows or hides a building's own outer shell (a public building's, which stands in front of its walk-in rooms). */
   constructor(private readonly sim: SimClient, private readonly street: Street, private readonly view: InteriorView, private readonly outside: (building: number, shown: boolean) => void = () => {}) {
@@ -105,6 +109,28 @@ export class GoingInside {
     this.building = -1;
     this.view.leave();
     this.street.setIndoors([]);
+    this.present = [];
+  }
+
+  /**
+   * The room around the player (or the camera at x, y, z) for the sound (src/audio/room.ts), null out of doors: the people on this floor
+   * within earshot, and the character of the place the player is in (else of the place most of them are in).
+   */
+  room(x: number, y: number, z: number): Room | null {
+    if (this.building < 0 || !this.view.current) return null;
+    // Where the player's body stands (feet, like the spots), else the camera.
+    const me = this.me();
+    if (me) ({ x, y, z } = me);
+    const people = this.present.filter((p) => Math.abs(p.y - y) < 2.6 && Math.hypot(p.x - x, p.z - z) < 16);
+    const kinds = this.sim.town?.kind;
+    const placeKind = (place: number) => (kinds && place >= 0 && place < kinds.length ? PLACE_KINDS[kinds[place]] : undefined);
+    let place = this.sim.player?.place ?? -1;
+    if (placeKind(place) === undefined || (people.length && !people.some((p) => p.place === place))) {
+      const count = new Map<number, number>();
+      for (const p of people) count.set(p.place, (count.get(p.place) ?? 0) + 1);
+      place = [...count].sort((a, b) => b[1] - a[1])[0]?.[0] ?? place;
+    }
+    return { kind: roomKindOf(placeKind(place)), people };
   }
 
   /** Each frame (`t` real ms): who is in now, the room light, the doors. */
@@ -173,6 +199,7 @@ export class GoingInside {
         else held.push({ x: s.x, y: s.y, z: s.z, face, w });
       });
       this.awake = ps.filter((p) => p.activity !== A.sleep).length;
+      this.present = ps.flatMap((p) => { const s = this.spots.get(p.id); return s ? [{ x: s.x, y: s.y, z: s.z, awake: p.activity !== A.sleep, place: p.place }] : []; });
       this.street.setIndoors(held);
     } finally {
       this.asking = false;

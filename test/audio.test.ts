@@ -9,6 +9,10 @@ import { strikesIn } from '../src/sim/weather';
 import { StreetSounds, type StreetAudio } from '../src/traffic/sounds';
 import type { TrafficMsg } from '../src/traffic/feed';
 import { VEHICLE_KINDS } from '../src/build/vehicles';
+import { ROOM_IDS, ROOM_SLOT, murmurLevel, reverbOf, roomKindOf, roomMix, roomShots, type Room, type RoomPerson } from '../src/audio/room';
+import { readFileSync } from 'node:fs';
+
+const manifest = JSON.parse(readFileSync(new URL('../public/sounds/manifest.json', import.meta.url), 'utf8')) as Record<string, unknown>;
 
 /** A 1 km square town: built in the middle, a river along the east edge, gardens, a church, a school, a farm. */
 function testMap(): SoundMap {
@@ -220,4 +224,46 @@ test('street sounds: a car rushes past once, a bus hisses as it stands, a siren 
   // At the scene the blue lights stay on, the siren stops.
   s.listen(0.1, 0, 1.7, 0, 10.1, msg(false), audio);
   assert.equal(loops.get('ambulance_siren'), 0);
+});
+
+test('a room murmurs with the people in it: a packed pub roars, a shop hums, a sleeping home is near silent', () => {
+  assert.equal(roomKindOf('pub'), 'bar');
+  assert.equal(roomKindOf('cafe'), 'cafe');
+  assert.equal(roomKindOf('supermarket'), 'shop');
+  assert.equal(roomKindOf('house'), 'home');
+  assert.equal(roomKindOf('church'), 'church');
+  assert.equal(murmurLevel('bar', 1), 0, 'nobody talks alone');
+  assert.ok(murmurLevel('bar', 3) < murmurLevel('bar', 8) && murmurLevel('bar', 8) < murmurLevel('bar', 14));
+  assert.equal(murmurLevel('bar', 40), murmurLevel('bar', 14), 'full is full');
+  const crowd = (n: number, awake = true): RoomPerson[] => Array.from({ length: n }, (_, i) => ({ x: (i % 5) * 1.2, y: 0, z: Math.floor(i / 5) * 1.2, awake }));
+  const l = { x: 0, y: 1.6, z: 0 };
+  const level = (room: Room, id: string) => roomMix(room, l).find((c) => c.id === id)!.gain;
+  assert.ok(level({ kind: 'bar', people: crowd(14) }, 'amb_crowd') > 0.9);
+  assert.ok(level({ kind: 'bar', people: crowd(14) }, 'terrace_clatter') > 0.3, 'glasses and cutlery under the voices');
+  assert.ok(level({ kind: 'shop', people: crowd(14) }, 'amb_crowd') < level({ kind: 'bar', people: crowd(14) }, 'amb_crowd') / 2);
+  assert.ok(level({ kind: 'shop', people: crowd(2) }, 'amb_interior') > level({ kind: 'bar', people: crowd(2) }, 'amb_interior'), 'a shop hums');
+  const sleeping: Room = { kind: 'home', people: crowd(3, false) };
+  assert.equal(level(sleeping, 'amb_crowd'), 0);
+  assert.ok(level(sleeping, 'amb_interior') < level({ kind: 'home', people: crowd(3) }, 'amb_interior'));
+  assert.ok(reverbOf('church').seconds > 2 * reverbOf('bar').seconds && reverbOf('church').wet > reverbOf('home').wet, 'a hush with a long echo');
+});
+
+test('the small sounds of a room: clinks in the pub, none from the sleeping or in the church; seeded', () => {
+  const crowd = (n: number, awake = true): RoomPerson[] => Array.from({ length: n }, (_, i) => ({ x: i, y: 0, z: 0, awake }));
+  const over = (room: Room) => Array.from({ length: 300 }, (_, slot) => roomShots(room, 9, slot)).flat();
+  const pub = over({ kind: 'bar', people: crowd(12) });
+  assert.ok(pub.filter((s) => s.clink > 0).length > 60, 'glasses clink');
+  assert.ok(pub.every((s) => s.delay >= 0 && s.delay < ROOM_SLOT + 3));
+  assert.equal(over({ kind: 'home', people: crowd(3, false) }).length, 0, 'asleep: silence');
+  assert.equal(over({ kind: 'church', people: crowd(20) }).filter((s) => s.clink > 0).length, 0);
+  assert.deepEqual(roomShots({ kind: 'bar', people: crowd(12) }, 9, 17), roomShots({ kind: 'bar', people: crowd(12) }, 9, 17));
+  for (const id of ROOM_IDS) assert.ok(id in manifest, `${id} in the manifest`);
+});
+
+test('indoors the street and the weather go dull and quiet', () => {
+  const s = new Soundscape(map, 1);
+  const out = s.ambience(here, env(at(2, 12), { rain: 0.8 }));
+  const inside = s.ambience({ ...here, indoor: 1 }, env(at(2, 12), { rain: 0.8 }));
+  assert.ok(inside.muffle < 3000 && out.muffle > 15000);
+  assert.ok(inside.levels.amb_rain_heavy < out.levels.amb_rain_heavy / 2);
 });

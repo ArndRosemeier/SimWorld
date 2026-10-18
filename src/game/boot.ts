@@ -333,7 +333,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     renderer.render(scene, camera);
     const e = camera.matrixWorld.elements;
     fwd.x = -e[8]; fwd.y = -e[9]; fwd.z = -e[10];
-    audio.frame(dt, { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: fwd.x, fy: fwd.y, fz: fwd.z, ux: e[4], uy: e[5], uz: e[6] }, soundEnvFromSim(time, sim.view, sim.clock, ears));
+    audio.frame(dt, { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: fwd.x, fy: fwd.y, fz: fwd.z, ux: e[4], uy: e[5], uz: e[6] }, soundEnvFromSim(time, sim.view, sim.clock, ears), goingIn.room(camera.position.x, camera.position.y, camera.position.z));
     // Asked to start straight away (`?be`, `?street`, `?follow`, `?still`): no title, the town as soon as it shows.
     if (!shown && straight && view.done > 0) startPlay();
     minimap.keepUp(shown ? mapMe() : null, mapMarks);
