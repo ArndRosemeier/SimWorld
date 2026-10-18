@@ -40,7 +40,7 @@
     "reason": "Axis vectors of a frame (cos, sin of its angle) computed once for a loop; the point transforms go through geom2 frameToWorld / worldToFrame."
   },
   {
-    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/terrace.ts + simworld/plan/town.ts",
+    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/sim/travel.ts",
     "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
   },
   {
@@ -66,5 +66,17 @@
   {
     "key": "same name: simworld/plan/kit.ts#mat + simworld/plan/landmarkParts.ts#mat",
     "reason": "landmarkParts uses the Kit's one material helper `mat` (defined in kit.ts)."
+  },
+  {
+    "key": "same name: simworld/plan/cell.ts#add + simworld/sim/table.ts#add",
+    "reason": "Unrelated jobs under a common verb: the sim's component table adds a row; the planner's local closures add a building, a part, an arterial edge."
+  },
+  {
+    "key": "same name: simworld/plan/kit.ts#add + simworld/sim/table.ts#add",
+    "reason": "Unrelated jobs under a common verb: the sim's component table adds a row; the planner's local closures add a building, a part, an arterial edge."
+  },
+  {
+    "key": "same name: simworld/plan/macro.ts#add + simworld/sim/table.ts#add",
+    "reason": "Unrelated jobs under a common verb: the sim's component table adds a row; the planner's local closures add a building, a part, an arterial edge."
   }
 ]
