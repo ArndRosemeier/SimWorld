@@ -3,15 +3,17 @@
  * Chimney smoke: every chimney (geometry-instanced, `iPose` its top and a random angle, `iSize.x` the plume's
  * scale) carries a few puffs that rise, swell, drift with the wind and fade, one after the other. A chimney
  * smokes while its random is below the share of homes heating (`SMOKE.heat`), so more chimneys smoke as it
- * gets colder and the same ones keep smoking. New in SimWorld.
+ * gets colder and the same ones keep smoking; a house whose people are all out or asleep (src/render/windowLight.ts
+ * `buildingAwake`) has its heating turned down. New in SimWorld.
  *
  * Attributes: `position` is the puff's quad corner (x, y -1 … 1) and its place in the chimney's round (z 0 … 1).
  */
 import { Color, Vector3, type NodeMaterial } from 'three/webgpu';
 import {
   Fn, vec3, vec4, fract, pow, sin, length, smoothstep, sub, mix, step, attribute, positionGeometry,
-  uniform, varyingProperty, cameraProjectionMatrix, cameraViewMatrix,
+  uniform, varyingProperty, cameraProjectionMatrix, cameraViewMatrix, select,
 } from 'three/tsl';
+import { buildingAwake } from '../windowLight';
 
 export const SMOKE = {
   /** Share of the chimneys smoking, 0 … 1. */
@@ -37,7 +39,9 @@ export function smokeLook(m: NodeMaterial): void {
   const vUV = varyingProperty('vec2', 'vUV');
   m.vertexNode = Fn(() => {
     const r = pose.w.mul(0.159155); // the chimney's random, 0 … 1
-    const on = step(r, U.heat);
+    // Full heat where someone in the house is up (the lit-window shares); turned down where all are out or asleep.
+    const awake = buildingAwake(pose.xz).toVar();
+    const on = step(r, U.heat.mul(select(awake.lessThan(0.001).and(awake.greaterThan(-0.5)), 0.35, 1.0)));
     const age = fract(U.t.div(LIFE).add(corner.z).add(fract(r.mul(17.0)))).toVar();
     const secs = age.mul(LIFE);
     // Up (slowing as it cools) and along the wind; a slow wobble so the puffs do not line up.

@@ -180,7 +180,7 @@ test('live: npc.reflection candidates', { skip: !KEY && 'no OPENROUTER_API_KEY' 
 test('live: skip.digest candidates', { skip: !KEY && 'no OPENROUTER_API_KEY' }, async () => {
   const catalog = await fetchCatalog();
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const filler = ['Baked for the church fete.', 'The oven thermostat played up again.', 'Mrs Patel bought three dozen rolls for a christening.', 'Rain all day; the shop was quiet.', 'Tom bought his two rye loaves.', 'Delivered bread to the school kitchen.'];
+  const filler = ['Baked for the church fair.', 'The oven thermostat played up again.', 'Mrs Patel bought three dozen rolls for a christening.', 'Rain all day; the shop was quiet.', 'Tom bought his two rye loaves.', 'Delivered bread to the school kitchen.'];
   const events: TaskIO['skip.digest']['input']['events'] = [];
   for (let w = 0; w < 3; w++) for (const [d, day] of days.entries()) events.push({ when: `${day}, week ${w + 1}`, text: filler[(w * 7 + d) % filler.length], importance: 2 });
   events.splice(4, 0, { when: 'Friday, week 1', text: 'The mill announced it will close in March; 140 jobs.', importance: 8 });

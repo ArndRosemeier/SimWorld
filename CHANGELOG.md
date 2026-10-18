@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.094 — Chimney smoke follows who is home
+
+- A house whose people are all out or asleep has its heating turned down, so its chimney smokes less often. Houses with someone up and about smoke the most.
+
+## v0.093 — Lamps on under storm clouds; street lights off after midnight by vote
+
+- On a dark, rainy or stormy day, people who are at home switch their lights on, so the windows glow by day too. On a normal day only a few rooms are lit.
+- If the council votes to switch the street lights off at midnight, the lamps go dark from midnight until dawn. That covers both the lamp heads and the light they throw on the street.
+
+## v0.092 — Notice boards, posters and window notices
+
+- The town hall, library, church, post office, supermarket, newsagent and square each have a notice board (a cork board by the entrance, or cards in the shop window) with the town's real notices pinned on it: events, funerals, lost pets, openings and closings.
+- Posters for a street's notices go up on a few of its lamp posts, and a shop's own opening or closing notice hangs in its window.
+- Notices change as the town does: a lost cat's poster turns to "Found", old notices come down.
+- Small signs such as door plates now only get their lettering when you are close enough to read them, so busy streets no longer run out of lettering space.
+- Shop signs now follow the town's economy day by day: a shop that closes shows a to-let board on its fascia and loses its hours, a new business has its own name and hours, and homes for sale or rent get an estate agent's board.
+
+## v0.091 — Driveways and front paths
+
+- Detached houses have a driveway beside them, laid with asphalt, block paving or gravel, from the street to just past the house front.
+- Their front doors have a paved path out to the sidewalk.
+- No car is parked at the kerb across a driveway, and no lamp, bin or street tree stands in front of one.
+
+## v0.090 — One menu and a top bar
+
+- The date, time and weather now sit in a thin bar along the top of the screen.
+- One Menu button at the top right holds everything: who to be, the paper, the map, save, load, What's new, sound, and chat's past conversations, usage and models. The separate buttons in the corner are gone.
+- The Chat button sits next to Menu, and the bar and menu move aside while the chat panel is open.
+- Save now and Load last save are in the menu. Loading a save plays on as the person you were playing.
+- The play panel keeps the controls of your life: autopilot, What now?, skip time and someone else.
+- The right-hand side is kept free for the chat panel.
+
+## v0.089 — One last British word in the LLM test filler
+
+- The slow LLM model test says "church fair" instead of "church fete" (D27 region audit).
+
 ## v0.088 — Faster checks, and each change shows what its tests cost
 
 - The automatic checks run all test files in one process, so they take about half as long.
