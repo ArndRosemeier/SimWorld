@@ -36,6 +36,10 @@
     "reason": "Axis vectors of a frame (cos, sin of its angle) computed once for a loop; the point transforms go through geom2 frameToWorld / worldToFrame."
   },
   {
+    "key": "same name: simworld/interior/fill/place.ts#overlap + simworld/plan/footprints.ts#overlap",
+    "reason": "Different questions: the room filler's overlap tests two rectangles in a room; Footprints.overlap is how deep a walker's circle reaches into the street's props (the one obstacle seam)."
+  },
+  {
     "key": "same name: simworld/llm/openrouter.ts#stream + simworld/llm/recorded.ts#stream",
     "reason": "Both implement Transport.stream (the real OpenRouter connection and the recorded/recording test transports); one interface method, different jobs."
   },
@@ -360,7 +364,7 @@
     "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
   },
   {
-    "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
+    "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
   {

@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.072 — Autumn: each tree turns at its own pace, fallen leaves on the ground
+
+- Leafy trees no longer all turn colour together: each tree turns at its own pace, so in October the town shows green, yellow, orange and red-brown side by side.
+- Fallen leaves gather on lawns, gardens and bare earth from mid-October, fewer on swept paving and a few on the roads. They are yellow and orange at first and turn brown as the trees go bare, then are cleared or rot away by the new year.
+- Rain darkens the fallen leaves, and snow covers them.
+
+## v0.071 — Parked cars in the planned bays
+
+- The town's parked cars now stand in the parking bays the town planner laid out along the kerbs, which keep clear of junctions, zebra crossings and driveways. Before, the cars had their own bays every few metres, which could block a driveway or a crossing.
+- Each parked car faces the same way as the traffic on its side of the street.
+
+## v0.070 — People stop walking through buildings, cars and street furniture
+
+- People no longer cut through buildings, car parks, fountains or hedges: where a walk can't just step aside, it goes the long way round.
+- People keep clear of the cars parked at the kerb, which now come and go with the traffic.
+- Walks start and end at the front door in the wall, not in the middle of the house, and the doorstep moves aside when a mailbox or hydrant stands right outside.
+- Joggers and strollers at the sports ground no longer squeeze through the parked cars, and a dog or child walking beside someone falls in behind at a lamp post instead of passing through it.
+
 ## v0.069 — Townsfolk talk to each other
 
 - When two people meet, what they say is now written out: the news that really passes between them, told in their own voice ("Have you heard? My sister lost her job at the bakery. Marta told me."), and answered in the listener's.

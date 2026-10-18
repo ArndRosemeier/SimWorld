@@ -58,6 +58,21 @@ test('cars keep to the right', () => {
   }
 });
 
+test('the planner\'s kerbside bays are the parking: each on its street\'s kerb, on the side whose traffic it faces with', () => {
+  const bays = town.cells.flatMap((c) => c.parking);
+  const parking = new Parking(net, bays), kerb = parking.spots.filter((s) => net.edges[s.edge].park > 0);
+  assert.ok(kerb.length > 100 && kerb.length <= bays.length, `${kerb.length} of ${bays.length} bays`);
+  const p = { x: 0, z: 0, dx: 0, dz: 0 };
+  for (const s of kerb) {
+    const e = net.edges[s.edge];
+    net.lanePoint(e, s.s, s.side * (e.width / 2 - e.park / 2), p);
+    assert.ok(Math.hypot(p.x - s.x, p.z - s.z) < 1.5, `bay ${s.id} ${Math.hypot(p.x - s.x, p.z - s.z).toFixed(1)} m off its kerb`);
+    // Facing a → b on the right side, b → a on the left.
+    const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
+    assert.ok((fx * p.dx + fz * p.dz) * s.side > 0.9, `bay ${s.id} faces against its traffic`);
+  }
+});
+
 test('a car pulls out, drives across town and parks in the bay it reserved; its old bay is free again', () => {
   const parking = new Parking(net), tr = new Traffic(net, parking);
   const from = parking.spots[5], to = parking.spots[parking.spots.length - 40];
