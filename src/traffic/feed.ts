@@ -19,18 +19,20 @@ import { dayOf } from '../sim/time';
 import { TownTraffic } from './townTraffic';
 import { carPlace, carTripsSince } from './trips';
 import { TRAIN_KEY, type TrainCar } from './trains';
-import type { Car } from './traffic';
+import { urgent, type Car } from './traffic';
 
 /** Floats per vehicle and moment in `TrafficMsg.poses`: x, y, z, yaw. */
 export const POSE_STRIDE = 4;
 /** Ints per vehicle in `TrafficMsg.cars` and `parkedCars`: key, kind (index in VEHICLE_KINDS), variant. */
 export const CAR_STRIDE = 3;
-/** Floats per vehicle in `TrafficMsg.state`: headlights, brake, indicator (−1 left, +1 right, ±2 hazards, ±3 siren), engine running. */
+/** Floats per vehicle in `TrafficMsg.state`: headlights, brake, indicator (−1 left, +1 right, ±2 hazards, 3 blue lights and siren, −3 blue lights only), engine running. */
 export const STATE_STRIDE = 4;
 /** Floats per barrier post in `TrafficMsg.posts` (src/traffic/trains.ts `CrossingPost`, then its crossing). */
 export const POST_STRIDE = 6;
 /** Floats per parked car in `TrafficMsg.parked`: x, y, z, yaw, then its paint (sRGB). */
 export const PARKED_STRIDE = 7;
+/** Numbers per honk in `TrafficMsg.horns`: game clock (min), x, y, z, long (1: a driver who has waited long, 0: a tap). */
+export const HORN_STRIDE = 5;
 
 /** The vehicles, as sent with a street update. */
 export interface TrafficMsg {
@@ -51,6 +53,8 @@ export interface TrafficMsg {
   posts: Float32Array | null;
   /** … and which crossings are closed now (1), by crossing. */
   closed: Uint8Array;
+  /** The horns sounded since the last message (HORN_STRIDE each), at their moments (ahead of the clock, like the poses). */
+  horns: Float64Array;
 }
 
 /** Moments recorded per update (the stretch the cars are run ahead is cut into this many steps). */
@@ -79,6 +83,8 @@ export class TrafficFeed {
   private readonly hist: { t: number; poses: Map<number, [number, number, number, number]> }[] = [];
   private parkedSig = -1;
   private postsSent = false;
+  /** Horns sounded since the last message (HORN_STRIDE each). */
+  private readonly honks: number[] = [];
   /** The train cars last seen, by their ids in `hist`. */
   private readonly trainCars = new Map<number, TrainCar>();
   /**
@@ -98,6 +104,8 @@ export class TrafficFeed {
     this.town.placeCars(world.households, (h) => from.get(h) ?? carPlace(world, h));
     this.t0 = world.clock;
     this.town.obey(rulesOf(world), dayOf(world.clock));
+    // A driver kept waiting (a jam, a blocked lane) sounds the horn, longer the second time.
+    this.town.traffic.onHorn = (v) => this.honks.push(this.town.clockAt(), v.x, v.y + 1, v.z, v.wait > 40 ? 1 : 0);
     this.fed = this.last = world.clock;
     this.town.anchor(world.clock);
     this.town.trips(under, world.clock);
@@ -157,7 +165,7 @@ export class TrafficFeed {
   message(): TrafficMsg {
     const K = this.hist.length;
     // The road vehicles, then the train cars in any recorded moment (a train's lights are always on).
-    const vs: { id: number; car: Car; state: number[]; pose: number[] }[] = this.town.traffic.vehicles.map((v) => ({ id: v.id, car: v.car, state: [v.headlights, v.brake, v.indicator, 1], pose: [v.x, v.y, v.z, v.yaw] }));
+    const vs: { id: number; car: Car; state: number[]; pose: number[] }[] = this.town.traffic.vehicles.map((v) => ({ id: v.id, car: v.car, state: [v.headlights, v.brake, v.siren ? 3 : v.halted >= 0 && urgent(v.goal) ? -3 : v.indicator, 1], pose: [v.x, v.y, v.z, v.yaw] }));
     const seen = new Set<number>();
     for (const h of this.hist) for (const id of h.poses.keys()) if (id < 0) seen.add(id);
     for (const [id, c] of this.trainCars) {
@@ -202,13 +210,15 @@ export class TrafficFeed {
       posts = Float32Array.from(all.flat());
     }
     const closed = Uint8Array.from(tr?.closed(this.last) ?? [], (b) => (b ? 1 : 0));
-    return { times, cars, poses, state, paint, parked, parkedCars, posts, closed };
+    const horns = Float64Array.from(this.honks);
+    this.honks.length = 0;
+    return { times, cars, poses, state, paint, parked, parkedCars, posts, closed, horns };
   }
 }
 
 /** The buffers of a message, to transfer. */
 export const trafficTransfers = (m: TrafficMsg): ArrayBuffer[] =>
-  [m.times, m.cars, m.poses, m.state, m.paint, m.closed, ...(m.parked ? [m.parked, m.parkedCars!] : []), ...(m.posts ? [m.posts] : [])].map((a) => a.buffer as ArrayBuffer);
+  [m.times, m.cars, m.poses, m.state, m.paint, m.closed, m.horns, ...(m.parked ? [m.parked, m.parkedCars!] : []), ...(m.posts ? [m.posts] : [])].map((a) => a.buffer as ArrayBuffer);
 
 /** Moving vehicle `i`'s pose at game clock `clock`, between the recorded moments (held at the ends), into `out` (x, y, z, yaw). */
 export function vehiclePose(m: TrafficMsg, i: number, clock: number, out: Float32Array | number[], o = 0): void {

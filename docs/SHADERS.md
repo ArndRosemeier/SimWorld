@@ -21,13 +21,15 @@ Arnd's PC is the reference machine for timings.
 | Cap | `src/render/shaders/cap.ts` | Hands out build slots: one in flight, ≥ 200 ms after the previous build's end, ≤ 5 per second, one per frame. Off during warm-up. |
 | Renderer hooks | `src/render/shaders/patches.ts` | Async node builds queue one at a time behind the cap; a draw pipeline nobody compiled is created async and the object skipped until ready; compile and link costs are timed. |
 | Monitor | `src/render/shaders/monitor.ts` | Records every build. `shaders.report()` in the console lists violations (over 100 ms, gaps under 200 ms) and warnings (over 10 ms); the HUD shows a summary. |
-| Guards | `tools/guards/rules.json` | `npm test` fails on `new *Material` outside the registry, `new *Light` outside lights.ts, `onBeforeCompile`, or `renderer.compile*` outside the Stage. |
+| Guards | `tools/guards/rules.json`, `tools/guards/guards.mjs` | `npm test` fails on `new *Material` outside the registry, `new *Light` outside lights.ts, `onBeforeCompile`, `renderer.compile*` outside the Stage, or a typed `Fn` that reads more than its parameters (`checkTypedFns`: an uppercase bag's member, a shader input made in the body or at the file's top). |
 
 ## What you must do
 
 - **A new look is a new kind** in `materials.ts`, with the attributes its meshes carry. The attribute set and the index are part of the cache key.
+- **A new kind gets a swatch:** its row in `VARIANTS` (`src/render/looks.ts`, how its variants are told apart) and mesh data that `collectSwatches` reaches, or the looks check (docs/CI.md) fails with "no swatch". It draws every kind in every variant headless and fails on black, blown-out white, NaN, magenta or nothing drawn.
 - **Lights are fixed before the warm-up.** Never add or reparent a light afterwards; unused pool lights stay at intensity 0.
 - **Put things into the scene with `stage.add`**, or `stage.prepare` first when adding to your own group.
+- **A typed TSL `Fn` (one with a layout, `Fn(f, { p: 'vec2', return: 'vec4' })`) reads only its parameters.** three builds its code once per backend and reuses it in every later build (another material, another render target), so a uniform, attribute or texture it closes over is declared only the first time and the next build fails (`nodeUniform… undeclared`). Pass them in as parameters (src/render/tsl/ground.ts `parcelAt`), or leave the layout off.
 - **Humans** (the `@futuremagic/humanoid` package) make their own node materials: build them before the warm-up and pass them to `stage.warmUp(extra)`, or compile them with `stage.warmLater`.
 
 ## Planned

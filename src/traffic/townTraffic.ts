@@ -14,10 +14,10 @@ import type { Place, PlaceId } from '../sim/places';
 import { MINUTES_PER_DAY } from '../sim/time';
 import { Parking } from './parking';
 import { RoadNet } from './roadNet';
-import { Traffic, regionCar, type Car, type VKind } from './traffic';
+import { Traffic, regionCar, type Car, type Goal, type VKind } from './traffic';
 import type { CarTrip } from './trips';
 import { Buses } from './buses';
-import { ServiceRounds, exitTowardRegion, roundGoal } from './rounds';
+import { EMERGENCY_KEY, POLICE_CARS, ServiceRounds, exitTowardRegion, roundGoal } from './rounds';
 import type { World } from '../sim/world';
 import type { TownRules } from '../sim/politics';
 import { visitorsAt } from './visitors';
@@ -67,7 +67,7 @@ export class TownTraffic {
   /** Visitors from the region in town: their cars, the road they came in by, when they leave (game clock). */
   private readonly guests = new Map<number, { car: Car; exit: number; leave: number }>();
   /** Stats for the HUD and tests. */
-  readonly stats = { trips: 0, walked: 0, parked: 0, through: 0, buses: 0, services: 0, stops: 0, visitors: 0 };
+  readonly stats = { trips: 0, walked: 0, parked: 0, through: 0, buses: 0, services: 0, emergencies: 0, stops: 0, visitors: 0 };
 
   /** `world` (optional until the view has one) tells the roads to the region towns apart. */
   constructor(town: Town, private readonly places: readonly Place[], private readonly seed: number, world?: World) {
@@ -81,6 +81,9 @@ export class TownTraffic {
     this.traffic.onPark = () => this.stats.parked++;
     this.traffic.onHalt = () => this.stats.stops++;
     this.trains = world && town.macro.rail ? new Trains(world, town) : null;
+    // The police cars stand outside their station until a call.
+    const station = places.find((p) => p.kind === 'police');
+    if (station) for (let k = 0; k < POLICE_CARS; k++) this.parking.parkNear(EMERGENCY_KEY + k, station.x, station.z);
   }
 
   /** Game clock (minutes) at Traffic time `t` (s). */
@@ -137,8 +140,9 @@ export class TownTraffic {
     this.services ??= new ServiceRounds(world, this.net);
     for (const r of [...this.buses.due(since, clock), ...this.services.due(since, clock)]) {
       const goal = roundGoal(r, (c) => c * 60 - this.clockOffset);
-      const count = r.run ? 'buses' : 'services';
-      this.launch(() => !!this.traffic.enter(r.car, r.enter, goal) && ++this.stats[count] > 0);
+      const count = r.run ? 'buses' : r.car.key >= EMERGENCY_KEY ? 'emergencies' : 'services';
+      if (r.base) this.fromBase(r.car, r.base, goal);
+      else this.launch(() => !!this.traffic.enter(r.car, r.enter, goal) && ++this.stats[count] > 0);
     }
   }
 
@@ -177,8 +181,9 @@ export class TownTraffic {
     }
   }
 
-  /** The car with key `key`: a visitor's, or a household's. */
+  /** The car with key `key`: a police car's, a visitor's, or a household's. */
   carOf(key: number): Car {
+    if (key >= EMERGENCY_KEY && key < EMERGENCY_KEY + POLICE_CARS) return { key, kind: 'police', variant: 0 };
     return this.guests.get(key)?.car ?? householdCar(this.seed, key);
   }
 
@@ -201,6 +206,16 @@ export class TownTraffic {
   }
 
   /** Put a vehicle on the road now, or as soon as there is room (a car in the way of pulling out or coming in). */
+  /**
+   * A vehicle based in town (a police car) sets off on a round: out of its bay at the base, or, the first time,
+   * from the street beside it. One still out on its last round lets this one go.
+   */
+  private fromBase(car: Car, base: { x: number; z: number }, goal: Goal): void {
+    if (this.traffic.vehicles.some((v) => v.car.key === car.key)) return;
+    if (!this.parking.has(car.key)) this.parking.parkNear(car.key, base.x, base.z);
+    this.launch(() => !!this.traffic.depart(car, goal) && ++this.stats.emergencies > 0);
+  }
+
   private launch(go: () => boolean): void {
     if (!go()) this.waiting.push({ go, t: 0 });
   }
