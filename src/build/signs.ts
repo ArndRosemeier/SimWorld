@@ -7,7 +7,7 @@
  * board when nothing is for sale), src/render/signsView.ts. Pure; the town workers run it once.
  */
 import { hash32, hashToFloat } from '@futuremagic/core';
-import { townGround } from './ground';
+import { groundOf } from './drawnGround';
 import { SITE } from '../plan/placeGraph';
 import { clockSpots, HANG_OUT, POSTER_Y, signSpots, yawAxes, type FrontSign } from '../plan/signs';
 import type { TownRoads } from '../plan/roads';
@@ -76,7 +76,7 @@ const PIN_OUT = 0.022;
 /** Every sign of the town; `places` are the planner's (`placeGraphOf`), `name` the town's. */
 export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, name: string): SignsData {
   const { terrain } = town;
-  const ground = townGround(town.cells, terrain);
+  const ground = groundOf(town);
   const spots = signSpots(town, roads, places);
   const lists = new InstanceLists();
   const what: SignWhat[] = [];

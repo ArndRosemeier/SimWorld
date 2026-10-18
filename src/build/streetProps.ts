@@ -9,15 +9,12 @@
  * src/build/vegetation.ts's.
  */
 import { hash32, hashToFloat } from '@futuremagic/core';
-import { townGround } from './ground';
 import { PropType, type CellPlan, type StreetSeg } from '../plan/cell';
 import { RoadClass, type District } from '../plan/types';
 import { TERRACE_PALETTE } from '../plan/terrace';
-import type { Terrain } from '../world/terrain';
 import { FURNITURE_KINDS, furnitureModel, type FurnitureKind } from './furniture';
 import { farVehicle, paintColor, standingVehicle, type VehicleKind } from './vehicles';
 import type { MeshData } from './meshBuilder';
-import { cellGround } from './ground';
 import { settle } from './drawnGround';
 import { InstanceLists, type ModelInstances } from './instanceLists';
 import { yawToward } from '../geom/geom2';
@@ -55,23 +52,21 @@ const EV_SHARE: Partial<Record<District, number>> = { downtown: 0.14, commercial
 /** A manhole stands this much above the street: its flat rim clears the draped carriageway (DRAPE_TOL) on a sloping street. */
 const MANHOLE_LIFT = 0.035;
 
-/** Every cell's props (trees and shrubs excepted) as instance lists. */
-export function propInstances(cells: readonly CellPlan[], terrain: Terrain, opts: { kerbCars?: boolean } = {}): PropGroup[] {
+/** Every cell's props (trees and shrubs excepted) as instance lists, standing on `ground` (`drawnGround(town).heightAt`). */
+export function propInstances(cells: readonly CellPlan[], ground: (x: number, z: number) => number, opts: { kerbCars?: boolean } = {}): PropGroup[] {
   const kerbCars = opts.kerbCars ?? true;
   const lists = new InstanceLists();
   const put = (key: string, x: number, y: number, z: number, yaw: number, scale: number, c: [number, number, number] = [0, 0, 0], w = 0) =>
     lists.add(key, x, y, z, yaw, scale, c[0], c[1], c[2], w);
   /** A noise offset per prop (so alike props differ in the shader). */
   const jitter = (x: number, z: number) => hashToFloat(hash32(Math.round(x * 10) * 7919 + Math.round(z * 10) * 104729)) * 50;
-  const curb = townGround(cells, terrain);
   const furn = (kind: FurnitureKind, v: number, x: number, z: number, yaw: number, scale: number, c?: [number, number, number]) =>
-    put(`f:${kind}:${v & 1}`, x, curb(x, z), z, yaw, scale, c, jitter(x, z));
+    put(`f:${kind}:${v & 1}`, x, ground(x, z), z, yaw, scale, c, jitter(x, z));
   const ends = streetEnds(cells), stance = { y: 0, pitch: 0, roll: 0 };
   const signalled = new Set<string>();
 
   for (const plan of cells) {
     const P = plan.props, seed = plan.id * 7919;
-    let ground: ((x: number, z: number) => number) | null = null;
     for (let i = 0; i < P.length; i += 6) {
       const t = P[i] as PropType, x = P[i + 1], z = P[i + 2], yaw = P[i + 3], sc = P[i + 4], v = P[i + 5];
       switch (t) {
@@ -87,7 +82,7 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain, opts
         case PropType.Kiosk: furn('kiosk', v, x, z, yaw, sc); break;
         case PropType.PlayGround: furn('playground', v, x, z, yaw, sc); break;
         case PropType.BusStop: furn('busStop', v, x, z, yaw, sc); break;
-        case PropType.Manhole: put('f:manhole:0', x, terrain.height(x, z) + MANHOLE_LIFT, z, yaw, sc, undefined, jitter(x, z)); break;
+        case PropType.Manhole: put('f:manhole:0', x, ground(x, z) + MANHOLE_LIFT, z, yaw, sc, undefined, jitter(x, z)); break;
         case PropType.TrafficLight: case PropType.StopSign: {
           const k = `${Math.round(x)},${Math.round(z)}`;
           if (signalled.has(k)) break;
@@ -126,8 +121,7 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain, opts
           if (t === PropType.ParkedCar || kerbCars) {
             const kind = PARKED[v % PARKED.length], variant = (v >> 4) % 4;
             // On the cell's drawn ground (a car park's paving, the street), at its wheels' mean height.
-            ground ??= cellGround(plan, terrain);
-            const y = settle((gx, gz) => { const h = ground!(gx, gz); return h === h ? h : terrain.height(gx, gz); }, x, z, yaw, 4.6, 1.85, stance).y;
+            const y = settle(ground, x, z, yaw, 4.6, 1.85, stance).y;
             put(`v:${kind}:${variant}`, x, y, z, yaw, sc, paintColor(kind, 1_000_000 + plan.id * 4096 + i / 6));
           }
           // Near-future kerbs: some parking bays have an EV charging post (more in dense districts).

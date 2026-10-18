@@ -84,7 +84,8 @@ export class DrawnGround {
     if (!B) this.blocks.set(key, (B = new Float32Array(TB * TB).fill(NaN)));
     const k = (i - bi * TB) * TB + (j - bj * TB);
     let y = B[k];
-    if (y !== y) y = B[k] = this.town.terrain.height(i * TSTEP, j * TSTEP);
+    // (Read back from the array, so the first answer is the stored float32 too: the same whatever was asked before.)
+    if (y !== y) { B[k] = this.town.terrain.height(i * TSTEP, j * TSTEP); y = B[k]; }
     return y;
   }
 }
@@ -105,6 +106,12 @@ export function drawnGround(town: Town): DrawnGround {
   let g = made.get(town);
   if (!g) made.set(town, (g = new DrawnGround(town)));
   return g;
+}
+
+/** The town's drawn ground as a height function (`heightAt`), for what stands on it: props, trees, signs, decorations. */
+export function groundOf(town: Town): (x: number, z: number) => number {
+  const g = drawnGround(town);
+  return (x, z) => g.heightAt(x, z);
 }
 
 /** Wheel contacts: half the wheelbase and half the track, as shares of the vehicle's length and width. */

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { groundOf } from '../src/build/drawnGround';
 import { planTown } from '../src/plan/town';
 import type { MeshData } from '../src/build/meshBuilder';
 import { BARK_SPECS, FAR_SPECS, LEAF_SPECS, VEG_MODELS, buildVegModel, vegModelIndex } from '../src/build/vegetation';
@@ -44,7 +45,7 @@ test('vegetation models are deterministic', () => {
 const town = planTown({ seed: 3, size: 0 });
 
 test("the town's trees stand on its props, deterministic, with known models", () => {
-  const a = townTrees(town.cells, town.terrain), b = townTrees(town.cells, town.terrain);
+  const a = townTrees(town.cells, town.terrain, groundOf(town)), b = townTrees(town.cells, town.terrain, groundOf(town));
   assert.ok(a.length > 0 && a.length % FOREST_STRIDE === 0);
   assert.deepEqual(a, b);
   for (let o = 0; o < a.length; o += FOREST_STRIDE) {

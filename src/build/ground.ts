@@ -8,14 +8,13 @@
  * `groundSpecs()` and the `GroundLayer` numbers, so they share the ground material.
  */
 import earcut from 'earcut';
-import { difference, inShape, shapesToPolys, type Shape } from '../geom/clip';
-import { terrainMeshHeight } from './terrainMesh';
+import { difference, shapesToPolys, type Shape } from '../geom/clip';
 import type { Terrain } from '../world/terrain';
 import type { CellPlan } from '../plan/cell';
 import { RoadClass } from '../plan/types';
 import { CURB_H } from '../world/ground';
 import { MeshBuilder, type AttrSpec } from './meshBuilder';
-import { polyBounds, resample, polylineLength } from '../geom/geom2';
+import { resample, polylineLength } from '../geom/geom2';
 import { crossingsOf, markedEnds } from '../plan/crossings';
 import { DriveSurface } from '../plan/drives';
 
@@ -249,43 +248,6 @@ export function cellGround(plan: CellPlan, terrain: Terrain, height: (x: number,
     }
     return best < 0 ? NaN : height(x, z) + lift[best];
   };
-}
-
-/**
- * The height of the drawn ground at (x, z) over the town's cells: the draped surface of a cell there (its
- * height over the terrain: road, kerb-high sidewalk, garden), else the drawn terrain mesh (which lies
- * TERRAIN_DROP under the natural ground). Everything standing on the ground takes its height from here, so
- * nothing floats over the grass or sinks into a sidewalk. Each cell's surfaces are worked out on first use.
- */
-export function townGround(cells: readonly CellPlan[], terrain: Terrain): (x: number, z: number) => number {
-  interface Lay { box: number[]; shapes: { s: Shape; box: number[] }[]; dy: number[] }
-  const lays: (Lay | null)[] = cells.map(() => null);
-  const boxes = cells.map((c) => boxOf(c.carriageway.concat(c.sidewalks, c.blocks, c.plazas, c.parks, c.paved, c.promenade, c.cemeteries)));
-  const cache = new Map<number, number>();
-  const lay = (i: number): Lay => {
-    const shapes: Lay['shapes'] = [], dy: number[] = [];
-    for (const g of groundSurfaces(cells[i])) for (const s of g.shapes) { shapes.push({ s, box: boxOf([s]) }); dy.push(g.dy); }
-    return { box: boxes[i], shapes, dy };
-  };
-  const inBox = (b: number[], x: number, z: number) => x >= b[0] && x <= b[2] && z >= b[1] && z <= b[3];
-  return (x, z) => {
-    for (let i = 0; i < cells.length; i++) {
-      if (!inBox(boxes[i], x, z)) continue;
-      const L = (lays[i] ??= lay(i));
-      for (let k = 0; k < L.shapes.length; k++) if (inBox(L.shapes[k].box, x, z) && inShape(L.shapes[k].s, x, z)) return terrain.height(x, z) + L.dy[k];
-    }
-    return terrainMeshHeight(terrain, x, z, cache);
-  };
-}
-
-/** Bounds [x0, z0, x1, z1] of shapes' outer rings. */
-function boxOf(shapes: readonly Shape[]): number[] {
-  const b = [Infinity, Infinity, -Infinity, -Infinity];
-  for (const s of shapes) {
-    const [ax, az, bx, bz] = polyBounds(s.outer);
-    b[0] = Math.min(b[0], ax); b[1] = Math.min(b[1], az); b[2] = Math.max(b[2], bx); b[3] = Math.max(b[3], bz);
-  }
-  return b;
 }
 
 export function buildGround(plan: CellPlan, terrain: Terrain, origin: [number, number, number]): MeshBuilder {

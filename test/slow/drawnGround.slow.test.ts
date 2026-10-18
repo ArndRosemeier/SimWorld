@@ -24,7 +24,7 @@ import { meshHeights, onStep, wheelContacts } from '../groundCheck';
 /** How far below / above the meshes the drawn ground may say (m): paint lies 4 cm over the carriageway. */
 const BELOW = 0.05, ABOVE = 0.03;
 /** Off what is drawn, over seeds 1-3, when this was written: grid points (bridge parapets, overhanging paint), wheels. */
-const POINTS = 9, WHEELS = 895;
+const POINTS = 5, WHEELS = 400;
 /** Within this far of the town centre (m). */
 const R = 1500;
 

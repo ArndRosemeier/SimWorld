@@ -17,7 +17,6 @@ import { Noise, deriveSeed, hash2i, hash32, hashToFloat, smoothstep } from '@fut
 import { distPointPolyEdge, pointInPoly, polyBounds } from '../geom/geom2';
 import { hedgeOnCol, hedgeOnRow, newLandSample, parcelToWorld, type LandUse } from '../world/landuse';
 import { TERRAIN_DROP } from '../world/ground';
-import { townGround } from './ground';
 import type { Terrain } from '../world/terrain';
 import type { MacroPlan } from '../plan/types';
 import { PropType, type CellPlan } from '../plan/cell';
@@ -227,11 +226,10 @@ const PARK_SPECIES: readonly TreeSpecies[] = ['oak', 'plane', 'birch', 'pine', '
 const WARM_SPECIES: readonly TreeSpecies[] = ['palm', 'cypress', 'pine', 'plane'];
 
 /** Tree records (FOREST_STRIDE) of the town's trees, shrubs, hedges and yews (the cells' `props`). */
-export function townTrees(cells: readonly CellPlan[], terrain: Terrain): Float32Array {
+export function townTrees(cells: readonly CellPlan[], terrain: Terrain, ground: (x: number, z: number) => number): Float32Array {
   const out: number[] = [];
   const warm = terrain.profile.warmth > 0.75;
   const streetSp = warm ? WARM_SPECIES : STREET_SPECIES, parkSp = warm ? WARM_SPECIES : PARK_SPECIES;
-  const ground = townGround(cells, terrain);
   for (const plan of cells) {
     const P = plan.props, seed = plan.id * 7919;
     const cellSpecies = streetSp[seed % streetSp.length];
