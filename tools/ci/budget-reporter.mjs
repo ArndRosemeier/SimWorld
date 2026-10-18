@@ -4,6 +4,9 @@
  * `perFileMs`, the whole run under `totalMs`. A breach fails the run (exit code 1) and names the
  * slowest offenders, so a slow test is moved to test/slow/ or made faster before it can pile up.
  *
+ * With CI_TIMES_OUT=<file> it also writes the timings as JSON (`{ totalMs, tests, files: { file: ms } }`), which
+ * CI compares with main's (tools/ci/suite-diff.mjs) so each PR shows what its tests cost.
+ *
  * Node built-ins only. Used by `npm test` (`--test-reporter=./tools/ci/budget-reporter.mjs`).
  */
 import fs from 'node:fs';
@@ -27,7 +30,6 @@ export function breaches(tests, files, totalMs, budget = BUDGET, scale = SCALE) 
 export default async function* budgetReporter(source) {
   const tests = [];
   const files = new Map();
-  const t0 = performance.now();
   let pass = 0, fail = 0;
   for await (const event of source) {
     if (event.type === 'test:diagnostic' && event.data.nesting === 0) continue;
@@ -46,8 +48,14 @@ export default async function* budgetReporter(source) {
       files.set(file, (files.get(file) ?? 0) + ms);
     }
   }
-  const totalMs = performance.now() - t0;
+  // Since the process started, not since this reporter did: with the test files in one process the reporter can
+  // start reading events only after they ran, so its own start time says nothing about the run (CI showed 0.1 s).
+  // The tests' own time is a floor, so the cap can never be measured away.
+  const totalMs = Math.max(performance.now(), tests.reduce((a, t) => a + t.ms, 0));
   const out = breaches(tests, files, totalMs);
+  if (process.env.CI_TIMES_OUT) {
+    fs.writeFileSync(process.env.CI_TIMES_OUT, JSON.stringify({ totalMs: Math.round(totalMs), tests: tests.length, files: Object.fromEntries([...files].map(([f, ms]) => [f, Math.round(ms)])) }, null, 1));
+  }
   const slowest = [...tests].sort((a, b) => b.ms - a.ms).slice(0, 5);
   yield `${pass} passed, ${fail} failed, ${files.size} files.\n`;
   yield `CI budget (tools/ci/budget.json): ${(totalMs / 1000).toFixed(1)} s of ${(BUDGET.totalMs * SCALE / 1000).toFixed(0)} s. Slowest: ${slowest.map((t) => `${t.name} ${t.ms.toFixed(0)} ms`).join(', ') || 'none'}\n`;
