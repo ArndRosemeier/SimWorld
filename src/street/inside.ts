@@ -8,7 +8,8 @@
  */
 import { A, ACTOR_PERSON } from '../sim/actors';
 import type { FurnUse } from '../interior/types';
-import { householdOf, type World } from '../sim/world';
+import { householdOf, jobOf, type World } from '../sim/world';
+import { isOpen } from '../sim/schedule';
 
 export interface InsidePerson {
   id: number;
@@ -34,6 +35,21 @@ export function whoIsInside(world: World, building: number): InsidePerson[] {
     out.push({ id, place: a.place[id], unit: hh && hh.home === a.place[id] ? unitOf.get(hh.id) ?? -1 : -1, activity: a.activity[id] });
   }
   return out;
+}
+
+/**
+ * Whether building `building`'s street doors open from outside now: `open` its workplace's door (a place in it is open
+ * to visitors, or the player works there), `resident` its homes' door (the player lives there).
+ */
+export function doorAccess(world: World, building: number): { open: boolean; resident: boolean } {
+  const me = world.player?.id ?? -1, home = me >= 0 ? householdOf(world, me)?.home ?? -1 : -1, job = me >= 0 ? jobOf(world, me)?.place ?? -1 : -1;
+  let open = false, resident = false;
+  for (const p of world.graph.places) {
+    if (p.building !== building) continue;
+    if (p.id === home) resident = true;
+    if (!p.homes && (p.id === job || isOpen(world, p.id, world.clock))) open = true;
+  }
+  return { open, resident };
 }
 
 /** A spot of the building (src/interior/indoors.ts IndoorSpot, any height). */

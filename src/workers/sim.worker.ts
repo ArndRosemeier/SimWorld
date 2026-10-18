@@ -19,7 +19,7 @@ import { viewOf, viewTransfers } from '../sim/view';
 import { OUTDOOR, StreetMap } from '../street/streetMap';
 import { windowSlots } from '../street/windows';
 import { stopBoards } from '../street/stops';
-import { whoIsInside } from '../street/inside';
+import { doorAccess, whoIsInside } from '../street/inside';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
@@ -82,7 +82,7 @@ function simJob(m: ToSim): FromSim {
   if (m.type === 'chat') return { type: 'chat', res: chatOp(world, m.req) };
   if (m.type === 'inside') {
     const w = world;
-    return { type: 'inside', people: whoIsInside(w, m.building).map((p) => ({ ...p, info: infoOf(w, p.id), doing: doingOf(w, p.id) })), ms: took() };
+    return { type: 'inside', people: whoIsInside(w, m.building).map((p) => ({ ...p, info: infoOf(w, p.id), doing: doingOf(w, p.id) })), access: doorAccess(w, m.building), ms: took() };
   }
   runTo(m.clock);
   traffic.run(m.clock);

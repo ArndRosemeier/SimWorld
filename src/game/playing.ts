@@ -52,7 +52,10 @@ export class Playing {
   private interior = -1;
   private entering: { code: number; done: Promise<boolean> } | null = null;
 
-  constructor(private readonly sim: SimClient, private readonly cam: CameraControl, private readonly street: Street, private readonly seed: number, private readonly goingIn: GoingInside) {}
+  constructor(private readonly sim: SimClient, private readonly cam: CameraControl, private readonly street: Street, private readonly seed: number, private readonly goingIn: GoingInside) {
+    // The interior's shut doors are solid (src/interior/doors.ts): a set of their own, renewed as they open and shut.
+    goingIn.onDoors((code, shut) => { if (code === this.interior) this.physNow?.setSolids(`d:${code}`, shut); });
+  }
 
   /** Who the player is, null while choosing. */
   get playing(): boolean { return this.panel !== null; }
@@ -192,6 +195,7 @@ export class Playing {
       if (this.interior >= 0 && this.interior !== code) this.closeUp(phys, this.interior);
       this.interior = code;
       phys.setSolids(`b:${code}`, interiorBoxes(ins.indoors, (x, z) => this.sim.standHeight(x, z)), [], ins.indoors.slabs);
+      phys.setSolids(`d:${code}`, this.goingIn.shutBoxes());
       return true;
     });
     this.entering = { code, done };
@@ -209,6 +213,7 @@ export class Playing {
 
   /** Building `code`'s closed walls again (or none, if it is no longer near). */
   private closeUp(phys: Physics, code: number): void {
+    phys.dropSolids(`d:${code}`);
     const b = this.lastNear?.buildings.find((n) => n.code === code);
     if (b) phys.setSolids(`b:${code}`, wallBoxes(b.poly, b.y0, b.y1)); else phys.dropSolids(`b:${code}`);
   }

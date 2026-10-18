@@ -173,9 +173,10 @@ export class SimClient {
     return this.infos.get(id) ?? null;
   }
 
-  /** Who is inside building `building` (a `Place.building` code) now (src/street/inside.ts). */
-  async inside(building: number): Promise<Extract<FromSim, { type: 'inside' }>['people']> {
-    return (await this.pool.run<Extract<FromSim, { type: 'inside' }>>({ type: 'inside', building }, 0)).people;
+  /** Who is inside building `building` (a `Place.building` code) now, and whether its street doors open from outside (src/street/inside.ts). */
+  async inside(building: number): Promise<Pick<Extract<FromSim, { type: 'inside' }>, 'people' | 'access'>> {
+    const r = await this.pool.run<Extract<FromSim, { type: 'inside' }>>({ type: 'inside', building }, 0);
+    return { people: r.people, access: r.access };
   }
 
   /** The game clock reads `clock` now. */

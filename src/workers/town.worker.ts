@@ -14,7 +14,7 @@ import { decorInstances } from '../build/decorProps';
 import { ForestGen, townTrees } from '../build/forest';
 import { buildVegModel } from '../build/vegetation';
 import { facadeSpecs, buildBuildings, buildLandmark, buildingBase, buildingTiers, windowOpenings } from '../build/massing';
-import { INTERIOR_SPECS, buildCutaway, buildIndoors } from '../build/interior';
+import { INTERIOR_SPECS, buildCutaway, buildDoorLeaf, buildIndoors } from '../build/interior';
 import { indoorsOf } from '../interior/indoors';
 import { planInterior, storeyFacade } from '../interior/building';
 import { polyBounds } from '../geom/geom2';
@@ -148,7 +148,8 @@ function handle(m: ToTown): FromTown {
       buildIndoors(mb, I, ind);
       const what = lm ? lm.name : `${b.style} ${b.use}${b.amenity ? ` (${b.amenity})` : ''}`;
       const about = `${what}, ${I.storeys.length} floor${I.storeys.length > 1 ? 's' : ''}, ${I.units.length} home${I.units.length === 1 ? '' : 's'}`;
-      return { type: 'indoors', mesh: out(mb), at: [cx, base, cz], indoors: ind, about, ms: ms() };
+      const leaves = ind.leaves.map((l) => { const lb = new MeshBuilder(INTERIOR_SPECS); buildDoorLeaf(lb, l); return lb.build(); });
+      return { type: 'indoors', mesh: out(mb), at: [cx, base, cz], indoors: ind, leaves, about, ms: ms() };
     }
   }
 }
@@ -157,7 +158,8 @@ function meshesOf(r: FromTown): MeshData[] {
   switch (r.type) {
     case 'cell': case 'country': case 'bridges': return [r.ground, r.buildings].filter((x): x is MeshData => !!x);
     case 'terrain': return [r.mesh];
-    case 'water': case 'landmark': case 'interior': case 'indoors': return r.mesh ? [r.mesh] : [];
+    case 'water': case 'landmark': case 'interior': return r.mesh ? [r.mesh] : [];
+    case 'indoors': return [...(r.mesh ? [r.mesh] : []), ...r.leaves];
     case 'vegModel': return [r.model.wood, r.model.leaves, r.model.far];
     // (propModel: copied, not transferred: the models stay cached in this worker)
     default: return [];

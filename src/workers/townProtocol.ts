@@ -90,6 +90,9 @@ export type FromTown =
   | { type: 'map'; map: TownMap; ms: number }
   /** `at`: the storey's centre (floor level), `radius` its reach; `about`: what the building is, for the HUD. */
   | { type: 'interior'; mesh: MeshData | null; at: [number, number, number]; radius: number; floors: number; about: string; ms: number }
-  /** `mesh`: every storey furnished (origin `at`); `indoors`: its walls, furniture, floors, stairs, doors and spots in world coordinates. */
-  | { type: 'indoors'; mesh: MeshData | null; at: [number, number, number]; indoors: Indoors; about: string; ms: number }
+  /**
+   * `mesh`: every storey furnished (origin `at`); `indoors`: its walls, furniture, floors, stairs, doors and spots in
+   * world coordinates; `leaves`: each of `indoors.leaves` as a mesh in its hinge's frame (src/build/interior.ts buildDoorLeaf).
+   */
+  | { type: 'indoors'; mesh: MeshData | null; at: [number, number, number]; indoors: Indoors; leaves: MeshData[]; about: string; ms: number }
   | { type: 'error'; message: string };
