@@ -19,7 +19,7 @@ function text(v: unknown): string {
   try { return JSON.stringify(v) ?? String(v); } catch { return String(v); }
 }
 
-function keep(kind: string, args: unknown[]): void {
+function logLine(kind: string, args: unknown[]): void {
   const msg = args.map(text).join(' ').slice(0, 400), last = kept[kept.length - 1];
   // The same message over and over counts once, with how often.
   if (last && last.kind === kind && last.msg === msg) { last.n++; return; }
@@ -33,10 +33,10 @@ export function watchConsole(): void {
   installed = true;
   for (const kind of ['error', 'warn'] as const) {
     const orig = console[kind].bind(console);
-    console[kind] = (...args: unknown[]) => { keep(kind, args); orig(...args); };
+    console[kind] = (...args: unknown[]) => { logLine(kind, args); orig(...args); };
   }
-  addEventListener('error', (e) => keep('uncaught', [e.error ?? e.message]));
-  addEventListener('unhandledrejection', (e) => keep('rejected', [e.reason]));
+  addEventListener('error', (e) => logLine('uncaught', [e.error ?? e.message]));
+  addEventListener('unhandledrejection', (e) => logLine('rejected', [e.reason]));
 }
 
 /** The kept lines, oldest first. */

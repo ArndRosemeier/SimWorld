@@ -50,14 +50,11 @@ export function addDebugTools(debug: DebugMenu, c: DebugContext): void {
   debug.addInfo(() => debug.fps());
   debug.addInfo(() => stage.hudLine());
 
-  const report = (): void => openReport(facts(c, debug), async () => {
-    try {
-      return { name: `totaltown-${c.settings.seed}-${Math.floor(sim.clock)}.save.gz`, bytes: await sim.saveFile() };
-    } catch (e) {
-      console.warn('save for the report failed', e);
-      return null;
-    }
-  });
+  // The save for the report (null when the worker cannot make it: the window says so).
+  const report = (): void => openReport(facts(c, debug), () => sim.saveFile().then(
+    (bytes) => ({ name: `totaltown-${c.settings.seed}-${Math.floor(sim.clock)}.save.gz`, bytes }),
+    () => null,
+  ));
   debug.add({ label: 'Report this spot', group: 'Report', run: report, key: { code: 'F8' } });
   // The same text from the console or a headless browser (tools/repro/open.mjs reads it after opening a repro link).
   (globalThis as { debugReport?: () => string }).debugReport = () => reportText(facts(c, debug), '');

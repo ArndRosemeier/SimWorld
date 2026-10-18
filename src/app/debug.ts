@@ -46,7 +46,7 @@ export class DebugMenu {
   constructor() {
     addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.repeat) return;
-      if (e.code === 'F12' && e.ctrlKey && e.shiftKey) { e.preventDefault(); this.toggle(); return; }
+      if (e.code === 'F12' && e.ctrlKey && e.shiftKey) { e.preventDefault(); this.openOrClose(); return; }
       const t = e.target as HTMLElement | null;
       if (t?.closest?.('input, textarea, [contenteditable]')) return;
       const it = this.items.find((i) => i.key && i.key.code === e.code && !!i.key.shift === e.shiftKey && !!i.key.ctrl === e.ctrlKey);
@@ -86,7 +86,7 @@ export class DebugMenu {
 
   get isOpen(): boolean { return this.panel !== null; }
 
-  toggle(): void {
+  openOrClose(): void {
     if (this.panel) this.close(); else this.open();
   }
 
