@@ -52,7 +52,7 @@ test('openrouter transport: key and attribution headers, HTTP errors map to kind
   for await (const c of tr.stream(req)) chunks.push(c);
   assert.equal(seen[0].url, 'https://openrouter.ai/api/v1/chat/completions');
   assert.equal(seen[0].headers.Authorization, 'Bearer sk-test');
-  assert.equal(seen[0].headers['X-Title'], 'SimWorld');
+  assert.equal(seen[0].headers['X-Title'], 'Total Town');
   assert.equal(chunks[1].error?.message, 'provider died');
   await assert.rejects(async () => { for await (const _ of tr.stream(req)) void _; }, (e: LlmError) => e.kind === 'auth' && !e.retryable && e.message === 'bad key');
   await assert.rejects(async () => { for await (const _ of openRouterTransport({ apiKey: '' }).stream(req)) void _; }, (e: LlmError) => e.kind === 'no_key');

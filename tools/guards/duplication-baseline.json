@@ -208,10 +208,6 @@
     "reason": "Each reads its own record's point list `P`; a field name, not a copied step (tipped over the threshold by the traffic sounds' new files)."
   },
   {
-    "key": "idiom: [.fillRect] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
-    "reason": "Canvas 2D fills for three different drawings (map, sign faces, text atlas); the canvas API used, not copied."
-  },
-  {
     "key": "idiom: [.overlap] in simworld/build/decorProps.ts + simworld/street/clearance.ts + simworld/street/streetMap.ts",
     "reason": "Each calls the one footprint overlap test (Footprints.overlap); used, not copied."
   },
@@ -436,7 +432,7 @@
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
   {
-    "key": "idiom: [.save .translate] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "key": "idiom: [.save .translate] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
   {
@@ -528,16 +524,16 @@
     "reason": "WorkerPool.run is the one seam for worker requests; each caller asks its own op."
   },
   {
-    "key": "idiom: [.fillRect .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
-    "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
+    "key": "idiom: [.fillRect .fillStyle] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the title's town at dusk, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
   },
   {
     "key": "idiom: [.find .kind .landmarks] in simworld/plan/signs.ts + simworld/plan/town.ts + simworld/street/streetMap.ts",
     "reason": "Finding a landmark of a kind in the town's list is one Array.find; the town plan, the walkers' map and the signs (the sports ground's works board) each look up the one they need, and a helper would only rename find."
   },
   {
-    "key": "idiom: [.beginPath .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
-    "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the map, the signs' painters (a clock's dial) and the atlas pictures each paint their own shapes; a wrapper would only rename the canvas API."
+    "key": "idiom: [.arc .beginPath .fillStyle] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/render/signPaint.ts",
+    "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the map, the title's moon and trees and the signs' painters (a clock's dial) each paint their own round shapes; a wrapper would only rename the canvas API."
   },
   {
     "key": "idiom: [.lineWidth .strokeStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
@@ -630,5 +626,9 @@
   {
     "key": "same name: simworld/game/inside.ts#update + simworld/traffic/traffic.ts#update",
     "reason": "Unrelated per-frame updates: the building you are in (people, light, doors), and the traffic."
+  },
+  {
+    "key": "idiom: [.addColorStop .createLinearGradient] in simworld/app/title.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar for a gradient: the title's dusk sky and the signs' and atlas pictures' shading each make their own; a wrapper would only rename the canvas API."
   }
 ]
