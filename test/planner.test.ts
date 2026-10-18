@@ -4,11 +4,12 @@ import { planTown, PEOPLE_PER_HOME, VACANT_SHARE } from '../src/plan/town';
 import { placeGraphOf } from '../src/plan/placeGraph';
 import { planCell } from '../src/plan/cell';
 import { crossingsOf, crossingSetback } from '../src/plan/crossings';
-import { isSliver, MIN_FLAT_FLOOR } from '../src/plan/building';
+import { flatsDoor, isSliver, MIN_FLAT_FLOOR } from '../src/plan/building';
+import { frontDoor } from '../src/plan/terrace';
 import { careHomeRooms, siteToWorld } from '../src/plan/landmarks';
 import { amenityCounts } from '../src/plan/amenities';
 import { CARE_ROOMS_PER_PERSON } from '../src/sim/placeKinds';
-import { closestOnPolyline, polyArea } from '../src/geom/geom2';
+import { closestOnPolyline, pointInPoly, polyArea } from '../src/geom/geom2';
 
 // Two towns of different sizes (planning them is the expensive part).
 const towns = [planTown({ seed: 11, size: 1 }), planTown({ seed: 3, size: 0.3 })];
@@ -86,4 +87,17 @@ test('zebra crossings: deterministic, on their street, a little back from the ju
     }
   });
   assert.ok(n > 20, `${n} crossings`);
+});
+
+test('every street door opens outdoors, never into its own or a neighbouring building', () => {
+  let doors = 0;
+  for (const t of towns) for (const c of t.cells) c.buildings.forEach((b, bi) => {
+    const fd = flatsDoor(b);
+    for (const d of fd ? [frontDoor(b), frontDoor(b, fd)] : [frontDoor(b)]) {
+      doors++;
+      const hit = c.buildings.findIndex((o) => pointInPoly(o.poly, d.x, d.z));
+      assert.equal(hit, -1, `cell ${c.id} building ${bi}: its door at ${d.x.toFixed(1)}, ${d.z.toFixed(1)} opens into building ${hit}`);
+    }
+  });
+  assert.ok(doors > 500, `${doors} doors`);
 });

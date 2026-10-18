@@ -17,6 +17,7 @@ import { FURNITURE_SPECS } from '../build/furniture';
 import { VEHICLE_SPECS } from '../build/vehicles';
 import { interiorLook } from './tsl/interior';
 import { precipLook } from './tsl/precip';
+import { smokeLook } from './tsl/smoke';
 import type { MaterialArrays } from './textures';
 import { facadeSpecs } from '../build/massing';
 import { INTERIOR_SPECS } from '../build/interior';
@@ -202,3 +203,20 @@ export const RAIN_SNOW = defineKind('precip', [{ name: 'aDrop', size: 4 }], () =
   precipLook(m);
   return m;
 }, { cast: false, receive: false });
+
+/**
+ * Chimney smoke (src/render/smoke.ts): puff quads per chimney, geometry-instanced (`INSTANCE_SPECS`: iPose the
+ * chimney top, iSize.x the plume's scale), rising and drifting in the shader (src/render/tsl/smoke.ts).
+ * `position` is the puff corner and its place in the round. Unlit, see-through.
+ */
+export const SMOKE_PUFFS = defineKind('smoke', [], () => {
+  const m = new NodeMaterial();
+  m.lights = false;
+  m.fog = false;
+  m.transparent = true;
+  m.depthWrite = false;
+  m.side = DoubleSide;
+  m.forceSinglePass = true; // one pass, as RAIN_SNOW
+  smokeLook(m);
+  return m;
+}, { cast: false, receive: false }, INSTANCE_SPECS);
