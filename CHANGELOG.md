@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.065 — Shop signs, street names and the town sign
+
+- Every shop, café, pub, office and works now has its real name on the front: a painted fascia over the shop window in its own colours and type, a hanging sign by a café's or pub's door, a brass plate by an office door, big letters on a works' wall.
+- The opening hours hang by each shop's door, day by day.
+- Street-name signs stand at the corners of junctions, and public buildings have their name boards out front.
+- "Welcome to" signs with the town's name stand beside the roads into town, with a thank-you on the back.
+- An empty shop unit shows the estate agent's TO LET board on its fascia instead of a name.
+
 ## v0.064 — Choose who to be, and live their life
 
 - When the town has loaded, a picker opens over it: "Who will you be?" Every inhabitant has a card with their work, who they live with and what is going on in their life (recently widowed, new in town, engaged, not speaking to a brother, out of work…). Search by name, job or street, filter by "in love", "has a secret", "grieving" and more, sort by "most going on", or press "Surprise me".
