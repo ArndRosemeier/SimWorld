@@ -18,7 +18,7 @@ import { meet } from '../relations';
 import { go } from '../schedule';
 import { firstName, isPerson, type World } from '../world';
 
-/** Activities a person keeps doing while they talk (a shop assistant serves you; nobody breaks off a lesson). */
+/** Activities a person keeps doing while they talk (a sales assistant serves you; nobody breaks off a lesson). */
 const KEEPS = new Set<number>([A.work, A.school]);
 /** How much of a reply must echo a belief for it to count as passed on (share of the shorter text's words). */
 export const SHARED_OVERLAP = 0.6;
@@ -61,7 +61,7 @@ export function shareInChat(world: World, npc: ActorId, partner: ActorId, reply:
   return told;
 }
 
-/** The reply names the story's people and echoes some of its words: "Jonas lost his job" for "{subject} lost their job at {place}". */
+/** The reply names the story's people and echoes some of its words: "James lost his job" for "{subject} lost their job at {place}". */
 function mentionsAll(world: World, reply: string, subject: ActorId, object: ActorId, text: string): boolean {
   if (subject < 0) return false;
   const low = reply.toLowerCase();

@@ -54,8 +54,8 @@ export interface SignsData {
 
 const BOARD = 'f:signBoard:0', BOARD2 = 'f:signBoard:1';
 
-/** The planner's places as far as signs need them (`placeGraphOf(town).places`; `board`: it has a notice board, BOARD_KINDS). */
-export type SignPlaces = readonly { id: number; kind: string; name: string; building: number; x: number; z: number; board?: boolean }[];
+/** The planner's places as far as signs need them (`placeGraphOf(town).places`). */
+export type SignPlaces = readonly { id: number; kind: string; name: string; building: number; x: number; z: number }[];
 
 /** Notice boards: the wall one and the free-standing one (width, height m; pins across, in two rows under a header). */
 const WALL_BOARD = { w: 1.0, h: 0.75, cols: 3 }, STAND_BOARD = { w: 1.4, h: 0.8, cols: 4 };
@@ -67,7 +67,7 @@ const PIN_OUT = 0.022;
 /** Every sign of the town; `places` are the planner's (`placeGraphOf`), `name` the town's. */
 export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, name: string): SignsData {
   const { terrain } = town;
-  const spots = signSpots(town, roads);
+  const spots = signSpots(town, roads, places);
   const lists = new InstanceLists();
   const what: SignWhat[] = [];
   const say = (w: SignWhat) => what.push(w) - 1;
@@ -131,7 +131,7 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
       addSign(BOARD2, c.x, y + 2.55 + k * 0.24, c.z, b.yaw, 0.96, 0.12, w, [0.95, 0.95, 0.95]);
     });
   }
-  // Notice boards: beside a public building's name board, in a shop's window (or on the wall by its door), on a square.
+  // Notice boards (src/plan/signs.ts `boards`): a cork board with two rows of pinned notices.
   const corks = [say({ t: 'cork', stand: false, slot: 'board' }), say({ t: 'cork', stand: true, slot: 'board' })];
   const board = (place: number, x: number, y: number, z: number, yaw: number, stand: boolean) => {
     const B = stand ? STAND_BOARD : WALL_BOARD;
@@ -145,35 +145,13 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
     }
   };
   const boarded = new Set<number>();
-  const frontOf = new Map(spots.fronts.map((f) => [f.code, f])), siteOf = new Map(spots.sites.map((g) => [SITE + g.site, g]));
-  for (const p of places) {
-    if (!p.board) continue;
-    boarded.add(p.id);
-    const site = siteOf.get(p.building), f = frontOf.get(p.building);
-    if (site) {
-      // Beside the name board (along its +X), on the same kind of legs.
-      const { ax, az } = yawAxes(site.yaw), x = site.x + ax * 1.9, z = site.z + az * 1.9, y = terrain.height(x, z) + CURB_H;
-      addSign('f:signFrame:1', x, y, z, site.yaw, 1, 1, post);
-      board(p.id, x, y + 0.85, z, site.yaw, true);
-    } else if (f) {
-      const { ax, az, nx, nz } = yawAxes(f.yaw);
-      const side = (f.hours.x - f.x) * ax + (f.hours.z - f.z) * az >= 0 ? 1 : -1;
-      if (f.style === 'fascia') {
-        // A shop's cards in its window, away from the door (against the glass: the window's room behind it is painted on the glass).
-        const off = -side * Math.min(1.2, Math.max(0, f.width / 2 - 0.7));
-        board(p.id, f.x + ax * off - nx * 0.04, base(p.building) + 1.25, f.z + az * off - nz * 0.04, f.yaw, false);
-      } else board(p.id, f.hours.x + ax * side * 0.75, base(p.building) + 1.55, f.hours.z + az * side * 0.75, f.yaw, false);
-    } else if (p.building < 0) {
-      // A square's: at its edge by the street, facing the pavement.
-      const hit = roads.nearest(p.x, p.z, 120);
-      if (!hit) continue;
-      const L = roads.lines[hit.li], d = Math.hypot(hit.px - p.x, hit.pz - p.z) || 1, nx = (hit.px - p.x) / d, nz = (hit.pz - p.z) / d;
-      const back = L.width / 2 + Math.max(L.sidewalk, 0) + 1.2;
-      if (d < back) continue;
-      const x = hit.px - nx * back, z = hit.pz - nz * back, y = terrain.height(x, z) + CURB_H, yaw = Math.atan2(-nx, -nz);
-      addSign('f:signFrame:1', x, y, z, yaw, 1, 1, post);
-      board(p.id, x, y + 0.85, z, yaw, true);
-    }
+  for (const bd of spots.boards) {
+    boarded.add(bd.place);
+    if (bd.stand) {
+      const y = terrain.height(bd.x, bd.z) + CURB_H;
+      addSign('f:signFrame:1', bd.x, y, bd.z, bd.yaw, 1, 1, post);
+      board(bd.place, bd.x, y + bd.y, bd.z, bd.yaw, true);
+    } else board(bd.place, bd.x, base(bd.code) + bd.y, bd.z, bd.yaw, false);
   }
   // Notices in shop windows (a shop's opening or closing): low in the window, away from the door.
   for (const f of spots.fronts) {

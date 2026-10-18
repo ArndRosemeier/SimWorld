@@ -6,7 +6,7 @@
  *
  * `?seed=…&size=…` (0 … 1) pick the town; `?tex=…` the texture size in texels (256 default, 512 sharper and slower); `?at=x,z&r=…&h=…&a=…` fix the drone's centre, distance,
  * height and angle (radians) instead of circling, for screenshots. `?inside=<cell>/<building>&floor=…`
- * shows one storey of a building as a cutaway instead (showInside). `?wx=rain` (any weather state) overrides the sky;
+ * shows one storey of a building as a cutaway instead (showInside), `?indoors=<cell>/<index>` stands you inside it (showIndoors). `?wx=rain` (any weather state) overrides the sky;
  * `?rain=0…1`, `?wind=0…1` what the soundscape hears (src/audio/env.ts); `?mute` keeps it silent.
  *
  * The society runs in the sim worker from the start; Enter takes the camera down to the street, where the
@@ -37,6 +37,8 @@ import texWorkerUrl from './workers/tex.worker.ts?worker&url';
 import type { FromTex, ToTex } from './workers/texProtocol';
 import { loadTextures, loadVegetationTextures } from './render/textures';
 import { INTERIOR, useTextures } from './render/materials';
+import { InteriorView } from './render/interiorView';
+import { GoingInside } from './game/inside';
 import { openWhatsNew, VERSION, whatsNewButton } from './app/whatsNew';
 import { Shell } from './app/shell';
 import type { FromTown, ToTown } from './workers/townProtocol';
@@ -50,6 +52,7 @@ import { CameraControl } from './game/camera';
 import { Playing } from './game/playing';
 import { PeopleView } from './render/people/peopleView';
 import { VehiclesView } from './render/vehiclesView';
+import { RailView } from './render/railView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
 import { A, FEMALE, MALE } from './sim/actors';
 import { decorShares, litShares } from './street/windows';
@@ -155,6 +158,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   setParcels(town.parcels);
   const inside = new URLSearchParams(location.search).get('inside');
   if (inside) return showInside(inside, pool, stage, lights, renderer, camera, scene);
+  const indoors = new URLSearchParams(location.search).get('indoors');
+  if (indoors) return showIndoors(indoors, pool, stage, renderer, camera, scene);
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   // What the town sounds like where: one worker works it out alongside the meshes.
   void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { time.region = { region: { coastal: r.map.coastal } }; audio.setTown(r.map); });
@@ -187,6 +192,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const street = new Street(sim, people, settings.seed);
   // The traffic runs in the sim worker beside the world; its vehicles come with every street update.
   const vehicles = new VehiclesView(stage, pool, 70 + town.cells);
+  const rail = new RailView(stage);
 
   // The drone drift: a slow circle around the town, high enough to see it whole (or fixed by ?at=…).
   const q = new URLSearchParams(location.search);
@@ -204,6 +210,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   shell.add({ label: 'Models and key', group: 'Chat', open: () => openLlmSettings(llm) });
   const followId = q.has('follow') ? num('follow', -1) : -1;
   // The picker comes up over the town once it shows; picking someone plays as them (?be=<id> skips the picker).
+  // Going into the building the player's person is in: its interior, the people in it, its room lights.
+  const goingIn = new GoingInside(sim, street, new InteriorView(pool, stage));
   const playing = new Playing(sim, cam, street, settings.seed);
   shell.add({ label: 'Choose who to be', group: 'Play', open: () => void playing.choose() });
   const hud = document.getElementById('hud');
@@ -226,10 +234,12 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     const target = cam.mode === 'follow' ? street.where(cam.following) : null;
     cam.update(dt, t, target);
     const player = cam.mode === 'play' ? playing.track(dt, t, stage.waiting > 0) : null;
+    goingIn.update(t);
     const ground = player ?? (cam.mode === 'drone' ? { x: cx, z: cz } : { x: camera.position.x, z: camera.position.z });
     sim.poll(ground.x, ground.z);
     people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);
     vehicles.show(camera, sim.clock, sim.traffic, sim.parked);
+    rail.animate(camera, dt, sim.clock, sim.crossingPosts, sim.traffic, audio);
     // The sun's shadow covers the whole town from above, the streets around you down there.
     if (cam.mode !== 'drone') fitSunShadow(lights, camera.position.x, camera.position.y, camera.position.z, 70);
     else if (shadowMode !== 'drone') fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
@@ -267,7 +277,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     if (hud) {
       const n = people.counts;
       const talk = cam.mode === 'drone' ? '' : chat.hint();
-      const who = cam.mode === 'play' ? '\nDrag to look around' : cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '' : '\nW A S D walk, drag to look, F follow someone, Esc up';
+      const who = cam.mode === 'play' ? '\nW A S D to walk, Shift to hurry, drag to look around' : cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '' : '\nW A S D walk, drag to look, F follow someone, Esc up';
       const whoTalk = who + (talk ? `\n${talk}` : '');
       hud.textContent = `${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${vehicles.counts.moving} vehicles on the road, ${vehicles.counts.parked} parked · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${whoTalk}`;
     }
@@ -298,6 +308,36 @@ async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage
     camera.lookAt(x, y, z);
     renderer.render(scene, camera);
     if (hud) hud.textContent = `${r.about} · ${stage.hudLine()}`;
+  });
+}
+
+/**
+ * `?indoors=<cell>/<index>` (`index` in the cell's buildings, as `buildingRef` decodes `Place.building`): the whole
+ * building as the game shows it when you are inside (src/render/interiorView.ts), seen at eye height from a step in
+ * through its street door, turning slowly (or fixed with `a=`, radians from looking straight in). `spot=<k>` stands
+ * at the k-th spot instead (a bed, a seat, a desk); `room=0…1` the room light (default 1).
+ */
+async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene): Promise<void> {
+  const q = new URLSearchParams(location.search);
+  const [cell, index] = arg.split('/').map(Number);
+  step('Planning the rooms', 0.5);
+  const view = new InteriorView(pool, stage);
+  const r = await view.enter({ cell, index });
+  if (!r) throw new Error('no interior');
+  view.setRoomLight(Number(q.get('room') ?? 1));
+  // (The fog stays: it is part of every shader's key, and the game keeps it when you go in.)
+  const { indoors: ind } = r, door = ind.doors[0], spot = q.has('spot') ? ind.spots[Number(q.get('spot'))] : undefined;
+  const [x, y, z, look] = spot ? [spot.x, spot.y, spot.z, spot.yaw] : [door.x - door.nx * 1.2, door.y, door.z - door.nz * 1.2, Math.atan2(-door.nx, -door.nz)];
+  const fixed = q.has('a') ? Number(q.get('a')) : null;
+  document.getElementById('loading')?.remove();
+  const hud = document.getElementById('hud');
+  renderer.setAnimationLoop((t: number) => {
+    stage.frame();
+    const a = look + (fixed ?? Math.sin(t * 0.0002) * 1.2);
+    camera.position.set(x, y + 1.6, z);
+    camera.lookAt(x + Math.sin(a), y + 1.45, z + Math.cos(a));
+    renderer.render(scene, camera);
+    if (hud) hud.textContent = `${r.about} · ${ind.colliders.length} colliders, ${ind.ramps.length} flights, ${ind.spots.length} spots · ${stage.hudLine()}`;
   });
 }
 

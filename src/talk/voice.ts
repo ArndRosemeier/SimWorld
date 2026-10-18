@@ -9,6 +9,9 @@
  * - sceptic: conscientious or disagreeable people doubt what they hear.
  * - nerves: neuroticism (hesitations, worry).
  * - swear: mild swearing; the disagreeable and careless, never children.
+ *
+ * One dialect for everyone: region-neutral English (Arnd, 2026-10-18: the world is invented and only western
+ * adjacent, nothing may identify a region). `DIALECT_MARKED` (src/lang/dialect.ts) lists the words that would, for the tests to catch.
  */
 import { hash3i, hashToFloat } from '@futuremagic/core';
 import type { ActorId } from '../sim/actors';
@@ -16,7 +19,6 @@ import { T_AGREE, T_CONSC, T_EXTRA, T_NEURO, T_OPEN } from '../sim/people';
 import { ageOf, traitOf, type World } from '../sim/world';
 
 export type AgeGroup = 'child' | 'teen' | 'young' | 'adult' | 'old';
-export type Dialect = 'uk' | 'us';
 
 export interface Voice {
   id: ActorId;
@@ -30,24 +32,23 @@ export interface Voice {
   sceptic: number;
   nerves: number;
   swear: number;
-  /** A phrase this person keeps using ("mark my words"), or null. */
+  /** A phrase this person keeps using ("if you ask me"), or null; said after an opinion, never after news. */
   pet: string | null;
-  dialect: Dialect;
 }
 
 export const ageGroup = (age: number): AgeGroup => (age < 13 ? 'child' : age < 20 ? 'teen' : age < 35 ? 'young' : age < 68 ? 'adult' : 'old');
 
-/** Pet phrases by age group; about half the people have one. */
+/**
+ * Pet phrases by age group (about a third of the people have one). Each is a tag that fits the end of an opinion
+ * ("Prices keep going up, if you ask me"): nothing that changes what a sentence means ("…, in my day").
+ */
 const PET: Record<AgeGroup, readonly string[]> = {
-  child: ['for real', 'I promise', 'cross my heart', 'it is true'],
-  teen: ['literally', 'no joke', 'for real', 'honestly', 'I swear', 'no lie', 'like, seriously'],
-  young: ['to be fair', 'honestly', 'no joke', 'I swear', 'if you ask me', 'at the end of the day', 'to be honest'],
-  adult: ['mark my words', 'if you ask me', 'at the end of the day', 'to be fair', 'and that is the truth', 'you know what I mean', 'between you and me', 'as it happens', 'to be honest'],
-  old: ['mark my words', 'in my day', 'bless them', 'as sure as eggs is eggs', 'mind you', 'heaven knows', 'if you ask me', 'as it were'],
+  child: [],
+  teen: ['for real', 'no joke', 'seriously'],
+  young: ['for real', 'no joke', 'if you ask me', 'I swear'],
+  adult: ['if you ask me', 'I must say', 'I tell you', 'you know'],
+  old: ['if you ask me', 'I must say', 'I tell you', 'I can tell you'],
 };
-
-/** The dialect of the town. One register since D27 (no British/American switch); the dialect machinery goes with the talk clean-up. */
-export const dialectOf = (_world: World): Dialect => 'uk';
 
 /** The voice of a person (cheap; call it per line). */
 export function voiceOf(world: World, id: ActorId): Voice {
@@ -67,8 +68,7 @@ export function voiceOf(world: World, id: ActorId): Voice {
     sceptic: clamp01(0.4 * c + 0.4 * (1 - a) + 0.2 * o),
     nerves: n,
     swear: group === 'child' ? 0 : clamp01((1 - a) * (1 - c) * 2.2 * (group === 'old' ? 0.5 : group === 'teen' ? 1.2 : 1) + 0.15 * (quirk(4) - 0.5)),
-    pet: quirk(5) < 0.5 ? pets[Math.floor(quirk(6) * pets.length)] : null,
-    dialect: dialectOf(world),
+    pet: pets.length && quirk(5) < 0.35 ? pets[Math.floor(quirk(6) * pets.length)] : null,
   };
 }
 
@@ -76,30 +76,10 @@ const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 /** Hesitations and openers by age group (and nerves): "Well,", "Like,", "Er,". */
 export const FILLERS: Record<AgeGroup | 'nervous', readonly string[]> = {
-  child: ['Um,', 'Hey,', 'Guess what,'],
-  teen: ['Like,', 'So,', 'Okay so', 'Honestly,', 'Wait,'],
-  young: ['So,', 'Well,', 'Honestly,', 'Okay,', 'Right,'],
-  adult: ['Well,', 'You know,', 'Now,', 'Right,', 'So,'],
-  old: ['Well,', 'Oh,', 'Now then,', 'I must say,', 'Well now,'],
+  child: ['Um,', 'Hey,'],
+  teen: ['Like,', 'So,', 'Okay, so', 'Wait,'],
+  young: ['So,', 'Well,', 'Okay,'],
+  adult: ['Well,', 'You know,', 'Now,', 'So,', 'Oh,'],
+  old: ['Well,', 'Oh,', 'Now,', 'Well, now,'],
   nervous: ['Um,', 'Er,', 'I mean,', 'Well, um,'],
 };
-
-/** Words that differ between British and American English, as said in town. */
-const US: readonly [RegExp, string][] = [
-  [/\bmum\b/g, 'mom'], [/\bMum\b/g, 'Mom'], [/\bgran\b/g, 'grandma'], [/\bgrandad\b/g, 'grandpa'],
-  [/\bqueue\b/g, 'line'], [/\bshattered\b/g, 'beat'], [/\bflatmate\b/g, 'roommate'], [/\bBloody hell\b/g, 'Holy crap'],
-  [/\bbloody\b/g, 'damn'], [/\bBlimey\b/g, 'Wow'], [/\bcheers\b/g, 'thanks'], [/\bCheers\b/g, 'Thanks'],
-  [/\bthe sack\b/g, 'fired'], [/\bnicking\b/g, 'stealing'], [/\bmate\b/g, 'buddy'],
-  [/\bholiday\b/g, 'vacation'], [/\bautumn\b/g, 'fall'], [/\bpub\b/g, 'bar'], [/\brubbish\b/g, 'garbage'],
-  [/\bfortnight\b/g, 'two weeks'], [/\bpoorly\b/g, 'sick'], [/\bjumper\b/g, 'sweater'], [/\bbrolly\b/g, 'umbrella'],
-  [/\b([Rr])umour\b/g, '$1umor'], [/\bneighbour/g, 'neighbor'], [/\bcolour/g, 'color'], [/\bfavourite\b/g, 'favorite'],
-  [/\bKnackered\b/g, 'Beat'], [/\bknackered\b/g, 'beat'], [/\b, ta\b/g, ', thanks'], [/\bta\.$/g, 'thanks.'],
-];
-
-/** British phrasing (the banks are written in it) → the town's dialect. */
-export function inDialect(text: string, dialect: Dialect): string {
-  if (dialect === 'uk') return text;
-  let s = text;
-  for (const [re, to] of US) s = s.replace(re, to);
-  return s;
-}

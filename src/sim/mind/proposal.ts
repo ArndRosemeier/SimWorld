@@ -28,7 +28,7 @@ export type ProposableIntention = (typeof PROPOSABLE_INTENTIONS)[number];
 
 /** A claim the NPC heard in the conversation (usually from the player). Becomes a fact + belief if accepted. */
 export interface Claim {
-  /** One-line paraphrase in plain English: "Jonas lost his job at the garage". Used by talk and prompts. */
+  /** One-line paraphrase in plain English: "James lost his job at the garage". Used by talk and prompts. */
   text: string;
   /** Who the claim is about, when it names a known person. */
   about?: ActorId;

@@ -9,6 +9,7 @@
  * Totals are kept as running sums, so trimming old entries (the ledger keeps the newest
  * `maxEntries`) never changes the numbers the player sees.
  */
+import type { DecisionName } from './decide';
 import type { TaskName } from './tasks';
 import type { WireUsage } from './wire';
 import type { ModelEntry } from './roster';
@@ -16,7 +17,7 @@ import type { ModelEntry } from './roster';
 export interface UsageEntry {
   /** Wall-clock ms (Date.now-like, injected). */
   at: number;
-  task: TaskName;
+  task: TaskName | DecisionName;
   /** The roster model asked for. */
   model: string;
   /** The model OpenRouter says answered, when it differs. */

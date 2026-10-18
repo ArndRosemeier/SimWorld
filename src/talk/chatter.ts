@@ -25,12 +25,12 @@ import type { PlaceId } from '../sim/places';
 import { NEED_COUNT, N_FOOD, N_REST, SPECIES } from '../sim/species';
 import { dayOf, minuteOfDay } from '../sim/time';
 import { isCold, isFoul, isHot, isNiceOut, weatherAt } from '../sim/weather';
-import { ageOf, firstName, householdOf, isPerson, jobOf, nameOf, tickRng, type World } from '../sim/world';
+import { ageOf, firstName, householdOf, isPerson, jobOf, lastName, nameOf, tickRng, type World } from '../sim/world';
 import type { ActName } from './acts';
 import { isSeeable } from './facts';
 import { capital, decap, fillSlots, lowerStart, bare, type PickContext, type TalkMemory } from './grammar';
 import { clause, phrase, say, toneOf, voiced } from './realise';
-import { Discourse, familiarity, isDwelling, isFamilyTie, kinWord, namesOf, objectForm, placeName, pronoun, refer, tie } from './refer';
+import { Discourse, familiarity, female, isDwelling, isFamilyTie, kinWord, namesOf, objectForm, placeName, pronoun, refer, reflexive, tie } from './refer';
 import { voiceOf, type Voice } from './voice';
 
 /** One line of an overheard exchange. */
@@ -81,6 +81,16 @@ class Talk {
   private readonly d: Discourse;
   private readonly voices = new Map<ActorId, Voice>();
 
+  /** Who comforts whom at the goodbye after bad news of one's own (the listener of that news). */
+  private comforter: ActorId = -1;
+  /** Regards the listener may send through the teller at the goodbye (set by a story about someone the teller knows). */
+  private regards: { act: ActName; about: Record<string, string | undefined>; teller: ActorId } | null = null;
+
+  /** A question about the story was asked and answered (the goodbye is then plain, not "Just thought you'd like to know"). */
+  private asked = false;
+  /** Who told the story that set the mood (they close it: "Just thought you'd like to know"). */
+  private teller: ActorId = -1;
+
   /** The next topic follows news, so it opens with "Anyway". */
   private segue = false;
 
@@ -98,7 +108,7 @@ class Talk {
     return v;
   }
 
-  private ctx(id: ActorId): PickContext { return { rng: this.rng, memory: this.memory, speaker: id }; }
+  private ctx(id: ActorId): PickContext { return { rng: this.rng, memory: this.memory, speaker: id, listener: this.other(id) }; }
 
   /** Make `who` the speaker of the discourse (pronouns and "you" follow). */
   private as(who: ActorId): void { if (this.d.speaker !== who) this.d.turn(); }
@@ -113,7 +123,9 @@ class Talk {
     this.as(who);
     const v = this.voice(who), ctx = this.ctx(who);
     const all = { ...this.common(who), ...slots };
-    const p = phrase(act, v, ctx, (s) => (!keep || keep(s)) && [...s.matchAll(/\{(\w+)\}/g)].every((m) => all[m[1]] !== undefined));
+    // Nobody says a sentence already said in this exchange ("These things happen." "These things happen.").
+    const fresh = (s: string) => /[[{]/.test(s) || !this.x.lines.some((l) => l.text.includes(s));
+    const p = phrase(act, v, ctx, (s) => (!keep || keep(s)) && fresh(s) && [...s.matchAll(/\{(\w+)\}/g)].every((m) => all[m[1]] !== undefined));
     if (!p) return null;
     let body = fillSlots(p, all);
     // A new topic after the news is marked as one ("Anyway, …").
@@ -123,8 +135,8 @@ class Talk {
       body = s.endsWith(',') ? `${s} ${decap(body, namesOf(this.world))}` : `${s} ${body}`;
       opens = false;
     }
-    // (A pet phrase only on a line that starts something: "…, mark my words" ends an answer oddly.)
-    const text = voiced(body, v, ctx, { names: opens ? namesOf(this.world) : undefined, pet: opens });
+    // (A pet phrase only on an opinion that starts a topic: "…, if you ask me" ends an answer or a story oddly.)
+    const text = voiced(body, v, ctx, { names: opens ? namesOf(this.world) : undefined, pet: opens && OPINION.test(act) });
     this.utter(who, text, -1);
     return text;
   }
@@ -153,7 +165,7 @@ class Talk {
     const fam = w.relations.isFamily(who, to);
     const formal = !fam && ageT >= 25 && (ageW < 16 || (ageW >= 68 && this.voice(who).formality > 0.7 && familiarity(this.world, who, to) < 0.5));
     if (!formal) return firstName(w, to);
-    return `${w.actors.cols.sex[to] === 0 ? 'Mrs' : 'Mr'} ${w.people.last[w.actors.cols.row[to]]}`;
+    return `${female(w, to) ? 'Mrs' : 'Mr'} ${lastName(w, to)}`;
   }
 
   /** Low on rest or mood: "I've been better". */
@@ -167,19 +179,20 @@ class Talk {
     // Bad news to break: no cheery "How are you?" first.
     const grave = [e.told, e.toldBack].some((f) => f >= 0 && ['tragic', 'sad'].includes(toneOf(w.knowledge.facts[f])));
     this.greet(grave);
-    let news = 0, heavy = false;
+    let news = 0, mood: Mood = 'light';
     for (const [teller, listener, f] of [[e.a, e.b, e.told], [e.b, e.a, e.toldBack]] as const) {
       if (f < 0) continue;
-      heavy = this.news(teller, listener, w.knowledge.facts[f], news > 0) || heavy;
+      const m = this.news(teller, listener, w.knowledge.facts[f], news > 0 ? mood : null);
+      if (MOOD_WEIGHT[m] >= MOOD_WEIGHT[mood]) { mood = m; this.teller = teller; }
       news++;
     }
-    // After an argument or sad news nobody turns to the weather.
+    // After an argument or sad news nobody turns to the weather; after news, rarely anyone does.
     // Met already today: less to say.
-    const topics = heavy ? 0 : this.today.met > 0 ? (this.rng.float() < 0.35 && news === 0 ? 1 : 0) : news === 0 ? 1 + (this.rng.float() < (this.voice(e.a).verbosity + this.voice(e.b).verbosity) / 2 ? 1 : 0) : this.rng.float() < 0.1 ? 1 : 0;
+    const topics = news > 0 ? 0 : this.today.met > 0 ? (this.rng.float() < 0.35 ? 1 : 0) : 1 + (this.rng.float() < (this.voice(e.a).verbosity + this.voice(e.b).verbosity) / 2 ? 1 : 0);
     this.segue = news > 0;
     this.smallTalk(topics);
     this.segue = false;
-    this.part(heavy);
+    this.part(mood);
     this.today.met++;
   }
 
@@ -207,18 +220,43 @@ class Talk {
       this.line(e.b, this.low(e.b) ? 'greet.fine.low' : 'greet.fine');
       this.line(e.a, this.low(e.a) ? 'mood.low' : 'greet.fine.back');
       if (this.low(e.a)) this.line(e.b, 'mood.low.reply');
+    } else if (e.told >= 0 && rng.float() < 0.7) {
+      // News on the tip of the tongue: "Morning! Did you hear…" goes on in one breath, no "Hello there." between.
     } else if (rng.float() < 0.8) this.line(e.b, 'greet.reply');
   }
 
-  /** `heavy`: after bad news or an argument ("Well. I'd better get on."). */
-  private part(heavy: boolean): void {
+  /**
+   * A goodbye that fits the mood: gentle after sad news, short after an argument, "Stay safe" after a break-in. The
+   * one who did not speak last starts it, so nobody says "I'm so sorry" and "See you!" in one breath.
+   */
+  private part(mood: Mood): void {
     const { e } = this;
-    if (this.x.lines.length === 0 || this.rng.float() < 0.3) return;
-    const who = this.rng.float() < 0.5 ? e.a : e.b;
+    if (this.x.lines.length === 0) return;
+    // Regards through the teller, when the teller knows the people: "Tell her I said congratulations." "I will."
+    if ((mood === 'told' || mood === 'sad') && this.regards && this.rng.float() < 0.5) {
+      const { act, about, teller } = this.regards;
+      if (this.line(this.other(teller), act, about)) {
+        this.line(teller, 'part.regards.reply', about);
+        return;
+      }
+    }
+    // Most talk just ends where the point was made; what one overhears of a goodbye is mostly "See you" (rated
+    // flat: 21% natural with a stock goodbye against 45% without, Jev 2026-10-18). Comfort is always said.
+    if (mood !== 'comfort' && this.rng.float() < (this.x.lines.length >= 4 ? 0.85 : 0.6)) return;
+    if (mood === 'told' && this.asked) mood = 'light';
+    const last = this.x.lines[this.x.lines.length - 1].speaker;
+    // Comfort comes from the one who heard the bad news, whoever spoke last.
+    const who = mood === 'comfort' && this.comforter >= 0 ? this.comforter : (mood === 'told' || mood === 'sad') && this.teller >= 0 ? this.teller : this.other(last);
+    const back = this.other(who);
     const night = minuteOfDay(this.world.clock) >= 21 * 60 || minuteOfDay(this.world.clock) < 4 * 60;
     if (this.world.actors.cols.home[e.a] === e.place && this.world.actors.cols.home[e.b] === e.place && !night) return;
-    this.line(who, night ? 'part.night' : heavy ? 'part.heavy' : 'part');
-    if (this.rng.float() < 0.7) this.line(this.other(who), night ? 'part.night' : 'part.reply');
+    const act: ActName = mood === 'sad' ? 'part.sad' : mood === 'comfort' ? 'part.comfort' : mood === 'tense' ? 'part.tense' : mood === 'crime' ? 'part.crime' : night ? 'part.night' : mood === 'told' ? 'part.told' : 'part';
+    const said = this.line(who, act);
+    if (this.rng.float() >= 0.7) return;
+    const reply = this.line(back, mood === 'comfort' ? 'part.reply.sad' : mood === 'sad' && who === this.teller ? 'part.reply.told' : night ? 'part.night' : 'part.reply');
+    // The answer never repeats the goodbye word for word ("Bye, then." "Bye, then.").
+    const letters = (t: string) => t.toLowerCase().replace(/[^a-z ]/g, '');
+    if (said && reply && letters(said).endsWith(letters(reply))) this.x.lines.pop();
   }
 
   // ---- news ----
@@ -228,8 +266,11 @@ class Talk {
    * argument over versions, doubt and its defence, "who told you?" and what the listener makes of the source, a
    * question the story raises (answered from the town's agenda where it can be), or a detail from the teller.
    */
-  /** Returns whether the talk turned heavy (an argument, sad news), so it should not drift into small talk. */
-  private news(teller: ActorId, listener: ActorId, f: Fact, also: boolean): boolean {
+  /**
+   * Returns the mood the story leaves (sad news, an argument, a break-in), which decides what follows: no small talk
+   * after a heavy one, and a goodbye that fits. `after`: the mood of a story told just before, or null.
+   */
+  private news(teller: ActorId, listener: ActorId, f: Fact, after: Mood | null): Mood {
     const w = this.world, rng = this.rng;
     this.as(teller);
     const lv = this.voice(listener);
@@ -238,11 +279,14 @@ class Talk {
     // News about the teller's own household is theirs to tell ("we're off to the lakes"), not hearsay.
     const hh = householdOf(w, teller);
     const kin = f.subject >= 0 ? tie(w, teller, f.subject) : null;
-    const self = isAbout(f, teller) || (hh !== null && f.subject >= 0 && householdOf(w, f.subject) === hh) || (tone === 'news' && !!kin && isFamilyTie(kin));
+    // (A housemate's news is anyone's news: only family's is one's own.)
+    const self = isAbout(f, teller) || (hh !== null && f.subject >= 0 && householdOf(w, f.subject) === hh && !!kin && isFamilyTie(kin)) || (tone === 'news' && !!kin && isFamilyTie(kin));
     const said = { source: false };
     // One's own news is announced ("Did I tell you?", "I've got some sad news"), not dropped in.
     const close = !!kin && isFamilyTie(kin);
-    const opener: ActName | true = also ? 'news.open.also' : self || close ? (sad || tone === 'bad' ? 'news.open.sad' : tone === 'news' ? 'news.open.self.small' : self ? 'news.open.self' : true) : true;
+    const heavyBefore = after !== null && after !== 'light' && after !== 'told';
+    const opener: ActName | boolean = after !== null ? (!heavyBefore ? (HEAVY.has(tone) ? 'news.open.turn' : 'news.open.also') : tone === 'good' ? 'news.open.brighter' : 'news.open.also.heavy')
+      : self || close ? (sad || tone === 'bad' ? (isAbout(f, teller) ? 'news.open.self.bad' : 'news.open.sad') : tone === 'news' ? 'news.open.self.small' : tone === 'scandal' || tone === 'crime' ? false : self ? 'news.open.self' : true) : true;
     this.utter(teller, say(w, f, teller, listener, { rng, memory: this.memory, discourse: this.d, opener, said }), f.id);
     const c = w.knowledge.beliefs.cols;
     const r = beliefAbout(w, listener, f.id);
@@ -255,47 +299,64 @@ class Talk {
     const yours = close && (tone === 'good' || bad || tone === 'scandal');
     if (self || yours) {
       const act: ActName = tone === 'scandal' ? 'react.yours.scandal'
-        : self && knew ? (bad ? 'react.yours.bad' : 'react.self.knew') : self ? (tone === 'good' ? 'react.self.good' : bad ? 'react.self.bad' : 'react.self.news')
+        : self && knew ? (bad ? 'react.yours.bad' : 'react.self.knew') : self ? (tone === 'good' ? (isAbout(f, teller) ? 'react.self.good' : 'react.yours.good') : bad ? 'react.self.bad' : AWAY.test(f.text) ? 'react.away.self' : 'react.self.news')
           : tone === 'good' ? 'react.yours.good' : 'react.yours.bad';
       const reply = this.line(listener, act, about) ?? '';
       // "How are you all holding up?" wants an answer, not "Thanks".
       if (act === 'react.yours.scandal') this.line(teller, 'react.yours.scandal.answer');
       else if (bad && /\?$/.test(reply)) this.line(teller, 'react.yours.answer');
-      else if (act !== 'react.self.news' && act !== 'react.self.knew' && rng.float() < 0.6) this.line(teller, 'react.self.close');
-      return bad || tone === 'scandal';
+      else if (act === 'react.away.self') { if (/\?$/.test(reply)) this.line(teller, 'answer.away'); }
+      else if (act !== 'react.self.news' && act !== 'react.self.knew' && rng.float() < (bad ? 0.9 : 0.8)) this.line(teller, bad ? 'react.self.close.bad' : 'react.self.close');
+      if (bad) this.comforter = listener;
+      // (Good news of one's own is not left with "Anyway, I'm off": the goodbye is anyone's.)
+      return bad ? 'comfort' : tone === 'scandal' ? 'tense' : 'light';
     }
     // They hold another version of the story: the distortion shows as an argument.
     // (Not when either of them is the story, or it is the teller's family: they would know.)
-    if (held && held.id !== f.id && !isAbout(held, listener) && !isAbout(f, teller) && !isAbout(f, listener)) return this.versions(teller, listener, f, held, r);
+    // (Nor over family: nobody tells a man that his own grandpa is ill as a correction. Nor with a small child.)
+    const fam = (x: Fact) => x.subject >= 0 && (w.relations.isFamily(x.subject, teller) || w.relations.isFamily(x.subject, listener));
+    if (held && held.id !== f.id && !isAbout(held, listener) && !isAbout(f, teller) && !isAbout(f, listener) && !fam(held) && !fam(f) && ageOf(w, listener) >= 10 && ageOf(w, teller) >= 10) return this.versions(teller, listener, f, held, r) ? 'tense' : moodOf(tone);
     if (knew) {
       this.line(listener, 'react.knew');
       if (rng.float() < 0.5) this.line(teller, 'knew.back');
-      return sad;
+      return sad ? 'sad' : 'told';
     }
     const family = f.subject >= 0 ? tie(w, listener, f.subject) : null;
     if (family && isFamilyTie(family) && tone !== 'news' && tone !== 'event' && tone !== 'politics') {
       const word = kinWord(w, f.subject, family, lv, rng) ?? 'family';
       this.line(listener, tone === 'good' ? 'react.family.good' : tone === 'scandal' ? 'react.family.scandal' : 'react.family.bad', { ...about, tie: word });
       if (tone === 'scandal') this.line(teller, 'family.scandal.back');
-      return tone !== 'good';
+      return tone === 'good' ? 'told' : tone === 'scandal' ? 'tense' : 'sad';
     }
     // A sceptic doubts a story worth doubting, not a holiday or a new job.
-    const doubtful = tone === 'scandal' || tone === 'crime' || tone === 'tragic' || tone === 'sad' || tone === 'bad';
+    // (Nobody says "Come on" to a death or an illness.)
+    const doubtful = tone === 'scandal' || tone === 'crime' || tone === 'bad';
     if (doubtful && lv.sceptic > 0.55 && r >= 0 && c.confidence[r] < 0.55 && rng.float() < 0.7) {
       const byName = about.who !== undefined && (tone === 'scandal' || tone === 'crime') && rng.float() < 0.4;
       this.line(listener, byName ? 'doubt.who' : 'doubt', about);
       this.defend(teller, f);
       if (rng.float() < 0.7) this.line(listener, 'doubt.close');
-      return true;
+      return 'tense';
     }
-    this.line(listener, this.reaction(listener, lv, tone, f), about);
-    this.followUp(teller, listener, f, tone, about, said.source);
+    // A holiday: "Lucky them! How long for?"
+    if (AWAY.test(f.text)) {
+      const reply = this.line(listener, 'react.away', about) ?? '';
+      if (/\?$/.test(reply)) this.line(teller, 'answer.away');
+      return 'told';
+    }
+    const ract = this.reaction(listener, lv, tone, f, about.who !== undefined);
+    this.line(listener, ract, about);
+    // The teller knows them well and the listener knows them: regards may go back with the teller.
+    if ((tone === 'good' || tone === 'sad' || tone === 'bad') && about.who !== undefined && f.subject >= 0 && familiarity(w, teller, f.subject) >= 0.3 && !COUPLE_STORY.test(f.text) && !HOUSEHOLD_STORY.test(f.text))
+      this.regards = { act: tone === 'good' ? 'part.regards.good' : 'part.regards.bad', about, teller };
+    // ("I'd rather not know" asks nothing more.)
+    if (ract !== 'react.scandal.prim') this.followUp(teller, listener, f, tone, about, said.source);
     if (f.secret && rng.float() < 0.6) {
       this.line(teller, 'secret.close');
       if (rng.float() < 0.6) this.line(listener, 'secret.reply');
     }
     // A break-in or a lost job leaves no room for "I'm in a good mood today".
-    return sad || tone === 'crime' || tone === 'bad' || tone === 'scandal';
+    return moodOf(tone);
   }
 
   /** Two versions of one story meet. Returns whether they argued. */
@@ -361,16 +422,20 @@ class Talk {
   private followUp(teller: ActorId, listener: ActorId, f: Fact, tone: ReturnType<typeof toneOf>, about: Record<string, string | undefined>, sourced: boolean): void {
     const rng = this.rng, lv = this.voice(listener), tv = this.voice(teller);
     const roll = rng.float();
-    const question = this.storyQuestion(f);
+    // (Asking about the funeral or the wedding is for people who know them.)
+    // (A small child asks nothing about a death or an illness.)
+    const question = ageOf(this.world, listener) < 8 && (tone === 'tragic' || tone === 'sad') ? null : this.storyQuestion(f, about.who !== undefined);
     // "Who told you?" only when the teller did not say.
-    if (roll < 0.15 + 0.3 * lv.gossip) { if (!sourced && this.canSay(teller, f)) this.askSource(teller, listener, f); return; }
-    if (question && roll < 0.55 + 0.2 * lv.warmth) { this.answerQuestion(teller, listener, f, question, about); return; }
+    // "Says who?" is for gossip and trouble (never a death); a nice story is mostly just taken.
+    const asks = tone === 'scandal' || tone === 'bad' ? 0.15 + 0.3 * lv.gossip : 0.05 + 0.1 * lv.gossip;
+    if (roll < asks) { if (!sourced && tone !== 'tragic' && tone !== 'sad' && this.canSay(teller, f)) this.askSource(teller, listener, f); return; }
+    if (question && roll < asks + 0.8 + 0.15 * lv.warmth) { this.answerQuestion(teller, listener, f, question, about); return; }
     if (roll < 0.35 + 0.25 * tv.verbosity) {
       // "At the Crown, of all places" is worth saying; "at a house on Elm Street" is not.
       const at = f.place >= 0 && (tone === 'scandal' || tone === 'crime') && !/\{place\}/.test(f.text) && !isDwelling(this.world, f.place) ? f.place : -1;
       const ago = this.ago(teller, f);
       if (at >= 0 && rng.float() < 0.5) this.line(teller, 'detail.place', { P: placeName(this.world, at, this.d) });
-      else if (ago && tone !== 'news' && tone !== 'good') this.line(teller, 'detail.heard', { ago });
+      else if (ago && RECENT.has(ago) && tone !== 'news' && tone !== 'good') this.line(teller, 'detail.heard', { ago });
       else return;
       if (rng.float() < 0.5) this.line(listener, 'detail.ack');
     }
@@ -398,18 +463,20 @@ class Talk {
 
   private askSource(teller: ActorId, listener: ActorId, f: Fact): void {
     const w = this.world;
-    this.line(listener, 'ask.source');
+    // "Who told you?" is answered with a who, "Where did you hear that?" with where it came from.
+    const form = this.rng.float() < 0.5 ? 'who' : 'where';
+    this.line(listener, form === 'who' ? 'ask.source.who' : 'ask.source.where');
     const r = beliefAbout(w, teller, f.id);
     const src = r >= 0 ? w.knowledge.beliefs.cols.source[r] : -1;
     if (src === SOURCE_WITNESSED) { this.line(teller, 'answer.witnessed'); return; }
     if (src >= 0 && isAbout(f, src)) {
       // "He told me himself" only when "he" is clear; "the Gerbers are away" leaves it open, so the name.
       const np = this.d.clear(w, src) ? pronoun(w, src, 'subj') : this.sourceSlots(teller, src, true).src;
-      this.line(teller, 'answer.source.self', { Pro: capital(np), pro: np, self: w.actors.cols.sex[src] === 0 ? 'herself' : 'himself' });
+      this.line(teller, form === 'who' ? 'answer.source.self' : 'answer.source.self.where', { Pro: capital(np), pro: np, pro_obj: objectForm(np), self: reflexive(w, src) });
       return;
     }
     if (src >= 0 && src !== listener && !(f.secret && this.rng.float() < 0.5)) {
-      this.line(teller, 'answer.source', this.sourceSlots(teller, src, true));
+      this.line(teller, form === 'who' ? 'answer.source.who' : 'answer.source.where', { ...this.sourceSlots(teller, src, true), todl: undefined });
       // What the listener makes of that source: their own trust in them, if they know them.
       const tr = w.relations.row(listener, src);
       if (tr < 0 || familiarity(this.world, listener, src) < 0.2) { if (this.rng.float() < 0.5) this.line(listener, 'source.neutral'); return; }
@@ -422,26 +489,24 @@ class Talk {
     if (this.rng.float() < 0.5) this.line(listener, 'source.vague.back');
   }
 
-  /** The question a story raises, if any. */
-  private storyQuestion(f: Fact): 'funeral' | 'wedding' | 'jobless' | 'ill' | 'baby' | null {
-    if (f.subject < 0) return null;
-    const t = f.text;
-    if (/^\{subject\} died$/.test(t)) return 'funeral';
-    if (/got engaged$/.test(t)) return 'wedding';
-    if (/lost their job/.test(t)) return 'jobless';
-    if (/seriously ill|taken to hospital/.test(t)) return 'ill';
-    if (/had a baby$/.test(t) && f.object >= 0) return 'baby';
+  /** The question a story raises, if any (see `QUESTIONS`). */
+  private storyQuestion(f: Fact, known: boolean): string | null {
+    for (const q of QUESTIONS) {
+      if (!q.re.test(f.text) || (q.known && !known) || (q.object && f.object < 0)) continue;
+      return typeof q.q === 'string' ? q.q : q.q[this.rng.int(0, q.q.length - 1)];
+    }
     return null;
   }
 
   /** The listener asks what the story raises; the teller answers from what the town knows (the agenda, the baby). */
-  private answerQuestion(teller: ActorId, listener: ActorId, f: Fact, q: NonNullable<ReturnType<Talk['storyQuestion']>>, about: Record<string, string | undefined>): void {
+  private answerQuestion(teller: ActorId, listener: ActorId, f: Fact, q: string, about: Record<string, string | undefined>): void {
     const w = this.world;
     const asked = this.line(listener, `ask.${q}` as ActName, about);
     if (!asked) return;
     if (q === 'baby') {
-      const kid = w.actors.cols.sex[f.object] === 0 ? 'girl' : 'boy';
+      const kid = female(w, f.object) ? 'girl' : 'boy';
       this.line(teller, 'answer.kid', { kid, Kid: capital(kid) });
+      this.asked = true;
       if (this.rng.float() < 0.6) this.line(listener, 'answer.kid.close');
       return;
     }
@@ -450,13 +515,22 @@ class Talk {
       if (occ) {
         const when = this.when(occ);
         this.as(teller);
+        this.asked = true;
         this.line(teller, 'answer.when', { when, When: capital(when), P: occ.place >= 0 ? placeName(w, occ.place, this.d) : undefined });
         if (this.rng.float() < 0.6) this.line(listener, 'answer.when.close');
         return;
       }
     }
-    this.line(teller, 'answer.dunno');
-    if (this.rng.float() < 0.5) this.line(listener, 'answer.dunno.close');
+    if (q === 'funeral' || q === 'wedding') {
+      this.line(teller, 'answer.dunno');
+      if (this.rng.float() < 0.5) this.line(listener, 'answer.dunno.close');
+      return;
+    }
+    // The answer never claims more than the town knows ("Nobody's said", "They're looking").
+    const answer = this.line(teller, `answer.${q}` as ActName, about);
+    if (!answer) return;
+    this.asked = true;
+    if (this.rng.float() < 0.6) this.line(listener, DUNNO.test(answer) && !/^close\.(ill|illwhat|sudden|caught|what|about)$/.test(`close.${q}`) ? 'close.dunno' : `close.${q}` as ActName, about);
   }
 
   /** A funeral or wedding on the agenda about `who`, in the next weeks. */
@@ -465,14 +539,15 @@ class Talk {
     return null;
   }
 
-  private reaction(listener: ActorId, v: Voice, tone: ReturnType<typeof toneOf>, f: Fact): ActName {
+  /** The reaction to a story: by its tone, and by whether the listener knows who it is about (`known`). */
+  private reaction(listener: ActorId, v: Voice, tone: ReturnType<typeof toneOf>, f: Fact, known: boolean): ActName {
     switch (tone) {
-      case 'tragic': return 'react.tragic';
-      case 'sad': return 'react.sad';
-      case 'bad': return 'react.bad';
+      case 'tragic': return known ? 'react.tragic' : 'react.tragic.far';
+      case 'sad': return known ? 'react.sad' : 'react.sad.far';
+      case 'bad': return known ? 'react.bad' : 'react.bad.far';
       case 'good': {
         const r = f.subject >= 0 ? this.world.relations.row(listener, f.subject) : -1;
-        return r >= 0 && this.world.relations.t.cols.affection[r] < -0.3 ? 'react.good.grudging' : 'react.good';
+        return r >= 0 && this.world.relations.t.cols.affection[r] < -0.3 ? 'react.good.grudging' : known ? 'react.good' : 'react.good.far';
       }
       case 'scandal': return v.gossip > 0.5 || (v.formality < 0.6 && v.warmth < 0.7) ? 'react.scandal.gossip' : 'react.scandal.prim';
       case 'crime': return 'react.crime';
@@ -486,9 +561,16 @@ class Talk {
   private aboutSlots(listener: ActorId, f: Fact): Record<string, string | undefined> {
     const s = f.subject;
     if (s < 0 || s === listener || this.world.actors.cols.kind[s] !== ACTOR_PERSON) return {};
+    // A story about a household ("the Horns got a cat") is about them, not about him.
+    // So is a couple's ("Good for them!", not "Good for Robert!").
+    if (HOUSEHOLD_STORY.test(f.text) || COUPLE_STORY.test(f.text)) return { pro: 'they', Pro: 'They', pro_obj: 'them', is: 'are' };
     const known = familiarity(this.world, listener, s) >= 0.15 || this.d.mentioned(s);
+    // "Poor Valerie" only when the teller said "Valerie", or the listener knows her well ("the Rhodes kid" stays "her").
+    const told = this.x.lines[this.x.lines.length - 1]?.text ?? '';
+    const name = firstName(this.world, s);
+    const named = new RegExp(`\\b${name}\\b`).test(told) || familiarity(this.world, listener, s) >= 0.45;
     return {
-      who: known ? firstName(this.world, s) : undefined,
+      who: known && named ? name : undefined,
       pro: pronoun(this.world, s, 'subj'), Pro: capital(pronoun(this.world, s, 'subj')), pro_obj: pronoun(this.world, s, 'obj'), is: 'is',
     };
   }
@@ -690,8 +772,77 @@ class Talk {
   }
 }
 
+/** What a story leaves behind: light, sad, a comforting goodbye (bad news of one's own), tense (an argument), a crime. */
+type Mood = 'light' | 'told' | 'sad' | 'comfort' | 'tense' | 'crime';
+const MOOD_WEIGHT: Record<Mood, number> = { light: 0, told: 1, crime: 2, tense: 3, sad: 4, comfort: 5 };
+const moodOf = (tone: ReturnType<typeof toneOf>): Mood => (tone === 'tragic' || tone === 'sad' ? 'sad' : tone === 'crime' ? 'crime' : tone === 'scandal' || tone === 'bad' ? 'tense' : 'told');
+/** Whether a story is heavy (a light opener or a cheery goodbye would clash with it). */
+const HEAVY: ReadonlySet<string> = new Set(['tragic', 'sad', 'bad', 'crime']);
+
+/**
+ * The question a kind of story raises, first match wins: `ask.<q>` from the listener, `answer.<q>` from the teller,
+ * maybe `close.<q>` from the listener. `known`: only asked about people the listener knows (the funeral, the date).
+ * Answers claim nothing the sim does not know. Talk that asks and answers is what sounds like people (Jev rated it
+ * 4.1-4.4 against 2.5-3.3 for news, "Oh dear", goodbye; 2026-10-18).
+ */
+const QUESTIONS: readonly { re: RegExp; q: string | readonly string[]; known?: boolean; object?: boolean }[] = [
+  { re: /^\{subject\} died$/, q: 'funeral', known: true },
+  { re: /^\{subject\} died$/, q: 'sudden' },
+  { re: /^\{object\}'s \w+ \{subject\} (died|never came home)$/, q: 'taking' },
+  { re: /seriously ill|taken to hospital/, q: ['ill', 'illwhat'] },
+  { re: /lost their job/, q: 'jobless' },
+  { re: /quit their job/, q: 'why' },
+  { re: /got a job at/, q: ['started', 'enjoying'] },
+  { re: /retired from/, q: 'retired' },
+  { re: /got engaged$/, q: 'wedding', known: true },
+  { re: /got married$/, q: ['married', 'marriedwhen'] },
+  { re: /is going out with|moved in with/, q: 'since' },
+  { re: /seen with someone new/, q: 'withwho' },
+  { re: /split up|getting divorced/, q: 'what' },
+  { re: /is (pregnant|expecting)/, q: ['due', 'having'] },
+  { re: /had a baby$/, q: 'baby', object: true },
+  { re: /moved out of their parents/, q: 'whereto' },
+  { re: /moved into a care home/, q: 'taking' },
+  { re: /and family are moving away|moved away to/, q: 'whyleave' },
+  { re: /^new people moved into/, q: 'newpeople' },
+  { re: /broke into .*house/, q: 'took' },
+  { re: /^someone (stole|sprayed|broke into a car)|stole from|sprayed graffiti/, q: 'caught' },
+  { re: /fight with|shouting match/, q: 'about' },
+  { re: /dog bit/, q: 'bitten' },
+  { re: /called the police/, q: 'police' },
+  { re: /has gone missing$/, q: ['look', 'gone'] },
+  { re: /came home on its own$/, q: 'wherebeen' },
+  { re: /found \{subject\}, the missing/, q: 'wherefound' },
+  { re: /^\{subject\} won /, q: 'won' },
+  { re: /give up their home/, q: 'whereto' },
+  { re: /has closed down$/, q: 'closed' },
+  { re: /^a new .+ is opening on/, q: 'opening' },
+  { re: /^\{subject\} got an? \w+$/, q: ['petname', 'petseen'] },
+  { re: /^\{subject\} moved into \{place\}$/, q: 'movednice' },
+  { re: /^\{subject\} is the new /, q: 'office' },
+  { re: / is holding its /, q: 'event' },
+];
+
+/** Answers that say nothing ("I didn't ask", "No idea"): what follows cannot build on them. */
+const DUNNO = /^(I'm not sure|I don't know|No idea|I didn't ask|Nobody|Not yet|I haven't|If they do|I couldn't|Couldn't|Who knows)/;
+
+/** A household away on a trip. */
+const AWAY = /^\{subject\}'s family are away/;
+
+/** Stories about two people as a pair. */
+const COUPLE_STORY = /got engaged$|got married$|is going out with|moved in with|split up$|getting divorced$/;
+
+/** Stories about a whole household (said "the Kellers …"). */
+const HOUSEHOLD_STORY = /\{subject\}'s family are away|\{subject\} and family|^\{subject\} got an? \w+$/;
+
+/** "I only heard this morning" is worth saying about fresh news only. */
+const RECENT: ReadonlySet<string> = new Set(['just now', 'this morning', 'earlier today', 'last night', 'yesterday']);
+
+/** Openers of small talk that state an opinion (they may end in the speaker's pet phrase). */
+const OPINION = /^(weather\.(rain|drizzle|storm|snow|ice|cold|hot|nice|fog|grey|windy|mild)|place\.\w+\.(good|moan)|season\.\w+)$/;
+
 const HOLIDAY_ACT: Partial<Record<string, ActName>> = {
-  christmas: 'holiday.christmas', boxingDay: 'holiday.christmas', christmasEve: 'holiday.christmasEve', newYear: 'holiday.newYear',
+  christmas: 'holiday.christmas', dayAfterChristmas: 'holiday.christmas', christmasEve: 'holiday.christmasEve', newYear: 'holiday.newYear',
   newYearsEve: 'holiday.newYearsEve', easter: 'holiday.easter', easterMonday: 'holiday.easter', halloween: 'holiday.halloween',
   summerFestival: 'holiday.summerFestival', christmasMarket: 'holiday.christmasMarket',
 };
@@ -732,7 +883,7 @@ function little(world: World, e: Encounter, x: Exchange, rng: Rng, memory: TalkM
   const tot = big === e.a ? e.b : e.a;
   const own = householdOf(world, tot) !== null && householdOf(world, tot) === householdOf(world, big);
   const v = voiceOf(world, big), ctx = { rng, memory, speaker: big };
-  const text = fillSlots(phrase(own ? 'little.own' : 'little', v, ctx), { name: firstName(world, tot), boy: world.actors.cols.sex[tot] !== 0 ? 'boy' : 'girl' });
+  const text = fillSlots(phrase(own ? 'little.own' : 'little', v, ctx), { name: firstName(world, tot), boy: female(world, tot) ? 'girl' : 'boy' });
   x.lines.push({ speaker: big, text: voiced(text, v, ctx, { pet: false }), fact: -1 });
 }
 

@@ -1,5 +1,53 @@
 # Changelog
 
+## v0.101 — Names, jobs and holidays fit the invented world
+
+- People now have English-sounding names: the German-sounding given names and surnames are gone (Lena, Jonas, Schmidt, Becker and the like).
+- Job titles no longer point to one country: the principal, the school maintenance worker, the pub owner, a dental assistant, the postal worker, newspaper delivery, care workers, the supermarket manager and stock workers.
+- School breaks are called breaks (the winter, Easter, May, summer, October and Christmas breaks), and 26 December is "the day after Christmas".
+- Families go "away on a trip" instead of "on holiday", and people say they live in "an apartment" on a street.
+
+## v0.100 — Steer the person you play
+
+- When you pick someone, you take over their body straight away: W A S D to walk, Shift to hurry, drag the mouse to look around. The camera stays close behind them.
+- You walk on the real ground and step up kerbs. Buildings, posts, trees and parked cars stop you, and you slide along walls.
+- Someone at home steps out of their front door when you take over. Walking into houses comes with the interiors.
+- Their routine pauses while you steer. "Autopilot on" hands them back, and pressing a walking key on autopilot takes over again on the spot.
+- Skipping time hands your person to their routine for the skipped days, then gives them back to you.
+
+## v0.099 — Interiors you can go into
+
+- A whole building's interior can now be loaded and drawn while you are inside it: every storey furnished, with the outer walls, the street door open, floors, ceilings and stairs.
+- Walls, furniture, stairs and floors come with collision shapes for walking; going in builds no new shaders.
+- The rooms' light can be turned up and down (for lamps on at night).
+- For testing: `?indoors=<cell>/<index>` stands you inside a building.
+- The people in the building are there: each family in its own home, at their seats and desks (lying in bed comes with the people's poses).
+- The room lights come on when it is dark or gloomy and someone inside is awake.
+
+## v0.098 — People walk round sign posts
+
+- Street-name posts, estate agents' posts, name and notice boards and the town signs now count as obstacles: people on the pavement step round them instead of walking through.
+- Street-name posts stand in the strip along the kerb with the street lamps, leaving the pavement clear for walking.
+
+## v0.097 — Overheard talk sounds more like people
+
+- People ask about the news they hear and get answers that fit: "Boy or girl?", "Is it serious?", "Did they catch anyone?", "How long have they been together?".
+- The same piece of news no longer goes round the whole town all day; small news like a family's trip is only passed on to people who know them.
+- Goodbyes fit the news: no cheery "See you!" after sad news, and often a "Tell her I said congratulations" instead of a stock goodbye.
+- Children talk like children and are kept out of grown-up gossip.
+- Everyone speaks one plain English with no words that point to a real country.
+
+## v0.096 — Level crossing barriers, lamps and train sounds
+
+- The level crossings on the country roads have barrier posts on both sides: when a train comes the red lamps flash in turn, the bells ring, and the striped arms come down across the road; they rise again once the train has gone.
+- Trains sound their horn as they near a crossing, and rush past with a roar when you stand close to the line.
+
+## v0.095 — Sign words that fit the invented town
+
+- Every word on the town's boards and street furniture now comes from the town's shared word list: estate boards say FOR RENT and FOR SALE with "Call to view", door cards say OPENING HOURS, notice boards say NOTICES.
+- Street-name signs have the town's own look, cream letters on slate, instead of a real country's colours.
+- The kiosk says NEWS, and the traffic-light masts carry a "Town Hall →" sign instead of a stock street name.
+
 ## v0.094 — Chimney smoke follows who is home
 
 - A house whose people are all out or asleep has its heating turned down, so its chimney smokes less often. Houses with someone up and about smoke the most.

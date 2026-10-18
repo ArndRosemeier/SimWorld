@@ -130,7 +130,7 @@ export const DEFAULT_LATITUDE = 51;
 // ---- holidays --------------------------------------------------------------------------------------------
 
 export type HolidayKind =
-  | 'newYear' | 'goodFriday' | 'easter' | 'easterMonday' | 'halloween' | 'christmasEve' | 'christmas' | 'boxingDay'
+  | 'newYear' | 'goodFriday' | 'easter' | 'easterMonday' | 'halloween' | 'christmasEve' | 'christmas' | 'dayAfterChristmas'
   | 'newYearsEve' | 'summerFestival' | 'christmasMarket';
 
 export interface Holiday {
@@ -158,7 +158,7 @@ const FIXED: Record<string, Holiday> = {
   '10-31': holiday('halloween', 'Halloween', false),
   '12-24': holiday('christmasEve', 'Christmas Eve', false),
   '12-25': holiday('christmas', 'Christmas Day', true),
-  '12-26': holiday('boxingDay', 'Boxing Day', true),
+  '12-26': holiday('dayAfterChristmas', 'the day after Christmas', true),
   '12-31': holiday('newYearsEve', "New Year's Eve", false),
 };
 const GOOD_FRIDAY = holiday('goodFriday', 'Good Friday', true);
@@ -253,7 +253,7 @@ function nthMonday(year: number, month: number, n: number): number {
 }
 
 /**
- * The school holidays of the year starting in `year` (a typical western pattern): a week in February, two weeks
+ * The school breaks of the year starting in `year` (a typical western pattern): a week in February, two weeks
  * around Easter, a week at the end of May, six weeks in summer, a week at the end of October and two at Christmas.
  * Each is [first day, last day] in days since 1970.
  */
@@ -262,12 +262,12 @@ export function schoolHolidays(year: number): [string, number, number][] {
   const summer = mondayOf(daysOf(year, 7, 24));
   const xmas = mondayOf(daysOf(year, 12, 22));
   return [
-    ['the winter half-term', nthMonday(year, 2, 3) - 2, nthMonday(year, 2, 3) + 6],
-    ['the Easter holidays', ed - 8, ed + 7],
-    ['the May half-term', nthMonday(year, 5, -1) - 2, nthMonday(year, 5, -1) + 6],
-    ['the summer holidays', summer - 2, summer + 6 * 7 - 1],
-    ['the autumn half-term', nthMonday(year, 10, -1) - 2, nthMonday(year, 10, -1) + 6],
-    ['the Christmas holidays', xmas - 2, mondayOf(daysOf(year + 1, 1, 7)) - 1],
+    ['the winter break', nthMonday(year, 2, 3) - 2, nthMonday(year, 2, 3) + 6],
+    ['the Easter break', ed - 8, ed + 7],
+    ['the May break', nthMonday(year, 5, -1) - 2, nthMonday(year, 5, -1) + 6],
+    ['the summer break', summer - 2, summer + 6 * 7 - 1],
+    ['the October break', nthMonday(year, 10, -1) - 2, nthMonday(year, 10, -1) + 6],
+    ['the Christmas break', xmas - 2, mondayOf(daysOf(year + 1, 1, 7)) - 1],
   ];
 }
 
