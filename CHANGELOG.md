@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.078 — The council's traffic rules on the roads
+
+- When the council passes the 30 km/h limit through the centre, cars on the centre's faster roads slow to 30.
+- Once the bypass round the town is open, most through traffic goes round the town instead of through it.
+- When parking in the centre costs money, fewer people from the region drive in to shop.
+
+## v0.077 — An invented world
+
+- Recorded Arnd's setting rule: the town lies in a made-up, western-adjacent country with right-hand traffic and English names, and nothing in it points to a real region.
+- Prices, licence plates, phone numbers, school grades and words that differ between British and American English all follow one set of conventions.
+
 ## v0.076 — Place and business names fit an invented western town
 
 - Shop signs and landmark names no longer point to one country: a Mini Market instead of a Corner Shop, a Second-hand Shop, Food to Go, a Property Agency, Funeral Services, a Fuel Station, and church names without "Parish Church".
