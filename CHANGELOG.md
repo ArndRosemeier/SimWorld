@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.149 — One door per doorway
+
+- A house's front door is one door now. The painted door on the outside wall no longer shows behind or above the real one, and when the real door opens you see the street, not a second door.
+- Painted doors are the same size as the real ones, so nothing changes shape when you walk up to a house.
+- Flats over a shop always have their own working street door where one is drawn on the front; where no hall to the stairs fits, it opens into the shop and its stairs.
+
 ## v0.148 — Inside the town hall and the farms
 
 - The town hall has a way in now: a wide front door opens on the hall with the public counters, the council chamber (the bench for the mayor and the clerks, the councillors' desks facing it), offices, a meeting room and toilets, with more offices upstairs. Whoever works or has business there is inside when you take them over.
