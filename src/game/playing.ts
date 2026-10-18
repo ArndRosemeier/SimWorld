@@ -145,7 +145,8 @@ export class Playing {
     const current = this.panel ? this.cards.find((c) => c.id === this.panel!.card.id) ?? null : null;
     this.picker = new Picker(this.cards, {
       seed: this.seed, current,
-      onPick: (c) => void this.become(c),
+      clock: () => this.sim.clock,
+      onPick: (c, ahead) => this.becomeLater(c, ahead),
       onClose: current ? () => this.closePicker() : undefined,
     });
     document.body.append(this.picker.root);
@@ -156,6 +157,20 @@ export class Playing {
     this.picker?.root.remove();
     this.picker = null;
     this.panel?.root.classList.remove('pl-hidden');
+  }
+
+  /**
+   * Become `card`'s person `ahead` minutes from now (the picker's slider): the town lives the time up to then (whoever
+   * you were goes back to their routine for it), then you take over wherever they are.
+   */
+  private async becomeLater(card: InhabitantCard, ahead: number): Promise<void> {
+    if (ahead > 0) {
+      this.dropAvatar();
+      this.goOut();
+      if (this.sim.player?.alive && !this.sim.player.autopilot) await this.sim.ask({ op: 'autopilot', on: true });
+      await this.sim.skip(ahead);
+    }
+    await this.become(card);
   }
 
   /** Become `card`'s person: on autopilot at first, so they carry on with their day while the camera arrives. */
