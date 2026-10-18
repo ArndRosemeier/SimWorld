@@ -62,6 +62,8 @@ import { Chat } from './chat';
 import { LlmSetup } from './llmSetup';
 import { openLlmSettings } from '../app/llmSettings';
 import { CameraControl } from './camera';
+import { Bubbles, type HeadOf } from '../app/bubbles';
+import type { Figure } from '../render/people/peopleView';
 import { Playing } from './playing';
 import { PeopleView } from '../render/people/peopleView';
 import { VehiclesView } from '../render/vehiclesView';
@@ -216,6 +218,16 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   } });
   shell.add({ label: "What's new", group: 'Game', open: openWhatsNew, note: () => VERSION });
   const street = new Street(sim, people, settings.seed);
+  // Speech bubbles over the people talking near you (src/street/talk.ts → src/app/bubbles.ts).
+  const bubbles = new Bubbles();
+  document.body.append(bubbles.root);
+  const talkHeads = new Map<number, Figure>();
+  const headOf: HeadOf = (id) => {
+    const f = talkHeads.get(id);
+    return f ? { x: f.x, y: people.headTop(id) ?? f.y + 1.85, z: f.z } : null;
+  };
+  sim.onTalk = (said) => bubbles.addTalk(said, performance.now() / 1000, sim.rate);
+  sim.onSkip = () => bubbles.clear();
   // The traffic runs in the sim worker beside the world; its vehicles come with every street update.
   const vehicles = new VehiclesView(stage, pool, 70 + town.cells);
   const rail = new RailView(stage);
@@ -295,7 +307,11 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     mapAt = ground;
     sim.poll(ground.x, ground.z);
     debugView.overlay(t, ground.x, ground.z);
-    people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);
+    const figs = cam.mode === 'drone' ? [] : street.figuresNow();
+    people.draw(figs, camera.position.x, camera.position.z, dt, t / 1000);
+    talkHeads.clear();
+    for (const f of figs) talkHeads.set(f.id, f);
+    bubbles.layout(t / 1000, camera, headOf, innerWidth, innerHeight);
     vehicles.show(camera, sim.clock, sim.traffic, sim.parked);
     rail.animate(camera, dt, sim.clock, sim.crossingPosts, sim.traffic, audio);
     streetSounds.listen(dt, camera.position.x, camera.position.y, camera.position.z, sim.clock, sim.traffic, audio);

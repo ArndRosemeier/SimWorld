@@ -6,7 +6,9 @@
  * real around them: the weather now, what is on in town, the holiday, local lore, being tired or hungry, work, the
  * family, the place they are in.
  *
- * `overhear(world, encounter, memory)` voices one encounter of the last tick; `overheard` all of them. Pure and
+ * `overhear(world, encounter, memory)` voices one encounter of the last tick; `overheard` all of them; with
+ * `carryOn` it voices two people still talking (sat together at a table, at the bar): one more topic, no hello
+ * or goodbye. Pure and
  * deterministic (the stream is the sim's `tickRng(world, 'chatter', a, b)`), cheap enough for every encounter.
  * The street view shows the lines as speech bubbles and the chat panel's "Nearby" channel lists them; a line that
  * carries a fact (`fact >= 0`) is something the player learned by listening.
@@ -64,13 +66,17 @@ export function overheard(world: World, memory: TalkMemory | null = null, keep?:
   return out;
 }
 
-/** The words of one encounter of the last tick, or null when nothing is said aloud. */
-export function overhear(world: World, e: Encounter, memory: TalkMemory | null = null): Exchange | null {
+/**
+ * The words of one encounter of the last tick, or null when nothing is said aloud. `carryOn`: the two are still
+ * talking from earlier (src/street/talk.ts): one more topic, no greeting and no goodbye.
+ */
+export function overhear(world: World, e: Encounter, memory: TalkMemory | null = null, carryOn = false): Exchange | null {
   const rng = tickRng(world, 'chatter', e.a, e.b);
   const x: Exchange = { place: e.place, a: e.a, b: e.b, kind: e.kind, time: world.clock, lines: [] };
   if (e.kind === 'animal') animal(world, e, x, rng, memory);
   else if (e.kind === 'snub') snub(world, e, x, rng, memory);
   else if (ageOf(world, e.a) < TALKS || ageOf(world, e.b) < TALKS) little(world, e, x, rng, memory);
+  else if (carryOn) new Talk(world, e, x, rng, memory).carryOn();
   else new Talk(world, e, x, rng, memory).unfold();
   return x.lines.length ? x : null;
 }
@@ -194,6 +200,11 @@ class Talk {
     this.segue = false;
     this.part(mood);
     this.today.met++;
+  }
+
+  /** Still talking: one more topic (one a day per pair, so a long evening together runs out of new ones). */
+  carryOn(): void {
+    this.smallTalk(1);
   }
 
   // ---- greeting and parting ----

@@ -8,12 +8,14 @@
  * New in SimWorld, after Scale's crowd renderer (src/sim/CrowdRenderer.ts: full rigs up close) and
  * Dunfinity's human pool (src/render/creatures/humanPool.ts).
  */
-import { Group, type Material, type Mesh, type Object3D } from 'three/webgpu';
+import { Group, Vector3, type Material, type Mesh, type Object3D } from 'three/webgpu';
 import type { EquipmentVisuals, HumanoidAppearance } from '@futuremagic/humanoid';
 import { Humanoid, clipLibraryReady, type AnimState } from '@futuremagic/humanoid/three';
 import type { Stage } from '../stage';
 import { Bodies } from './bodies';
 import { WARDROBE } from './wardrobe';
+
+const _head = new Vector3();
 
 /** What the view needs of someone on screen, this frame. */
 export interface Figure {
@@ -187,6 +189,13 @@ export class PeopleView {
     const r = f.rest;
     const anim: AnimState = r ? { move: r.kind === 'lie' ? 'sleep' : r.kind, seat: r.seat } : { move: speed > 2.6 ? 'run' : speed > 0.15 ? 'walk' : 'idle' };
     h.update({ pos: [f.x, f.y, f.z], vel: [f.vx, 0, f.vz], yaw: s.yaw, anim }, dt, time, null);
+  }
+
+  /** The top of `id`'s head (world y, m) as drawn this frame (sitting, lying, a child), null when not drawn as a human. */
+  headTop(id: number): number | null {
+    const h = this.slots.get(id)?.human;
+    if (!h || !h.object.visible) return null;
+    return h.char.bone('head').getWorldPosition(_head).y + 0.18;
   }
 
   /** Build a human for slot `s`: the body in a worker, then the human and its clothes, then its shaders. */

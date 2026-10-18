@@ -2,12 +2,18 @@
  * The character picker (D4, plan R2): who will you be? A panel over the live town from above, listing every
  * inhabitant's card (src/sim/profile.ts) with a search, the filters (in love, has a secret, new in town, …), an age
  * band and a sort. Picking someone shows their whole card (secrets marked as known only to you); "Be …" plays as
- * them. The loading screen hands over to it once the town is up; it comes back when the player wants to be
+ * them. A slider starts play later (up to a day ahead, Arnd): the town lives on to then, and you take over wherever
+ * they are at that time. The loading screen hands over to it once the town is up; it comes back when the player wants to be
  * someone else.
  */
 import { deriveSeed, Rng } from '@futuremagic/core';
 import { CARD_FILTERS, type InhabitantCard } from '../sim/profile';
 import { el } from './dom';
+import { weekdayName } from '../sim/calendar';
+import { dayOf, hhmm, minuteOfDay, partOfDay, weekdayOf } from '../sim/time';
+
+/** How far ahead play can start (minutes), in steps of AHEAD_STEP. */
+const AHEAD_MAX = 24 * 60, AHEAD_STEP = 30;
 
 /** Age bands for the picker's age filter: [label, from, to) in years. */
 const AGES: [string, number, number][] = [['Any age', 0, 200], ['Children', 0, 18], ['18 to 34', 18, 35], ['35 to 54', 35, 55], ['55 to 74', 55, 75], ['75 and over', 75, 200]];
@@ -30,7 +36,10 @@ export interface PickerOptions {
   seed: number;
   /** Who the player is now, if anyone (offered as "Stay as …"). */
   current?: InhabitantCard | null;
-  onPick: (card: InhabitantCard) => void;
+  /** The game clock now (minutes since day 0, a Monday). */
+  clock: () => number;
+  /** Play as `card`, `ahead` minutes from now (0: now); resolves once play has begun. */
+  onPick: (card: InhabitantCard, ahead: number) => void | Promise<void>;
   /** Called when the player closes the picker without picking (only offered while they are someone). */
   onClose?: () => void;
 }
@@ -46,6 +55,10 @@ export class Picker {
   private shown = PAGE;
   private open: number | null = null;
   private surprises = 0;
+  /** Minutes ahead the player starts (the slider). */
+  private ahead = 0;
+  private readonly when = el('span', 'pk-when');
+  private picking = false;
 
   constructor(private readonly cards: readonly InhabitantCard[], private readonly opts: PickerOptions) {
     this.root.setAttribute('aria-label', 'Choose who to be');
@@ -79,8 +92,33 @@ export class Picker {
     surprise.type = 'button';
     surprise.addEventListener('click', () => this.surprise());
     row.append(surprise);
-    this.root.append(head, this.search, chips, row, this.list);
+    this.root.append(head, this.startRow(), this.search, chips, row, this.list);
     this.render();
+  }
+
+  /** The start-time slider: now, or up to a day on; the day and time it lands on beside it. */
+  private startRow(): HTMLElement {
+    const row = el('label', 'pk-start');
+    const slider = el('input', 'pk-slider');
+    Object.assign(slider, { type: 'range', min: '0', max: String(AHEAD_MAX), step: String(AHEAD_STEP), value: '0' });
+    slider.setAttribute('aria-label', 'Start later');
+    slider.addEventListener('input', () => { this.ahead = Number(slider.value); this.showWhen(); this.render(); });
+    row.append(el('span', 'pk-start-label', 'Start'), slider, this.when);
+    this.showWhen();
+    // The clock runs while the picker is up: "now" moves on.
+    const tick = setInterval(() => { if (this.root.isConnected) this.showWhen(); else if (this.shownOnce) clearInterval(tick); }, 15_000);
+    return row;
+  }
+
+  private shownOnce = false;
+
+  /** "now · Saturday 18:40, evening" or "in 6 h · Sunday 00:40, night". */
+  private showWhen(): void {
+    if (this.root.isConnected) this.shownOnce = true;
+    const now = this.opts.clock(), at = now + this.ahead, m = Math.floor(minuteOfDay(at));
+    const day = dayOf(at) === dayOf(now) ? 'today' : dayOf(at) === dayOf(now) + 1 ? 'tomorrow' : weekdayName(weekdayOf(at));
+    const h = Math.floor(this.ahead / 60), half = this.ahead % 60 ? '½' : '';
+    this.when.textContent = `${this.ahead ? `in ${h || ''}${half || (h ? '' : '0')} h` : 'now'} · ${day === 'today' || day === 'tomorrow' ? `${day} (${weekdayName(weekdayOf(at))})` : day} ${hhmm(m)}, ${partOfDay(m)}`;
   }
 
   /** The cards that pass the search and the filters, sorted. */
@@ -125,9 +163,17 @@ export class Picker {
         ul.append(li);
       }
       if (c.situations.length) card.append(ul);
-      const be = el('button', 'pk-be', `Be ${c.name.split(' ')[0]}`);
+      const first = c.name.split(' ')[0];
+      const be = el('button', 'pk-be', this.ahead ? `Be ${first} from ${hhmm(Math.floor(minuteOfDay(this.opts.clock() + this.ahead)))}` : `Be ${first}`);
       be.type = 'button';
-      be.addEventListener('click', (e) => { e.stopPropagation(); this.opts.onPick(c); });
+      be.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.picking) return;
+        this.picking = true;
+        // Living the hours up to then takes the town a moment.
+        if (this.ahead) { be.textContent = 'Moving the clock on…'; be.disabled = true; }
+        void Promise.resolve(this.opts.onPick(c, this.ahead)).finally(() => { this.picking = false; });
+      });
       card.append(be);
     }
     const toggle = (): void => { this.open = open ? null : c.id; this.render(); };

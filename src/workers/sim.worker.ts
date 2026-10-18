@@ -25,6 +25,9 @@ import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim, Trac
 import { serve } from './serve';
 import { chatOp } from '../chat/ops';
 import { TrafficFeed, trafficTransfers } from '../traffic/feed';
+import { TalkFeed } from '../street/talk';
+import type { ActorId } from '../sim/actors';
+import type { PlaceId } from '../sim/places';
 
 let world: World | null = null;
 let map: StreetMap | null = null;
@@ -39,6 +42,16 @@ const shown = new Map<number, { sig: number; validUntil: number }>();
 const known = new Set<number>();
 /** The clock of the last view snapshot sent. */
 let sentAt = -1;
+/** The talk the player can hear (speech bubbles): voiced after each live minute, sent with the street update. */
+const talk = new TalkFeed();
+/** Where the camera was at the last street update (talk out of doors is heard near it). */
+const ear = { x: 0, z: 0 };
+/** The places of the building the game is showing inside (asked for every few seconds while in) and when last asked. */
+let inside: { places: Set<PlaceId>; clock: number } | null = null;
+/** How far from the camera talk out of doors is heard (m). */
+const HEAR = 45;
+/** A street update further behind than this (minutes) catches up without voicing the talk (nobody watched it). */
+const VOICED = 5;
 /** Extra distance before someone shown counts as gone (no flicker at the edge). */
 const KEEP = 40;
 /**
@@ -74,6 +87,7 @@ function simJob(m: ToSim): FromSim {
   if (m.type === 'skip') {
     skipTo(world, m.to);
     forget();
+    talk.clear();
     // The days skipped: the cars stand where the world now says, the traffic starts afresh.
     traffic = new TrafficFeed(roads!, world);
     sentAt = world.clock;
@@ -83,15 +97,19 @@ function simJob(m: ToSim): FromSim {
   if (m.type === 'chat') return { type: 'chat', res: chatOp(world, m.req) };
   if (m.type === 'inside') {
     const w = world;
+    const places = new Set<PlaceId>();
+    for (const p of w.graph.places) if (p.building === m.building && m.building >= 0) places.add(p.id);
+    inside = places.size ? { places, clock: w.clock } : null;
     return { type: 'inside', people: whoIsInside(w, m.building).map((p) => ({ ...p, info: infoOf(w, p.id), doing: doingOf(w, p.id) })), access: doorAccess(w, m.building), ms: took() };
   }
-  runTo(m.clock);
+  ear.x = m.x; ear.z = m.z;
+  liveTo(m.clock);
   traffic.run(m.clock);
   const view = world.clock !== sentAt ? viewOf(world, dayOf(world.clock) !== dayOf(sentAt)) : null;
   sentAt = world.clock;
   // Walks keep clear of the cars standing at the kerb as well as of what the plan put on the street.
   map.fp.also = traffic.standing;
-  return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), player: playerOut(world, map, m.clock), traffic: traffic.message(), ms: took() };
+  return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), player: playerOut(world, map, m.clock), traffic: traffic.message(), talk: talk.take(), ms: took() };
 }
 
 /** A player request (src/sim/player.ts), answered with their status after it. */
@@ -159,6 +177,32 @@ function runTo(clock: number): void {
   const w = world!;
   const target = Math.floor(clock);
   if (target > w.clock) tick(w, target - w.clock);
+}
+
+/** Live play up to `clock`: minute by minute, voicing the talk the player can hear (when not too far behind). */
+function liveTo(clock: number): void {
+  const w = world!;
+  const target = Math.floor(clock);
+  if (target - w.clock > VOICED) runTo(target - VOICED);
+  while (w.clock < target) {
+    tick(w, 1);
+    talk.afterTick(w, hears, inside && w.clock - inside.clock <= 2 ? inside.places : []);
+  }
+}
+
+/** Can the player hear `a` and `b` talking at `place`: in the building shown, or both out of doors near the camera? */
+function hears(a: ActorId, b: ActorId, place: PlaceId): boolean {
+  const w = world!;
+  if (inside && w.clock - inside.clock <= 2 && inside.places.has(place)) return true;
+  return nearEar(w, a) && nearEar(w, b);
+}
+
+const _p: [number, number, number] = [0, 0, 0];
+function nearEar(w: World, id: ActorId): boolean {
+  const t = tracks.get(id);
+  if (!t || !shown.has(id) || w.clock > t.hideAfter) return false;
+  sample(t.keys, w.clock, _p);
+  return Math.hypot(_p[0] - ear.x, _p[2] - ear.z) < HEAR;
 }
 
 /**

@@ -24,6 +24,7 @@ import type { Physics } from '../physics/physics';
 import { rampBox, wallBoxes, type SolidBox, type SolidPost } from '../physics/solids';
 import { pointInPoly } from '../geom/geom2';
 import type { Indoors } from '../interior/indoors';
+import { reachOf } from '../interior/reach';
 import type { GoingInside } from './inside';
 import { Avatar } from './avatar';
 import { EYE_BALL, type CameraControl, type PlayTarget } from './camera';
@@ -144,7 +145,8 @@ export class Playing {
     const current = this.panel ? this.cards.find((c) => c.id === this.panel!.card.id) ?? null : null;
     this.picker = new Picker(this.cards, {
       seed: this.seed, current,
-      onPick: (c) => void this.become(c),
+      clock: () => this.sim.clock,
+      onPick: (c, ahead) => this.becomeLater(c, ahead),
       onClose: current ? () => this.closePicker() : undefined,
     });
     document.body.append(this.picker.root);
@@ -155,6 +157,20 @@ export class Playing {
     this.picker?.root.remove();
     this.picker = null;
     this.panel?.root.classList.remove('pl-hidden');
+  }
+
+  /**
+   * Become `card`'s person `ahead` minutes from now (the picker's slider): the town lives the time up to then (whoever
+   * you were goes back to their routine for it), then you take over wherever they are.
+   */
+  private async becomeLater(card: InhabitantCard, ahead: number): Promise<void> {
+    if (ahead > 0) {
+      this.dropAvatar();
+      this.goOut();
+      if (this.sim.player?.alive && !this.sim.player.autopilot) await this.sim.ask({ op: 'autopilot', on: true });
+      await this.sim.skip(ahead);
+    }
+    await this.become(card);
   }
 
   /** Become `card`'s person: on autopilot at first, so they carry on with their day while the camera arrives. */
@@ -232,7 +248,8 @@ export class Playing {
 
   /**
    * Where `id` stands up in the building shown: beside the spot they were given (out of the bed, up from the
-   * chair), at the nearest place with room for a person and a floor under it; else just inside a street door.
+   * chair), at the nearest place with room for a person and a floor under it and a way out to the street
+   * (src/interior/reach.ts; else any such place); else just inside a street door.
    */
   private standUp(phys: Physics, id: number): { x: number; y: number; z: number; yaw: number } | null {
     const ins = this.goingIn.inside;
@@ -242,11 +259,11 @@ export class Playing {
     if (spot) {
       // Facing away from what they were at (its front is along the spot's yaw); somewhere roomy first, else
       // anywhere a body fits.
-      const yaw = spot.yaw + Math.PI;
-      for (const roomy of [ROOMY, BODY_R]) for (const r of [0.6, 0.9, 1.3, 1.8]) for (let k = 0; k < 12; k++) {
+      const yaw = spot.yaw + Math.PI, R = reachOf(I);
+      for (const out of [true, false]) for (const roomy of [ROOMY, BODY_R]) for (const r of [0.6, 0.9, 1.3, 1.8]) for (let k = 0; k < 12; k++) {
         const a = spot.yaw + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 6);
         const x = spot.x + Math.sin(a) * r, z = spot.z + Math.cos(a) * r;
-        if (fits(x, spot.y, z, roomy)) return { x, y: spot.y, z, yaw: openWay(phys, x, spot.y, z, yaw) };
+        if ((!out || R.out(spot.floor, x, z)) && fits(x, spot.y, z, roomy)) return { x, y: spot.y, z, yaw: openWay(phys, x, spot.y, z, yaw) };
       }
     }
     const d = I.doors[0];

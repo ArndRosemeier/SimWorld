@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.143 — Start later from the picker
+
+- "Who will you be?" has a slider: start now or up to 24 hours ahead, in half-hour steps, with the day, the time and the part of the day shown.
+- Picking someone with the slider moved on lets the town live up to then first, then you take over wherever that person is.
+
+## v0.142 — Every house has a way out
+
+- Every room in every building now connects to a street door: where furniture blocked a doorway, a room had no door, or the stairs started in a closed-off corner, the floor plans now open a doorway or move the furniture.
+- Every building with upper floors has stairs (some only had a lift, which nobody walks).
+- A few odd-shaped buildings had their street door on a thin spur of the wall that led nowhere; the door now goes on a wall that opens into the building.
+- When you take over someone, you get up from their bed or chair at a place with a way out.
+
+## v0.141 — Speech bubbles
+
+- People talking near you show what they say in speech bubbles over their heads, one line at a time: on the street, and indoors in the building you are in (a pub, a shop, a home).
+- Busy places sound busy: people who got talking keep going for a while (longer in a pub or a cafe), and people in the room strike up talk with whoever is there, the people they know first.
+- The nearest few conversations are readable; further off, a bubble shows only "…".
+
 ## v0.140 — Skip a few hours
 
 - The time skip offers an hour, three hours and six hours, and "until morning", "until noon", "until evening" and "until night", next to the skips of days up to a year.

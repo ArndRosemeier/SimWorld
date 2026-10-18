@@ -1,3 +1,4 @@
+import { partOfDay } from '../src/sim/time';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testTown } from '../src/sim/testTown';
@@ -127,4 +128,9 @@ test('player status for the minimap: their home, and the people they know by nam
   for (const o of [...kin, ...known]) assert.ok(isPerson(world, o) && o !== id);
   assert.ok(known.every((o) => !kin.includes(o)));
   world.player = null;
+});
+
+test('time: the part of the day', () => {
+  assert.deepEqual([0, 4 * 60 + 59, 5 * 60, 11 * 60 + 59, 12 * 60, 17 * 60, 21 * 60 + 59, 22 * 60, 1440 + 8 * 60].map(partOfDay),
+    ['night', 'night', 'morning', 'morning', 'afternoon', 'evening', 'evening', 'night', 'morning']);
 });
