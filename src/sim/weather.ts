@@ -391,3 +391,9 @@ export function describeWeather(w: Weather): string {
   else if (w.frost) extras.push('frosty');
   return `${s}${extras.length ? `, ${extras.join(', ')}` : ''}, ${t}`;
 }
+
+/** `w` with the sky of state `kind` instead (a chosen weather for looking at the town; the ground state stays). */
+export function forceWeather(w: Weather, kind: WeatherKind): Weather {
+  const p = STATES[kind], sf = snowFraction(w.tempC);
+  return { ...w, ...p, kind, rain: p.precip * (1 - sf), snow: p.precip * sf, wet: p.precip > 0 ? Math.max(w.wet, 0.35 + p.precip * 0.6) : w.wet };
+}

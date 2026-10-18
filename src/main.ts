@@ -6,13 +6,19 @@
  *
  * `?seed=…&size=…` (0 … 1) pick the town; `?tex=…` the texture size in texels (256 default, 512 sharper and slower); `?at=x,z&r=…&h=…&a=…` fix the drone's centre, distance,
  * height and angle (radians) instead of circling, for screenshots. `?inside=<cell>/<building>&floor=…`
- * shows one storey of a building as a cutaway instead (showInside).
+ * shows one storey of a building as a cutaway instead (showInside). `?date=2026-12-24&time=18:30&speed=60` pick
+ * the moment and how fast time runs (src/game/clock.ts); `?wx=rain` (any weather state) overrides the sky.
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
 import { createRenderer, GraphicsUnavailable } from './render/renderer';
 import { Stage } from './render/stage';
 import { fitSunShadow, makeLights } from './render/lights';
+import { DaySky } from './render/sky';
+import { GameClock } from './game/clock';
+import { WEATHER_KINDS, WeatherModel, describeWeather, forceWeather, type WeatherKind } from './sim/weather';
+import { dateOf, formatDate } from './sim/calendar';
+import { hhmm, minuteOfDay } from './sim/time';
 import { setParcels } from './render/tsl/ground';
 import { showTown } from './render/townView';
 import { meshFromData } from './render/meshes';
@@ -26,7 +32,7 @@ import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
 
-const SKY = 0xa9c8e4;
+const HAZE = 0xa9c8e4;
 
 function settingsFromUrl(): TownSettings {
   const q = new URLSearchParams(location.search);
@@ -59,8 +65,8 @@ async function start(): Promise<void> {
   document.body.prepend(canvas);
   const { renderer } = await createRenderer(canvas);
   const scene = new Scene();
-  scene.background = new Color(SKY);
-  scene.fog = new Fog(SKY, 1200, 6500);
+  scene.background = new Color(HAZE);
+  scene.fog = new Fog(HAZE, 1200, 6500);
   const camera = new PerspectiveCamera(50, innerWidth / innerHeight, 1, 9000);
   const resize = (): void => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
   resize();
@@ -69,10 +75,18 @@ async function start(): Promise<void> {
   const lights = makeLights(scene);
   const stage = new Stage(renderer, scene, camera);
   stage.shadowCamera = lights.sun.shadow.camera;
+  const time = new GameClock(settings.seed, new URLSearchParams(location.search));
+  const weather = new WeatherModel(settings.seed, time.epoch);
+  const wxq = new URLSearchParams(location.search).get('wx') as WeatherKind | null;
+  const wx = wxq && WEATHER_KINDS.includes(wxq) ? wxq : null;
+  const weatherNow = () => { const w = weather.weather(Math.floor(time.clock)); return wx ? forceWeather(w, wx) : w; };
+  const sky = new DaySky(renderer, scene, lights, settings.seed);
+  sky.update(0, time, time.clock, weatherNow(), camera, time.speed);
   useTextures({ facade: await facade });
   texPool.dispose();
   step('Preparing the shaders', 0.12);
   await stage.warmUp();
+  void stage.add(sky.dome);
   step('Planning the town', 0.15);
 
   const [ready] = await planned;
@@ -90,15 +104,20 @@ async function start(): Promise<void> {
   const [cx, cz] = (q.get('at') ?? `${town.x},${town.z}`).split(',').map(Number);
   const R = num('r', town.radius * 1.35), H = town.y + num('h', town.radius * 0.55), fixed = q.has('a') ? num('a', 0) : null;
   const hud = document.getElementById('hud');
-  let shown = false;
+  let shown = false, last = -1;
   renderer.setAnimationLoop((t: number) => {
     stage.frame();
+    const dt = last < 0 ? 0 : Math.min(0.25, (t - last) / 1000);
+    last = t;
+    time.advance(dt);
+    const w = weatherNow();
     const a = fixed ?? t * 0.00002;
     camera.position.set(cx + Math.cos(a) * R, H, cz + Math.sin(a) * R);
     camera.lookAt(cx, town.y, cz);
+    sky.update(dt, time, time.clock, w, camera, time.speed);
     renderer.render(scene, camera);
     if (!shown && view.done > 0) { shown = true; document.getElementById('loading')?.remove(); }
-    if (hud) hud.textContent = `${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}`;
+    if (hud) hud.textContent = `${formatDate(dateOf(time, time.clock))} ${hhmm(Math.floor(minuteOfDay(time.clock)))} · ${describeWeather(w)} · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}`;
   });
   await view.ready;
 }

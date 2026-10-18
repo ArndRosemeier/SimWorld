@@ -6,9 +6,10 @@
  * Every mesh of a kind uses the kind's one material, so a kind is one shader; variation goes in
  * vertex attributes or uniforms, never in a new material. Ported from Dunfinity.
  */
-import { DoubleSide, MeshPhysicalNodeMaterial, MeshStandardNodeMaterial, type Material } from 'three/webgpu';
+import { BackSide, DoubleSide, MeshPhysicalNodeMaterial, MeshStandardNodeMaterial, NodeMaterial, type Material } from 'three/webgpu';
 import { groundLook, terrainLook, waterLook } from './tsl/ground';
 import { facadeLook } from './tsl/facade';
+import { skyLook } from './tsl/sky';
 import type { MaterialArrays } from './textures';
 import { facadeSpecs } from '../build/massing';
 import type { AttrSpec } from '../build/meshBuilder';
@@ -96,3 +97,17 @@ export const FACADE = defineKind('facade', facadeSpecs(), () => {
   facadeLook(m, needTextures('facade'));
   return m;
 });
+
+/**
+ * The sky dome (src/render/sky.ts): scattering, sun and moon discs, stars, clouds and weather in one shader
+ * (src/render/tsl/sky.ts). Drawn at the far plane behind everything; unlit, no fog, no depth writes.
+ */
+export const SKY_DOME = defineKind('sky', [], () => {
+  const m = new NodeMaterial();
+  m.side = BackSide;
+  m.depthWrite = false;
+  m.fog = false;
+  m.lights = false;
+  skyLook(m);
+  return m;
+}, { cast: false, receive: false });

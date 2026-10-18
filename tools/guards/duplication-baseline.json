@@ -246,5 +246,9 @@
   {
     "key": "idiom: [.junctions .length] in simworld/build/ground.ts + simworld/plan/cell.ts + simworld/plan/terrace.ts",
     "reason": "A loop over a cell plan's flat junction list (x, z, degree triples), the plan's own format; each use asks something different of it."
+  },
+  {
+    "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/sky.ts",
+    "reason": "TSL's own grammar (multiply, then keep as a variable): every node-material look is written in it; there is nothing to fold."
   }
 ]
