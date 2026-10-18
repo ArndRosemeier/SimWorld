@@ -6,7 +6,8 @@ import type { EquipmentVisuals } from '@futuremagic/humanoid';
 import { appearanceOf, bodyKey, coldOf, outfitOf } from '../street/looks';
 import { ACTOR_PERSON } from '../sim/actors';
 import { isWetOut } from '../sim/weather';
-import type { Figure, Look, PeopleView } from '../render/people/peopleView';
+import type { Figure, Look, PeopleView, Rest } from '../render/people/peopleView';
+import { restAt } from '../street/tracks';
 import type { SimClient, Walker } from './SimClient';
 
 /** Game minutes ahead a walker's velocity is measured over. */
@@ -15,6 +16,7 @@ const DT = 0.02;
 class WalkerFigure implements Figure {
   x = 0; y = 0; z = 0; vx = 0; vz = 0;
   face: number | undefined = undefined;
+  rest: Rest | undefined = undefined;
   private cached: { key: string; look: Look } | null = null;
   private outfit: { key: string; eq: EquipmentVisuals } | null = null;
   constructor(readonly w: Walker, private readonly street: Street) {}
@@ -51,7 +53,7 @@ export class Street {
     for (const [id, pin] of this.pins) {
       let f = this.figures.get(id);
       if (!f) this.figures.set(id, (f = new WalkerFigure(pin.w, this)));
-      f.x = pin.x; f.y = pin.y; f.z = pin.z; f.vx = 0; f.vz = 0; f.face = pin.face;
+      f.x = pin.x; f.y = pin.y; f.z = pin.z; f.vx = 0; f.vz = 0; f.face = pin.face; f.rest = undefined;
       out.push(f);
     }
     for (const w of this.sim.walkers.values()) {
@@ -63,7 +65,10 @@ export class Street {
       f.x = this.p0[0]; f.y = this.p0[1]; f.z = this.p0[2];
       f.vx = (this.p1[0] - this.p0[0]) / (DT * secPerMin);
       f.vz = (this.p1[2] - this.p0[2]) / (DT * secPerMin);
-      f.face = undefined;
+      // Sitting on a bench: facing out, on its seat (they stand in front of it on their track).
+      const r = restAt(w.rests, clock);
+      f.face = r >= 0 ? w.rests[r + 2] : undefined;
+      f.rest = r >= 0 ? { kind: 'sit', seat: w.rests[r + 3] } : undefined;
       out.push(f);
     }
     for (const id of this.figures.keys()) if (!this.sim.walkers.has(id) && !this.pins.has(id)) this.figures.delete(id);

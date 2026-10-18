@@ -141,11 +141,14 @@ function forget(): void {
   tracks.clear();
   shown.clear();
   known.clear();
+  map?.seatBook.forget();
 }
 
 /** The street around (x, z) as a change to what the main thread has. */
 function street(w: World, map: StreetMap, clock: number, x: number, z: number, r: number): { tracks: TrackMsg[]; gone: number[]; info: ActorInfo[] } {
   const out: TrackMsg[] = [], info: ActorInfo[] = [], gone: number[] = [];
+  // Seats booked for strolls long over are free for good.
+  map.seatBook.forget(clock - 60);
   const p: [number, number, number] = [0, 0, 0];
   for (let id = 0; id < w.actors.count; id++) {
     let t = tracks.get(id);
@@ -169,7 +172,7 @@ function street(w: World, map: StreetMap, clock: number, x: number, z: number, r
     }
     if (had && had.sig === t!.sig && had.validUntil === t!.validUntil) continue;
     shown.set(id, { sig: t!.sig, validUntil: t!.validUntil });
-    out.push({ id, keys: Float64Array.from(t!.keys), hideAfter: t!.hideAfter, activity: t!.activity, doing: doingOf(w, id) });
+    out.push({ id, keys: Float64Array.from(t!.keys), hideAfter: t!.hideAfter, activity: t!.activity, rests: Float64Array.from(t!.rests), doing: doingOf(w, id) });
     if (!known.has(id)) { known.add(id); info.push(infoOf(w, id)); }
   }
   return { tracks: out, gone, info };
@@ -194,7 +197,7 @@ function heightGrid(map: StreetMap, half: number, step: number): HeightGrid {
 
 serve<ToSim, FromSim>(simJob, (r) => {
   if (r.type === 'ready') return [r.ground.h.buffer, ...viewTransfers(r.view)];
-  if (r.type === 'street') return [...r.tracks.map((t) => t.keys.buffer), ...(r.view ? viewTransfers(r.view) : []), ...trafficTransfers(r.traffic)];
+  if (r.type === 'street') return [...r.tracks.flatMap((t) => [t.keys.buffer, t.rests.buffer]), ...(r.view ? viewTransfers(r.view) : []), ...trafficTransfers(r.traffic)];
   if (r.type === 'saved') return [r.bytes.buffer];
   if (r.type === 'skipped') return viewTransfers(r.view);
   return [];

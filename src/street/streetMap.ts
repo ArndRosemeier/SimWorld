@@ -16,6 +16,7 @@ import { buildingRef } from '../plan/placeGraph';
 import { BODY } from './clearance';
 import type { PlaceGraph, PlaceId, PlaceKind } from '../sim/places';
 import { CURB_H } from '../world/ground';
+import { SeatBook, seatsOf, type Seat } from './seats';
 
 /** Place kinds people are seen at while they stay (everything else is indoors). */
 export const OUTDOOR: ReadonlySet<PlaceKind> = new Set<PlaceKind>(['park', 'square', 'sports', 'cemetery', 'street', 'woods', 'field', 'farm']);
@@ -43,12 +44,17 @@ export class StreetMap {
   /** Everything standing on the ground (props, parked cars, buildings), to keep clear of. */
   readonly fp: Footprints;
   private readonly entrances = new Map<PlaceId, { door: [number, number]; step: [number, number] }>();
+  /** Every bench and café chair seat place in town, and who sits where when. */
+  readonly seats: Seat[];
+  readonly seatBook = new SeatBook();
+  private readonly placeSeats = new Map<PlaceId, number[]>();
 
   constructor(readonly town: Town, readonly graph: PlaceGraph) {
     const n = graph.nodes.length;
     graph.edges.forEach((e, i) => { this.edgeOf.set(e.a * n + e.b, i); this.edgeOf.set(e.b * n + e.a, i); });
     this.deck = bridgeDecksAt(town.macro.bridges, town.terrain);
     this.fp = footprintsOf(town.cells);
+    this.seats = seatsOf(town.cells);
     // Outdoor places with an outline: the cell shape their centre lies in, or their public building's site.
     for (const pl of graph.places) {
       if (!OUTDOOR.has(pl.kind) || pl.kind === 'street') continue;
@@ -173,6 +179,20 @@ export class StreetMap {
       if (!T.isWater(x, z, 1) && this.standable(x, z, SPOT_ROOM)) return [x, z];
     }
     return [pl.x, pl.z];
+  }
+
+  /** The seats (indices into `seats`) at an outdoor place: inside its outline, else in its patch. */
+  seatsAt(place: PlaceId): number[] {
+    let l = this.placeSeats.get(place);
+    if (l) return l;
+    const pl = this.graph.places[place], shape = this.areas.get(place), r = PATCH[pl.kind] ?? 15;
+    l = [];
+    for (let i = 0; i < this.seats.length; i++) {
+      const s = this.seats[i];
+      if (shape ? inShape(shape, s.x, s.z) : Math.hypot(s.x - pl.x, s.z - pl.z) < r) l.push(i);
+    }
+    this.placeSeats.set(place, l);
+    return l;
   }
 
   /** Can someone stand at (x, z): clear of every prop, parked car and building by `room` m? */
