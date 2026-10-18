@@ -52,7 +52,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Rain and snow falling round the camera | `new Precipitation(seed)`; `stage.add(p.mesh)`; each frame `p.fall(dt, camera, weather, weather.windDir, sky.day, sky.flash, under?)`. Its look is the `RAIN_SNOW` kind (`precipLook`, uniforms `PRECIP`) | `src/render/precip.ts`, `src/render/tsl/precip.ts` |
 | The facade, ground and interior texture arrays for the shaders | `loadTextures(pool, family, onProgress?, size?)` → `MaterialArrays` | `src/render/textures.ts` |
 | The vegetation's bark and leaf atlases for the shaders | `loadVegetationTextures(pool, priority)` → `VegetationTextures` (for `useTextures({ vegetation })`) | `src/render/textures.ts` |
-| I need a light | The fixed set from `makeLights` (a pool of real lights for the street lamps nearest the camera, *planned*, track B; lamp heads from `view.props.lamps`). Never `new ...Light` elsewhere (guarded). | `src/render/lights.ts` |
+| I need a light | The fixed set from `makeLights` (and `LAMP_POOL` point lights put on the street lamps nearest the camera each frame by `placeLamps(lights, view.props.lamps, x, z, sky.night)`). Never `new ...Light` elsewhere (guarded). | `src/render/lights.ts` |
 | Put something into the visible scene | `stage.add(obj)`: compiles first, then adds | `src/render/stage.ts` |
 | Compile something added to your own group later | `stage.prepare(obj)` | `src/render/stage.ts` |
 | Compile while something already plays on screen | `stage.warmLater(objs)` | `src/render/stage.ts` |
