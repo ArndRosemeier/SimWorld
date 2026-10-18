@@ -26,7 +26,7 @@ import { pointInPoly } from '../geom/geom2';
 import type { Indoors } from '../interior/indoors';
 import type { GoingInside } from './inside';
 import { Avatar } from './avatar';
-import type { CameraControl, PlayTarget } from './camera';
+import { EYE_BALL, type CameraControl, type PlayTarget } from './camera';
 import type { SimClient } from './SimClient';
 import type { Street } from './street';
 
@@ -60,6 +60,14 @@ export class Playing {
 
   /** Who the player is, null while choosing. */
   get playing(): boolean { return this.panel !== null; }
+
+  /** The building the player's person is in now (`Place.building` code), -1 out of doors or while nobody is played. */
+  get building(): number {
+    const s = this.sim.player;
+    if (!this.panel || !s) return -1;
+    if (this.avatar) return this.told.building;
+    return indoorsNow(s, this.sim) ? s.building : -1;
+  }
 
   /**
    * Once the town shows: play as `be` (an inhabitant's id, from `?be=`), else as whoever the loaded save was being
@@ -283,7 +291,8 @@ export class Playing {
         const f = this.street.where(s.id), spot = this.goingIn.spotOf(s.id);
         const p = f ?? spot ?? { x: ins.indoors.doors[0]?.x ?? s.x, y: ins.indoors.base, z: ins.indoors.doors[0]?.z ?? s.z };
         const head = { x: p.x, y: p.y + (f || !spot || spot.use !== 'sleep' ? 1.55 : 0.6), z: p.z };
-        this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max));
+        this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max, undefined, EYE_BALL), (x, y, z) => phys.roomAround(x, y, z));
+        this.street.hide(this.cam.tooClose ? s.id : -1);
         return { x: p.x, z: p.z };
       }
     } else if (this.interior >= 0 || this.goingIn.inside) this.goOut();
@@ -292,6 +301,7 @@ export class Playing {
     if (f) Object.assign(tg, { x: f.x, y: f.y, z: f.z, vx: f.vx, vz: f.vz, outside: true });
     // Indoors: their building. Out of doors but not near the camera yet: where the worker says they are on the street.
     else Object.assign(tg, { x: s.x, y: this.sim.standHeight(s.x, s.z), z: s.z, vx: 0, vz: 0, outside: false });
+    this.street.hide(-1);
     this.cam.updatePlay(dt, t, tg, compiling);
     return { x: tg.x, z: tg.z };
   }
@@ -303,7 +313,8 @@ export class Playing {
     phys.world.step();
     if (!this.fetching && this.solidsAt && Math.hypot(av.x - this.solidsAt.x, av.z - this.solidsAt.z) > SOLIDS_R / 3) void this.fetchSolids(phys, av.x, av.z);
     const head = { x: av.x, y: av.y + 1.55, z: av.z };
-    this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max, av.body));
+    this.cam.updateSteer(dt, head, compiling, (dx, dy, dz, max) => phys.clear(head.x, head.y, head.z, dx, dy, dz, max, av.body, EYE_BALL), (x, y, z) => phys.roomAround(x, y, z, av.body));
+    this.street.hide(this.cam.tooClose && this.sim.player ? this.sim.player.id : -1);
     const building = this.doorsAround(phys, av);
     const now = performance.now();
     if (!this.told.busy && (building !== this.told.building || now - this.told.t > TELL_MS || Math.hypot(av.x - this.told.x, av.z - this.told.z) > 6)) void this.tell(av.x, av.z, building);

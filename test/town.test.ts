@@ -168,6 +168,10 @@ test('the town map: every street in town has its name printed along it, landmark
   const named = new Set(m.roads.filter((r) => r.street >= 0).map((r) => r.street));
   for (const s of named) assert.ok(m.streets[s].length > 0, `${m.streets[s].name} has a place for its name`);
   assert.equal(m.landmarks.length, town.macro.landmarks.length);
+  // A building code finds its outline (the minimap fills in your home and the building you are in).
+  const ci = town.cells.findIndex((c, i) => i > 0 && c.buildings.length > 1);
+  const i = m.cellFirst[ci] + 1, at = i ? m.buildingEnds[i - 1] : 0;
+  assert.deepEqual(Array.from(m.buildings.subarray(at, m.buildingEnds[i])), Array.from(Float32Array.from(town.cells[ci].buildings[1].poly)));
   const k = m.ground.indexOf(MAP_WATER);
   if (k >= 0) {
     const cell = (2 * m.half) / m.n;

@@ -10,7 +10,7 @@ import type { PlayerAction, PlayerStatus } from '../sim/player';
 import { capitalize, type InhabitantCard } from '../sim/profile';
 import { NEEDS } from '../sim/species';
 import { MINUTES_PER_DAY, MINUTES_PER_HOUR, TIMES_OF_DAY } from '../sim/time';
-import { button, el, onEscape } from './dom';
+import { button, el, onEscape, showToggle } from './dom';
 
 export interface PlayHandlers {
   autopilot: (on: boolean) => void;
@@ -77,9 +77,7 @@ export class PlayPanel {
   }
 
   private labelAuto(): void {
-    this.auto.textContent = this.autopilot ? 'Autopilot on' : 'Autopilot off';
-    this.auto.setAttribute('aria-pressed', String(this.autopilot));
-    this.auto.title = this.autopilot ? 'Your routine runs your day. Click to take over.' : 'You decide what to do. Click to hand back to your routine.';
+    showToggle(this.auto, this.autopilot, ['Autopilot on', 'Autopilot off'], ['Your routine runs your day. Click to take over.', 'You decide what to do. Click to hand back to your routine.']);
   }
 
   /** Show the player's status (cheap to call every frame: the DOM changes only when it does). */

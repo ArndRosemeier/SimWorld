@@ -27,6 +27,18 @@ export interface PlayTarget extends Followed { outside: boolean }
 const EASE = 1.4, EASE_COMPILING = 0.45;
 /** While steering: how far behind the head the camera stays when nothing is in the way (m). */
 const STEER_BACK = 3.4;
+/**
+ * The steering camera as a ball this big (m): it stops this far short of walls, ceilings and furniture, so the
+ * near plane (NEAR_CLOSE) never cuts into them.
+ */
+export const EYE_BALL = 0.22;
+/**
+ * Near plane (m): NEAR_FAR as a rule (the town far off needs its depth precision: the ground's draped surfaces are
+ * spaced for it), down to NEAR_MIN only while something is that close to the camera (a wall, the person's body).
+ */
+const NEAR_MIN = 0.1, NEAR_FAR = 1;
+/** Closer than this to the head (m), the camera would look through the body: it is not drawn then. */
+const HIDE_AT = 0.75;
 
 export class CameraControl {
   mode: CameraMode = 'drone';
@@ -142,6 +154,8 @@ export class CameraControl {
    */
   updatePlay(dt: number, t: number, target: PlayTarget, compiling: boolean): void {
     if (this.steering) { this.steering = false; this.fyaw = this.orbit; this.orbit = 0; }
+    this.setNear(NEAR_FAR);
+    this.tooClose = false;
     let ex: number, ey: number, ez: number, ay: number;
     if (target.outside) {
       const speed = Math.hypot(target.vx, target.vz);
@@ -194,7 +208,7 @@ export class CameraControl {
    * (`clear(dx, dy, dz, max)`: how far from the head the view is free along that direction). From afar (the flight
    * down from the drone) it eases in as `updatePlay` does.
    */
-  updateSteer(dt: number, head: { x: number; y: number; z: number }, compiling: boolean, clear: (dx: number, dy: number, dz: number, max: number) => number): void {
+  updateSteer(dt: number, head: { x: number; y: number; z: number }, compiling: boolean, clear: (dx: number, dy: number, dz: number, max: number) => number, room: (x: number, y: number, z: number) => number = () => Infinity): void {
     if (!this.steering) {
       // Carry on looking the way the camera looks now.
       const e = this.camera.matrixWorld.elements;
@@ -202,11 +216,14 @@ export class CameraControl {
       this.steering = true;
     }
     const cp = Math.cos(this.lookPitch), dx = Math.sin(this.orbit) * cp, dy = -Math.sin(this.lookPitch), dz = Math.cos(this.orbit) * cp;
-    const back = Math.max(0.5, Math.min(STEER_BACK, clear(dx, dy, dz, STEER_BACK + 0.3) - 0.3));
+    // As far back as there is room for the camera ball (a wall, a ceiling, a wardrobe, a shut door pulls it in).
+    const back = Math.max(0.05, Math.min(STEER_BACK, clear(dx, dy, dz, STEER_BACK) - 0.02));
     const ex = head.x + dx * back, ey = head.y + dy * back, ez = head.z + dz * back;
     const e = this.eye, l = this.at;
     const far = Math.hypot(ex - e.x, ey - e.y, ez - e.z) > 8;
-    const k = far ? 1 - Math.exp(-dt * (compiling ? EASE_COMPILING : EASE)) : 1 - Math.exp(-dt * 16);
+    // Easing out again is smooth; pulling in is at once (else it sits in the wall for a few frames).
+    const pullIn = !far && back < Math.hypot(e.x - head.x, e.y - head.y, e.z - head.z);
+    const k = far ? 1 - Math.exp(-dt * (compiling ? EASE_COMPILING : EASE)) : pullIn ? 1 : 1 - Math.exp(-dt * 16);
     e.x += (ex - e.x) * k; e.y += (ey - e.y) * k; e.z += (ez - e.z) * k;
     const kl = far ? Math.min(1, k * 2.5) : 1;
     const ax = head.x - dx, ay = head.y - dy, az = head.z - dz;
@@ -214,12 +231,27 @@ export class CameraControl {
     this.camera.position.set(e.x, e.y, e.z);
     this.camera.lookAt(l.x, l.y, l.z);
     this.x = head.x; this.z = head.z;
+    const toHead = Math.hypot(e.x - head.x, e.y - head.y, e.z - head.z);
+    // Nothing nearer than the near plane: the nearest solid, and the body (about 0.35 m round the head).
+    this.setNear(far ? NEAR_FAR : clamp(Math.min(room(e.x, e.y, e.z) * 0.6, (toHead - 0.35) * 0.8), NEAR_MIN, NEAR_FAR));
+    this.tooClose = !far && toHead < HIDE_AT;
+  }
+
+  /** The steering camera is so close to the head that the body would fill the view: the game leaves it undrawn. */
+  tooClose = false;
+
+  private setNear(n: number): void {
+    if (this.camera.near === n) return;
+    this.camera.near = n;
+    this.camera.updateProjectionMatrix();
   }
 
   /** Place the camera for this frame. `target`: where the followed person is (null: lost them). `t`: ms. */
   update(dt: number, t: number, target: Followed | null): void {
     const cam = this.camera;
     if (this.mode === 'play') return;
+    this.setNear(NEAR_FAR);
+    this.tooClose = false;
     if (this.mode === 'follow' && !target) this.mode = 'street';
     if (this.mode === 'drone') {
       const d = this.drone, a = d.fixed ?? t * 0.00002;
