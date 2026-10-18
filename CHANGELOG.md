@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.134 — Hands at rest
+
+- Sitting on chairs, benches and sofas, people rest their hands on their thighs or in their lap, fingers loosely curled, instead of holding them open on their knees.
+- In bed, the hands lie on the mattress or on the belly instead of hanging in the air.
+- Everyone has their own way of resting their hands, so a room of sitters does not look cloned.
+
+## v0.133 — Talk to people indoors
+
+- T now talks to whoever is near you wherever you are: your family at home, the staff and customers in a shop, people at work, in the church or the school. Before, only people out on the street could be talked to.
+- Only people on your floor and awake can be talked to; someone seated stays in their seat while you talk.
+- Family know each other's day: the people you live with know when you start work or school and what you have on today, and everyone knows their own plans ("Any plans today?" gets a real answer, with or without a language model).
+
+## v0.132 — The title screen: Total Town
+
+- The game is now called Total Town (working title). It opens on a title screen: the name, an alpha badge with the version, and a small town at dusk under the stars whose windows light up one by one while the game gets ready behind it.
+- The title shows almost at once: the heavy parts (3D, the shaders, building the town, the town's year of history) load behind it instead of in front of a loading bar.
+- Click once to start the title music (there is a mute button in the corner). When everything is ready, "Enter the town" takes you to choosing who to be, with no stutter from shaders being prepared.
+
 ## v0.131 — A clear message when the game's helpers fail to start
 
 - Opening SimWorld from an older cached page right after an update no longer stops at "Start failed:" with an empty error: the page notices it is out of date and loads the new version by itself.

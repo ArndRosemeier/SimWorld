@@ -16,6 +16,13 @@ export interface TownSettings {
 
 export const DEFAULT_SETTINGS: TownSettings = { seed: 1, size: 0.3 };
 
+/** The town a page's URL asks for (`?seed=…&size=…`, size 0 … 1), else the default. */
+export function settingsFromQuery(q: URLSearchParams): TownSettings {
+  const seed = Number(q.get('seed') ?? DEFAULT_SETTINGS.seed);
+  const size = Number(q.get('size') ?? DEFAULT_SETTINGS.size);
+  return { seed: Number.isFinite(seed) ? seed >>> 0 : DEFAULT_SETTINGS.seed, size: Number.isFinite(size) ? Math.min(1, Math.max(0, size)) : DEFAULT_SETTINGS.size };
+}
+
 /** Town radius in metres for a size setting (about 480 m … 620 m: 1,000 … 2,000 inhabitants). */
 export function townRadius(size: number): number {
   return 480 + 140 * Math.min(1, Math.max(0, size));
