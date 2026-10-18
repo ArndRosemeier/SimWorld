@@ -17,6 +17,7 @@ import type { StopBoard } from '../street/stops';
 import type { NearSolids } from '../street/streetMap';
 import type { TownSettings } from '../world/settings';
 import type { TrafficMsg } from '../traffic/feed';
+import type { Said } from '../street/talk';
 
 export type ToSim =
   /**
@@ -125,7 +126,7 @@ export type FromSim =
    * `view`: the snapshot, when the game minute has moved on since the last one sent (else null). `traffic`: the
    * vehicles on the roads and in the kerbside bays (src/traffic/feed.ts), the town's traffic running in this worker.
    */
-  | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; player: PlayerStatus | null; traffic: TrafficMsg; ms: number }
+  | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; player: PlayerStatus | null; traffic: TrafficMsg; talk: Said[]; ms: number }
   | PlayerReply
   | { type: 'saved'; clock: number; bytes: Uint8Array; ms: number }
   | { type: 'skipped'; clock: number; view: SimView; ms: number }

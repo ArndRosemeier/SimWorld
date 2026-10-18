@@ -98,6 +98,12 @@
       .pl-menu-head h3 { margin: 0; font: 400 18px/1 'IM Fell English', Georgia, serif; letter-spacing: 0.06em; color: #ece3d0; }
       .pl-menu-body { overflow-y: auto; padding: 6px 14px 12px; }
       .pl-skips { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+      .bubbles { position: fixed; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; }
+      body.title-up .bubbles { display: none; }
+      .bubble { position: absolute; left: 0; top: 0; max-width: 230px; padding: 5px 9px; margin-top: -10px; box-sizing: border-box; background: #f6f1e7f0; color: #1d1a16; border-radius: 10px; font: 13px/1.3 'Alegreya Sans', system-ui, sans-serif; box-shadow: 0 2px 8px #0005; white-space: normal; width: max-content; }
+      .bubble::after { content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #f6f1e7f0; }
+      .bubble.murmur { padding: 1px 7px; font-size: 12px; color: #4a4339; background: #f6f1e7b0; }
+      .bubble.murmur::after { border-top-color: #f6f1e7b0; }
       .pl-menu-body > button { display: block; width: 100%; margin: 4px 0; text-align: left; }
       .pl-menu-body h4 { margin: 10px 0 2px; color: #7a6f5e; font: 600 11px/1.2 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; }
       .pl-act { display: flex !important; justify-content: space-between; gap: 10px; }
