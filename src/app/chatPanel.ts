@@ -206,7 +206,8 @@ export class ChatPanel {
 
   private submit(): void {
     const text = this.input.value.trim();
-    if (!text || this.sendBtn.disabled) return;
+    // While they answer, a line is still taken (the chat sends it next); only a finished talk refuses it.
+    if (!text || !this.talking) return;
     this.input.value = '';
     this.hooks.send(text);
   }
