@@ -14,6 +14,7 @@ import { newMemories } from './memory';
 import { settleRegion, type Region } from './region';
 import { newMindLedger } from './mind/apply';
 import { newLife } from './life';
+import { history } from './chronicle';
 import { FEMALE_NAMES, MALE_NAMES, PET_NAMES, SURNAMES } from './names';
 import { HABIT_COUNT, PersonTable, T_CONSC, T_EXTRA, T_OPEN, V_FAITH, type Habit, HABITS, type Household } from './people';
 import { KINDS, isHome } from './placeKinds';
@@ -34,13 +35,19 @@ const TYPES: [HouseholdType, number][] = [
 interface Spec { age: number; sex: number; role: 'head' | 'partner' | 'child' | 'grandparent' | 'mate' }
 
 export interface WorldOptions {
-  /** Game day the world starts on (default 0, a Monday). */
+  /** Game day the world starts on (default 0, a Monday). With `history`, the day the history starts. */
   startDay?: number;
   /** The country around the town (the planner's `regionOf(town)`): lore everyone knows, people's ties to it. */
   region?: Region;
+  /**
+   * Years of town history to run before play (plan §2.4; whole weeks, so the weekday is kept): the population is
+   * synthesised that long ago and lives its life up to now, so kin, exes, grudges, secrets and gossip have a past.
+   * Default 0: the synthesised town as is, with a few current stories.
+   */
+  history?: number;
 }
 
-/** Make a world for a place graph: places indexed, population synthesised, relationships seeded, clock at 06:00. */
+/** Make a world for a place graph: places indexed, population synthesised, relationships seeded (and optionally a history lived), clock at 06:00. */
 export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions = {}): World {
   const idx = placeIndex(graph);
   const world: World = {
@@ -227,7 +234,13 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     }
   }
 
-  seedNews(world, rng.fork('news'));
+  if (opts.history) {
+    history(world, opts.history);
+    // Morning of the first day of play: everyone at home, deciding what to do.
+    world.clock += 360;
+    for (let id = 0; id < world.actors.count; id++) world.actors.cols.until[id] = world.clock;
+  } else seedNews(world, rng.fork('news'));
+  // The country around and people's ties to it, for the population as it is now.
   if (opts.region) world.region = settleRegion(world, opts.region, rng.fork('region'));
   return world;
 }

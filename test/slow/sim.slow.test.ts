@@ -1,7 +1,8 @@
 /**
  * Society sim at full size (plan R3/R4, risk 2): 2,000 people plus their animals, ticked one game minute at a
  * time for a week. Reports ms per tick and rumour reach; fails if a tick averages over the budget or anyone starves.
- * Also: twenty years of life events in daily steps, with the population and the books checked.
+ * Also: twenty years of life events in daily steps, with the population and the books checked; thirty years of town
+ * history and a one-year time skip, timed.
  * Slow tier: `npm run test:slow` or Actions → Slow tests.
  */
 import { test } from 'node:test';
@@ -10,6 +11,7 @@ import { testTown } from '../../src/sim/testTown';
 import { createWorld } from '../../src/sim/synth';
 import { isPerson, tick } from '../../src/sim/world';
 import { lifeDay } from '../../src/sim/life';
+import { chronicle, digest } from '../../src/sim/chronicle';
 import { ACTOR_PERSON } from '../../src/sim/actors';
 import { addFact, reach, witness } from '../../src/sim/knowledge';
 import { NEED_COUNT, N_FOOD } from '../../src/sim/species';
@@ -56,4 +58,22 @@ test('life: twenty years of a 2,000-person town stay plausible (births, deaths, 
   assert.ok(Math.abs(end - start) / start < 0.15, `population ${start} → ${end}`);
   assert.ok(by.birth / 20 > 8 && by.death / 20 > 8, 'births and deaths at town scale');
   assert.ok(perDay < 10, `${perDay.toFixed(2)} ms per day`);
+});
+
+test('chronicle: 30 years of history and then a one-year skip, for 2,000 people, in loading-screen time', () => {
+  const t0 = performance.now();
+  const world = createWorld(testTown(2028, 2000), 2028, { history: 30 });
+  const historyMs = performance.now() - t0;
+  let people = 0;
+  for (let id = 0; id < world.actors.count; id++) if (isPerson(world, id)) people++;
+  const since = world.clock;
+  const t1 = performance.now();
+  chronicle(world, 365);
+  const skipMs = performance.now() - t1;
+  const someone = Array.from({ length: world.actors.count }, (_, i) => i).find((i) => isPerson(world, i) && digest(world, i, since).length >= 5) ?? -1;
+  console.log(`history 30 y: ${historyMs.toFixed(0)} ms, ${people} people, ${world.life.events.length} events, ${world.knowledge.facts.length} facts; ` +
+    `skip 1 y: ${skipMs.toFixed(0)} ms; a digest: ${someone >= 0 ? digest(world, someone, since, 5).map((d) => d.text).join(' | ') : 'none'}`);
+  assert.ok(Math.abs(people - 2000) / 2000 < 0.2, `${people} people after history`);
+  assert.ok(historyMs < 15000 && skipMs < 15000, 'time');
+  assert.ok(someone >= 0, 'someone has a year to tell about');
 });

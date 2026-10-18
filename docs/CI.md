@@ -34,3 +34,7 @@ CI is a tool for the developer's loop, so its cost is measured in **minutes of w
 ## Local loop
 
 `npm test` runs the same suite with the same budget. On a slow machine, `CI_BUDGET_SCALE=2 npm test` doubles the limits locally (CI always runs at 1).
+
+## Deploy
+
+`.github/workflows/pages.yml` publishes main to GitHub Pages after each merge's changelog fold, so the deployed build shows the version that merge became. It is its own workflow: the PR check job never waits on it. Re-run it by hand with Actions → **Pages** → Run workflow.

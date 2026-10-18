@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.012 — Skipping time, and a town with a past
+
+- Time can be skipped by days or months: life goes on (births, deaths, romances, jobs, moves) and news keeps spreading from person to person, faster for juicy stories.
+- After a skip, any inhabitant can tell what happened to them and what they heard, and only what they would know.
+- A new town can be given decades of history before play starts, so families, exes, grudges and secrets come from things that happened.
+- Old people living alone now move in with their children or into a care home, so family houses free up for newcomers and the town's population stays steady.
+
+## v0.011 — The game on the web
+
+- Every merge is now published on GitHub Pages, so the newest build can be opened in a browser without installing anything.
+
 ## v0.010 — Version number and What's new
 
 - The game shows its version (v0.001 at the start, one step of 0.001 per update) in the corner of the start screen, and it stays there in town.
