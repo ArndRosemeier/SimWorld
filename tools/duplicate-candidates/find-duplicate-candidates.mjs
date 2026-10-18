@@ -351,24 +351,43 @@ export function nearMatch(aName, bName) {
   return levenshtein(sa, sb, 2) <= 2;
 }
 
-/** Bounded Levenshtein distance. */
+/** Rows reused by `levenshtein` (it runs for millions of name pairs; no allocation per call). */
+let LEV_PREV = new Int32Array(64);
+let LEV_CUR = new Int32Array(64);
+
+/**
+ * Bounded Levenshtein distance: exact when it is at most `max`, otherwise some value above `max`. Only the band of
+ * cells within `max` of the diagonal is computed.
+ */
 export function levenshtein(a, b, max = Infinity) {
   if (a === b) return 0;
-  if (Math.abs(a.length - b.length) > max) return max + 1;
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i += 1) {
-    const cur = [i];
-    let rowMin = i;
-    for (let j = 1; j <= b.length; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      const val = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
-      cur.push(val);
-      if (val < rowMin) rowMin = val;
+  const n = a.length, m = b.length;
+  if (Math.abs(n - m) > max) return max + 1;
+  const band = Number.isFinite(max) ? max : Math.max(n, m);
+  const big = band + 1;
+  if (LEV_PREV.length < m + 2) { LEV_PREV = new Int32Array(m + 2); LEV_CUR = new Int32Array(m + 2); }
+  let prev = LEV_PREV, cur = LEV_CUR;
+  for (let j = 0; j <= m + 1; j += 1) prev[j] = j <= band ? j : big;
+  for (let i = 1; i <= n; i += 1) {
+    const lo = Math.max(1, i - band), hi = Math.min(m, i + band);
+    cur[0] = i <= band ? i : big;
+    if (lo > 1) cur[lo - 1] = big;
+    let rowMin = cur[0];
+    const ai = a[i - 1];
+    for (let j = lo; j <= hi; j += 1) {
+      let v = prev[j - 1] + (ai === b[j - 1] ? 0 : 1);
+      const up = prev[j] + 1, left = cur[j - 1] + 1;
+      if (up < v) v = up;
+      if (left < v) v = left;
+      if (v > big) v = big;
+      cur[j] = v;
+      if (v < rowMin) rowMin = v;
     }
+    if (hi < m) cur[hi + 1] = big;
     if (rowMin > max) return max + 1;
-    prev = cur;
+    const t = prev; prev = cur; cur = t;
   }
-  return prev[b.length];
+  return prev[m];
 }
 
 /** Token sequence with every identifier replaced by `ID` and numbers by `NUM`. */
@@ -1263,14 +1282,24 @@ export function groupCandidates(functions, opts = {}) {
     });
   }
   const nearPairs = [];
+  // Candidates for each name: the same word set, or a joined length within 2 (anything else cannot match).
+  const bySet = new Map();
+  const byLen = new Map();
+  names.forEach((name, i) => {
+    const p = prep.get(name);
+    if (!bySet.has(p.setKey)) bySet.set(p.setKey, []);
+    bySet.get(p.setKey).push(i);
+    if (!byLen.has(p.joined.length)) byLen.set(p.joined.length, []);
+    byLen.get(p.joined.length).push(i);
+  });
   for (let i = 0; i < names.length; i += 1) {
     const pa = prep.get(names[i]);
-    for (let j = i + 1; j < names.length; j += 1) {
+    const cands = new Set();
+    for (const j of bySet.get(pa.setKey)) if (j > i) cands.add(j);
+    for (let L = pa.joined.length - 2; L <= pa.joined.length + 2; L += 1) for (const j of byLen.get(L) || []) if (j > i) cands.add(j);
+    for (const j of [...cands].sort((x, y) => x - y)) {
       const pb = prep.get(names[j]);
-      let match = pa.setKey === pb.setKey;
-      if (!match && Math.abs(pa.joined.length - pb.joined.length) <= 2) {
-        match = levenshtein(pa.joined, pb.joined, 2) <= 2;
-      }
+      const match = pa.setKey === pb.setKey || levenshtein(pa.joined, pb.joined, 2) <= 2;
       if (!match) continue;
       nearPairs.push(...crossFilePairs([...byName.get(names[i]), ...byName.get(names[j])]));
     }
