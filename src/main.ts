@@ -37,13 +37,15 @@ import texWorkerUrl from './workers/tex.worker.ts?worker&url';
 import type { FromTex, ToTex } from './workers/texProtocol';
 import { loadTextures, loadVegetationTextures } from './render/textures';
 import { INTERIOR, useTextures } from './render/materials';
-import { whatsNewButton } from './app/whatsNew';
+import { openWhatsNew, VERSION, whatsNewButton } from './app/whatsNew';
+import { Shell } from './app/shell';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
 import { SimClient, followSim, playStart, screenWorld, type ScreenWorld } from './game/SimClient';
 import { Street } from './game/street';
 import { Chat } from './game/chat';
 import { LlmSetup } from './game/llmSetup';
+import { openLlmSettings } from './app/llmSettings';
 import { CameraControl } from './game/camera';
 import { Playing } from './game/playing';
 import { PeopleView } from './render/people/peopleView';
@@ -58,9 +60,9 @@ import type { TownFace } from './sim/view';
 import { formatDate } from './sim/calendar';
 import { TownAudio } from './audio/townAudio';
 import { soundEnvFromSim, soundEnvOf, soundOverrides } from './audio/env';
-import { soundButton } from './app/soundPanel';
-import { paperButton } from './app/paperPanel';
-import { mapButton } from './app/mapPanel';
+import { soundNote, soundOpener } from './app/soundPanel';
+import { openPaper } from './app/paperPanel';
+import { mapOpener } from './app/mapPanel';
 
 const HAZE = 0xa9c8e4;
 
@@ -167,7 +169,17 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   sim.onView(sim.view);
   if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);
   sim.keepSaved();
-  document.body.append(paperButton(() => sim.view));
+  shell.add({ label: 'Paper', group: 'Town', open: () => openPaper(sim.view) });
+  shell.add({ label: 'Save now', group: 'Game', open: () => void sim.saveNow().then((ok) => shell.say(ok ? 'Saved' : 'Could not save here')) });
+  shell.add({ label: 'Load last save', group: 'Game', open: () => {
+    // The save is played on from a fresh start of the page (the worker loads it while the town builds).
+    sim.autosave = false;
+    const u = new URL(location.href);
+    for (const k of ['be', 'skip', 'street', 'follow']) u.searchParams.delete(k);
+    u.searchParams.set('resume', '');
+    location.assign(u);
+  } });
+  shell.add({ label: "What's new", group: 'Game', open: openWhatsNew, note: () => VERSION });
   const street = new Street(sim, people, settings.seed);
   // The traffic runs in the sim worker beside the world; its vehicles come with every street update.
   const vehicles = new VehiclesView(stage, pool, 70 + town.cells);
@@ -180,20 +192,26 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   cam.pickNear = (x, z) => street.next(x, z);
   if (q.has('street')) { const [sx, sz] = q.get('street')!.split(',').map(Number); cam.toStreet(sx, sz, num('yaw', 0)); }
   // Talking to people (T near someone): the chat panel, the player's key and models (src/game/chat.ts).
-  const chat = new Chat(sim, street, cam, new LlmSetup());
+  const llm = new LlmSetup();
+  const chat = new Chat(sim, street, cam, llm);
+  shell.addTool(chat.panel.launcher);
+  shell.add({ label: 'Past conversations', group: 'Chat', open: () => chat.panel.open('past') });
+  shell.add({ label: 'Usage and costs', group: 'Chat', open: () => chat.panel.open('usage') });
+  shell.add({ label: 'Models and key', group: 'Chat', open: () => openLlmSettings(llm) });
   const followId = q.has('follow') ? num('follow', -1) : -1;
   // The picker comes up over the town once it shows; picking someone plays as them (?be=<id> skips the picker).
   const playing = new Playing(sim, cam, street, settings.seed);
+  shell.add({ label: 'Choose who to be', group: 'Play', open: () => void playing.choose() });
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
   /** The media the signs last got (the sim's view brings a new one each game minute). */
   let shownMedia: MediaView | undefined;
   let shownFace: TownFace | undefined;
   const fwd = { x: 0, y: 0, z: 0 };
-  document.body.append(mapButton(
+  shell.add({ label: 'Map', group: 'Town', open: mapOpener(
     async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
     () => (cam.mode === 'drone' ? null : { x: camera.position.x, z: camera.position.z, fx: fwd.x, fz: fwd.z }),
-  ));
+  ) });
   renderer.setAnimationLoop((t: number) => {
     const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
     lastT = t;
@@ -238,15 +256,15 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       shown = true;
       document.getElementById('loading')?.remove();
       audio.startTown();
-      if (q.has('be')) void sim.ask({ op: 'cards' }).then((r) => { const c = r.cards.find((x) => x.id === num('be', -1)); return c ? playing.become(c) : playing.choose(); });
-      else if (!q.has('street') && followId < 0) void playing.choose();
+      if (q.has('be') || (!q.has('street') && followId < 0)) void playing.takeOver(q.has('be') ? num('be', -1) : null);
     }
+    shell.setWhen(`${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(sim.clock)))} · ${describeWeather(w)}`);
     if (hud) {
-      const c = sim.clock, n = people.counts;
+      const n = people.counts;
       const talk = cam.mode === 'drone' ? '' : chat.hint();
       const who = cam.mode === 'play' ? '\nDrag to look around' : cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '' : '\nW A S D walk, drag to look, F follow someone, Esc up';
       const whoTalk = who + (talk ? `\n${talk}` : '');
-      hud.textContent = `${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(c)))}, ${describeWeather(w)} · ${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${vehicles.counts.moving} vehicles on the road, ${vehicles.counts.parked} parked · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${whoTalk}`;
+      hud.textContent = `${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${vehicles.counts.moving} vehicles on the road, ${vehicles.counts.parked} parked · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${whoTalk}`;
     }
   });
   await view.ready;
@@ -278,8 +296,10 @@ async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage
   });
 }
 
-// The version and What's new sit on the start screen and stay in the corner once the town is up.
-document.body.append(whatsNewButton());
+// The screen's frame: the top bar and the one menu every window opens from (src/app/shell.ts). The version and What's
+// new sit on the loading screen (plan R2) and go with it; the menu has What's new once the town is up.
+const shell = new Shell();
+document.getElementById('loading')?.append(whatsNewButton());
 // Sound starts with the first click or key (browsers allow nothing earlier): the title music on the
 // start screen, then the town.
 const audio = new TownAudio(settingsFromUrl().seed);
@@ -287,7 +307,7 @@ const urlQ = new URLSearchParams(location.search);
 const play = playStart(urlQ.get('time'), urlQ.get('date'));
 const time = screenWorld(settingsFromUrl().seed, play);
 const ears = soundOverrides(urlQ);
-document.body.append(soundButton(audio.engine));
+shell.add({ label: 'Sound', group: 'Settings', open: soundOpener(audio.engine), note: () => soundNote(audio.engine) });
 void audio.init();
 // The title music runs while the start screen is up; the render loop takes over once it starts.
 const startScreen = setInterval(() => {

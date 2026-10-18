@@ -408,10 +408,6 @@
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
-    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
-    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
-  },
-  {
     "key": "idiom: [.beginPath .lineTo .lineWidth .moveTo] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
@@ -430,14 +426,6 @@
   {
     "key": "idiom: [.vertexNode] in simworld/render/tsl/precip.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/smoke.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
-  },
-  {
-    "key": "idiom: [.cornerGap] in simworld/interior/fill/home.ts + simworld/interior/fill/place.ts + simworld/interior/fill/work.ts",
-    "reason": "Furnishing rules scoring a candidate spot by the filler's own cornerGap (one seam, Filler.cornerGap); each room's rule weighs it differently, nothing to fold."
-  },
-  {
-    "key": "idiom: [.addEventListener .type] in simworld/app/paperPanel.ts + simworld/app/picker.ts + simworld/app/whatsNew.ts",
-    "reason": "Regrouped by the finder after unrelated changes."
   },
   {
     "key": "idiom: [.filter .known] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/synth.ts",

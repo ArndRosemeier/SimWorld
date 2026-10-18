@@ -22,10 +22,21 @@ export class Playing {
   /** Who the player is, null while choosing. */
   get playing(): boolean { return this.panel !== null; }
 
-  /** Show the picker (the cards are fetched fresh: lives move on while you play). */
-  async choose(): Promise<void> {
+  /**
+   * Once the town shows: play as `be` (an inhabitant's id, from `?be=`), else as whoever the loaded save was being
+   * played as, else bring up the picker.
+   */
+  async takeOver(be: number | null): Promise<void> {
     const r = await this.sim.ask({ op: 'cards' });
-    this.cards = r.cards;
+    const was = r.status?.alive ? r.status : null;
+    const card = r.cards.find((c) => c.id === (be ?? was?.id ?? -1));
+    if (card) return this.become(card, be === null && was ? was.autopilot : true);
+    return this.choose(r.cards);
+  }
+
+  /** Show the picker (the cards are fetched fresh unless given: lives move on while you play). */
+  async choose(cards?: InhabitantCard[]): Promise<void> {
+    this.cards = cards ?? (await this.sim.ask({ op: 'cards' })).cards;
     this.picker?.root.remove();
     const current = this.panel ? this.cards.find((c) => c.id === this.panel!.card.id) ?? null : null;
     this.picker = new Picker(this.cards, {
@@ -44,8 +55,8 @@ export class Playing {
   }
 
   /** Become `card`'s person: on autopilot at first, so they carry on with their day while the camera arrives. */
-  async become(card: InhabitantCard): Promise<void> {
-    await this.sim.ask({ op: 'become', id: card.id, autopilot: true });
+  async become(card: InhabitantCard, autopilot = true): Promise<void> {
+    await this.sim.ask({ op: 'become', id: card.id, autopilot });
     this.closePicker();
     this.panel?.close();
     const panel = new PlayPanel(card, {
@@ -58,7 +69,6 @@ export class Playing {
         const r = await this.sim.ask({ op: 'digest', since });
         if (this.panel === panel) panel.showDigest(days, r.digest);
       },
-      save: () => this.sim.saveNow(),
       switchPerson: () => void this.choose(),
     });
     this.panel = panel;

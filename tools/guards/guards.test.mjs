@@ -82,35 +82,5 @@ test('duplication finder sees a body copied under another name across roots', ()
 
 // ---- this repository -------------------------------------------------------------------------
 
-const files = listFiles(REPO, 'src');
-
-test('repo: no banned pattern outside its owner', () => {
-  assert.deepEqual(checkBanned(REPO, files), []);
-});
-
-test('repo: layer boundaries hold', () => {
-  assert.deepEqual(checkLayers(REPO, files), []);
-});
-
-// The ratchet, one test per finder (each within the per-test budget): every finding is in the
-// baseline with a reason, every baseline line of that finder is still found.
-const ofKind = (prefixes) => readBaseline().filter((b) => prefixes.some((p) => b.key.startsWith(p)));
-
-test('repo: duplication matches the baseline exactly (ratchet: clones)', () => {
-  const problems = checkDuplication(duplicationFindings(undefined, undefined, ['clones']), ofKind(['clone:']));
-  assert.equal(problems.length, 0, '\n' + problems.join('\n'));
-});
-
-test('repo: duplication matches the baseline exactly (ratchet: idioms)', () => {
-  const problems = checkDuplication(duplicationFindings(undefined, undefined, ['idioms']), ofKind(['idiom:']));
-  assert.equal(problems.length, 0, '\n' + problems.join('\n'));
-});
-
-test('repo: duplication matches the baseline exactly (ratchet: same names)', () => {
-  const problems = checkDuplication(duplicationFindings(undefined, undefined, ['names']), ofKind(['same name:']));
-  assert.equal(problems.length, 0, '\n' + problems.join('\n'));
-});
-
-test('repo: every baseline line belongs to a finder', () => {
-  assert.deepEqual(readBaseline().filter((b) => !/^(clone|idiom|same name):/.test(b.key)).map((b) => b.key), []);
-});
+// The repo itself is checked by `node tools/guards/guards.mjs`, the first step of `npm test` (one scan, its own
+// time cap in tools/ci/budget.json), so these tests cover the guard functions only.

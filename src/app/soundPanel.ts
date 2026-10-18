@@ -1,7 +1,6 @@
 /**
- * The sound control: a small button above What's new that opens a panel with the master volume,
- * mute and a slider per sound category (the mix is remembered by the engine). Pressing it is also
- * the gesture that lets the browser start audio.
+ * The sound panel, opened from the menu (src/app/shell.ts): the master volume, mute and a slider per sound
+ * category (the mix is remembered by the engine). Opening it is also a gesture that lets the browser start audio.
  */
 import { SOUND_CATEGORIES, type AudioEngine } from '../audio/engine';
 import { el, onEscape } from './dom';
@@ -15,16 +14,18 @@ function slider(label: string, value: number, max: number, onInput: (v: number) 
   return row;
 }
 
-export function soundButton(engine: AudioEngine): HTMLButtonElement {
-  const b = el('button', 'snd-button');
-  b.type = 'button';
-  const label = (): void => { b.textContent = engine.muted || engine.volume === 0 ? 'Sound off' : 'Sound'; };
-  label();
+/** "off" while muted or at no volume, for the menu entry's note. */
+export function soundNote(engine: AudioEngine): string {
+  return engine.muted || engine.volume === 0 ? 'off' : '';
+}
+
+/** What the menu's "Sound" entry runs (src/app/shell.ts): opens the panel, or closes it when it is open. */
+export function soundOpener(engine: AudioEngine): () => void {
   let panel: HTMLDivElement | null = null;
   let stopKeys = (): void => {};
   const close = (): void => { panel?.remove(); panel = null; stopKeys(); removeEventListener('pointerdown', onOutside, true); };
-  const onOutside = (e: PointerEvent): void => { if (panel && !panel.contains(e.target as Node) && e.target !== b) close(); };
-  b.addEventListener('click', () => {
+  const onOutside = (e: PointerEvent): void => { if (panel && !panel.contains(e.target as Node)) close(); };
+  return () => {
     engine.wake();
     if (panel) { close(); return; }
     panel = el('div', 'snd-panel');
@@ -34,13 +35,12 @@ export function soundButton(engine: AudioEngine): HTMLButtonElement {
     const box = el('input', '');
     box.type = 'checkbox';
     box.checked = engine.muted;
-    box.addEventListener('change', () => { engine.setMuted(box.checked); label(); });
+    box.addEventListener('change', () => engine.setMuted(box.checked));
     mute.append(el('span', '', 'Mute'), box);
-    panel.append(el('h2', '', 'Sound'), mute, slider('Volume', engine.volume, 1, (v) => { engine.setVolume(v); box.checked = engine.muted; label(); }));
+    panel.append(el('h2', '', 'Sound'), mute, slider('Volume', engine.volume, 1, (v) => { engine.setVolume(v); box.checked = engine.muted; }));
     for (const c of SOUND_CATEGORIES) panel.append(slider(c.name, engine.mix[c.id], 1.5, (v) => engine.setMix(c.id, v)));
     document.body.append(panel);
     stopKeys = onEscape(close);
     addEventListener('pointerdown', onOutside, true);
-  });
-  return b;
+  };
 }
