@@ -1,5 +1,74 @@
 # Changelog
 
+## v0.061 — People walk around trees, cars and street furniture
+
+- People on the sidewalk step around street trees, lamps, benches, bins, café tables and parked cars instead of walking through them, and keep off building walls.
+- Each person stays inside the sidewalk: a narrow sidewalk has one walking line, a wide one room for several.
+- Corners no longer send walkers past the corner and back.
+- A walk to a door across the street crosses it where no parked car, lamp or tree is in the way, near the door, and not in the middle of a junction.
+- People leave and enter by the front of the building, not through the wall beside the door.
+- People strolling on squares, in parks and up and down a street keep walking most of the time, with a short pause, instead of standing about.
+- A save that no longer fits (an older save version, a changed town) no longer stops `?resume` from starting: play starts afresh and the old save is dropped.
+
+## v0.060 — The seam index names the paper and notices in the sim view
+
+- The SimView row in the architecture notes now lists the town's media (newest paper and board notices).
+
+## v0.059 — Chimney smoke
+
+- When it is cold, smoke rises from the chimneys of houses with the heating on: none on a mild day, most chimneys near freezing, more in the morning and the evening than in the small hours.
+- The smoke drifts with the wind, rises straight on a still day and is torn along low in a gale; it is pale by day, faint at night and thinner in the rain.
+
+## v0.058 — Front doors open onto the street
+
+- No front door opens into the house next door any more: on corner plots and narrow wedges the front was sometimes put on the shared wall.
+- Oddly pinched building outlines are gone.
+
+## v0.057 — The town map
+
+- A "Map" button opens a map of the town in the style of a printed town plan: every street with its name, the main roads in yellow, buildings, parks, the river or sea, the woods, the railway, and the town's landmarks by name.
+- An arrow shows where you are and which way you face when you are down in the street.
+- Drag to move around; zoom with the mouse wheel or the + and − buttons.
+
+## v0.056 — Read the town's paper
+
+- A "Paper" button beside Sound opens this week's issue of the town's paper: the front page, news around town, business, police news, births, marriages and deaths, what's on in the coming week, and the notices on the boards (lost pets, funerals, coming events).
+- There is a paper to read from the moment you arrive: last week's issue, with what's on from today.
+- Council stories say when the council meets next.
+
+## v0.055 — Saves and the time skip in the game
+
+- The game saves the town when you switch away from the tab and every five minutes. Open it with `?resume` to play on from the last save.
+- `?skip=N` skips N days on start, to the same time of day; the town lives through them (life events, gossip) and everyone is drawn afresh.
+- Saves go to the browser's IndexedDB, gzipped, one per town.
+
+## v0.054 — No more flickering ground, and parked cars that leave junctions free
+
+- The ground no longer flickers: lawns, squares and the church grounds no longer lie a centimetre over the block beneath them, and dirt tracks, lanes and main roads keep clear of each other and of the farmyards where they meet.
+- Far out in the country the roads no longer sink into the hills.
+- Parked cars keep five metres back from every cross street and off the zebra crossings, so a side street is never blocked.
+- Street trees, lamps, bins and benches stand in a strip along the kerb, leaving the sidewalk free to walk on.
+
+## v0.053 — A care home, a petrol station, and fewer empty-looking shop fronts
+
+- The town has a care home now: a two- or three-storey house with a garden behind it, on a quiet street at the edge of the residential part. The oldest townspeople living alone move in there.
+- A petrol station stands on a main road at the edge of town: a forecourt with a canopy, pumps and a small kiosk.
+- The supermarket sits further out towards the edge of town, with its car park in front.
+- Fewer shop fronts: a town keeps about one ordinary shop per 85 inhabitants. The fronts it cannot fill have become flats on the ground floor or small offices, and only a few units stand empty.
+- Tiny or wedge-shaped plots no longer carry tall narrow houses: they hold a single-storey kiosk, bungalow, shed or lock-up garage.
+- Zebra crossings are now known to the town itself, so people will be able to cross the street where the stripes are.
+
+## v0.052 — Street lamps light the street
+
+- At night the street lamps around you cast real light on the pavement, the walls and the people walking by, warmer under the old-style lamps.
+
+## v0.051 — The bin lorry, the post van and deliveries
+
+- On bin day the bin lorry works its way along every street whose bins are out, early in the morning.
+- The post van does its round from Monday to Saturday, out to the farms as well.
+- A delivery lorry brings the morning goods to the food shops, pubs and cafés that open that day, and a parcel van calls at a few homes on weekdays.
+- Vans and lorries pull in to the kerb while they unload, so traffic goes past them. A bus that finds another bus at its stop now pulls in behind it instead of waiting in the road.
+
 ## v0.050 — The town's weekly paper, notice boards and lost pets
 
 - The town has its own weekly paper. Each Thursday or Friday it prints what really happened that week: deaths with the funeral time, births, weddings, burglaries and shoplifting, shops opening and closing, and what's on in the coming week.

@@ -46,6 +46,8 @@ export const isVehicleModel = (key: string): boolean => key.startsWith('v:');
 const PARKED: VehicleKind[] = ['sedan', 'sedan', 'hatch', 'suv', 'wagon', 'suv', 'hatch', 'van', 'pickup', 'sports', 'sedan', 'delivery'];
 /** Share of parking bays with an EV charging post, by district. */
 const EV_SHARE: Partial<Record<District, number>> = { downtown: 0.14, commercial: 0.12, apartments: 0.1, rowhouses: 0.07, oldtown: 0.05, suburban: 0.04, industrial: 0.04, port: 0.03 };
+/** A manhole stands this much above the street: its flat rim clears the draped carriageway (DRAPE_TOL) on a sloping street. */
+const MANHOLE_LIFT = 0.035;
 
 /** Every cell's props (trees and shrubs excepted) as instance lists. */
 export function propInstances(cells: readonly CellPlan[], terrain: Terrain, opts: { kerbCars?: boolean } = {}): PropGroup[] {
@@ -81,7 +83,7 @@ export function propInstances(cells: readonly CellPlan[], terrain: Terrain, opts
         case PropType.Kiosk: furn('kiosk', v, x, z, yaw, sc); break;
         case PropType.PlayGround: furn('playground', v, x, z, yaw, sc); break;
         case PropType.BusStop: furn('busStop', v, x, z, yaw, sc); break;
-        case PropType.Manhole: put('f:manhole:0', x, terrain.height(x, z) + 0.01, z, yaw, sc, undefined, jitter(x, z)); break;
+        case PropType.Manhole: put('f:manhole:0', x, terrain.height(x, z) + MANHOLE_LIFT, z, yaw, sc, undefined, jitter(x, z)); break;
         case PropType.TrafficLight: case PropType.StopSign: {
           const k = `${Math.round(x)},${Math.round(z)}`;
           if (signalled.has(k)) break;

@@ -19,7 +19,7 @@ import { foundGroups, newGroups } from './groups';
 import { foundPolitics, newPolitics } from './politics';
 import { history, historyDays } from './chronicle';
 import { newAgenda, townAgenda } from './agenda';
-import { newMedia } from './media';
+import { lastEdition, newMedia } from './media';
 import { withLocalHours } from './hours';
 import { withOffsite } from './offsite';
 import { DEFAULT_LATITUDE, epochFor, type CivilDate } from './calendar';
@@ -276,6 +276,7 @@ export function createWorld(planned: PlaceGraph, seed: number, opts: WorldOption
   } else seedNews(world, rng.fork('news'));
   // The country around and people's ties to it, for the population as it is now.
   if (opts.region) world.region = settleRegion(world, opts.region, rng.fork('region'));
+  if (!world.media.editions.length) lastEdition(world);
   return world;
 }
 

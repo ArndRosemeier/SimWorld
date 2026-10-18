@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { planTown } from '../src/plan/town';
-import { buildGround, GROUND_LAYER_COUNT } from '../src/build/ground';
-import { buildTerrainTile, buildWaterTile, terrainTiles, terrainSkirt, waterSources, TERRAIN_DROP } from '../src/build/terrainMesh';
-import { buildCountryRoads } from '../src/build/rural';
+import { buildGround, groundSurfaces, GROUND_LAYER_COUNT } from '../src/build/ground';
+import { intersection, shapesToPolys, shapeArea } from '../src/geom/clip';
+import { buildTerrainTile, buildWaterTile, terrainTiles, terrainSkirt, terrainMeshHeight, waterSources, TERRAIN_DROP } from '../src/build/terrainMesh';
+import { buildCountryRoads, countryRoadSurface } from '../src/build/rural';
 import type { MeshBuilder, MeshData } from '../src/build/meshBuilder';
 import type { Terrain } from '../src/world/terrain';
 import { CURB_H } from '../src/world/ground';
@@ -93,4 +94,45 @@ test('building is deterministic', () => {
     assert.deepEqual(again[k].attrs.position.array, meshes[k].attrs.position.array, k);
     assert.deepEqual(again[k].index, meshes[k].index, k);
   }
+});
+
+test('no two surfaces of a cell lie on each other (they would fight)', () => {
+  let checked = 0;
+  for (const c of cells.slice(0, 8)) {
+    const S = groundSurfaces(c).filter((g) => g.shapes.length);
+    for (let a = 0; a < S.length; a++) for (let b = a + 1; b < S.length; b++) {
+      // Rounding in the clip leaves slivers along shared edges (millimetres wide): not a surface.
+      for (const s of intersection(shapesToPolys(S[a].shapes), shapesToPolys(S[b].shapes))) {
+        let per = 0;
+        for (let i = 0; i < s.outer.length; i += 2) per += Math.hypot(s.outer[(i + 2) % s.outer.length] - s.outer[i], s.outer[(i + 3) % s.outer.length] - s.outer[i + 1]);
+        const width = (2 * shapeArea(s)) / per;
+        assert.ok(width < 0.03, `cell ${c.id}: layers ${S[a].layer} and ${S[b].layer} overlap (${shapeArea(s).toFixed(2)} m², ${width.toFixed(3)} m wide)`);
+      }
+      checked++;
+    }
+  }
+  assert.ok(checked > 20);
+});
+
+test('country roads stand clear above the drawn terrain, also far out on its coarse grid', () => {
+  let n = 0, worst = Infinity;
+  for (const R of rural.roads) {
+    const y = countryRoadSurface(R, terrain);
+    let len = 0;
+    for (let i = 2; i < R.pts.length; i += 2) len += Math.hypot(R.pts[i] - R.pts[i - 2], R.pts[i + 1] - R.pts[i - 1]);
+    for (let s = R.trim + 10; s < len; s += 23) {
+      // The point at arc length s (the centreline is a polyline).
+      let acc = 0, x = R.pts[0], z = R.pts[1];
+      for (let i = 2; i < R.pts.length; i += 2) {
+        const l = Math.hypot(R.pts[i] - R.pts[i - 2], R.pts[i + 1] - R.pts[i - 1]);
+        if (acc + l >= s) { const t = (s - acc) / l; x = R.pts[i - 2] + (R.pts[i] - R.pts[i - 2]) * t; z = R.pts[i - 1] + (R.pts[i + 1] - R.pts[i - 1]) * t; break; }
+        acc += l;
+      }
+      if (terrain.isWater(x, z, 2)) continue;
+      worst = Math.min(worst, y(s) - terrainMeshHeight(terrain, x, z));
+      n++;
+    }
+  }
+  assert.ok(n > 200, `${n} points`);
+  assert.ok(worst > TERRAIN_DROP, `closest ${worst.toFixed(3)} m above the terrain mesh`);
 });

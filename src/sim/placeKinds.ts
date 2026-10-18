@@ -80,6 +80,9 @@ export const KINDS: Record<PlaceKind, KindInfo> = {
   away: k('away', [], 0, 100000),
 };
 
+/** Residents' rooms in a care home per inhabitant of the town (the planner's and testTown's care home). */
+export const CARE_ROOMS_PER_PERSON = 0.025;
+
 export const isHome = (kind: PlaceKind): boolean => KINDS[kind].category === 'home';
 
 const MON_SAT = 0b0111111;
