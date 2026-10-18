@@ -9,7 +9,7 @@
 import { hash32, hashToFloat } from '@futuremagic/core';
 import { CURB_H } from '../world/ground';
 import { SITE } from '../plan/placeGraph';
-import { HANG_OUT, POSTER_Y, signSpots, yawAxes, type FrontSign } from '../plan/signs';
+import { clockSpots, HANG_OUT, POSTER_Y, signSpots, yawAxes, type FrontSign } from '../plan/signs';
 import type { TownRoads } from '../plan/roads';
 import type { Town } from '../plan/town';
 import { buildingBase } from './massing';
@@ -29,7 +29,8 @@ export const SIGN_STRIDE = 10;
  *    street-name post itself (always shown); cork: a notice board's cork (`stand`: the
  *    free-standing one, else the one on a wall); notice: pin `k` of the notices up at `place` (a
  *    board place's board, a shop's window, a street's lamp posts; `every`: the street's posts show
- *    its notices in turn, so post k shows notice k mod n).
+ *    its notices in turn, so post k shows notice k mod n); clock: a public clock's dial (the time
+ *    of day, all clocks alike).
  */
 export type SignWhat =
   | { t: 'front'; place: number; style: FrontSign['style']; slot: SlotSize }
@@ -40,7 +41,8 @@ export type SignWhat =
   | { t: 'town'; back: boolean; slot: SlotSize }
   | { t: 'post'; slot: null }
   | { t: 'cork'; stand: boolean; slot: SlotSize }
-  | { t: 'notice'; place: number; k: number; every: boolean; slot: SlotSize };
+  | { t: 'notice'; place: number; k: number; every: boolean; slot: SlotSize }
+  | { t: 'clock'; slot: SlotSize };
 
 /** One model's instances (`model`: 'f:<FurnitureKind>:<variant>', as street props). */
 export type SignGroup = ModelInstances;
@@ -176,6 +178,9 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
     addSign(BOARD, g.x, y + 1.6, g.z, g.yaw, 2.4, 1.2, front, [0.9, 0.9, 0.88]);
     addSign(BOARD, g.x, y + 1.6, g.z, g.yaw + Math.PI, 2.4, 1.2, back, [0.9, 0.9, 0.88]);
   }
+  // Public clocks: a dial on each landmark clock face (src/plan/signs.ts `clockSpots`).
+  const clock = say({ t: 'clock', slot: 'card' });
+  for (const c of clockSpots(town)) addSign(BOARD, c.x, c.y, c.z, c.yaw, c.size, c.size, clock, [0.95, 0.94, 0.9]);
   return { groups: lists.groups(), what, town: name };
 }
 

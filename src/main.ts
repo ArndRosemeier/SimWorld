@@ -256,6 +256,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       shownFace = sim.town;
       view.signs.setFacts({ kind: shownFace.kind, name: shownFace.name, flags: shownFace.looks.flags, hours: shownFace.hours });
     }
+    view.signs?.setTime(minuteOfDay(sim.clock));
     view.signs?.update(camera);
     if (sim.town && sim.town !== lookedFace) {
       // The walls' wear and fresh paint from the same face (upkeep and wealth per building).
