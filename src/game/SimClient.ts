@@ -92,6 +92,8 @@ export class SimClient {
   traffic: TrafficMsg | null = null;
   /** The parked cars as last sent (they come only when they changed; poses PARKED_STRIDE each). */
   parked: { poses: Float32Array; cars: Int32Array } | null = null;
+  /** The level crossings' barrier posts as sent once (src/traffic/feed.ts `POST_STRIDE` each). */
+  crossingPosts: Float32Array | null = null;
 
   /** The sim's latest view snapshot (src/sim/view.ts): every view reads the sim from here. */
   view: SimView;
@@ -198,6 +200,7 @@ export class SimClient {
       this.player = m.player;
       this.traffic = m.traffic;
       if (m.traffic.parked) this.parked = { poses: m.traffic.parked, cars: m.traffic.parkedCars! };
+      if (m.traffic.posts) this.crossingPosts = m.traffic.posts;
       for (const i of m.info) this.infos.set(i.id, i);
       for (const id of m.gone) this.walkers.delete(id);
       for (const t of m.tracks) {

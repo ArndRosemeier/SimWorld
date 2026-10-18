@@ -48,6 +48,7 @@ import { CameraControl } from './game/camera';
 import { Playing } from './game/playing';
 import { PeopleView } from './render/people/peopleView';
 import { VehiclesView } from './render/vehiclesView';
+import { RailView } from './render/railView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
 import { FEMALE, MALE } from './sim/actors';
 import { hhmm, minuteOfDay } from './sim/time';
@@ -162,6 +163,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const street = new Street(sim, people, settings.seed);
   // The traffic runs in the sim worker beside the world; its vehicles come with every street update.
   const vehicles = new VehiclesView(stage, pool, 70 + town.cells);
+  const rail = new RailView(stage);
 
   // The drone drift: a slow circle around the town, high enough to see it whole (or fixed by ?at=…).
   const q = new URLSearchParams(location.search);
@@ -196,6 +198,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     sim.poll(ground.x, ground.z);
     people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);
     vehicles.show(camera, sim.clock, sim.traffic, sim.parked);
+    rail.animate(camera, dt, sim.clock, sim.crossingPosts, sim.traffic, audio);
     // The sun's shadow covers the whole town from above, the streets around you down there.
     if (cam.mode !== 'drone') fitSunShadow(lights, camera.position.x, camera.position.y, camera.position.z, 70);
     else if (shadowMode !== 'drone') fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
