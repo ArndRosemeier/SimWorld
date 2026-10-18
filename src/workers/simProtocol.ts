@@ -36,7 +36,8 @@ export type ToSim =
    * Skip `days` whole days (the time skip, `chronicle`), to the same time of day; the street starts afresh, so
    * the main thread drops everyone it has.
    */
-  | { type: 'skip'; days: number }
+  /** The time skip to game clock `to` (SimClient.skip). */
+  | { type: 'skip'; to: number }
   /** A step of a conversation with an inhabitant (src/chat/ops.ts), against the world as it is now. */
   | { type: 'chat'; req: ChatRequest }
 

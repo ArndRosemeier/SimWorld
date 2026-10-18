@@ -200,7 +200,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   sim.onView = (v) => { litShares(v, sim.windows, A.sleep, lit); setLitShares(lit); if (v.town) decorate(v.town); else outdoors?.set(decor, v.occasions); };
   sim.onView(sim.view);
   decorate();
-  if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);
+  if (q0.has('skip')) await sim.skip((Number(q0.get('skip')) || 1) * MINUTES_PER_DAY);
   sim.keepSaved();
   // A repro (a report's link, a save file) must not replace the player's own save of this town.
   if (until !== undefined || q0.has('save') || q0.has('stand')) sim.autosave = false;
