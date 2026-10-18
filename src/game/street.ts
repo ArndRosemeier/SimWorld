@@ -3,7 +3,7 @@
  * with their own body and today's clothes (src/street/looks.ts), placed on their track every frame.
  */
 import type { EquipmentVisuals } from '@futuremagic/humanoid';
-import { appearanceOf, bodyKey, coldOf, outfitOf } from '../street/looks';
+import { appearanceOf, bodyKey, coldOf, costumeOf, dressUpDay, outfitOf } from '../street/looks';
 import { ACTOR_PERSON } from '../sim/actors';
 import { isWetOut } from '../sim/weather';
 import type { Figure, Look, PeopleView, Rest } from '../render/people/peopleView';
@@ -29,11 +29,12 @@ class WalkerFigure implements Figure {
     const s = this.street, clock = s.sim.clock, info = this.w.info;
     const key = bodyKey(info, clock);
     if (this.cached?.key !== key) this.cached = { key, look: { bodyKey: key, app: appearanceOf(s.seed, info, clock), outfitKey: '', outfit: {} } };
-    // Dressed in the morning for the day's weather: a new outfit each day.
-    const day = `${Math.floor(clock / 1440)}`;
+    // Dressed in the morning for the day's weather: a new outfit each day (children in costume on Halloween evening).
+    const date = s.sim.view.date, dressUp = dressUpDay(date.month, date.day, clock);
+    const day = `${Math.floor(clock / 1440)}${dressUp ? 'h' : ''}`;
     if (this.outfit?.key !== day) {
-      const w = s.sim.view.morning;
-      this.outfit = { key: day, eq: outfitOf(s.seed, info, clock, coldOf(w.tempC), isWetOut(w)) };
+      const w = s.sim.view.morning, eq = outfitOf(s.seed, info, clock, coldOf(w.tempC), isWetOut(w));
+      this.outfit = { key: day, eq: (dressUp && costumeOf(s.seed, info, clock, eq)) || eq };
     }
     return { ...this.cached.look, outfitKey: this.outfit.key, outfit: this.outfit.eq };
   }

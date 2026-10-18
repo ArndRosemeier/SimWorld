@@ -23,7 +23,7 @@ import { awayRide } from './offsite';
 import { DRIVE_IF_WALK_OVER } from './travel';
 import { isCold, isFoul, isNiceOut, isWetOut, weatherAt } from './weather';
 import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
-import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, playerDrives, tickRng, tripOf, type World } from './world';
+import { activityOf, ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, playerDrives, tickRng, tripOf, type World } from './world';
 
 /** Does a weekday mask include weekday `wd`? */
 const onMask = (mask: DayMask, wd: number) => ((mask >> wd) & 1) === 1;
@@ -171,7 +171,7 @@ function leadFollowers(world: World, leader: ActorId): void {
   const a = world.actors.cols;
   const hh = householdOf(world, leader);
   if (!hh) return;
-  const outing = OUTINGS.has(a.dest[leader] >= 0 ? a.planned[leader] : a.activity[leader]);
+  const outing = OUTINGS.has(activityOf(world, leader));
   const trip = a.dest[leader] >= 0 ? tripOf(world, leader) : undefined;
   for (const list of [hh.members, hh.animals]) for (const f of list) {
     if (a.with[f] !== leader) continue;
@@ -190,7 +190,7 @@ function follow(world: World, id: ActorId): boolean {
   // Hungry, worn out, or (for a child) past bedtime: they head home, whatever the leader does.
   const tired = a.kind[id] === ACTOR_PERSON && !inWindow(minuteOfDay(world.clock), world.people.cols.wake[a.row[id]], world.people.cols.sleep[a.row[id]]);
   if (tired || urgentNeed(world, id) >= 0 || a.needs[id * NEED_COUNT + N_FOOD] < 0.3) { a.with[id] = -1; return false; }
-  if (OUTINGS.has(a.dest[leader] >= 0 ? a.planned[leader] : a.activity[leader]) && a.until[leader] > world.clock) {
+  if (OUTINGS.has(activityOf(world, leader)) && a.until[leader] > world.clock) {
     a.until[id] = a.until[leader];
     return true;
   }
@@ -198,8 +198,8 @@ function follow(world: World, id: ActorId): boolean {
   return false;
 }
 
-/** Small children and the dog come along on an outing from home. */
-function takeAlong(world: World, leader: ActorId, activity: number, rng: Rng): void {
+/** Small children and the dog come along on an outing from home (every small child to an occasion: the market, trick-or-treating). */
+function takeAlong(world: World, leader: ActorId, activity: number, rng: Rng, occasion = false): void {
   const a = world.actors.cols;
   const hh = householdOf(world, leader);
   if (!hh || a.place[leader] !== hh.home) return;
@@ -207,8 +207,10 @@ function takeAlong(world: World, leader: ActorId, activity: number, rng: Rng): v
   for (const m of hh.members) {
     if (m === leader || a.place[m] !== hh.home || a.activity[m] === A.sleep || a.with[m] >= 0 || a.dest[m] >= 0) continue;
     if (ageOf(world, m) >= 10) continue;
+    // A small child goes out with someone old enough to look after them.
+    if (ageOf(world, m) < GO_ALONE && ageOf(world, leader) < 13) continue;
     const adultHome = hh.members.some((o) => o !== leader && a.place[o] === hh.home && a.dest[o] < 0 && ageOf(world, o) >= 16 && a.activity[o] !== A.sleep);
-    if (!adultHome || rng.chance(0.5)) a.with[m] = leader;
+    if (!adultHome || occasion || rng.chance(0.5)) a.with[m] = leader;
   }
   for (const an of hh.animals) {
     if (a.species[an] !== dog || a.place[an] !== hh.home || a.activity[an] === A.sleep) continue;
@@ -363,7 +365,7 @@ export function nearestWith(world: World, from: PlaceId, service: Service, id: A
 }
 
 
-interface Option { place: PlaceId; activity: number; minutes: [number, number]; weight: number }
+interface Option { place: PlaceId; activity: number; minutes: [number, number]; weight: number; occasion: boolean }
 
 /**
  * What is on in town (src/sim/agenda.ts) that this person might go to now: the market, the service, the festival,
@@ -377,7 +379,7 @@ function occasions(world: World, id: ActorId, age: number, offer: (place: PlaceI
   for (const o of list) {
     if (o.start > now + 45 || o.end < now + 30) continue;
     if (o.guests && !o.guests.includes(id)) continue;
-    const fit = o.appeal === 'faith' ? faith * faith * 2.5 : o.appeal === 'children' ? (age < 13 ? 1 : 0) : o.appeal === 'adults' ? (age >= 16 ? 1 : 0.2) : 1;
+    const fit = o.appeal === 'faith' ? faith * faith * 2.5 : o.appeal === 'children' ? forChildren(world, id, age) : o.appeal === 'adults' ? (age >= 16 ? 1 : 0.2) : 1;
     if (fit <= 0) continue;
     const left = o.end - now;
     const place = o.place >= 0 ? o.place : world.streetOf[world.actors.cols.home[id]];
@@ -385,6 +387,20 @@ function occasions(world: World, id: ActorId, age: number, offer: (place: PlaceI
     const fresh = now <= o.start + 30 ? 1 : 0.5;
     offer(place, o.activity, [Math.min(left, 60), Math.min(left, 180)], o.pull * fit * fresh * 4, true);
   }
+}
+
+/** Below this age a child goes to a children's occasion (trick-or-treating) only with a grown-up of the household. */
+const GO_ALONE = 8;
+
+/**
+ * Who a children's occasion draws: children from GO_ALONE to 12 on their own, and a grown-up with a smaller child
+ * at home (who takes them along, `takeAlong`).
+ */
+function forChildren(world: World, id: ActorId, age: number): number {
+  if (age < 13) return age >= GO_ALONE ? 1 : 0;
+  if (age < 18) return 0;
+  const a = world.actors.cols, hh = householdOf(world, id);
+  return hh?.members.some((m) => m !== id && a.place[m] === hh.home && a.activity[m] !== A.sleep && a.with[m] < 0 && ageOf(world, m) < GO_ALONE) ? 1 : 0;
 }
 
 /** Pick a free-time activity from needs, habits and personality (plan §1.3). */
@@ -414,7 +430,7 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
       if (activity === A.walkDog) { if (out < 1) minutes = [15, 25]; }
       else weight *= KINDS[world.graph.places[place].kind].category === 'outdoor' ? out : inside;
     }
-    options.push({ place, activity, minutes, weight });
+    options.push({ place, activity, minutes, weight, occasion });
   };
   const evening = m >= 1200;
   occasions(world, id, age, offer);
@@ -466,7 +482,7 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
   if (options.length === 0) { go(world, id, home, A.idle, limit); return; }
   const pick = rng.weighted(options, (o) => o.weight);
   const until = Math.min(limit, now + world.travel.minutes(here, pick.place) + rng.int(pick.minutes[0], pick.minutes[1]));
-  if (OUTINGS.has(pick.activity)) takeAlong(world, id, pick.activity, rng);
+  if (OUTINGS.has(pick.activity)) takeAlong(world, id, pick.activity, rng, pick.occasion);
   go(world, id, pick.place, pick.activity, until);
 }
 
