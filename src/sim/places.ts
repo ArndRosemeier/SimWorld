@@ -118,6 +118,8 @@ export interface RoadEdge {
   pts?: number[];
   /** Where people walk: metres from the centreline to each side's walking line (mid-sidewalk; the verge on a country road, 0 on a footpath). */
   side?: number;
+  /** How wide (m) the walking strip on each side is (the sidewalk; 1.4 for a verge or a path): people keep inside it. */
+  walkWidth?: number;
 }
 
 export interface PlaceGraph {
