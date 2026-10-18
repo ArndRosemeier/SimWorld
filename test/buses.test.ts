@@ -7,7 +7,8 @@ import { createWorld } from '../src/sim/synth';
 import { runsLike } from '../src/sim/calendar';
 import { MINUTES_PER_DAY, dayOf } from '../src/sim/time';
 import { transitOf } from '../src/sim/transit';
-import { BUS_KEY } from '../src/traffic/buses';
+import { BUS_KEY, exitTowardRegion } from '../src/traffic/buses';
+import { carPlace, regionOfPlace, type CarTrip } from '../src/traffic/trips';
 import { TownTraffic } from '../src/traffic/townTraffic';
 
 // Setup at file level: making the world is the slow part, and the test times only the drive.
@@ -52,4 +53,28 @@ test('the timetable\'s buses: in from the region, a lay-by stop at every town st
     assert.ok(b.stops.length >= 1 && b.stops.every((s) => T.stops[s].place >= 0), 'stops at town stops');
     b.left.forEach((t, i) => assert.ok(t >= b.due[i] - 0.5, `left stop ${i} at ${t}, due ${b.due[i]}`));
   }
+});
+
+test('commuters: a car trip to the city leaves town on its road; coming home, the car comes in from there and parks', () => {
+  const tr = new TownTraffic(town, graph.places, 1, world);
+  tr.placeCars(world.households, (h) => carPlace(world, h));
+  const hh = world.households.find((h) => h.car && tr.parking.restAt(h.id))!;
+  const city = world.offsite.work[0], home = hh.home;
+  const exit = exitTowardRegion(world, tr.net, world.offsite.town[city]);
+  const trip = (from: number, to: number): CarTrip => ({ driver: hh.members[0], household: hh.id, from, to, depart: 0, arrive: 0, fromRegion: regionOfPlace(world, from), toRegion: regionOfPlace(world, to) });
+  let gone = '', parked = false;
+  tr.traffic.onGone = (v, why) => { if (v.car.key === hh.id) gone = why; };
+  tr.traffic.onPark = (v) => { if (v.car.key === hh.id) parked = true; };
+  tr.trips([trip(home, city)], 0);
+  const v = tr.traffic.vehicles.find((x) => x.car.key === hh.id);
+  assert.ok(v && 'exit' in v.goal && v.goal.exit === exit, 'it drives off by the road to the city');
+  // (The country road out is several kilometres long.)
+  for (let k = 0; k < 1500 && !gone; k++) tr.update(1);
+  assert.equal(gone, 'exit');
+  assert.equal(tr.parking.restAt(hh.id), null, 'the car is in the city, not in town');
+  tr.trips([trip(city, home)], 600);
+  for (let k = 0; k < 1500 && !parked; k++) tr.update(1);
+  assert.ok(parked);
+  const at = tr.parking.restAt(hh.id)!, h = graph.places[home];
+  assert.ok(Math.hypot(at.x - h.x, at.z - h.z) < 300, 'parked near home');
 });

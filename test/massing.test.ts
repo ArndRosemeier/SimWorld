@@ -32,7 +32,7 @@ test('the town shells are a sound facade mesh: indices in range, unit normals fa
   for (let i = 0; i < nv; i++) {
     const l = LY[i], f = FA[i * 4 + 3];
     if (!Number.isInteger(l) || l < 0 || l >= 24) assert.fail(`vertex ${i}: layer ${l}`);
-    if (!Number.isInteger(f) || f < 0 || f >= 8192) assert.fail(`vertex ${i}: flags ${f}`);
+    if (!Number.isInteger(f) || f < 0 || f >= 32768) assert.fail(`vertex ${i}: flags ${f}`);
     if (!(FA[i * 4] > 0 && FA[i * 4 + 1] > 0 && FA[i * 4 + 2] > 0)) assert.fail(`vertex ${i}: facade ${FA.slice(i * 4, i * 4 + 4)}`);
     if (!(SD[i] >= 0 && SD[i] < 1)) assert.fail(`vertex ${i}: seed ${SD[i]}`);
   }

@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.034 — Holidays away, and the weather matters
+
+- Families go away in the school holidays, most of them once in the summer, for one or two weeks. Other people take a week or two at any time, more often in summer. While they are away the house stands empty, nobody goes to work or school, and the neighbours know. A burglar might know too. When they come back, they remember where they went.
+- Rain and storms keep people indoors. Fewer people go to the park, the square or the market, and more sit in the café, the pub or the library. On a fine day people head outside. The dog still goes out in the rain, but only for a short walk.
+- Commuters and people on holiday no longer go hungry while they are out of town.
+
+## v0.033 — The town has sound and music
+
+- Title music on the start screen, then now and then a quiet piece for the time of day, a rainy day or a Sunday morning, with long silences in between (seven pieces).
+- The town sounds like where you are: traffic and the shopping street by day, a quiet night, birds in the parks and a dawn chorus, the river, the sea, open country with larks by day and crickets on warm nights; it goes dull and windy when you are high up.
+- The church strikes the hours from 7 to 22 and rings a peal before the Sunday service; the school bell rings on school days and the schoolyard fills at break; dogs bark in gardens, lawnmowers run on dry Saturdays in the season, roosters crow at dawn and cows moo on the farms.
+- A Sound button above What's new: volume, mute and a level for music, ambience, weather, bells, animals, traffic, people and footsteps (remembered). Sound starts with your first click.
+
+## v0.032 — Commuters drive out of town and back
+
+- People who work in the city or the nearby town now drive off the map on the road that leads there, instead of parking at the edge of town.
+- Coming home, their car comes in on that same road and parks near where they are going.
+- A car that is away in the city is not standing in town when the game loads.
+
+## v0.031 — Rooms have real floors and walls
+
+- Floors are wood boards, tiles, carpet, stone or marble, laid along the room; walls are painted plaster or wallpaper, bathrooms are tiled.
+- Furniture is wood or fabric, stairs are stone, and lamps glow.
+- The finishes are made by the texture workers like the facades, and stay within the shader time limit.
+
+## v0.030 — Flats over shops have their own front door
+
+- A building with a shop, café or other workplace downstairs and homes upstairs now has a second street door. It opens into a hall with the stairs, so the people who live there no longer walk through the shop to get home.
+- You can see the second door on the facade beside the shop's own door.
+- People going home to these flats use that door.
+
+## v0.029 — Buses on the road
+
+- The timetable's buses now drive through town: they come in on the country road from the nearby town, pull into a lay-by at each stop, wait there until their departure time, and leave towards where they are going.
+- Traffic overtakes a bus standing at its stop; a second bus for the same stop waits behind the first.
+- The school bus now stops only on streets where people live, not out on the farm roads.
+- Vehicles can now make a stop on the way (hazards on, then drive on), which the bin lorry and the post van will use.
+
 ## v0.028 — Commuters and the secondary school
 
 - About one worker in five now commutes. They drive or take the train to the city or the next town in the morning and come back in the evening. While they are away they are out of town.

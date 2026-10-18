@@ -8,7 +8,7 @@ import type { PlaceId } from './places';
 import type { World } from './world';
 import { PROPOSABLE_INTENTIONS } from './mind/proposal';
 
-export const INTENTION_KINDS = [...PROPOSABLE_INTENTIONS, 'eat', 'visit', 'seeDoctor', 'attend'] as const;
+export const INTENTION_KINDS = [...PROPOSABLE_INTENTIONS, 'eat', 'visit', 'seeDoctor', 'attend', 'holiday'] as const;
 export type IntentionKind = (typeof INTENTION_KINDS)[number];
 export type Origin = 'routine' | 'need' | 'event' | 'llm' | 'player';
 

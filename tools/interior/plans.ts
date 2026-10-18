@@ -2,7 +2,8 @@
  * Top-down floor plans of a town's buildings as SVG, to check interior layouts and furnishing
  * without a GPU: rooms tinted by type (homes numbered), walls with their doors, the facade in
  * blue, furniture boxes with a tick on their front and their name, the people's spots as dots
- * (green seats, blue beds, red workplaces). Prints the time per building.
+ * (green seats, blue beds, red workplaces), the street doors as squares (blue: the flats' own).
+ * Prints the time per building.
  *
  *   npx tsx tools/interior/plans.ts [seed=1] [size=0] [filter=all|home|<work kind>|#<cell>/<building id>] [floor=0] [count=8] [outDir=reports/interiors]
  *
@@ -21,7 +22,7 @@ const ROOM: Record<string, string> = {
 };
 const SPOT: Record<Spot['use'], string> = { sit: '#2a2', sleep: '#26c', work: '#d22', serve: '#c60' };
 
-export function planSvg(plan: FloorPlan, outline: Poly, spots: Spot[], title: string): string {
+export function planSvg(plan: FloorPlan, outline: Poly, spots: Spot[], title: string, doors: { x: number; z: number; homes: boolean }[] = []): string {
   const [x0, z0, x1, z1] = polyBounds(outline);
   const S = 40, pad = 1, W = (x1 - x0 + 2 * pad) * S, H = (z1 - z0 + 2 * pad) * S;
   const X = (x: number) => ((x - x0 + pad) * S).toFixed(1), Z = (z: number) => ((z - z0 + pad) * S).toFixed(1);
@@ -53,6 +54,8 @@ export function planSvg(plan: FloorPlan, outline: Poly, spots: Spot[], title: st
     for (const [a, b] of segs) out.push(`<line x1="${X(w.ax + dx * a)}" y1="${Z(w.az + dz * a)}" x2="${X(w.ax + dx * b)}" y2="${Z(w.az + dz * b)}" stroke="#333" stroke-width="4"/>`);
   }
   for (const f of plan.flights) out.push(`<line x1="${X(f.x)}" y1="${Z(f.z)}" x2="${X(f.x + f.dx * f.run)}" y2="${Z(f.z + f.dz * f.run)}" stroke="#888" stroke-width="${f.width * S}" stroke-opacity="0.4"/>`);
+  // Street doors (ground floor): the workplace's or the building's orange, the flats' own blue.
+  if (plan.floor === 0) for (const d of doors) out.push(`<rect x="${(+X(d.x) - 9).toFixed(1)}" y="${(+Z(d.z) - 9).toFixed(1)}" width="18" height="18" fill="${d.homes ? '#26c' : '#e80'}"/>`);
   for (const s of spots) if (s.floor === plan.floor) out.push(`<circle cx="${X(s.x)}" cy="${Z(s.z)}" r="5" fill="${SPOT[s.use]}"/>`);
   out.push('</svg>');
   return out.join('\n');
@@ -74,7 +77,7 @@ function main(): void {
     const I = planInterior(b);
     ms += performance.now() - t0;
     const plan = I.storeys[floor];
-    writeFileSync(`${outDir}/plan-${seed}-${cell}-${b.id}-${floor}.svg`, planSvg(plan, plan.poly, I.spots, `seed ${seed} building ${cell}/${b.id} floor ${floor}: ${b.style} ${b.use}${b.amenity ? ` ${b.amenity}` : ''}${b.attached ? ', attached' : ''}, ${I.units.length} homes`));
+    writeFileSync(`${outDir}/plan-${seed}-${cell}-${b.id}-${floor}.svg`, planSvg(plan, plan.poly, I.spots, `seed ${seed} building ${cell}/${b.id} floor ${floor}: ${b.style} ${b.use}${b.amenity ? ` ${b.amenity}` : ''}${b.attached ? ', attached' : ''}, ${I.units.length} homes`, I.doors));
     n++;
   }
   console.log(`${n} plans written to ${outDir}; ${(ms / Math.max(1, n)).toFixed(1)} ms per building`);

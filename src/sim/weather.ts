@@ -326,7 +326,8 @@ export function stepWet(wet: number, rain: number, sun: number, dtH: number): nu
 
 // ---- the world's weather, and what people make of it ----------------------------------------------------------
 
-interface WeatherWorld { seed: number; epoch: number; clock: number; region?: { coastal?: boolean } | null }
+/** What the weather needs from a world (a `World` fits: `world.region` is the region as the town knows it). */
+interface WeatherWorld { seed: number; epoch: number; clock: number; region?: { region: { coastal?: boolean } } | null }
 
 const models = new WeakMap<object, { model: WeatherModel; last: Map<number, Weather> }>();
 
@@ -338,7 +339,7 @@ export function weatherModel(world: WeatherWorld): WeatherModel {
 function entry(world: WeatherWorld) {
   let e = models.get(world);
   if (!e || e.model.epoch !== world.epoch) {
-    const coastal = !!world.region?.coastal;
+    const coastal = !!world.region?.region.coastal;
     e = { model: new WeatherModel(world.seed, world.epoch, coastal ? { ...TEMPERATE, meanC: 9.5, swingC: 9.5, coastal } : TEMPERATE), last: new Map() };
     models.set(world, e);
   }

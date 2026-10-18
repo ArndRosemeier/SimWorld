@@ -3,13 +3,14 @@
  * with src/build/texgen and transfers its two RGBA8 buffers back. Started by the worker pool
  * only. Ported from Scale (src/render/tex.worker.ts).
  */
-import { generateFacadeLayer, generateGroundLayer } from '../build/texgen';
+import { generateFacadeLayer, generateGroundLayer, generateInteriorLayer } from '../build/texgen';
 import type { FromTex, ToTex } from './texProtocol';
 
 function handle(m: ToTex): FromTex {
   if (m.type === 'init') return { type: 'ready' };
   const t0 = performance.now();
-  const layer = m.family === 'facade' ? generateFacadeLayer(m.index, m.size) : generateGroundLayer(m.index, m.size);
+  const gen = m.family === 'facade' ? generateFacadeLayer : m.family === 'interior' ? generateInteriorLayer : generateGroundLayer;
+  const layer = gen(m.index, m.size);
   return { type: 'layer', family: m.family, index: m.index, albedo: layer.albedo, normal: layer.normal, ms: Math.round(performance.now() - t0) };
 }
 

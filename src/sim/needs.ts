@@ -2,6 +2,7 @@
  * Needs and mood (plan §1.3, R3). Every actor decays the needs its species has; the current activity restores some.
  * Mood is recomputed hourly from needs and emotions; emotions fade toward calm (slower for neurotic people).
  */
+import { PLACE_KINDS } from './places';
 import { clamp } from '@futuremagic/core';
 import { A, ACTIVITIES, EMOTION_COUNT } from './actors';
 import { T_NEURO } from './people';
@@ -34,14 +35,23 @@ const GAINS = new Float32Array(ACTIVITIES.length * NEED_COUNT);
 GAIN.forEach((row, i) => row.forEach((v, n) => { GAINS[i * NEED_COUNT + n] = v; }));
 
 /** Advance needs by `minutes` for every living actor. */
+/** `world.kindOf` of places off the map. */
+const AWAY_KIND = PLACE_KINDS.indexOf('away');
+
 export function updateNeeds(world: World, minutes: number): void {
   const a = world.actors.cols;
   const needs = a.needs, alive = a.alive, species = a.species, activity = a.activity;
   const h = minutes / 60;
   // Imported constants as locals: module bindings are getters under some loaders (tsx), too slow for this loop.
   const W = NEED_COUNT, REST = N_REST, SLEEP = A.sleep, count = world.actors.count;
+  const place = a.place, kindOf = world.kindOf, AWAY = AWAY_KIND;
   for (let id = 0; id < count; id++) {
     if (!alive[id]) continue;
+    // Out of town (src/sim/offsite.ts) life is not simulated: they eat, sleep and wash out there.
+    if (place[id] >= 0 && kindOf[place[id]] === AWAY) {
+      for (let n = id * W, e = n + W; n < e; n++) if (needs[n] < 0.8) needs[n] = 0.8;
+      continue;
+    }
     const sp = species[id] * W;
     const act = activity[id];
     const g = act * W;
