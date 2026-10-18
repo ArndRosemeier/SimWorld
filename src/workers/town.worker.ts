@@ -19,6 +19,7 @@ import { polyBounds } from '../geom/geom2';
 import { planTown, type Town } from '../plan/town';
 import { parcelParams } from '../world/landuse';
 import { soundMapOf, soundMapTransferables } from '../audio/soundMap';
+import { townMapOf, townMapTransferables } from '../plan/townMap';
 import type { FromTown, ToTown } from './townProtocol';
 import { serve } from './serve';
 
@@ -86,6 +87,7 @@ function handle(m: ToTown): FromTown {
     case 'forest': return { type: 'forest', recs: (forest ??= new ForestGen(land, macro)).tile(m.x0, m.z0, m.size), ms: ms() };
     case 'vegModel': return { type: 'vegModel', model: buildVegModel(m.index), ms: ms() };
     case 'sound': return { type: 'sound', map: soundMapOf(town), ms: ms() };
+    case 'map': return { type: 'map', map: townMapOf(town), ms: ms() };
     case 'interior': {
       const b = cells[m.cell]?.buildings.find((q) => q.id === m.building);
       if (!b) throw new Error(`no building ${m.building} in cell ${m.cell}`);
@@ -114,4 +116,4 @@ function meshesOf(r: FromTown): MeshData[] {
   }
 }
 
-serve<ToTown, FromTown>(handle, (r) => (r.type === 'sound' ? soundMapTransferables(r.map) : meshesOf(r).flatMap(meshTransferables)));
+serve<ToTown, FromTown>(handle, (r) => (r.type === 'sound' ? soundMapTransferables(r.map) : r.type === 'map' ? townMapTransferables(r.map) : meshesOf(r).flatMap(meshTransferables)));

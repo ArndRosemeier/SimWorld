@@ -46,6 +46,7 @@ import { TownAudio } from './audio/townAudio';
 import { soundEnvFromSim, soundEnvOf, soundOverrides } from './audio/env';
 import { soundButton } from './app/soundPanel';
 import { paperButton } from './app/paperPanel';
+import { mapButton } from './app/mapPanel';
 
 const HAZE = 0xa9c8e4;
 
@@ -159,6 +160,10 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
   const fwd = { x: 0, y: 0, z: 0 };
+  document.body.append(mapButton(
+    async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
+    () => (cam.mode === 'drone' ? null : { x: camera.position.x, z: camera.position.z, fx: fwd.x, fz: fwd.z }),
+  ));
   renderer.setAnimationLoop((t: number) => {
     const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
     lastT = t;

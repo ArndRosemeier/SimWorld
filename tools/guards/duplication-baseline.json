@@ -418,5 +418,13 @@
   {
     "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
     "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
+  },
+  {
+    "key": "idiom: [.beginPath .lineTo .lineWidth .moveTo] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
+  },
+  {
+    "key": "idiom: [.save .translate] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   }
 ]

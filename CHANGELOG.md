@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.057 — The town map
+
+- A "Map" button opens a map of the town in the style of a printed town plan: every street with its name, the main roads in yellow, buildings, parks, the river or sea, the woods, the railway, and the town's landmarks by name.
+- An arrow shows where you are and which way you face when you are down in the street.
+- Drag to move around; zoom with the mouse wheel or the + and − buttons.
+
 ## v0.056 — Read the town's paper
 
 - A "Paper" button beside Sound opens this week's issue of the town's paper: the front page, news around town, business, police news, births, marriages and deaths, what's on in the coming week, and the notices on the boards (lost pets, funerals, coming events).
