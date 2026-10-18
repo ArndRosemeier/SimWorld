@@ -21,6 +21,9 @@ export class Avatar {
   yaw = 0;
   grounded = false;
   private vy = 0;
+  /** The speed it means to go at (vx, vz are what it managed: against a wall, less). */
+  private ux = 0;
+  private uz = 0;
   private readonly collider: Collider;
   private readonly ctl: CharacterController;
 
@@ -43,7 +46,7 @@ export class Avatar {
   putAt(x: number, y: number, z: number, yaw = this.yaw): void {
     this.collider.setTranslation({ x, y: y + HALF + RADIUS + 0.02, z });
     this.x = x; this.y = y; this.z = z; this.yaw = yaw;
-    this.vx = this.vz = this.vy = 0;
+    this.vx = this.vz = this.vy = this.ux = this.uz = 0;
   }
 
   /**
@@ -53,10 +56,11 @@ export class Avatar {
   step(dt: number, wx: number, wz: number, hurry: boolean): void {
     if (dt <= 0) return;
     const top = hurry ? RUN_SPEED : WALK_SPEED, k = 1 - Math.exp(-dt * ACCEL);
-    this.vx += (wx * top - this.vx) * k;
-    this.vz += (wz * top - this.vz) * k;
+    // Speeding up from what it means to go at, not from what it managed: a bump at the foot of the stairs stops it for a frame, not for good.
+    this.ux += (wx * top - this.ux) * k;
+    this.uz += (wz * top - this.uz) * k;
     this.vy = this.grounded ? -1 : Math.max(-30, this.vy - 9.81 * dt);
-    this.ctl.computeColliderMovement(this.collider, { x: this.vx * dt, y: this.vy * dt, z: this.vz * dt });
+    this.ctl.computeColliderMovement(this.collider, { x: this.ux * dt, y: this.vy * dt, z: this.uz * dt });
     const m = this.ctl.computedMovement(), p = this.collider.translation();
     const nx = p.x + m.x, ny = p.y + m.y, nz = p.z + m.z;
     this.collider.setTranslation({ x: nx, y: ny, z: nz });

@@ -6,13 +6,14 @@
  * else in the game imports Rapier (guarded).
  */
 import RAPIER from '@dimforge/rapier3d-compat';
+import earcut from 'earcut';
 import type { HeightGrid } from '../workers/simProtocol';
 
 export type Rapier = typeof RAPIER;
 export type Collider = RAPIER.Collider;
 export type CharacterController = RAPIER.KinematicCharacterController;
 
-import type { SolidBox, SolidPost } from './solids';
+import type { SolidBox, SolidFloor, SolidPost } from './solids';
 
 export class Physics {
   private readonly sets = new Map<string, RAPIER.Collider[]>();
@@ -38,15 +39,29 @@ export class Physics {
   }
 
   /** Put the set `key` in place (replacing what it held). */
-  setSolids(key: string, boxes: readonly SolidBox[], posts: readonly SolidPost[] = []): void {
+  setSolids(key: string, boxes: readonly SolidBox[], posts: readonly SolidPost[] = [], floors: readonly SolidFloor[] = []): void {
     this.dropSolids(key);
     const R = this.R, out: RAPIER.Collider[] = [];
     for (const b of boxes) {
-      const d = R.ColliderDesc.cuboid(b.hx, b.hy, b.hz).setTranslation(b.x, b.y, b.z).setRotation({ x: 0, y: Math.sin(b.yaw / 2), z: 0, w: Math.cos(b.yaw / 2) });
+      // Turn about y, then tilt about the box's own x: q = q_yaw · q_pitch.
+      const sy = Math.sin(b.yaw / 2), cy = Math.cos(b.yaw / 2), p = -(b.pitch ?? 0) / 2, sp = Math.sin(p), cp = Math.cos(p);
+      const d = R.ColliderDesc.cuboid(b.hx, b.hy, b.hz).setTranslation(b.x, b.y, b.z).setRotation({ x: cy * sp, y: sy * cp, z: -sy * sp, w: cy * cp });
       out.push(this.world.createCollider(d));
+    }
+    for (const f of floors) {
+      const flat = [...f.outer, ...f.holes.flat()], holes: number[] = [];
+      let at = f.outer.length / 2;
+      for (const h of f.holes) { holes.push(at); at += h.length / 2; }
+      const tri = earcut(flat, holes, 2);
+      if (!tri.length) continue;
+      const v = new Float32Array((flat.length / 2) * 3);
+      for (let i = 0; i < flat.length / 2; i++) { v[i * 3] = flat[i * 2]; v[i * 3 + 1] = f.y; v[i * 3 + 2] = flat[i * 2 + 1]; }
+      out.push(this.world.createCollider(R.ColliderDesc.trimesh(v, new Uint32Array(tri))));
     }
     for (const p of posts) out.push(this.world.createCollider(R.ColliderDesc.cylinder(p.h / 2, p.r).setTranslation(p.x, p.y + p.h / 2, p.z)));
     this.sets.set(key, out);
+    // The queries (`roomAt`, `clear`) see the world as of its last step: step it, so they see these at once.
+    this.world.step();
   }
 
   hasSolids(key: string): boolean { return this.sets.has(key); }
@@ -61,6 +76,15 @@ export class Physics {
 
   /** The keys of the sets in place. */
   keys(): IterableIterator<string> { return this.sets.keys(); }
+
+  /**
+   * Is there room for a person standing at feet (x, y, z) (a capsule of `radius`, `height` tall, clear of every
+   * solid but `skip`)?
+   */
+  roomAt(x: number, y: number, z: number, radius: number, height: number, skip?: RAPIER.Collider): boolean {
+    const half = height / 2 - radius;
+    return !this.world.intersectionWithShape({ x, y: y + height / 2 + 0.03, z }, { x: 0, y: 0, z: 0, w: 1 }, new this.R.Capsule(half, radius), undefined, undefined, skip);
+  }
 
   /**
    * How far (m) a ray from (x, y, z) along the unit direction (dx, dy, dz) gets before it meets a solid, up to
