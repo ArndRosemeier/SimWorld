@@ -153,21 +153,22 @@ these rules:
   the nearby town and the villages (D19). A generated name that is a well-known real place is rejected.
 - **Words.** No word that clearly marks Britain or America (pavement/sidewalk, petrol/gas, lorry, chemist/drugstore,
   high street, mum/mom, county, sheriff, zip code, motorway/interstate). Where the two differ, one word is chosen once
-  in the setting lexicon and everyone uses it; a term both sides share (pharmacy, truck, fuel station, apartment, bin
+  in the town vocabulary and everyone uses it; a term both sides share (pharmacy, truck, fuel station, apartment, bin
   day) is preferred.
 - **Spelling.** One convention: colour, centre, metre, neighbour, grey, travelled, organise (what most of the repo's
   text already uses). Code identifiers follow their libraries (`color` in three.js).
 - **Money.** No real currency name or symbol (no dollar, pound, euro, cent, penny, $, £, €). Default: plain numbers
   with a decimal point ("12.50", said "twelve fifty"); Arnd may choose an invented name instead.
 - **Formats.** Licence plates, phone numbers, addresses and the emergency number use invented formats chosen once in
-  the setting module. Never a real one: not 911, 999, 112, 000 or 111.
+  `src/lang`. Never a real one: not 911, 999, 112, 000 or 111.
 - **Schools.** Years are grades, used everywhere: the town's primary school has grades 1 to 6, the secondary school in
   the nearby town grades 7 to 12 (D25); younger children go to the kindergarten.
 - **Institutions and brands.** Generic or invented: the health centre, the town council, the district (the level above
   the town), the railway. No NHS, DMV, real chains or real products.
 
-All of this lives in one place, `src/setting/` (lexicon, formats, the real-place deny list, and a test that scans the
-phrase banks and labels for banned words); every layer may import it. Owner: the Town planner port thread.
+All of this lives in one place, `src/lang/`: the vocabulary in `words.ts`, plus the money and number formats, school
+grades, the real-place deny list and a test that scans the phrase banks and labels for banned words (planned). Every
+layer may import it. Owner: the Town planner port thread.
 
 ### R8. Town realism (D20–D26)
 
