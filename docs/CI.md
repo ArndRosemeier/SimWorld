@@ -28,8 +28,9 @@ CI is a tool for the developer's loop, so its cost is measured in **minutes of w
 4. **Deterministic, so no retries.** Everything derives from a seed. A flaky test is fixed or deleted the same day; CI never retries.
 5. **No duplicated coverage.** One test per behaviour, at the lowest layer that shows it. A bug fix adds a regression test only where no existing test could have caught it.
 6. **Pruning is part of the sweep.** Every ~10 PRs (CLAUDE.md rule 8) the sweep also reads the slowest tests (the reporter prints them) and merges or deletes tests that no longer earn their time.
-7. **Cancel stale runs.** A new push to a PR cancels its older run.
-8. **Cheap setup.** npm cache, no browser install in the fast tier, the build without extra passes.
+7. **Test files run one at a time** (`--test-concurrency=1` in `npm test`). In parallel, files fight over the runner's few cores and a 300 ms test can take 1.2 s, so the per-test limit failed on a different, innocent test each run. One at a time, each number is that test's own cost, and the suite limit measures the suite's real total; that limit, not parallelism, is what keeps the suite small.
+8. **Cancel stale runs.** A new push to a PR cancels its older run.
+9. **Cheap setup.** npm cache, no browser install in the fast tier, the build without extra passes.
 
 ## Local loop
 
