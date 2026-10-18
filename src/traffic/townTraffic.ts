@@ -13,13 +13,14 @@ import type { Place, PlaceId } from '../sim/places';
 import { MINUTES_PER_DAY } from '../sim/time';
 import { Parking } from './parking';
 import { RoadNet } from './roadNet';
-import { Traffic, type Car, type VKind } from './traffic';
+import { Traffic, regionCar, type Car, type VKind } from './traffic';
 import type { CarTrip } from './trips';
 import { Buses } from './buses';
 import { ServiceRounds, exitTowardRegion, roundGoal } from './rounds';
 import type { World } from '../sim/world';
 import type { TownRules } from '../sim/politics';
 import { visitorsAt } from './visitors';
+import { Trains } from './trains';
 
 /** Household car models, most common first (a small western town). */
 const HOUSEHOLD: VKind[] = ['sedan', 'suv', 'hatch', 'wagon', 'pickup', 'suv', 'sedan', 'van', 'hatch', 'pickup', 'sports', 'sedan'];
@@ -49,6 +50,8 @@ export class TownTraffic {
   readonly net: RoadNet;
   readonly parking: Parking;
   readonly traffic: Traffic;
+  /** The trains on the railway (with a world and a railway), which close the level crossings. */
+  readonly trains: Trains | null;
   /** Vehicles waiting for room to pull out or come in: tried every frame until they go or RETRY_S runs out. */
   private readonly waiting: { go: () => boolean; t: number }[] = [];
   private throughN = 0;
@@ -74,6 +77,12 @@ export class TownTraffic {
     this.traffic = new Traffic(this.net, this.parking);
     this.traffic.onPark = () => this.stats.parked++;
     this.traffic.onHalt = () => this.stats.stops++;
+    this.trains = world && town.macro.rail ? new Trains(world, town) : null;
+  }
+
+  /** Game clock (minutes) at Traffic time `t` (s). */
+  clockAt(t = this.traffic.time): number {
+    return (t + this.clockOffset) / 60;
   }
 
   /** Put every household car at rest: at `at(household)`'s place (home, or where its driver is). */
@@ -172,7 +181,15 @@ export class TownTraffic {
       w.t += dt;
       if (w.go() || w.t > RETRY_S) this.waiting.splice(i, 1);
     }
+    this.closeCrossings();
     this.traffic.update(dt);
+  }
+
+  /** The level crossings a train is near are closed: cars stop at their barriers. */
+  private closeCrossings(): void {
+    if (!this.trains) return;
+    const closed = this.trains.closed(this.clockAt());
+    this.traffic.barriers = this.trains.crossings.flatMap((c, i) => (closed[i] ? c.stops : []));
   }
 
   /** Put a vehicle on the road now, or as soon as there is room (a car in the way of pulling out or coming in). */
@@ -212,7 +229,7 @@ export class TownTraffic {
     const a = r.int(0, exits.length - 1);
     let b = r.int(0, exits.length - 2);
     if (b >= a) b++;
-    const car: Car = { key: THROUGH_KEY + this.throughN++, kind: r.pick(THROUGH), variant: r.int(0, 3) };
+    const car = regionCar(r, THROUGH_KEY + this.throughN++, THROUGH);
     if (this.traffic.enter(car, exits[a], { exit: exits[b] })) this.stats.through++;
   }
 }
