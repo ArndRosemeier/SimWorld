@@ -7,7 +7,8 @@
  * sfx / ambience bus → master → limiter), same lazy decode and idle drop. Adapted for SimWorld: no
  * three.js (the listener is plain numbers), variation and pitch from a seeded Rng, categories from
  * the manifest instead of name rules, preferences through src/persist, an ambience low-pass
- * (`setMuffle`: the town heard from high up or through a wall), no superhero channels.
+ * (`setMuffle`: the town heard from high up or through a wall), no superhero channels. Indoors, a room bus
+ * with a reverb carries the room's own sounds while the street and the weather go dull (`setIndoors`).
  */
 import { Rng, clamp } from '@futuremagic/core';
 import { readJsonPref, readNumPref, writePref } from '../persist/prefs';
@@ -47,7 +48,16 @@ export class AudioEngine {
   private sfxBus!: GainNode;
   private ambBus!: GainNode;
   private ambLow!: BiquadFilterNode;
+  /** The sounds of the street through the walls: a low-pass and a cut on the sfx bus. */
+  private outLow!: BiquadFilterNode;
+  private outGain!: GainNode;
+  /** The room's own sounds (`room` voices): dry, and through a reverb of the room's size. */
+  private roomBus!: GainNode;
+  private roomVerb!: ConvolverNode;
+  private roomWet!: GainNode;
+  private verbSeconds = 0;
   private cats = new Map<SoundCategory, GainNode>();
+  private roomCats = new Map<SoundCategory, GainNode>();
   private manifest: Manifest = {};
   private buffers = new Map<string, AudioBuffer[]>();
   private loading = new Map<string, Promise<AudioBuffer[]>>();
@@ -90,13 +100,28 @@ export class AudioEngine {
       this.ambLow.type = 'lowpass';
       this.ambLow.frequency.value = 20000;
       this.ambLow.Q.value = 0.5;
-      this.sfxBus.connect(this.master);
+      this.outLow = ctx.createBiquadFilter();
+      this.outLow.type = 'lowpass';
+      this.outLow.frequency.value = 20000;
+      this.outLow.Q.value = 0.5;
+      this.outGain = ctx.createGain();
+      this.sfxBus.connect(this.outLow).connect(this.outGain).connect(this.master);
       this.ambBus.connect(this.ambLow).connect(this.master);
+      this.roomBus = ctx.createGain();
+      this.roomVerb = ctx.createConvolver();
+      this.roomWet = ctx.createGain();
+      this.roomWet.gain.value = 0;
+      this.roomBus.connect(this.master);
+      this.roomBus.connect(this.roomVerb).connect(this.roomWet).connect(this.master);
       for (const c of SOUND_CATEGORIES) {
         const g = ctx.createGain();
         g.gain.value = this.mix[c.id];
         g.connect(c.id === 'ambience' || c.id === 'weather' ? this.ambBus : c.id === 'music' ? this.master : this.sfxBus);
         this.cats.set(c.id, g);
+        const r = ctx.createGain();
+        r.gain.value = this.mix[c.id];
+        r.connect(this.roomBus);
+        this.roomCats.set(c.id, r);
       }
       this.onStart?.();
     };
@@ -154,7 +179,7 @@ export class AudioEngine {
    * A spatial one-shot. `refDist` is the distance at which it plays at full gain (a church bell
    * carries: 60 m and more). Sound travels: it starts distance / 343 m/s late, plus `delay` (s).
    */
-  play(id: string, x: number, y: number, z: number, gain = 1, pitch = 1, refDist = 4, delay = 0): void {
+  play(id: string, x: number, y: number, z: number, gain = 1, pitch = 1, refDist = 4, delay = 0, room = false): void {
     if (!this.ctx || this.voices >= MAX_VOICES) return;
     const m = this.manifest[id];
     if (!m) return;
@@ -169,7 +194,7 @@ export class AudioEngine {
       const g = ctx.createGain();
       g.gain.value = gain * m.gain;
       const pan = this.panner(x, y, z, refDist, 1);
-      src.connect(g).connect(pan).connect(this.bus(m));
+      src.connect(g).connect(pan).connect(this.bus(m, room));
       src.start(ctx.currentTime + late);
       this.voices++;
       src.onended = () => { this.voices--; g.disconnect(); pan.disconnect(); };
@@ -205,7 +230,7 @@ export class AudioEngine {
    * A positioned loop (a lawnmower, the peal from the tower, an idling car) that its owner moves and
    * sets every frame. Null until audio runs and the clip is decoded: call again later.
    */
-  loop(id: string, refDist = 5, rolloff = 1.2): LoopHandle | null {
+  loop(id: string, refDist = 5, rolloff = 1.2, room = false): LoopHandle | null {
     if (!this.ctx) return null;
     const m = this.manifest[id];
     const bufs = this.buffers.get(id);
@@ -218,7 +243,7 @@ export class AudioEngine {
     const g = ctx.createGain();
     g.gain.value = 0;
     const pan = this.panner(this.lx, this.ly, this.lz, refDist, rolloff);
-    src.connect(g).connect(pan).connect(this.bus(m));
+    src.connect(g).connect(pan).connect(this.bus(m, room));
     src.start(0, this.rng.float() * src.buffer.duration);
     let stopped = false;
     return {
@@ -271,6 +296,49 @@ export class AudioEngine {
     if (this.ctx) this.ambLow.frequency.setTargetAtTime(clamp(cutoff, 200, 20000), this.ctx.currentTime, 0.4);
   }
 
+  /**
+   * A glass clink (or a cup on a saucer) at a point in the room, `delay` s from now: made here, from a few
+   * inharmonic partials that ring and die away, so it costs no clip.
+   */
+  clink(x: number, y: number, z: number, freq: number, gain = 0.3, delay = 0): void {
+    if (!this.ctx || this.voices >= MAX_VOICES) return;
+    const ctx = this.ctx, t = ctx.currentTime + delay;
+    const out = ctx.createGain();
+    out.gain.value = gain;
+    const pan = this.panner(x, y, z, 1.5, 1);
+    out.connect(pan).connect(this.bus({ cat: 'people' } as ManifestEntry, true));
+    const parts: [number, number, number][] = [[1, 1, 0.45], [2.32, 0.5, 0.3], [4.25, 0.25, 0.18], [6.8, 0.12, 0.1]];
+    let left = parts.length;
+    this.voices++;
+    for (const [mul, amp, decay] of parts) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = freq * mul;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(amp, t + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0005, t + decay);
+      o.connect(g).connect(out);
+      o.start(t);
+      o.stop(t + decay + 0.05);
+      o.onended = () => { g.disconnect(); if (--left === 0) { this.voices--; out.disconnect(); pan.disconnect(); } };
+    }
+  }
+
+  /**
+   * Indoors (0 out of doors … 1 inside): the street and the weather through the walls (dull and quieter), and the
+   * room's reverb (its tail in s and how much of it is heard).
+   */
+  setIndoors(amount: number, reverb: { seconds: number; wet: number }): void {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, a = clamp(amount, 0, 1);
+    this.outLow.frequency.setTargetAtTime(20000 - 19300 * a, t, 0.3);
+    this.outGain.gain.setTargetAtTime(1 - 0.55 * a, t, 0.3);
+    if (Math.abs(reverb.seconds - this.verbSeconds) > 0.05) {
+      this.verbSeconds = reverb.seconds;
+      this.roomVerb.buffer = impulse(this.ctx, reverb.seconds, this.rng);
+    }
+    this.roomWet.gain.setTargetAtTime(reverb.wet * a, t, 0.3);
+  }
+
   /** Decoded audio is float PCM (an ambience bed ≈ 8 MB): what nobody wanted for IDLE_S is dropped. */
   private dropIdle(now: number): void {
     for (const id of [...this.buffers.keys()]) {
@@ -313,15 +381,14 @@ export class AudioEngine {
     };
   }
 
-  private bus(m: ManifestEntry): AudioNode {
-    return this.cats.get(m.cat) ?? this.sfxBus;
+  private bus(m: ManifestEntry, room = false): AudioNode {
+    return (room ? this.roomCats.get(m.cat) ?? this.roomBus : this.cats.get(m.cat)) ?? this.sfxBus;
   }
 
   /** One category's level (0 … 1.5); remembered. */
   setMix(cat: SoundCategory, v: number): void {
     this.mix[cat] = clamp(v, 0, 1.5);
-    const g = this.cats.get(cat);
-    if (g && this.ctx) g.gain.setTargetAtTime(this.mix[cat], this.ctx.currentTime, 0.05);
+    for (const g of [this.cats.get(cat), this.roomCats.get(cat)]) if (g && this.ctx) g.gain.setTargetAtTime(this.mix[cat], this.ctx.currentTime, 0.05);
     writePref('soundMix', JSON.stringify(this.mix));
   }
 
@@ -350,4 +417,20 @@ function readMix(): Record<SoundCategory, number> {
   const o = readJsonPref<Record<string, unknown>>('soundMix', {});
   for (const c of SOUND_CATEGORIES) { const v = Number(o?.[c.id]); if (Number.isFinite(v)) mix[c.id] = clamp(v, 0, 1.5); }
   return mix;
+}
+
+/** A room's echo: two channels of seeded noise dying away over `seconds` (60 dB), a little darker as it fades. */
+function impulse(ctx: BaseAudioContext, seconds: number, rng: Rng): AudioBuffer {
+  const rate = ctx.sampleRate, n = Math.max(1, Math.floor(seconds * rate));
+  const buf = ctx.createBuffer(2, n, rate);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    let lp = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / n, k = 0.35 + 0.6 * t;
+      lp += (rng.range(-1, 1) - lp) * (1 - k);
+      d[i] = lp * Math.pow(0.001, t);
+    }
+  }
+  return buf;
 }

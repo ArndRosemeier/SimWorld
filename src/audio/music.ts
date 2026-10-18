@@ -84,7 +84,7 @@ export class MusicPlayer {
         if (this.cur) { this.cur.stop(); this.cur = null; this.wait = 8; }
         this.wait -= dt;
         const id = Object.keys(this.tracks).find((k) => this.tracks[k].mood === 'title');
-        if (id && this.wait <= 0) this.play(id, 0.9);
+        if (id && this.wait <= 0) this.playPiece(id, 0.9);
       }
       return;
     }
@@ -94,10 +94,10 @@ export class MusicPlayer {
     if (this.wait > 0) return;
     const next = nextPiece(this.tracks, env, this.seed, this.n++, this.curId);
     this.wait = next.gap;
-    if (next.id) this.play(next.id, 0.75);
+    if (next.id) this.playPiece(next.id, 0.75);
   }
 
-  private play(id: string, gain: number): void {
+  private playPiece(id: string, gain: number): void {
     this.cur = this.engine.streamMusic(`music/${this.tracks[id].file}`);
     this.cur?.set(gain);
     this.curId = id;
