@@ -14,6 +14,7 @@ import type { ChatRequest, ChatResponse } from '../chat/ops';
 import { DEFAULT_LATITUDE, daysOf, epochFor, weekdayOfDays, type CivilDate } from '../sim/calendar';
 import type { SimView, TownFace } from '../sim/view';
 import type { TrafficMsg } from '../traffic/feed';
+import type { WindowSlots } from '../street/windows';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
 import { dropSave, readSave, storeSave } from '../persist/saves';
@@ -83,7 +84,7 @@ export class SimClient {
   private last = 0;
   private readonly infos = new Map<number, ActorInfo>();
 
-  private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView, private readonly key: string) {
+  private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView, private readonly key: string, readonly windows: WindowSlots) {
     this.view = view;
     this.town = view.town!;
   }
@@ -95,6 +96,8 @@ export class SimClient {
 
   /** The sim's latest view snapshot (src/sim/view.ts): every view reads the sim from here. */
   view: SimView;
+  /** Called with each new view snapshot (views that redraw per game minute, such as the lit windows). */
+  onView: ((v: SimView) => void) | null = null;
   /** The town's face as of today (the latest `view.town`): what each place is now, its looks, the council's rules. */
   town: TownFace;
 
@@ -108,7 +111,7 @@ export class SimClient {
     const pool = new WorkerPool<ToSim, FromSim>(simWorkerUrl, 1);
     const [ready] = await pool.start(() => ({ type: 'init', settings, start, startDay, clock, save: save?.bytes ?? null }));
     if (ready.type !== 'ready') throw new Error(ready.type === 'error' ? ready.message : 'the sim worker did not start');
-    const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view, key);
+    const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view, key, ready.windows);
     c.restart(ready.clock);
     if (save && !ready.resumed) void dropSave(key); // it no longer fits this build or town
     return c;
@@ -137,7 +140,7 @@ export class SimClient {
     this.busy = true;
     try {
       const m = await this.pool.run<Extract<FromSim, { type: 'skipped' }>>({ type: 'skip', days }, 0);
-      this.view = m.view;
+      this.view = m.view; this.onView?.(m.view);
       if (m.view.town) this.town = m.view.town;
       this.walkers.clear();
       this.restart(m.clock);
@@ -194,7 +197,7 @@ export class SimClient {
     this.busy = true;
     this.last = now;
     this.inflight = this.pool.run<Extract<FromSim, { type: 'street' }>>({ type: 'update', clock: this.clock, x, z, r: STREET_RADIUS }, 0).then((m) => {
-      if (m.view) { this.view = m.view; if (m.view.town) this.town = m.view.town; }
+      if (m.view) { this.view = m.view; if (m.view.town) this.town = m.view.town; this.onView?.(m.view); }
       this.player = m.player;
       this.traffic = m.traffic;
       if (m.traffic.parked) this.parked = { poses: m.traffic.parked, cars: m.traffic.parkedCars! };
