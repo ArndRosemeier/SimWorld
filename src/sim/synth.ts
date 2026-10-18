@@ -14,6 +14,7 @@ import { newMemories } from './memory';
 import { settleRegion, type Region } from './region';
 import { newMindLedger } from './mind/apply';
 import { newLife } from './life';
+import { levelMarket, newEconomy, settleEconomy } from './economy';
 import { history, historyDays } from './chronicle';
 import { newAgenda, townAgenda } from './agenda';
 import { DEFAULT_LATITUDE, epochFor, type CivilDate } from './calendar';
@@ -68,6 +69,7 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
     intentions: [], encounters: [], trips: [], agenda: newAgenda(), mind: newMindLedger(), life: newLife(), region: null,
+    economy: newEconomy(graph.places.length),
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);
@@ -109,6 +111,9 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     // Shared surname for the lineage (unless the adult married into another name).
     if (rng.chance(0.6)) world.people.last[a.row[adult]] = parents.surname;
   }
+
+  // Businesses the town cannot carry have closed already (their units stand empty), before anyone is hired.
+  levelMarket(world, rng.fork('market'));
 
   // ---- jobs from staff slots ------------------------------------------------------------------------------
   for (const place of graph.places) for (const s of place.staff) for (let i = 0; i < s.count; i++) {
@@ -155,6 +160,8 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     const age = yearsOf(id), p = a.row[id];
     pc.money[p] = age < 16 ? r.range(5, 40) : pc.job[p] >= 0 ? r.range(800, 6000) : r.range(100, 2500);
   }
+  // Budgets, savings and business ledgers; the frailest old people living alone move into the care home.
+  settleEconomy(world, rng.fork('economy'));
 
   // ---- relationships beyond the household -----------------------------------------------------------------
   const byPlace = (pick: (id: ActorId) => PlaceId) => {

@@ -8,6 +8,7 @@ import { hashCombine } from '@futuremagic/core';
 import type { Rng } from '@futuremagic/core';
 import { A, ACTOR_PERSON, type ActorId } from './actors';
 import { performIntention } from './actions';
+import { shoppingTrip, spend } from './economy';
 import { activeIntention, avoids } from './intentions';
 import { urgentNeed } from './needs';
 import { HABITS, HABIT_COUNT, T_CONSC, T_EXTRA, T_OPEN, V_FAITH } from './people';
@@ -73,6 +74,7 @@ export function arrive(world: World): void {
       a.place[id] = a.dest[id];
       a.dest[id] = -1;
       a.activity[id] = a.planned[id];
+      spend(world, id, a.place[id], a.activity[id]);
     }
   }
   // Drop the trips that are over: arrived, or replaced by a new plan on the way.
@@ -387,6 +389,11 @@ function freeTime(world: World, id: ActorId, age: number, limit: number, rng: Rn
     if (age >= 16 && rng.chance(0.15)) {
       const list = placesWith(world, 'errand');
       if (list.length) offer(list[rng.int(0, list.length - 1)], A.errand, [15, 35], 0.6);
+    }
+    // Now and then something only a particular shop has: the florist, the hardware store, a takeaway, the gym.
+    if (age >= 14 && m >= 480 && rng.chance(0.25)) {
+      const trip = shoppingTrip(world, id, here, rng);
+      if (trip) offer(trip.place, trip.activity, trip.minutes, 0.5);
     }
     // Visit someone they like who lives elsewhere.
     if (m >= 600 && m < 1260) {

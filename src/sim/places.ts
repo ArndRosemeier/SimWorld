@@ -22,8 +22,14 @@ export const PLACE_KINDS = [
   'bakery', 'butcher', 'supermarket', 'grocer', 'cafe', 'pub', 'restaurant',
   // services
   'pharmacy', 'doctor', 'dentist', 'hairdresser', 'garage', 'bank', 'post', 'shop',
+  // more shops and services (Track F): petrol station, DIY, clothes, florist, newsagent, charity shop, takeaway,
+  // hotel, estate agent, beauty salon, physiotherapist, gym, funeral home
+  'petrol', 'hardware', 'clothes', 'florist', 'newsagent', 'charity', 'takeaway', 'hotel', 'estateagent', 'beauty',
+  'physio', 'gym', 'funeral',
+  // an empty shop unit: a closed business waiting for a new one (src/sim/economy.ts)
+  'vacant',
   // institutions
-  'school', 'kindergarten', 'townhall', 'police', 'fire', 'church', 'library', 'station', 'vet',
+  'school', 'kindergarten', 'townhall', 'police', 'fire', 'church', 'library', 'station', 'vet', 'carehome',
   // work without customers
   'office', 'workshop', 'factory', 'farm',
   // outdoors
@@ -72,7 +78,7 @@ export interface Place {
   node: number;
   /** People who fit at once (a café 30, a house 8, a park 300). */
   capacity: number;
-  /** Households that live here (house 1, apartments n). 0 for non-homes. */
+  /** Households that live here (house 1, apartments n; residents' rooms in a care home). 0 for other places. */
   homes: number;
   /** Opening windows; empty means always open (homes, streets, parks). */
   hours: Hours[];
