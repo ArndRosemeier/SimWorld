@@ -95,6 +95,12 @@ export class Relations {
     return this.out[a] ?? [];
   }
 
+  /** A random row of `a`'s (someone they know), -1 if they know nobody. */
+  anyKnown(a: ActorId, roll: { float(): number }): number {
+    const rows = this.out[a];
+    return rows && rows.length ? rows[Math.floor(roll.float() * rows.length)] : -1;
+  }
+
   has(a: ActorId, b: ActorId, bond: Bond): boolean {
     const r = this.row(a, b);
     return r >= 0 && (this.t.cols.bonds[r] & bit(bond)) !== 0;
