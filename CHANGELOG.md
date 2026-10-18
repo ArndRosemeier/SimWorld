@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.028 — Commuters and the secondary school
+
+- About one worker in five now commutes. They drive or take the train to the city or the next town in the morning and come back in the evening. While they are away they are out of town.
+- Children go to the town's primary school until they are ten. From eleven they ride the school bus to the secondary school in the next town.
+- The city, the next town and the school take their names from the region around the town.
+
 ## v0.027 — Money in town: wages, rent, and shops that open and close
 
 - Every household now has a monthly budget: wages from their real jobs, pensions, child benefit and support coming in; rent or mortgage, bills, groceries and the car going out. Money worries show as stress and as couples bickering, and the rare household that falls far behind has to leave.
