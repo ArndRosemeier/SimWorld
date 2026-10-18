@@ -224,8 +224,8 @@
     "reason": "The length of a wall segment ({ax, az, bx, bz}, the interior's IWall and the filler's Edge) before walking along it."
   },
   {
-    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
-    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
+    "key": "idiom: [.x .y .z] in simworld/audio/soundscape.ts + simworld/audio/townAudio.ts + simworld/main.ts",
+    "reason": "Reading a position's three coordinates (listener and sound positions): plain field access, nothing to fold. Took the place of the facade-bay group in the finder's top idioms when main.ts grew."
   },
   {
     "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/home.ts + simworld/interior/fill/work.ts",
