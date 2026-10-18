@@ -33,7 +33,7 @@ import { inSite } from './landmarks';
 export const PT = {
   Tree: 0, Lamp: 1, Bench: 2, Bin: 3, Hydrant: 4, TrafficLight: 5, ParkedCar: 6, BusStop: 7, Bollard: 8, Fountain: 9, Statue: 10, Bush: 11,
   Kiosk: 12, Planter: 13, StopSign: 14, Hedge: 15, PlayGround: 16, Manhole: 18, Mailbox: 19,
-  CafeTable: 20, CafeChair: 21, Parasol: 22, Awning: 23, MenuBoard: 24, TerraceRail: 25, Parklet: 26,
+  CafeTable: 20, CafeChair: 21, Parasol: 22, Awning: 23, MenuBoard: 24, TerraceRail: 25, Parklet: 26, KerbCar: 32,
 } as const;
 
 /** Half width of the walking corridor kept clear around the sidewalk's walking line (m). */
@@ -175,7 +175,7 @@ export function placeEateries(plan: CellPlan, cell: CellInfo, macro: MacroPlan, 
   const gk = (i: number, j: number) => (i + 32768) * 65536 + (j + 32768);
   for (let k = 0; k < P.length; k += 6) {
     const t = P[k];
-    if (t === PT.ParkedCar || t === PT.Manhole) continue;
+    if (t === PT.ParkedCar || t === PT.KerbCar || t === PT.Manhole) continue;
     const key = gk(Math.floor(P[k + 1] / G), Math.floor(P[k + 2] / G));
     let l = grid.get(key);
     if (!l) grid.set(key, (l = []));
@@ -386,7 +386,7 @@ export function placeEateries(plan: CellPlan, cell: CellInfo, macro: MacroPlan, 
         for (const sg of [-1, 1]) { const p = mod(sg * (nMod + 0.5)); deck.push({ t: PT.Parklet, ...p, yaw: sg > 0 ? yaw : yaw + Math.PI, s: 1, v: palette * 2 + 1, r: 0.5 }); }
         // The deck sits on the road: clear of junctions and other furniture on it.
         const deckOk = straight && deck.every((d) => clearOfWalk(plan.streets, d.x, d.z, d.r + 0.2, true) && junctions.every((_, k) => k % 2 || Math.hypot(junctions[k] - d.x, junctions[k + 1] - d.z) >= CROSSING_CLEAR + 2)
-          && P.every((_, k) => k % 6 || P[k] === PT.ParkedCar || P[k] === PT.Manhole || Math.hypot(P[k + 1] - d.x, P[k + 2] - d.z) > propR(P[k]) + 0.9)
+          && P.every((_, k) => k % 6 || P[k] === PT.ParkedCar || P[k] === PT.KerbCar || P[k] === PT.Manhole || Math.hypot(P[k + 1] - d.x, P[k + 2] - d.z) > propR(P[k]) + 0.9)
           && placed.every((it) => Math.hypot(it.x - d.x, it.z - d.z) > it.r + 0.9));
         if (deckOk) {
           const n0 = tables.length;
@@ -404,7 +404,7 @@ export function placeEateries(plan: CellPlan, cell: CellInfo, macro: MacroPlan, 
             // No parking where the deck is.
             const span = half + 3;
             for (let k = P.length - 6; k >= 0; k -= 6) {
-              if (P[k] !== PT.ParkedCar) continue;
+              if (P[k] !== PT.ParkedCar && P[k] !== PT.KerbCar) continue;
               const cp = closestOnPolyline(st.pts, P[k + 1], P[k + 2]);
               const sideOk = ((P[k + 1] - cp.px) * qx + (P[k + 2] - cp.pz) * qz) > 0;
               if (sideOk && Math.abs(cp.s - sc.s) < span && cp.d < st.width / 2) P.splice(k, 6);

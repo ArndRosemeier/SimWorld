@@ -89,7 +89,7 @@ function handle(m: ToTown): FromTown {
       const b = buildBridges(macro.bridges, terrain, macro.edges);
       return { type: 'bridges', ground: out(b.deck), buildings: out(b.structure), ms: ms() };
     }
-    case 'props': { const groups = propInstances(cells, terrain); return { type: 'props', groups, lamps: lampsOf(groups), ms: ms() }; }
+    case 'props': { const groups = propInstances(cells, terrain, { kerbCars: m.kerbCars }); return { type: 'props', groups, lamps: lampsOf(groups), ms: ms() }; }
     case 'propModel': return { type: 'propModel', mesh: propModel(m.model), far: propFar(m.model), ms: ms() };
     case 'trees': return { type: 'trees', recs: townTrees(cells, terrain), ms: ms() };
     case 'forest': return { type: 'forest', recs: (forest ??= new ForestGen(land, macro)).tile(m.x0, m.z0, m.size), ms: ms() };

@@ -4,7 +4,7 @@
  * the clock the main thread asks for; for the camera's surroundings it says who is out of doors and the
  * track each of them walks. Started by the worker pool only; talked to through src/game/SimClient.ts.
  */
-import { planTown } from '../plan/town';
+import { planTown, type Town } from '../plan/town';
 import { placeGraphOf } from '../plan/placeGraph';
 import { regionOf } from '../plan/region';
 import { createWorld } from '../sim/synth';
@@ -20,9 +20,13 @@ import { StreetMap } from '../street/streetMap';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
+import { TrafficFeed, trafficTransfers } from '../traffic/feed';
 
 let world: World | null = null;
 let map: StreetMap | null = null;
+/** The town's traffic, driven by the world's car trips and rounds, and the town it drives in. */
+let traffic: TrafficFeed | null = null;
+let roads: Town | null = null;
 /** The track each actor has now, while they are out of doors (made lazily, kept until L0 changes or it runs out). */
 const tracks = new Map<number, Track>();
 /** Actors the main thread has a track of (id → the signature it was made from, its validity). */
@@ -53,22 +57,26 @@ function simJob(m: ToSim): FromSim {
     forget();
     // With a history the world's day 0 lies that many weeks back (the same weekday): play starts after it.
     if (!resumed) runTo(Math.max(m.clock + historyDays(HISTORY_YEARS) * MINUTES_PER_DAY, world.clock));
+    traffic = new TrafficFeed((roads = town), world);
     sentAt = world.clock;
     return { type: 'ready', resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), ms: took() };
   }
-  if (!world || !map) throw new Error('sim worker: not initialised');
+  if (!world || !map || !traffic) throw new Error('sim worker: not initialised');
   if (m.type === 'save') return { type: 'saved', clock: world.clock, bytes: saveWorld(world), ms: took() };
   if (m.type === 'skip') {
     skip(world, m.days);
     forget();
+    // The days skipped: the cars stand where the world now says, the traffic starts afresh.
+    traffic = new TrafficFeed(roads!, world);
     sentAt = world.clock;
     return { type: 'skipped', clock: world.clock, view: viewOf(world), ms: took() };
   }
   if (m.type === 'player') return playerJob(world, m.op, took);
   runTo(m.clock);
+  traffic.run(m.clock);
   const view = world.clock !== sentAt ? viewOf(world) : null;
   sentAt = world.clock;
-  return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), player: playerOut(world, map, m.clock), ms: took() };
+  return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), player: playerOut(world, map, m.clock), traffic: traffic.message(), ms: took() };
 }
 
 /** A player request (src/sim/player.ts), answered with their status after it. */
@@ -181,7 +189,7 @@ function heightGrid(map: StreetMap, half: number, step: number): HeightGrid {
 
 serve<ToSim, FromSim>(simJob, (r) => {
   if (r.type === 'ready') return [r.ground.h.buffer, ...viewTransfers(r.view)];
-  if (r.type === 'street') return [...r.tracks.map((t) => t.keys.buffer), ...(r.view ? viewTransfers(r.view) : [])];
+  if (r.type === 'street') return [...r.tracks.map((t) => t.keys.buffer), ...(r.view ? viewTransfers(r.view) : []), ...trafficTransfers(r.traffic)];
   if (r.type === 'saved') return [r.bytes.buffer];
   if (r.type === 'skipped') return viewTransfers(r.view);
   return [];
