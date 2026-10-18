@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.031 — Rooms have real floors and walls
+
+- Floors are wood boards, tiles, carpet, stone or marble, laid along the room; walls are painted plaster or wallpaper, bathrooms are tiled.
+- Furniture is wood or fabric, stairs are stone, and lamps glow.
+- The finishes are made by the texture workers like the facades, and stay within the shader time limit.
+
+## v0.030 — Flats over shops have their own front door
+
+- A building with a shop, café or other workplace downstairs and homes upstairs now has a second street door. It opens into a hall with the stairs, so the people who live there no longer walk through the shop to get home.
+- You can see the second door on the facade beside the shop's own door.
+- People going home to these flats use that door.
+
 ## v0.029 — Buses on the road
 
 - The timetable's buses now drive through town: they come in on the country road from the nearby town, pull into a lay-by at each stop, wait there until their departure time, and leave towards where they are going.
