@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.049 — Lightning and thunder together
+
+- Each lightning flash in the sky now has its thunder: the sky and the sound draw the same strikes, and the thunder follows the flash after the time sound takes to travel.
+
+## v0.048 — Day and night, sun and moon, clouds and storms
+
+- The sky follows the real date and time: the sun rises and sets where and when it really would, with sunsets, twilight and a starry night.
+- The moon shows its real phase and rides high on winter nights.
+- The town's weather is in the sky: clear, fair, cloudy, overcast, grey rain, fog and thunderstorms with lightning; the distant haze matches the sky.
+- Windows light up after dusk and go dark late at night.
+- For looking around: `?date=2026-12-24&time=18:30` picks the moment, `?speed=60` runs time faster, `?wx=storm` picks the weather.
+
+## v0.047 — Rain and snow
+
+- Rain falls as thin streaks slanted by the wind; snow drifts down in flakes; sleet is a mix of both.
+- After rain the streets turn dark and glossy and puddles gather; lawns darken a little.
+- In winter snow lies on fields, lawns, roofs and ledges, thinner under the forest and on steep roofs; roads turn to grey slush.
+- The weather belongs to the date: Christmas looks the same whatever day you start the town.
+- The trees turn in autumn by the date (from mid-September, full colour late October), and their branches move with the weather's wind.
+
 ## v0.046 — People take the car like real townsfolk
 
 - People with a car now drive most trips over a kilometre or so, as in a real western town. Each person has their own habit: some walk fifteen minutes, others drive three hundred metres.
