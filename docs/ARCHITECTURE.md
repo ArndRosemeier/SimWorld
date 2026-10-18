@@ -11,8 +11,8 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | `src/sim` | The society: actors, places, schedules, needs, encounters, knowledge, minds, intentions, life events. Pure data, runs in a worker and in headless tests. **The single source of truth for every inhabitant.** | core only (guarded) |
 | `src/geom` | 2D polygon geometry and polygon booleans (ported from Scale's core). Pure. | core only (guarded) |
 | `src/plan`, `src/world` | The town planner and terrain (ported from Scale). Pure data. | core; from `src/sim` only `import type` (the place graph contract) and the per-kind defaults in `src/sim/placeKinds.ts` |
-| `src/build` | Mesh data from the plan: terrain tiles, water, the town's ground, building massing, landmarks, country roads (ported from Scale). Typed arrays, runs in workers. | core, `src/geom`, `src/plan`, `src/world` (no three.js, guarded) |
-| `src/workers` | The worker pool and the workers (town workers; the sim worker, planned). | everything pure |
+| `src/build` | Mesh data from the plan: terrain tiles, water, the town's ground, building shells with facade attributes, landmarks, country roads, the procedural material textures (ported from Scale). Typed arrays, runs in workers. | core, `src/geom`, `src/plan`, `src/world` (no three.js, guarded) |
+| `src/workers` | The worker pool and the workers (town workers, texture workers; the sim worker, planned). | everything pure |
 | `src/talk` | The procedural text engine (background chatter, fallback answers). Pure. | core, `src/sim` types |
 | `src/llm` | OpenRouter, the model roster, task routing, usage ledger, prompt building, response contracts. No state of its own about NPCs. | core, `src/sim` types |
 | `src/render` | three.js: renderer, Stage, materials, lights, meshes, views. | everything pure |
@@ -36,8 +36,11 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Question | The one way | Where |
 |---|---|---|
 | Make the renderer | `createRenderer` (WebGL 2 backend of WebGPURenderer; guarded) | `src/render/renderer.ts` |
-| I need a material | Add or reuse a *kind* (`VERTEX_COLOR_SOLID`, `TERRAIN`, `GROUND`, `WATER`; `kind.make()`). Never `new ...Material` elsewhere (guarded). | `src/render/materials.ts` |
+| I need a material | Add or reuse a *kind* (`VERTEX_COLOR_SOLID`, `TERRAIN`, `GROUND`, `WATER`, `FACADE`; `kind.make()`). Textured kinds need `useTextures({ facade })` before the warm-up. Never `new ...Material` elsewhere (guarded). | `src/render/materials.ts` |
 | A kind's look as a TSL node graph (terrain land use, ground layers, water) | `terrainLook`, `groundLook`, `waterLook` (applied by the kind in materials.ts); the seed's field patchwork `setParcels(parcelParams(seed))`; noise from `h_noise2`/`h_fbm2` (`@futuremagic/humanoid/three/nodes/peopleNoise`) | `src/render/tsl/ground.ts` |
+| A building's look: textured walls and roofs, procedural windows, doors, shop fronts, rooms behind the glass | `facadeLook(mat, arrays)` (the `FACADE` kind) reading `facadeSpecs()` | `src/render/tsl/facade.ts` |
+| Shared TSL pieces: hashes, normal maps without tangents, the scene's light state | `h11`, `h21`, `perturbNormalUV`, `LIGHT` (night, dayLight, litFrac, shopLit, eatLit, wet; the day cycle sets them) | `src/render/tsl/common.ts` |
+| The facade (and ground) texture arrays for the shaders | `loadTextures(pool, family, onProgress?, size?)` → `MaterialArrays` | `src/render/textures.ts` |
 | I need a light | The fixed set from `makeLights` (a pool for lamps, planned). Never `new ...Light` elsewhere (guarded). | `src/render/lights.ts` |
 | Put something into the visible scene | `stage.add(obj)`: compiles first, then adds | `src/render/stage.ts` |
 | Compile something added to your own group later | `stage.prepare(obj)` | `src/render/stage.ts` |
@@ -70,10 +73,11 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | The country around the town (big city, larger town, villages, river, roads), as lore | `regionOf(town)` → `Region` (sim contract in `src/sim/region.ts`); `planRegion(hints)` without planning a town | `src/plan/region.ts` |
 | The town as the sim sees it (places, addresses, road network) | `placeGraphOf(town)` → `PlaceGraph`; `buildingRef(place.building)` back to the cell building, site or farm | `src/plan/placeGraph.ts` |
 | Build mesh data (any kind) | `MeshBuilder(specs)` → `build(): MeshData`; the specs are the material kind's `attributes` | `src/build/meshBuilder.ts` |
+| A procedural material texture layer (facade, roof, ground; tileable RGBA8 albedo+roughness, normal+height+AO) | `generateFacadeLayer(i, size)`, `generateGroundLayer(i, size)`, `FACADE_TILE_METERS`, `GROUND_TILE_METERS`, `TEX_SIZE`; building blocks `TNoise`, `worley`, `Tex`, `Layout`, `brickWall`, `stoneBlocks` | `src/build/texgen/` |
 | Terrain tiles and water of the world | `terrainTiles(terrain)`, `buildTerrainTile(…, land)`; `waterSources(terrain)`, `buildWaterTile` | `src/build/terrainMesh.ts` |
 | The town's ground (streets, sidewalks, plazas, lawns, markings) | `buildGround(plan, terrain, origin)`; drape any shape: `drapeShape`, `ringWall`; the one ground format `groundSpecs()`, `GroundLayer` | `src/build/ground.ts` |
 | Country roads, farmyards, the railway, level crossings, their bridges | `buildCountryRoads(rural, rail, terrain, tile?)` | `src/build/rural.ts` |
-| Buildings and public buildings as massing (walls, roofs, colours) | `buildBuildings(mb, buildings, terrain)`, `buildLandmark(mb, lm, terrain)`, `MASSING_SPECS`; a building's floor level and plinth bottom `buildingBase(b, terrain)`, its tiers `buildingTiers(b)` | `src/build/massing.ts` |
+| Buildings and public buildings as shells for the facade shader (walls, roofs; layer, tint, bay, storeys, flags `FF`) | `buildBuildings(mb, buildings, terrain)`, `buildLandmark(mb, lm, terrain)`, `facadeSpecs()`, `paint(mb, layer, tint, flags?, bay?, fh?, gh?)`; a building's floor level and plinth bottom `buildingBase(b, terrain)`, its tiers `buildingTiers(b)` | `src/build/massing.ts` |
 | 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |
 | Polygon union, difference, intersection, offset | `src/geom/clip.ts` (clipper) | `src/geom/clip.ts` |
 
@@ -89,6 +93,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 |---|---|---|
 | Run work off the main thread | `new WorkerPool<In, Out>(url, size)` with the worker imported as `…worker.ts?worker&url` (guarded: `new Worker` only there); `start(init)`, `run(msg, priority)` | `src/workers/pool.ts` |
 | Plan the town and build its mesh data off the main thread | the town workers (`ToTown` / `FromTown`, `TownSummary`) | `src/workers/town.worker.ts`, `src/workers/townProtocol.ts` |
+| Generate the material texture layers off the main thread | the texture workers (`ToTex` / `FromTex`) | `src/workers/tex.worker.ts`, `src/workers/texProtocol.ts` |
 | Run the society simulation | the sim worker, talked to through `SimClient` | `src/workers/sim.worker.ts`, `src/game/SimClient.ts` *planned* |
 | Save or load anything | `src/persist` (guarded: `localStorage` only there) | `src/persist/` *planned* |
 

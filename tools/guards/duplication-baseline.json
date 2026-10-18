@@ -114,5 +114,29 @@
   {
     "key": "same name: simworld/plan/cell.ts#run + simworld/workers/pool.ts#run",
     "reason": "WorkerPool.run(job) vs a local run in the cell planner: conventional names."
+  },
+  {
+    "key": "clone: simworld/build/texgen/facade.ts#brickBrown + simworld/build/texgen/facade.ts#brickRed + simworld/build/texgen/facade.ts#brickYellow",
+    "reason": "Ported from Scale's texgen: one recipe per brick layer, each a brickWall call with its own bond, sizes and palette; the shared body already is brickWall."
+  },
+  {
+    "key": "clone: simworld/build/texgen/facade.ts#brownstone + simworld/build/texgen/facade.ts#sandstone + simworld/build/texgen/ground.ts#plazaStone",
+    "reason": "Ported from Scale's texgen: one recipe per stone layer, a stoneBlocks call with its own parameters; the shared body already is stoneBlocks."
+  },
+  {
+    "key": "clone: simworld/build/texgen/facade.ts#limestone + simworld/build/texgen/ground.ts#promenade",
+    "reason": "Ported from Scale's texgen: stoneBlocks recipes, each with its own extra hook."
+  },
+  {
+    "key": "clone: simworld/build/texgen/facade.ts#palette",
+    "reason": "The per-layer brick palette closures (BrickOpts.palette): each mixes its own colours; the shared part is a one-line lerp3."
+  },
+  {
+    "key": "idiom: [.each .fbm] in simworld/build/texgen/ground.ts + simworld/build/texgen/paint.ts + simworld/build/texgen/roof.ts",
+    "reason": "The shape of every texture generator: a per-pixel Tex.each loop sampling tileable TNoise.fbm; it is the generator contract, not a copy."
+  },
+  {
+    "key": "same name: simworld/build/texgen/facade.ts#extra + simworld/build/texgen/ground.ts#extra",
+    "reason": "Two implementations of the one StoneOpts.extra hook (per-layer stone detail), not two copies of a helper."
   }
 ]

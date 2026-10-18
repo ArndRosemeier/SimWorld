@@ -4,7 +4,7 @@
  * from the centre while a slow drone drift circles it. The selector-as-loading-screen and the
  * game come in their own changes (docs/design/simworld-plan.md R2).
  *
- * `?seed=…&size=…` (0 … 1) pick the town; `?at=x,z&r=…&h=…&a=…` fix the drone's centre, distance,
+ * `?seed=…&size=…` (0 … 1) pick the town; `?tex=…` the texture size in texels (256 default, 512 sharper and slower); `?at=x,z&r=…&h=…&a=…` fix the drone's centre, distance,
  * height and angle (radians) instead of circling, for screenshots.
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
@@ -16,6 +16,10 @@ import { setParcels } from './render/tsl/ground';
 import { showTown } from './render/townView';
 import { WorkerPool } from './workers/pool';
 import townWorkerUrl from './workers/town.worker.ts?worker&url';
+import texWorkerUrl from './workers/tex.worker.ts?worker&url';
+import type { FromTex, ToTex } from './workers/texProtocol';
+import { loadTextures } from './render/textures';
+import { useTextures } from './render/materials';
 import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
@@ -38,10 +42,16 @@ function step(text: string, frac?: number): void {
 
 async function start(): Promise<void> {
   const settings = settingsFromUrl();
-  // The town workers start planning at once; the renderer warms up meanwhile.
-  const pool = new WorkerPool<ToTown, FromTown>(townWorkerUrl, Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1)));
+  const cores = Math.max(1, (navigator.hardwareConcurrency || 4) - 1);
+  // The town workers start planning at once; the texture workers generate the facade textures
+  // meanwhile (the shaders need them before the warm-up), then the renderer warms up.
+  const pool = new WorkerPool<ToTown, FromTown>(townWorkerUrl, Math.min(4, cores));
   const planned = pool.start(() => ({ type: 'init', settings }));
-  step('Planning the town', 0.05);
+  const texPool = new WorkerPool<ToTex, FromTex>(texWorkerUrl, Math.min(6, cores));
+  await texPool.start(() => ({ type: 'init' }));
+  const texSize = Number(new URLSearchParams(location.search).get('tex')) === 512 ? 512 : 256;
+  step('Making the materials', 0.02);
+  const facade = loadTextures(texPool, 'facade', (done, total) => step('Making the materials', 0.02 + (0.1 * done) / total), texSize);
 
   const canvas = document.createElement('canvas');
   document.body.prepend(canvas);
@@ -57,6 +67,9 @@ async function start(): Promise<void> {
   const lights = makeLights(scene);
   const stage = new Stage(renderer, scene, camera);
   stage.shadowCamera = lights.sun.shadow.camera;
+  useTextures({ facade: await facade });
+  texPool.dispose();
+  step('Preparing the shaders', 0.12);
   await stage.warmUp();
   step('Planning the town', 0.15);
 

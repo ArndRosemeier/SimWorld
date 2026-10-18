@@ -6,8 +6,11 @@
  * Every mesh of a kind uses the kind's one material, so a kind is one shader; variation goes in
  * vertex attributes or uniforms, never in a new material. Ported from Dunfinity.
  */
-import { MeshPhysicalNodeMaterial, MeshStandardNodeMaterial, type Material } from 'three/webgpu';
+import { DoubleSide, MeshPhysicalNodeMaterial, MeshStandardNodeMaterial, type Material } from 'three/webgpu';
 import { groundLook, terrainLook, waterLook } from './tsl/ground';
+import { facadeLook } from './tsl/facade';
+import type { MaterialArrays } from './textures';
+import { facadeSpecs } from '../build/massing';
 import type { AttrSpec } from '../build/meshBuilder';
 import { TERRAIN_SPECS } from '../build/terrainMesh';
 
@@ -26,6 +29,17 @@ export interface MaterialKind {
 }
 
 const kinds = new Map<string, MaterialKind>();
+
+/** The generated texture arrays (src/render/textures.ts `loadTextures`); set before the warm-up makes the textured kinds. */
+const textures: { facade?: MaterialArrays } = {};
+export function useTextures(t: typeof textures): void {
+  Object.assign(textures, t);
+}
+function needTextures<K extends keyof typeof textures>(k: K): NonNullable<(typeof textures)[K]> {
+  const t = textures[k];
+  if (!t) throw new Error(`the ${k} textures are not loaded yet (useTextures before the warm-up)`);
+  return t as NonNullable<(typeof textures)[K]>;
+}
 
 function defineKind(name: string, attributes: MaterialKind['attributes'], build: () => Material, shadow = { cast: true, receive: true }): MaterialKind {
   if (kinds.has(name)) throw new Error(`material kind "${name}" defined twice`);
@@ -72,3 +86,13 @@ export const WATER = defineKind('water', [{ name: 'uv', size: 2 }, { name: 'aLay
   waterLook(m);
   return m;
 }, { cast: false, receive: false });
+
+/**
+ * Buildings, landmarks and bridge piers (src/build/massing.ts `facadeSpecs`): textured walls and
+ * roofs with procedural windows, doors and shop fronts. Double-sided: the insides are plastered.
+ */
+export const FACADE = defineKind('facade', facadeSpecs(), () => {
+  const m = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0, side: DoubleSide, shadowSide: DoubleSide });
+  facadeLook(m, needTextures('facade'));
+  return m;
+});

@@ -2,10 +2,10 @@
  * The town's bridges over rivers (the arterials of `macro.bridges`): the deck's carriageway,
  * raised sidewalks with curbs and (stone bridges) parapets in the ground format, so it shares
  * the ground material; and the structure by style (stone multi-arch with cutwaters, steel arch,
- * girders on piers, through truss, suspension), the deck slab, steel railings and lamp posts as
- * plain massing solids coloured per vertex (MASSING_SPECS).
+ * girders on piers, through truss, suspension), the deck slab, steel railings and lamp posts in
+ * the facade format (facadeSpecs: plain surfaces, no openings).
  *
- * Ported from Scale (src/build/bridges.ts) without the facade shader attributes and without the
+ * Ported from Scale (src/build/bridges.ts) without element ids and without the
  * fallen spans (BridgeBreaks gaps and their wreckage). New: the deck runs the whole arterial
  * edge from node to node (no cell draws a bridge edge, so its land ends lie on the ground).
  */
@@ -14,12 +14,12 @@ import type { ArterialEdge, Bridge } from '../plan/types';
 import { CURB_H } from '../world/ground';
 import { MeshBuilder } from './meshBuilder';
 import { groundSpecs, GroundLayer } from './ground';
-import { MASSING_SPECS, paint } from './massing';
+import { facadeSpecs, paint } from './massing';
 
 export interface BridgeMeshes {
   /** Carriageway, sidewalks, curbs, stone parapets (ground format). */
   deck: MeshBuilder | null;
-  /** Deck slab, piers, arches, girders, truss, towers and cables, railings, lamp posts (massing format). */
+  /** Deck slab, piers, arches, girders, truss, towers and cables, railings, lamp posts (facade format). */
   structure: MeshBuilder | null;
 }
 
@@ -76,7 +76,8 @@ export function bridgePiers(style: Bridge['style'], s0: number, s1: number): num
 /** Every bridge of the town: `edges` are the macro plan's (the carriageway width of each bridge's edge). */
 export function buildBridges(bridges: readonly Bridge[], terrain: Terrain, edges: readonly ArterialEdge[]): BridgeMeshes {
   const deck = new MeshBuilder(groundSpecs());
-  const mb = new MeshBuilder([...MASSING_SPECS]);
+  const mb = new MeshBuilder(facadeSpecs());
+  mb.set('aSeed', 0.5);
   for (const br of bridges) {
     const pr = profileOf(br, terrain);
     if (pr) buildBridge(deck, mb, br, edges[br.edge], pr);
@@ -115,7 +116,7 @@ function buildBridge(deck: MeshBuilder, mb: MeshBuilder, br: Bridge, e: Arterial
     curbSide(deck, onDeck(sa, carr, ya), onDeck(sb, carr, yb), CURB_H, -nx, -nz);
     curbSide(deck, onDeck(sb, -carr, yb), onDeck(sa, -carr, ya), CURB_H, nx, nz);
   }
-  // --- Deck slab over the water (massing): underside and fascia.
+  // --- Deck slab over the water (facade format): underside and fascia.
   paint(mb, structLayer, structTint);
   for (const [sa, sb] of span) {
     const ya = pr.y(sa), yb = pr.y(sb);
@@ -123,7 +124,7 @@ function buildBridge(deck: MeshBuilder, mb: MeshBuilder, br: Bridge, e: Arterial
     curbSide(mb, onDeck(sb, half, yb - thick), onDeck(sa, half, ya - thick), thick + CURB_H, nx, nz);
     curbSide(mb, onDeck(sa, -half, ya - thick), onDeck(sb, -half, yb - thick), thick + CURB_H, -nx, -nz);
   }
-  // --- Parapets (stone, in the ground format) or railings (steel, massing) over the span.
+  // --- Parapets (stone, in the ground format) or railings (steel, facade format) over the span.
   for (const sgn of [-1, 1]) {
     for (const [sa, sb] of span) {
       const ds = sb - sa;

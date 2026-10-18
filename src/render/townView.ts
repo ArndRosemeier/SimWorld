@@ -8,7 +8,7 @@ import { Group } from 'three/webgpu';
 import type { MeshData } from '../build/meshBuilder';
 import type { WorkerPool } from '../workers/pool';
 import type { FromTown, ToTown, TownSummary } from '../workers/townProtocol';
-import { GROUND, TERRAIN, VERTEX_COLOR_SOLID, WATER, type MaterialKind } from './materials';
+import { FACADE, GROUND, TERRAIN, WATER, type MaterialKind } from './materials';
 import { meshFromData } from './meshes';
 import type { Stage } from './stage';
 
@@ -47,8 +47,8 @@ export function showTown(stage: Stage, pool: WorkerPool<ToTown, FromTown>, town:
     switch (r.type) {
       case 'terrain': await place(r.mesh, TERRAIN); break;
       case 'water': await place(r.mesh, WATER); break;
-      case 'cell': case 'country': case 'bridges': await place(r.ground, GROUND); await place(r.buildings, VERTEX_COLOR_SOLID); break;
-      case 'landmark': await place(r.mesh, VERTEX_COLOR_SOLID); break;
+      case 'cell': case 'country': case 'bridges': await place(r.ground, GROUND); await place(r.buildings, FACADE); break;
+      case 'landmark': await place(r.mesh, FACADE); break;
     }
     onProgress(++view.done, view.total);
   })).then(() => undefined);

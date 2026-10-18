@@ -9,7 +9,7 @@ import { buildGround } from '../build/ground';
 import { buildTerrainTile, buildWaterTile, terrainSkirt, terrainTiles, waterSources, type WaterSources } from '../build/terrainMesh';
 import { buildCountryRoads } from '../build/rural';
 import { buildBridges } from '../build/bridges';
-import { MASSING_SPECS, buildBuildings, buildLandmark } from '../build/massing';
+import { facadeSpecs, buildBuildings, buildLandmark } from '../build/massing';
 import { planTown, type Town } from '../plan/town';
 import { parcelParams } from '../world/landuse';
 import type { FromTown, ToTown } from './townProtocol';
@@ -41,7 +41,7 @@ function handle(m: ToTown): FromTown {
       const plan = cells[m.cell];
       const [x0, z0, x1, z1] = plan.bounds;
       const ground = buildGround(plan, terrain, [(x0 + x1) / 2, 0, (z0 + z1) / 2]);
-      const mb = new MeshBuilder([...MASSING_SPECS]);
+      const mb = new MeshBuilder(facadeSpecs());
       mb.setOrigin((x0 + x1) / 2, 0, (z0 + z1) / 2);
       buildBuildings(mb, plan.buildings, terrain);
       return { type: 'cell', ground: out(ground), buildings: out(mb), ms: ms() };
@@ -57,13 +57,13 @@ function handle(m: ToTown): FromTown {
     }
     case 'landmark': {
       const lm = macro.landmarks[m.index];
-      const mb = new MeshBuilder([...MASSING_SPECS]);
+      const mb = new MeshBuilder(facadeSpecs());
       mb.setOrigin(lm.x, 0, lm.z);
       buildLandmark(mb, lm, terrain);
       return { type: 'landmark', mesh: out(mb), ms: ms() };
     }
     case 'country': {
-      const mb = new MeshBuilder([...MASSING_SPECS]);
+      const mb = new MeshBuilder(facadeSpecs());
       for (const f of rural.farms) buildBuildings(mb, rural.layout(f.id).buildings, terrain);
       return { type: 'country', ground: out(buildCountryRoads(rural, macro.rail, terrain)), buildings: out(mb), ms: ms() };
     }
