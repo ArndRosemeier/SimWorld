@@ -120,7 +120,10 @@ function buildTransit(world: World): Transit {
   }
 
   // ---- the school bus: three pick-ups spread over the town, then the centre, to the secondary school in the nearby town
-  const streets = places.filter((p) => p.kind === 'street');
+  // Streets people live on (a stop on a farm road 5 km out would take the bus half the morning).
+  const homesOn = new Map<string, number>();
+  for (const p of places) if (p.homes > 0) homesOn.set(p.street, (homesOn.get(p.street) ?? 0) + p.homes);
+  const streets = places.filter((p) => p.kind === 'street' && (homesOn.get(p.name) ?? 0) >= 6);
   if (streets.length && centre) {
     const picks: typeof streets = [];
     // Farthest-point picks: the first farthest from the centre, then each farthest from those chosen.

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.029 — Buses on the road
+
+- The timetable's buses now drive through town: they come in on the country road from the nearby town, pull into a lay-by at each stop, wait there until their departure time, and leave towards where they are going.
+- Traffic overtakes a bus standing at its stop; a second bus for the same stop waits behind the first.
+- The school bus now stops only on streets where people live, not out on the farm roads.
+- Vehicles can now make a stop on the way (hazards on, then drive on), which the bin lorry and the post van will use.
+
 ## v0.028 — Commuters and the secondary school
 
 - About one worker in five now commutes. They drive or take the train to the city or the next town in the morning and come back in the evening. While they are away they are out of town.

@@ -15,6 +15,8 @@ import { Parking } from './parking';
 import { RoadNet } from './roadNet';
 import { Traffic, type Car, type VKind } from './traffic';
 import type { CarTrip } from './trips';
+import { Buses, type BusTrip } from './buses';
+import type { World } from '../sim/world';
 
 /** Household car models, most common first (a small western town). */
 const HOUSEHOLD: VKind[] = ['sedan', 'suv', 'hatch', 'wagon', 'pickup', 'suv', 'sedan', 'van', 'hatch', 'pickup', 'sports', 'sedan'];
@@ -42,14 +44,19 @@ export class TownTraffic {
   readonly traffic: Traffic;
   private readonly pending: { trip: CarTrip; car: Car; t: number }[] = [];
   private throughN = 0;
+  private buses: Buses | null = null;
+  private readonly busesWaiting: BusTrip[] = [];
+  /** Game clock (s) minus Traffic time (s), set at every game minute. */
+  private clockOffset = 0;
   /** Stats for the HUD and tests. */
-  readonly stats = { trips: 0, walked: 0, parked: 0, through: 0 };
+  readonly stats = { trips: 0, walked: 0, parked: 0, through: 0, buses: 0, busStops: 0 };
 
   constructor(town: Town, private readonly places: readonly Place[], private readonly seed: number) {
     this.net = new RoadNet(town);
     this.parking = new Parking(this.net);
     this.traffic = new Traffic(this.net, this.parking);
     this.traffic.onPark = () => this.stats.parked++;
+    this.traffic.onHalt = () => this.stats.busStops++;
   }
 
   /** Put every household car at rest: at `at(household)`'s place (home, or where its driver is). */
@@ -63,6 +70,7 @@ export class TownTraffic {
 
   /** New car trips from the sim (call once per game minute with what `carTripsSince` returned). */
   trips(trips: readonly CarTrip[], clock: number): void {
+    this.clockOffset = clock * 60 - this.traffic.time;
     for (const trip of trips) {
       const car = householdCar(this.seed, trip.household);
       const at = this.parking.restAt(car.key), from = this.places[trip.from];
@@ -74,6 +82,25 @@ export class TownTraffic {
     this.through(clock);
   }
 
+  /**
+   * The timetable's buses that come on to the map in the game minutes (since, clock] (call once
+   * per game minute, after `trips`).
+   */
+  transit(world: World, since: number, clock: number): void {
+    this.buses ??= new Buses(world, this.net);
+    this.busesWaiting.push(...this.buses.due(since, clock));
+    this.startBuses();
+  }
+
+  private startBuses(): void {
+    for (let i = this.busesWaiting.length - 1; i >= 0; i--) {
+      const b = this.busesWaiting[i];
+      const goal = Buses.goal(b, (c) => c * 60 - this.clockOffset);
+      // A bus that cannot get in (a car right at the town edge) tries again next frame.
+      if (this.traffic.enter(b.car, b.enter, goal)) { this.stats.buses++; this.busesWaiting.splice(i, 1); }
+    }
+  }
+
   /** Run the cars for dt seconds. */
   update(dt: number): void {
     for (let i = this.pending.length - 1; i >= 0; i--) {
@@ -81,6 +108,7 @@ export class TownTraffic {
       p.t += dt;
       if (this.start(p.trip, p.car) || p.t > RETRY_S) this.pending.splice(i, 1);
     }
+    if (this.busesWaiting.length) this.startBuses();
     this.traffic.update(dt);
   }
 
