@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.073 — Talk to the people of the town
+
+- Walk up to someone on the street (or follow them) and press T: they stop, turn to you, and a chat panel opens on the right with plenty of room to talk.
+- With your own OpenRouter key (Chat button, then Models) replies stream in from a language model, written from only what that person knows: their life, the people they know, their memories and the news they have heard.
+- Conversations have consequences: what you say changes how they feel about you, what they believe and what they plan to do, a lie you tell can spread as a rumour, news they pass on is something you now know, and both of you remember the talk afterwards.
+- Without a key, or when the model is unavailable, the town answers on its own with simpler replies.
+- You choose which models do what (chat replies, reading the replies, memories) and can add any OpenRouter model; the defaults are cheap ones that write well.
+- The Usage tab shows what the language model has cost, by task, model, person and session.
+- The "Mind" switch in the chat panel shows what each reply changed in the person's mind.
+
+## v0.072 — Autumn: each tree turns at its own pace, fallen leaves on the ground
+
+- Leafy trees no longer all turn colour together: each tree turns at its own pace, so in October the town shows green, yellow, orange and red-brown side by side.
+- Fallen leaves gather on lawns, gardens and bare earth from mid-October, fewer on swept paving and a few on the roads. They are yellow and orange at first and turn brown as the trees go bare, then are cleared or rot away by the new year.
+- Rain darkens the fallen leaves, and snow covers them.
+
+## v0.071 — Parked cars in the planned bays
+
+- The town's parked cars now stand in the parking bays the town planner laid out along the kerbs, which keep clear of junctions, zebra crossings and driveways. Before, the cars had their own bays every few metres, which could block a driveway or a crossing.
+- Each parked car faces the same way as the traffic on its side of the street.
+
 ## v0.070 — People stop walking through buildings, cars and street furniture
 
 - People no longer cut through buildings, car parks, fountains or hedges: where a walk can't just step aside, it goes the long way round.

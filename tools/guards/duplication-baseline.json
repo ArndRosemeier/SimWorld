@@ -364,7 +364,7 @@
     "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
   },
   {
-    "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
+    "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
   {
@@ -436,14 +436,6 @@
     "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
   {
-    "key": "idiom: [.graph .name .place .places] in simworld/sim/knowledge.ts + simworld/sim/media.ts + simworld/sim/profile.ts",
-    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
-  },
-  {
-    "key": "idiom: [.home .place] in simworld/sim/actions.ts + simworld/sim/player.ts + simworld/sim/schedule.ts",
-    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
-  },
-  {
     "key": "idiom: [.known .to] in simworld/sim/life.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
     "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
@@ -490,5 +482,37 @@
   {
     "key": "same name: simworld/sim/profile.ts#kinWord + simworld/talk/refer.ts#kinWord",
     "reason": "Different words for different readers: the profile card names the relation plainly (mother, housemate); talk says it in the speaker's voice (mum, little girl, flatmate)."
+  },
+  {
+    "key": "idiom: [.actors .cols .graph .places] in simworld/chat/card.ts + simworld/chat/context.ts + simworld/sim/media.ts + simworld/sim/player.ts",
+    "reason": "Reading an actor's columns and the place graph at the top of a function that describes someone or picks a place in words; each describes a different thing (NPC card, prompt context, paper, the player's options)."
+  },
+  {
+    "key": "idiom: [.actors .cols .sex] in simworld/chat/card.ts + simworld/sim/life.ts + simworld/sim/profile.ts",
+    "reason": "A person's sex for their pronouns or kin words (she/he, wife/husband) in three describers of different things: the NPC card, life events, the picker's card."
+  },
+  {
+    "key": "idiom: [.actors .cols .sex] in simworld/chat/card.ts + simworld/sim/profile.ts + simworld/talk/chatter.ts",
+    "reason": "A person's sex for their pronouns or kin words (she/he, wife/husband) in three describers of different things: the NPC card, life events, the picker's card."
+  },
+  {
+    "key": "idiom: [.addEventListener .key] in simworld/app/chatPanel.ts + simworld/app/llmSettings.ts + simworld/app/picker.ts",
+    "reason": "One-line key checks in different panels (Enter sends a chat line, Enter saves the key, Escape closes the picker); each with its own action."
+  },
+  {
+    "key": "idiom: [.append .createTextNode document] in simworld/app/llmSettings.ts + simworld/app/picker.ts + simworld/app/playPanel.ts",
+    "reason": "Mixing a link or an emphasis into a line of text in three different panels (settings key text, picker card, play panel); a one-line DOM idiom."
+  },
+  {
+    "key": "idiom: [.createTextNode document] in simworld/app/chatPanel.ts + simworld/app/llmSettings.ts + simworld/app/whatsNew.ts",
+    "reason": "Plain text appended next to elements in DOM panels: the safe way to show model and changelog text without markup."
+  },
+  {
+    "key": "idiom: [.graph .place .places] in simworld/chat/card.ts + simworld/sim/knowledge.ts + simworld/sim/media.ts + simworld/sim/profile.ts",
+    "reason": "Looking up a place by id in the place graph inside a describer (card, belief, paper, profile); the one way to read a place, not a copy."
+  },
+  {
+    "key": "idiom: [.atan2 .x .z Math] in simworld/build/streetProps.ts + simworld/game/street.ts + simworld/plan/terrace.ts",
+    "reason": "A heading from one point to another (atan2 of the x/z difference) in three unrelated places: prop rotation, a person turning to face you, a terrace's orientation."
   }
 ]

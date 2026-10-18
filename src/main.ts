@@ -17,6 +17,7 @@
  *
  * Once the town shows, the picker comes up over it (src/game/playing.ts): pick an inhabitant and the camera flies
  * down to them and stays with them while you play as them. `?be=<id>` starts as that inhabitant.
+ * On the street, T talks to the person nearest you (or the one you follow).
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
@@ -41,6 +42,8 @@ import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
 import { SimClient, followSim, playStart, screenWorld, type ScreenWorld } from './game/SimClient';
 import { Street } from './game/street';
+import { Chat } from './game/chat';
+import { LlmSetup } from './game/llmSetup';
 import { CameraControl } from './game/camera';
 import { Playing } from './game/playing';
 import { PeopleView } from './render/people/peopleView';
@@ -167,6 +170,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const cam = new CameraControl(camera, { cx, cz, y: town.y, r: num('r', town.radius * 1.35), h: num('h', town.radius * 0.55), fixed: q.has('a') ? num('a', 0) : null }, (x, z) => sim.standHeight(x, z));
   cam.pickNear = (x, z) => street.next(x, z);
   if (q.has('street')) { const [sx, sz] = q.get('street')!.split(',').map(Number); cam.toStreet(sx, sz, num('yaw', 0)); }
+  // Talking to people (T near someone): the chat panel, the player's key and models (src/game/chat.ts).
+  const chat = new Chat(sim, street, cam, new LlmSetup());
   const followId = q.has('follow') ? num('follow', -1) : -1;
   // The picker comes up over the town once it shows; picking someone plays as them (?be=<id> skips the picker).
   const playing = new Playing(sim, cam, street, settings.seed);
@@ -216,8 +221,10 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     }
     if (hud) {
       const c = sim.clock, n = people.counts;
+      const talk = cam.mode === 'drone' ? '' : chat.hint();
       const who = cam.mode === 'play' ? '\nDrag to look around' : cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '' : '\nW A S D walk, drag to look, F follow someone, Esc up';
-      hud.textContent = `${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(c)))}, ${describeWeather(w)} · ${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${vehicles.counts.moving} vehicles on the road, ${vehicles.counts.parked} parked · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${who}`;
+      const whoTalk = who + (talk ? `\n${talk}` : '');
+      hud.textContent = `${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(c)))}, ${describeWeather(w)} · ${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${vehicles.counts.moving} vehicles on the road, ${vehicles.counts.parked} parked · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${whoTalk}`;
     }
   });
   await view.ready;

@@ -20,6 +20,7 @@ import { StreetMap } from '../street/streetMap';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
+import { chatOp } from '../chat/ops';
 import { TrafficFeed, trafficTransfers } from '../traffic/feed';
 
 let world: World | null = null;
@@ -72,6 +73,7 @@ function simJob(m: ToSim): FromSim {
     return { type: 'skipped', clock: world.clock, view: viewOf(world, true), ms: took() };
   }
   if (m.type === 'player') return playerJob(world, m.op, took);
+  if (m.type === 'chat') return { type: 'chat', res: chatOp(world, m.req) };
   runTo(m.clock);
   traffic.run(m.clock);
   const view = world.clock !== sentAt ? viewOf(world, dayOf(world.clock) !== dayOf(sentAt)) : null;

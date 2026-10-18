@@ -3,7 +3,7 @@
  * through `createLlm(...).run(task, input)`. Pure: no DOM, no three, no NPC state of its own.
  */
 export { createLlm, requestFor, THINKING_ROOM, type Llm, type LlmConfig, type RunOptions, type RunResult, type Timers } from './llm';
-export { openRouterTransport, fetchCatalog, LlmError, OPENROUTER_BASE, type Transport, type CatalogModel, type LlmErrorKind } from './openrouter';
+export { openRouterTransport, fetchCatalog, LlmError, OPENROUTER_BASE, OPENROUTER_KEYS_URL, openRouterModelUrl, type Transport, type CatalogModel, type LlmErrorKind } from './openrouter';
 export { DEFAULT_ROSTER, DEFAULT_TASK_MODELS, CAPABILITIES, rosterFromCatalog, entryFromCatalog, derivedTags, effortFor, type Roster, type ModelEntry, type Capability, type Effort } from './roster';
 export { route, qualifies, blendedPrice, type Routing } from './router';
 export { TASKS, cleanSpeech, type TaskName, type TaskIO, type TaskSpec, type SummaryOutput, type ReflectionInput, type ReflectionOutput, type Insight, type DigestInput, type JudgeInput, type JudgeScore } from './tasks';
