@@ -55,6 +55,8 @@ export interface Region {
   lore: LoreLine[];
   /** The railway: through the town (to the city one way, out into the country the other), a branch line ending here, or none. */
   rail?: 'through' | 'terminus' | null;
+  /** On the coast (milder, foggier weather). */
+  coastal?: boolean;
 }
 
 /** The region as the world holds it (`world.region`). */
