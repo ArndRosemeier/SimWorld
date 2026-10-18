@@ -7,7 +7,7 @@
  * thread (canvas 2D). New in SimWorld.
  */
 import { hashString } from '@futuremagic/core';
-import { boardWord, fillName } from '../lang/words';
+import { boardWord, fillName, type BoardWord } from '../lang/words';
 import type { Notice } from '../sim/media';
 import type { StopTimetable } from '../sim/transit';
 import { weekdayName } from '../sim/calendar';
@@ -214,6 +214,45 @@ export function clockFace(minute: number): Painter {
     hand((m % 720) / 720, r * 0.45, r * 0.09);
     hand((m % 60) / 60, r * 0.7, r * 0.055);
     g.fillStyle = '#1c1c1c'; g.beginPath(); g.arc(cx, cy, r * 0.07, 0, Math.PI * 2); g.fill();
+  };
+}
+
+/** The works a council board can announce (`TownRules.works` keys) and its title words. */
+const WORKS_TITLE: Readonly<Record<string, BoardWord>> = { bypass: 'bypass', estate: 'estate', turbines: 'turbines', skatepark: 'skatepark' };
+
+/**
+ * The council's works board: the council's name on a white band, what is being built, how long it will take
+ * yet, a hazard-striped edge (yellow and black, as building sites have everywhere).
+ */
+export function worksBoard(town: string, key: string, left: string): Painter {
+  return (g, w, h) => {
+    g.fillStyle = '#f4f2ea'; g.fillRect(0, 0, w, h);
+    // The striped edge.
+    g.save();
+    g.beginPath(); g.rect(0, 0, w, h); g.rect(16, 16, w - 32, h - 32); g.clip('evenodd');
+    g.fillStyle = '#f2c230'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#1c1c1c';
+    for (let x = -h; x < w + h; x += 32) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 16, 0); g.lineTo(x + 16 - h, h); g.lineTo(x - h, h); g.closePath(); g.fill(); }
+    g.restore();
+    fit(g, fillName(boardWord('council'), { town }), w / 2, h * 0.2, w - 70, h * 0.09, SANS, '#1d3d6b', 'bold');
+    const title = WORKS_TITLE[key] ? boardWord(WORKS_TITLE[key]) : key;
+    fit(g, title, w / 2, h * 0.45, w - 70, h * 0.17, SERIF, '#1c1c1c', 'bold');
+    fit(g, boardWord('underWay'), w / 2, h * 0.64, w - 80, h * 0.09, SANS, '#333333', '600');
+    fit(g, fillName(boardWord('readyIn'), { n: left }), w / 2, h * 0.79, w - 80, h * 0.09, SANS, '#333333', '600');
+  };
+}
+
+/**
+ * A shop's bill: a "now open" banner under a new shop's fascia (red letters on white), or a sale sign in a
+ * struggling shop's window (SALE in red on yellow over "everything must go").
+ */
+export function shopBill(what: 'nowOpen' | 'sale'): Painter {
+  return (g, w, h) => {
+    const sale = what === 'sale';
+    g.fillStyle = sale ? '#ffd600' : '#ffffff'; g.fillRect(0, 0, w, h);
+    if (!sale) { g.fillStyle = '#c62828'; g.fillRect(0, 0, w, 3); g.fillRect(0, h - 3, w, 3); }
+    fit(g, boardWord(what), w / 2, h * (sale ? 0.42 : 0.5), w - 20, h * (sale ? 0.42 : 0.7), SANS, '#c62828', 'bold');
+    if (sale) fit(g, boardWord('saleLine'), w / 2, h * 0.8, w - 24, h * 0.11, SANS, '#1c1c1c', 'bold');
   };
 }
 

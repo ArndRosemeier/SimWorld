@@ -263,7 +263,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     if (view.signs && sim.town && sim.town !== shownFace) {
       // The town's face (once a game day, and after a time skip): shop names, hours, to-let and for-sale boards.
       shownFace = sim.town;
-      view.signs.setFacts({ kind: shownFace.kind, name: shownFace.name, flags: shownFace.looks.flags, hours: shownFace.hours });
+      view.signs.setFacts({ kind: shownFace.kind, name: shownFace.name, flags: shownFace.looks.flags, hours: shownFace.hours, works: shownFace.rules.works, day: Math.floor(sim.view.clock / MINUTES_PER_DAY) });
     }
     if (view.signs && !stopsShown) { stopsShown = true; void view.signs.addStops(sim.stops); }
     view.signs?.setTime(minuteOfDay(sim.clock));

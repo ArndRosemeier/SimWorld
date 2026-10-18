@@ -512,6 +512,10 @@
     "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
   },
   {
+    "key": "idiom: [.find .kind .landmarks] in simworld/plan/signs.ts + simworld/plan/town.ts + simworld/street/streetMap.ts",
+    "reason": "Finding a landmark of a kind in the town's list is one Array.find; the town plan, the walkers' map and the signs (the sports ground's works board) each look up the one they need, and a helper would only rename find."
+  },
+  {
     "key": "idiom: [.beginPath .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the map, the signs' painters (a clock's dial) and the atlas pictures each paint their own shapes; a wrapper would only rename the canvas API."
   },

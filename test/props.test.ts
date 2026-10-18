@@ -224,6 +224,12 @@ test('signs: instance lists tie every sign to what it says, on the ground or the
     assert.ok(-Math.sin(c.yaw) * (c.x - lm.x) - Math.cos(c.yaw) * (c.z - lm.z) > -0.5, `the ${lm.kind}'s clock faces out`);
   }
   assert.equal(data.what.filter((w) => w.t === 'clock').length, 1, 'all clocks show the one time');
+  // The council's works boards (by the road into town, at the sports ground) and the shops' sale signs and banners.
+  assert.ok(spots.works.some((w) => w.at === 'gateway') && data.what.some((w) => w.t === 'works'), 'a works board by the road into town');
+  for (const w of spots.works) assert.ok(spots.gateways.every((g) => Math.hypot(g.x - w.x, g.z - w.z) > 3), 'the works board stands clear of the town sign');
+  const fascias = data.what.filter((w) => w.t === 'front' && w.style === 'fascia').length;
+  assert.equal(data.what.filter((w) => w.t === 'sale').length, fascias, 'a sale sign spot in every shop window');
+  assert.equal(data.what.filter((w) => w.t === 'banner').length, fascias, 'a banner spot under every fascia');
 });
 
 test('parked cars stand in kerbside bays, on the carriageway, clear of the cross streets', () => {
