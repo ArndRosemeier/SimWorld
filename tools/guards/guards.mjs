@@ -70,7 +70,7 @@ const IMPORT_RE = /(?:import|export)\s[^'"]*?from\s*(['"])([^'"]+)\1|import\s*\(
 /** `import type { … } from` / `export type { … } from`: erased at build time, no code dependency. */
 const TYPE_ONLY_RE = /^(?:import|export)\s+type\s/;
 
-/** The specifiers a file imports, resolved to repo paths for relative ones. `types: true` lists only value imports' complement. */
+/** The specifiers a file imports, resolved to repo paths for relative ones; with `withKind`, each as `{ spec, typeOnly }`. */
 export function importsOf(root, file, opts = {}) {
   const src = fs.readFileSync(path.join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
   const out = [];

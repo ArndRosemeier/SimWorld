@@ -56,7 +56,7 @@ test('layers: a denied import (relative or package) is reported, an allowed one 
 
 test('layers: type-only imports and named exceptions pass where the rule says so', () => {
   const root = fixture({
-    'src/gen/a.ts': "import type { T } from '../sim/t';\nimport { k } from '../sim/kinds';\nimport { w } from '../sim/world';\n",
+    'src/gen/a.ts': "import type { T } from '../sim/t';\nexport type { T as U } from '../sim/t';\nimport { k } from '../sim/kinds';\nimport { w } from '../sim/world';\n",
     'src/sim/t.ts': 'export type T = number;',
     'src/sim/kinds.ts': 'export const k = 1;',
     'src/sim/world.ts': 'export const w = 1;',
