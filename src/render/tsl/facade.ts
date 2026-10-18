@@ -9,7 +9,7 @@
  * Ported from Scale (src/render/webgpu/facade.ts) without destruction (collapsed elements, open
  * glass) and without its per-material shared graphs: here the kind is the one material.
  */
-import type { MeshStandardNodeMaterial } from 'three/webgpu';
+import { Vector4, type MeshStandardNodeMaterial } from 'three/webgpu';
 import {
   Fn, float, int, bool, vec2, vec3, mix, normalize, min, max, abs, fract, exp, floor, fwidth, length, smoothstep, sub, add, mul,
   dot, step, sin, clamp, select, If, attribute, texture, uniformArray, positionWorld, positionView, cameraPosition, normalView, normalWorldGeometry,
@@ -21,6 +21,26 @@ import { h11, h21, LIGHT, SNOW_ALBEDO, perturbNormalUV } from './common';
 import { setDiffuse } from './ground';
 import { decorAt, looksAt, slotAt, windowLit } from '../windowLight';
 import { windowDecor } from './decor';
+import { STREET_DOOR } from '../../plan/building';
+
+/** Street doors at most cut out of the shells at once (a building's front door and its flats' door, and room to spare). */
+export const DOOR_HOLES = 4;
+/** Per hole: its middle at the foot (x, z) and its direction along the wall (x, z); then half its width, its bottom and top y, 1 when in use. */
+const uHoleAt = uniformArray(Array.from({ length: DOOR_HOLES }, () => new Vector4()), 'vec4').setName('uDoorHoleAt');
+const uHoleSize = uniformArray(Array.from({ length: DOOR_HOLES }, () => new Vector4()), 'vec4').setName('uDoorHoleSize');
+
+/**
+ * Cut the street doors of the building you are in out of its shell (src/render/interiorView.ts), so its real door
+ * leaves and doorways show instead of the painted doors, from outside and from in (none: the shells are whole).
+ * A uniform: setting it compiles nothing.
+ */
+export function setDoorHoles(doors: readonly { x: number; z: number; nx: number; nz: number; w: number; y: number; h: number }[]): void {
+  for (let k = 0; k < DOOR_HOLES; k++) {
+    const d = doors[k];
+    (uHoleAt.array[k] as Vector4).set(d?.x ?? 0, d?.z ?? 0, d ? -d.nz : 1, d?.nx ?? 0);
+    (uHoleSize.array[k] as Vector4).set(d ? d.w / 2 : 0, d?.y ?? 0, d ? d.y + d.h : 0, d ? 1 : 0);
+  }
+}
 
 /** Upkeep (0 … 1) below which a building's walls show wear, fully at 0. */
 const WEAR_FROM = 0.55;
@@ -86,6 +106,12 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
     // (vars: evaluated here once, not first inside one of the branches below)
     const nW = normalWorldGeometry.toVar();
     const eyeDirW = normalize(cameraPosition.sub(positionWorld)).toVar();
+    // The doorways of the building you are in: no shell there (setDoorHoles).
+    for (let k = 0; k < DOOR_HOLES; k++) {
+      const at = uHoleAt.element(k), size = uHoleSize.element(k), r = positionWorld.xz.sub(at.xy);
+      const along = abs(dot(r, at.zw)), across = abs(dot(r, vec2(at.w, at.z.negate())));
+      If(size.w.greaterThan(0.5).and(along.lessThan(size.x)).and(across.lessThan(0.3)).and(positionWorld.y.greaterThan(size.y.sub(0.05))).and(positionWorld.y.lessThan(size.z)), () => { Discard(); });
+    }
 
     const albedo = vec3(0).toVar(), rough = float(0).toVar(), metal = float(0).toVar(), tn = vec2(0).toVar(), nStr = float(1).toVar();
     const emis = vec3(0).toVar(), ao = float(1).toVar(), glass = float(0).toVar(), door = float(0).toVar();
@@ -156,8 +182,8 @@ export function facadeLook(mat: MeshStandardNodeMaterial, arrays: MaterialArrays
         const flatsBi = select(flags.bitAnd(8192).notEqual(0), 0.0, select(flags.bitAnd(16384).notEqual(0), 1.0, -1.0));
         If(front.and(f.equal(0.0)).and(bi.equal(doorBi).or(bi.equal(flatsBi))).and(curtain.not()), () => {
           isDoor.assign(true);
-          ww.assign(min(1.3, bay.mul(0.62)));
-          wh.assign(min(2.45, fh.sub(0.35)));
+          ww.assign(min(STREET_DOOR.maxW, bay.mul(STREET_DOOR.bayShare)));
+          wh.assign(min(STREET_DOOR.h, fh.sub(0.35)));
           wy0.assign(0.0);
         });
         const wx0 = bay.sub(ww).mul(0.5);
