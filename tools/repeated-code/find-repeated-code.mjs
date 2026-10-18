@@ -301,22 +301,30 @@ export function findIdioms(sources, opts = {}) {
   const N = Math.max(1, docs.length);
   const idf = (n) => Math.log2(N / (df.get(n) ?? 1));
 
-  // Hash every window; remember occurrences (first one per file).
+  // Hash every window (two rolling polynomial hashes, mod 2^32); remember occurrences, the first
+  // one per file. An occurrence is packed as d * 2^24 + i, and a window seen in one file only stays
+  // a single number (most windows are unique, so this keeps the garbage down).
+  const B1 = 0x01000193, B2 = 0x5bd1e995;
+  let P1 = 1, P2 = 1; // B^(W-1)
+  for (let k = 1; k < W; k += 1) { P1 = Math.imul(P1, B1); P2 = Math.imul(P2, B2); }
+  const PACK = 16777216;
   const occ = new Map();
   for (let d = 0; d < docs.length; d += 1) {
     const ids = docs[d].ids;
-    for (let i = 0; i + W <= ids.length; i += 1) {
-      let h1 = 0x811c9dc5, h2 = 0x2545f491;
-      for (let k = 0; k < W; k += 1) {
-        h1 = Math.imul(h1 ^ ids[i + k], 0x01000193);
-        h2 = Math.imul(h2 ^ ids[i + k], 0x5bd1e995) ^ (h2 >>> 15);
-      }
+    if (ids.length < W) continue;
+    let h1 = 0, h2 = 0;
+    for (let k = 0; k < W; k += 1) { h1 = (Math.imul(h1, B1) + ids[k] + 1) | 0; h2 = (Math.imul(h2, B2) + ids[k] + 1) | 0; }
+    for (let i = 0; ; i += 1) {
       const key = (h1 >>> 0) * 2097152 + ((h2 >>> 0) & 0x1fffff);
       stats.windows += 1;
-      let list = occ.get(key);
-      if (!list) { list = []; occ.set(key, list); }
-      const last = list[list.length - 1];
-      if (!last || last.d !== d) list.push({ d, i });
+      const code = d * PACK + i;
+      const prev = occ.get(key);
+      if (prev === undefined) occ.set(key, code);
+      else if (typeof prev === 'number') { if (Math.floor(prev / PACK) !== d) occ.set(key, [prev, code]); }
+      else if (Math.floor(prev[prev.length - 1] / PACK) !== d) prev.push(code);
+      if (i + W >= ids.length) break;
+      h1 = (Math.imul(h1 - Math.imul(ids[i] + 1, P1), B1) + ids[i + W] + 1) | 0;
+      h2 = (Math.imul(h2 - Math.imul(ids[i] + 1, P2), B2) + ids[i + W] + 1) | 0;
     }
   }
 
@@ -328,8 +336,9 @@ export function findIdioms(sources, opts = {}) {
 
   // Recurring windows -> verified groups, extended to the maximal shared run.
   const groups = [];
-  for (const list of occ.values()) {
-    if (list.length < minFiles) continue;
+  for (const packed of occ.values()) {
+    if (typeof packed === 'number' || packed.length < minFiles) continue;
+    const list = packed.map((c) => ({ d: Math.floor(c / PACK), i: c % PACK }));
     // Verify against the first occurrence (hash collisions split off).
     const ref = list[0];
     const members = list.filter((o) => sameWindow(ref, o, W));
