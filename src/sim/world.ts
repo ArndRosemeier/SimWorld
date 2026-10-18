@@ -157,6 +157,13 @@ export function householdOf(world: World, id: ActorId): Household | null {
   return hh >= 0 ? world.households[hh] : null;
 }
 
+/** The journey an actor is on now (`world.trips`; the latest one), or undefined when they are not travelling. */
+export function tripOf(world: World, id: ActorId): Trip | undefined {
+  const t = world.trips;
+  for (let i = t.length - 1; i >= 0; i--) if (t[i].who === id) return t[i];
+  return undefined;
+}
+
 /** A person's job, or null. */
 export function jobOf(world: World, id: ActorId): Job | null {
   const j = world.people.cols.job[world.actors.cols.row[id]];
