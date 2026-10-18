@@ -34,7 +34,7 @@ export function church(k: Kit, lm: Landmark, r: Rng): void {
   const tv0 = -half, tv1 = -half + P.tw, nv0 = tv1 - 1, nv1 = half;
   const nc = (nv0 + nv1) / 2, nhv = (nv1 - nv0) / 2;
   // Nave, its roof along v, and a lower apse or vestry at the back.
-  k.box(0, nc, P.W / 2, nhv, B, B + P.H, wall, { foot: true });
+  k.box(0, nc, P.W / 2, nhv, B, B + P.H, wall, { foot: true, body: 1 });
   pitched(k, 0, nc, P.W / 2, nhv, B + P.H, 1.05, plain, roof, Math.PI / 2);
   if (P.apse) {
     const aw = P.W * 0.32;
@@ -64,7 +64,7 @@ export function school(k: Kit, lm: Landmark, r: Rng): void {
   const fieldW = P.field ? P.field + 2 : 0;
   const mu = -fieldW / 2, mv = -lm.hv + 6 + P.bd / 2;
   // The main block along the street, the entrance in its middle under a canopy.
-  k.box(mu, mv, P.bw / 2, P.bd / 2, B, B + H, wall, st === 1 ? { foot: true, top: flatTop() } : { foot: true });
+  k.box(mu, mv, P.bw / 2, P.bd / 2, B, B + H, wall, st === 1 ? { foot: true, top: flatTop(), body: P.floors } : { foot: true, body: P.floors });
   if (st === 0) pitched(k, mu, mv, P.bw / 2, P.bd / 2, B + H, 0.6, plain, roof);
   k.box(mu, mv - P.bd / 2 - 1.4, 3.5, 1.4, B + 3.1, B + 3.35, mat(PANEL, [0.9, 0.9, 0.9]), { solid: false });
   // A wing back into the yard.
@@ -86,7 +86,7 @@ export function kindergarten(k: Kit, lm: Landmark, r: Rng): void {
   const tints: RGB[] = [[1, 0.9, 0.7], [0.85, 0.95, 1], [1, 0.85, 0.8], [0.9, 1, 0.85], [1, 1, 0.95]];
   const wall = mat(r.chance(0.5) ? PLASTER : BRICK_WHITE, tints[P.wall % tints.length], WIN, 2.6, 3.4, 3.4);
   const v = -lm.hv + 5 + P.bd / 2, h = 3.4;
-  k.box(0, v, P.bw / 2, P.bd / 2, B, B + h, wall, lm.style ? { foot: true, top: mat(GRAVEL, [0.9, 1, 0.9], ROOF) } : { foot: true });
+  k.box(0, v, P.bw / 2, P.bd / 2, B, B + h, wall, lm.style ? { foot: true, top: mat(GRAVEL, [0.9, 1, 0.9], ROOF), body: 1 } : { foot: true, body: 1 });
   if (!lm.style) pitched(k, 0, v, P.bw / 2, P.bd / 2, B + h, 0.5, wall, roofOf(P.roof));
   // A coloured canopy over the door.
   k.box(-P.bw / 4, v - P.bd / 2 - 1, 2, 1, B + 2.6, B + 2.8, mat(PANEL, PAINT[(P.wall + 2) % PAINT.length]), { solid: false });
@@ -98,7 +98,7 @@ export function clinic(k: Kit, lm: Landmark, r: Rng): void {
   const wallL = [PLASTER, BRICK_WHITE, CONC, BRICK][P.wall % 4];
   const wall = mat(wallL, wallL === PLASTER ? r.pick<RGB>([[1, 1, 0.97], [0.95, 0.97, 1]]) : WHITE, WIN, 2.4, fh, fh + 0.4);
   const v = lm.hv - 1 - P.bd / 2;
-  k.box(0, v, P.bw / 2, P.bd / 2, B, B + H, wall, lm.style ? { foot: true, top: flatTop() } : { foot: true });
+  k.box(0, v, P.bw / 2, P.bd / 2, B, B + H, wall, lm.style ? { foot: true, top: flatTop(), body: P.floors } : { foot: true, body: P.floors });
   if (!lm.style) pitched(k, 0, v, P.bw / 2, P.bd / 2, B + H, 0.45, wall, roofOf(P.wall));
   // The entrance: a glazed porch with a canopy.
   k.box(0, v - P.bd / 2 - 1.2, 2.4, 1.2, B, B + 3, mat(GLASS, [0.85, 0.92, 0.95], WIN | CURTAIN, 1.2, 3, 3), { top: mat(METAL_ROOF, WHITE, ROOF) });
@@ -111,7 +111,7 @@ export function fireStation(k: Kit, lm: Landmark): void {
   const v = -lm.hv + 10 + P.hd / 2;
   const hu0 = -lm.hu + 4, hallU = hu0 + P.hall / 2, offU = hu0 + P.hall + P.office / 2;
   // The engine hall with the crew rooms over it, and the office wing beside it.
-  k.box(hallU, v, P.hall / 2, P.hd / 2, B, B + 8.5, mat(wallL, WHITE, WIN, 4.6, 4, 5), { foot: true, top: flatTop() });
+  k.box(hallU, v, P.hall / 2, P.hd / 2, B, B + 8.5, mat(wallL, WHITE, WIN, 4.6, 4, 5), { foot: true, top: flatTop(), body: 1 });
   k.box(offU, v, P.office / 2, P.hd / 2, B, B + 7, wall, { foot: true });
   pitched(k, offU, v, P.office / 2, P.hd / 2, B + 7, 0.5, wall, roofOf(P.wall + 1), Math.PI / 2);
   // The bay doors (red or white), the hose-drying tower at the back corner.
@@ -128,7 +128,7 @@ export function supermarket(k: Kit, lm: Landmark): void {
   const P = lm.p, B = k.B, H = 6.5;
   const wall = mat(lm.style === 0 ? PANEL : lm.style === 1 ? BRICK : CONC, lm.style === 0 ? [0.85, 0.86, 0.88] : WHITE, 0, 6, 6.5, 6.5);
   const v = lm.hv - 4 - P.bd / 2;
-  k.box(0, v, P.bw / 2, P.bd / 2, B, B + H, wall, { foot: true, top: mat(TAR, WHITE, ROOF) });
+  k.box(0, v, P.bw / 2, P.bd / 2, B, B + H, wall, { foot: true, top: mat(TAR, WHITE, ROOF), body: 1 });
   // Shop windows and the entrance at the front, a coloured fascia band and the canopy.
   const front = v - P.bd / 2;
   k.box(-P.bw / 4, front - 0.1, P.bw / 4 - 1, 0.1, B, B + 3.2, mat(GLASS, [0.8, 0.88, 0.92], WIN | CURTAIN, 1.5, 3.2, 3.2), { solid: false });
@@ -147,7 +147,7 @@ export function careHome(k: Kit, lm: Landmark, r: Rng): void {
   const plain = mat(wallL, tint);
   const v = -lm.hv + 6 + P.bd / 2;
   // The main block along the street, a pitched roof or a flat one.
-  k.box(0, v, P.bw / 2, P.bd / 2, B, B + H, wall, lm.style ? { foot: true, top: flatTop() } : { foot: true });
+  k.box(0, v, P.bw / 2, P.bd / 2, B, B + H, wall, lm.style ? { foot: true, top: flatTop(), body: P.floors } : { foot: true, body: P.floors });
   if (!lm.style) pitched(k, 0, v, P.bw / 2, P.bd / 2, B + H, 0.5, plain, roofOf(P.roof));
   // The wing back into the garden, one storey lower.
   if (P.wing) {
@@ -166,7 +166,7 @@ export function petrolStation(k: Kit, lm: Landmark): void {
   const brand = PAINT[P.colour % PAINT.length];
   // The kiosk at the back: glazed towards the pumps, the brand's band along the top.
   const kv = lm.hv - 2 - P.kd / 2;
-  k.box(0, kv, P.kw / 2, P.kd / 2, B, B + 3.6, mat(PANEL, [0.92, 0.92, 0.9], 0, 3, 3.6, 3.6), { foot: true, top: mat(TAR, WHITE, ROOF) });
+  k.box(0, kv, P.kw / 2, P.kd / 2, B, B + 3.6, mat(PANEL, [0.92, 0.92, 0.9], 0, 3, 3.6, 3.6), { foot: true, top: mat(TAR, WHITE, ROOF), body: 1 });
   k.box(0, kv - P.kd / 2 - 0.1, P.kw / 2 - 1, 0.1, B, B + 2.8, mat(GLASS, [0.8, 0.88, 0.92], WIN | CURTAIN, 1.5, 2.8, 2.8), { solid: false });
   k.box(0, kv - P.kd / 2 - 0.15, P.kw / 2, 0.15, B + 2.9, B + 3.6, mat(PANEL, brand), { solid: false });
   // The canopy over the forecourt on four posts, its fascia in the brand's colour. (Posts, pumps
@@ -204,7 +204,7 @@ export function station(k: Kit, lm: Landmark): void {
   const fh = old ? 4.2 : 3.6, H = old ? 2 * fh : fh + 0.4;
   const wall = mat(wallL, WHITE, old ? WIN | ARCH : WIN | CURTAIN, old ? 3 : 2, fh, fh);
   const bv = pv0 - P.bd / 2;
-  k.box(0, bv, P.bw / 2, P.bd / 2, B, B + H, wall, old ? { foot: true } : { foot: true, top: flatTop() });
+  k.box(0, bv, P.bw / 2, P.bd / 2, B, B + H, wall, old ? { foot: true, body: 2 } : { foot: true, top: flatTop(), body: 1 });
   if (old) {
     pitched(k, 0, bv, P.bw / 2, P.bd / 2, B + H, 0.55, mat(wallL, WHITE), roofOf(P.roof));
     // The clock gable over the entrance.

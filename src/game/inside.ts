@@ -24,24 +24,30 @@ export class GoingInside {
   private asking = false;
   private awake = 0;
 
-  constructor(private readonly sim: SimClient, private readonly street: Street, private readonly view: InteriorView) {}
+  /** `outside`: shows or hides a building's own outer shell (a public building's, which stands in front of its walk-in rooms). */
+  constructor(private readonly sim: SimClient, private readonly street: Street, private readonly view: InteriorView, private readonly outside: (building: number, shown: boolean) => void = () => {}) {}
 
   /** The building shown now (its interior, walls and spots), null out of doors. */
   get inside(): Inside | null { return this.view.current; }
 
-  /** Go into building `building` (a `Place.building` code); null when it has no interior to walk in (a landmark, a farm). */
+  /** Go into building `building` (a `Place.building` code); null when it has no interior to walk in (a farm, the town hall, the sports ground). */
   async enter(building: number): Promise<Inside | null> {
     const ref = buildingRef(building);
-    if (!ref || !('cell' in ref)) return null;
+    if (!ref || 'farm' in ref) return null;
+    if (this.building !== building) this.outside(this.building, true);
     this.building = building;
     this.asked = -Infinity;
-    const r = await this.view.enter(ref);
-    if (r && this.building === building) await this.refresh();
+    const r = await this.view.enter(building).catch(() => null);
+    if (r && this.building === building) {
+      this.outside(building, false);
+      await this.refresh();
+    }
     return r;
   }
 
   /** Back out of doors. */
   leave(): void {
+    this.outside(this.building, true);
     this.building = -1;
     this.view.leave();
     this.street.setIndoors([]);

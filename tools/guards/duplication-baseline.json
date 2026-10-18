@@ -574,5 +574,17 @@
   {
     "key": "idiom: [.households .length .members] in simworld/sim/decor.ts + simworld/sim/lostPets.ts + simworld/sim/media.ts",
     "reason": "Skipping empty households in a loop over world.households (one guard line); each system goes on to read different columns of the household."
+  },
+  {
+    "key": "same name: simworld/game/inside.ts#enter + simworld/render/interiorView.ts#enter",
+    "reason": "Layers of one thing: going into a building in the game (people, light) calls the view that draws its interior."
+  },
+  {
+    "key": "same name: simworld/game/inside.ts#enter + simworld/traffic/traffic.ts#enter",
+    "reason": "Unrelated: the player going into a building, and a vehicle entering the traffic."
+  },
+  {
+    "key": "same name: simworld/game/inside.ts#leave + simworld/sim/groups.ts#leave",
+    "reason": "Unrelated: the player stepping out of a building, and a person leaving a group."
   }
 ]

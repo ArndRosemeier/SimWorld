@@ -35,7 +35,9 @@ import { FABRIC, WOOD, LEAF, WHITE_WARE, type C3 } from './palette';
 
 export type Work =
   | 'office' | 'grocery' | 'clothes' | 'cafe' | 'pub' | 'restaurant' | 'icecream' | 'bakery' | 'butcher' | 'pharmacy'
-  | 'post' | 'bank' | 'police' | 'library' | 'hairdresser' | 'workshop' | 'garage' | 'factory' | 'vacant';
+  | 'post' | 'bank' | 'police' | 'library' | 'hairdresser' | 'workshop' | 'garage' | 'factory' | 'vacant'
+  // The public buildings' walk-in bodies (src/interior/landmark.ts).
+  | 'church' | 'school' | 'kindergarten' | 'clinic' | 'fire' | 'supermarket' | 'carehome' | 'station';
 
 /** Who a storey of a workplace is for: staff on site at once, and seats for guests or clients. */
 export interface Need { staff: number; seats: number }
@@ -80,6 +82,35 @@ export function workProgram(w: Work, ground: boolean): Program {
       return { reserve: [front(w, 0.8, 4.5, 3)], rooms: [{ type: 'office', len: [2.8, 4], max: 1 }, wc, store()], corridor: 0, leaf: ['bath', 'storage', 'office'] };
     case 'vacant':
       return { reserve: [front('shop', 0.74)], rooms: [store(), wc], corridor: 0, leaf: ['bath'] };
+    case 'church':
+      // The nave, a vestry at the back.
+      return { reserve: [front('nave', 0.86, 3)], rooms: [{ type: 'office', len: [2.4, 3.4], max: 1 }, wc], corridor: 0, leaf: ['bath', 'office'] };
+    case 'school':
+      return {
+        reserve: ground ? [{ type: 'lobby', at: 'front', depth: 4, minLeft: 5 }] : [],
+        rooms: [{ type: 'classroom', len: [6.5, 8.5] }, { type: 'classroom', len: [6.5, 8.5] }, ...(ground ? [{ type: 'office' as RoomType, len: [3.5, 5] as [number, number], max: 1 }] : []), { ...wc, max: 2 }, { type: 'classroom', len: [6.5, 8.5] }, store(1)],
+        corridor: 2.2, corridorType: 'corridor', leaf: ['bath', 'storage', 'classroom', 'office'], doorW: 1.0,
+      };
+    case 'kindergarten':
+      return { reserve: [front('playroom', 0.62)], rooms: [{ type: 'playroom', len: [5, 7], max: 1 }, { type: 'kitchen', len: [2.6, 3.4], max: 1 }, { ...wc, max: 2 }, { type: 'office', len: [2.6, 3.4], max: 1 }], corridor: 0, leaf: ['bath', 'office'] };
+    case 'clinic':
+      return {
+        reserve: ground ? [{ type: 'lobby', at: 'front', depth: 5, minLeft: 4 }] : [],
+        rooms: [{ type: 'consulting', len: [3.2, 4.2] }, { type: 'consulting', len: [3.2, 4.2] }, wc, store(1), { type: 'office', len: [2.8, 3.6], max: 1 }],
+        corridor: 1.8, corridorType: 'corridor', leaf: ['bath', 'storage', 'consulting', 'office'],
+      };
+    case 'carehome':
+      return {
+        reserve: ground ? [front('dayroom', 0.4, 6)] : [],
+        rooms: [{ type: 'bedroom', len: [3.2, 4] }, { type: 'bedroom', len: [3.2, 4] }, { ...wc, max: 2 }, ...(ground ? [{ type: 'kitchen' as RoomType, len: [3, 4.5] as [number, number], max: 1 }, { type: 'office' as RoomType, len: [2.8, 3.4] as [number, number], max: 1 }] : []), store(1)],
+        corridor: 1.8, corridorType: 'corridor', leaf: ['bath', 'storage', 'bedroom', 'office'],
+      };
+    case 'fire':
+      return { reserve: [front('garage', 0.78, 4, 3)], rooms: [{ type: 'kitchen', len: [3, 4.5], max: 1 }, { type: 'office', len: [2.8, 3.6], max: 1 }, wc, store(1)], corridor: 0, leaf: ['bath', 'storage', 'office'] };
+    case 'supermarket':
+      return { reserve: [front('shop', 0.84, 5)], rooms: [{ type: 'storage', len: [4, 7], max: 1 }, { type: 'office', len: [2.6, 3.4], max: 1 }, wc], corridor: 0, leaf: ['bath', 'office'] };
+    case 'station':
+      return { reserve: [front('lobby', 0.72, 4)], rooms: [{ type: 'office', len: [2.6, 3.6], max: 1 }, wc, store(1)], corridor: 0, leaf: ['bath', 'storage', 'office'] };
     default:
       return { reserve: [front('shop', 0.74)], rooms: [{ type: 'storage', len: [3, 5] }, wc], corridor: 0, leaf: ['bath'] };
   }
@@ -88,19 +119,26 @@ export function workProgram(w: Work, ground: boolean): Program {
 /** The items for a room of a workplace. */
 export function workItems(w: Work, type: RoomType, A: Area, r: Rng, need: Need): Item[] {
   switch (type) {
-    case 'lobby': return w === 'post' || w === 'bank' ? counterHall(w, A, r, need) : lobby(r, w === 'police');
+    case 'lobby': return w === 'post' || w === 'bank' ? counterHall(w, A, r, need) : w === 'station' ? ticketHall(A, r, need) : w === 'clinic' ? waitingRoom(A, r) : lobby(r, w === 'police');
     case 'office': return roomArea(A) >= 28 ? openPlan(A, r, need.staff) : singleOffice(r);
     case 'meeting': return meeting(A, r);
     case 'kitchen': return w === 'butcher' ? cuttingRoom(need) : w === 'cafe' || w === 'icecream' || w === 'pub' || w === 'restaurant' ? cafeKitchen(w === 'restaurant', need) : teaKitchen(r);
     case 'bath': return toilet();
     case 'storage': return w === 'office' || w === 'police' ? officeStore() : w === 'bank' ? strongRoom() : w === 'post' ? sorting(need) : stockRoom(r);
-    case 'shop': return w === 'vacant' ? emptyShop(r) : w === 'clothes' ? clothes(A, r) : w === 'bakery' || w === 'butcher' ? deli(w, A, r) : w === 'pharmacy' ? pharmacy(A, r) : grocery(A, r);
+    case 'nave': return nave(A, r, need);
+    case 'classroom': return classroom(A, r, false);
+    case 'playroom': return classroom(A, r, true);
+    case 'consulting': return consulting(r);
+    case 'dayroom': return dayRoom(A, r);
+    case 'bedroom': return careRoom(r);
+    case 'shop': return w === 'vacant' ? emptyShop(r) : w === 'supermarket' ? supermarket(A, r, need) : w === 'clothes' ? clothes(A, r) : w === 'bakery' || w === 'butcher' ? deli(w, A, r) : w === 'pharmacy' ? pharmacy(A, r) : grocery(A, r);
     case 'dining': return w === 'pub' || w === 'restaurant' ? diningRoom(A, r, need, w === 'pub') : cafe(A, r, need, w === 'icecream');
     case 'bakehouse': return bakehouse(need);
     case 'salon': return salon(A, r, need);
     case 'reading': return reading(A, r, need);
     case 'cell': return cell();
-    case 'workshop': case 'garage': case 'factory': return hall(type, A, r, need);
+    case 'workshop': case 'factory': return hall(type, A, r, need);
+    case 'garage': return w === 'fire' ? engineHall(A, r) : hall(type, A, r, need);
     default: return [];
   }
 }
@@ -495,4 +533,158 @@ function hall(type: 'workshop' | 'garage' | 'factory', A: Area, r: Rng, need: Ne
 /** An empty shop: a few boxes left behind. */
 function emptyShop(r: Rng): Item[] {
   return many(r.int(1, 3), { kind: 'crate', at: 'free', w: 0.8, d: 0.6, h: 0.55, color: [0.6, 0.48, 0.3], score: () => r.float() });
+}
+
+// ------------------------------------------------------------------------------ public buildings
+
+/** How well a piece at `c` faces the piece tagged `tag` (1 straight at it); 0 when there is none yet. */
+const towards = (c: Cand, f: Filler, tag: string): number => {
+  const t = f.get(tag);
+  if (!t) return 0;
+  const dx = t.x - c.x, dz = t.z - c.z, d = Math.hypot(dx, dz) || 1;
+  return (Math.sin(c.yaw) * dx + Math.cos(c.yaw) * dz) / d;
+};
+
+/**
+ * A score for a piece turned to the piece tagged `tag` (`cos` > 0: facing it at least that squarely; < 0: its back to
+ * it), the nearer the better by `near` a metre: pews to the altar, desks to the board, the teacher's desk before it.
+ */
+const aimed = (tag: string, cos: number, near: number) => (c: Cand, f: Filler): number => {
+  const t = f.get(tag), d = t ? Math.hypot(c.x - t.x, c.z - t.z) : 0, a = towards(c, f, tag);
+  return (cos > 0 ? a > cos : a < cos) ? 3 - d * near : -10 - d * near;
+};
+
+/** Does a candidate face the way in from the street (1 straight at it, -1 its back to it)? */
+const towardsStreet = (c: Cand, f: Filler): number => {
+  const d = f.streetDist(c.x, c.z), e = 0.5;
+  return d < 1e-6 ? 0 : (f.streetDist(c.x - Math.sin(c.yaw) * e, c.z - Math.cos(c.yaw) * e) - d) / e;
+};
+/** How far the altar stands from the street door (the pews go between). */
+const altarFromDoor = (f: Filler): number => { const a = f.get('altar'); return a ? f.streetDist(a.x, a.z) : Infinity; };
+
+/**
+ * A church's nave: the altar at the far end from the door, the lectern beside it, pews in rows facing the altar (as
+ * many as the congregation, as far as the floor allows), a few candle stands along the walls.
+ */
+function nave(A: Area, r: Rng, need: Need): Item[] {
+  const area = roomArea(A), wood = r.pick(WOOD), cloth: C3 = r.pick([[0.95, 0.94, 0.9], [0.55, 0.1, 0.12], [0.2, 0.3, 0.55]]);
+  const pews = Math.min(area / 3.2, Math.max(8, (need.seats || 80) / 4));
+  return [
+    // Free of the end wall: the priest stands behind it.
+    { kind: 'altar', at: 'free', w: 2.2, d: 0.9, h: 1.0, color: cloth, use: 'serve', front: 2.2, back: 0.9, tag: 'altar', score: (c, f) => towardsStreet(c, f) * 2 + f.streetDist(c.x, c.z) + centred(c) * 0.5 - Math.abs(f.behind(c, 0.9) - 1.2) * 3 },
+    { kind: 'reception', at: 'free', w: 0.7, d: 0.5, h: 1.15, color: wood, front: 0.6, score: (c, f) => towards(c, f, 'altar') < -0.2 ? 0 : -10, min: -5 },
+    ...many(pews, {
+      kind: 'pew', at: 'free', widths: [3.6, 3.0, 2.4], w: 3.6, d: 0.55, h: 0.9, color: wood, use: 'sit', front: 0.45,
+      score: (c, f) => aimed('altar', 0.97, 0.05)(c, f) - (f.streetDist(c.x, c.z) > altarFromDoor(f) ? 20 : 0),
+      min: 0,
+    }),
+    ...many(Math.min(4, area / 40), { kind: 'floorLamp', at: 'wall', w: 0.35, d: 0.35, h: 1.4, color: [0.85, 0.7, 0.35], score: plainWall }),
+    pottedPlant(1.2, 0.6, LEAF), pottedPlant(1.2, 0.6, LEAF),
+  ];
+}
+
+/** A classroom: the board and the teacher's desk at one end, desks for two in rows facing them, shelves at the back (`small`: a playroom's low tables round the room). */
+function classroom(A: Area, r: Rng, small: boolean): Item[] {
+  const area = roomArea(A), wood = r.pick(WOOD), paint: C3 = r.pick(FABRIC);
+  if (small) {
+    return [
+      { kind: 'rug', at: 'free', w: 3.0, d: 2.2, h: 0.01, color: r.pick(FABRIC), flat: true, score: (c, f) => Math.min(f.doorDist(c.x, c.z), 4) },
+      ...many(Math.min(5, area / 9), cafeSet(r)),
+      ...many(Math.min(5, area / 8), { kind: 'shelf', at: 'wall', w: 1.2, d: 0.4, h: 1.0, color: paint, front: 0.6, tall: false, score: plainWall }),
+      { kind: 'chair', at: 'wall', w: 0.5, d: 0.5, h: 0.9, color: wood, use: 'work', score: (c, f) => Math.min(f.doorDist(c.x, c.z), 3) },
+      pottedPlant(1.0, 0.5, LEAF),
+    ];
+  }
+  const pupil: Item = {
+    kind: 'desk', at: 'free', w: 1.2, d: 0.55, h: 0.7, color: wood,
+    kids: [-0.3, 0.3].map((du, i): Kid => ({ kind: 'chair', du, dv: -0.55, w: 0.42, d: 0.42, h: 0.8, color: paint, use: 'sit', need: i === 0 })),
+    score: aimed('board', 0.95, 0.05),
+    min: 0,
+  };
+  return [
+    { kind: 'screen', at: 'wall', hung: true, w: 2.6, d: 0.06, h: 1.1, color: [0.12, 0.2, 0.16], tag: 'board', score: (c, f) => plainWall(c) * 2 + centred(c) * 0.3 + Math.min(f.doorDist(c.x, c.z), 3) * 0.2 },
+    {
+      kind: 'desk', at: 'free', w: 1.4, d: 0.7, h: 0.74, color: wood, kids: [seat(-0.7, 0)],
+      score: aimed('board', -0.9, 1), min: -8,
+    },
+    ...many(Math.min(14, area / 3.6), pupil),
+    ...many(Math.min(3, area / 20), { kind: 'bookshelf', at: 'wall', w: 1.4, d: 0.4, h: 1.8, color: wood, front: 0.7, score: plainWall }),
+    { kind: 'coatRack', at: 'wall', w: 1.2, d: 0.3, h: 1.6, color: METAL, score: (c, f) => -Math.abs(f.doorDist(c.x, c.z) - 1.2) },
+  ];
+}
+
+/** A doctor's consulting room: the desk and chair, a chair for the patient, the couch. */
+function consulting(r: Rng): Item[] {
+  return [
+    {
+      kind: 'desk', at: 'wall', w: 1.4, d: 0.7, h: 0.74, color: r.pick(WOOD),
+      kids: [{ kind: 'monitor', du: 0.3, dv: -0.1, w: 0.5, d: 0.05, h: 0.35, color: SCREEN, onTop: true }, seat(0.75, Math.PI), { kind: 'chair', du: -0.9, dv: 0.6, dyaw: -Math.PI / 2, w: 0.5, d: 0.5, h: 0.9, color: r.pick(FABRIC), use: 'sit' }],
+      score: (c) => (c.edge?.kind === 'window' ? 1 : 0) + centred(c) * 0.1,
+    },
+    { kind: 'bunk', at: 'wall', w: 0.75, d: 1.9, h: 0.75, color: [0.85, 0.88, 0.9], front: 0.8, score: plainWall },
+    { kind: 'washBasin', at: 'wall', w: 0.6, d: 0.45, h: 0.9, color: WHITE_WARE, front: 0.6, score: plainWall },
+    { kind: 'shelf', at: 'wall', w: 0.9, d: 0.4, h: 1.8, color: [0.9, 0.9, 0.9], front: 0.6, score: plainWall },
+  ];
+}
+
+/** A waiting room: the reception desk facing the way in, chairs round the walls, a low table, plants. */
+function waitingRoom(A: Area, r: Rng): Item[] {
+  return [
+    serveCounter('reception', 2.0, [0.9, 0.9, 0.88], true, 0.8),
+    ...waiting(r, Math.min(12, roomArea(A) / 3)),
+    { kind: 'coffeeTable', at: 'free', sym: true, w: 1.0, d: 0.6, h: 0.42, color: WOOD[2], score: (c, f) => Math.min(f.doorDist(c.x, c.z), 3) * 0.2 },
+    pottedPlant(1.4, 0.55, LEAF), wallPicture(r.pick(FABRIC), 1.0, 0.7),
+  ];
+}
+
+/** A station's ticket hall: the ticket counter, benches to wait on, a timetable board. */
+function ticketHall(A: Area, r: Rng, need: Need): Item[] {
+  const wood = r.pick(WOOD);
+  return [
+    ...many(Math.max(1, Math.min(2, need.staff)), serveCounter('counter', 1.8, wood, true, 0.7)),
+    ...many(Math.min(6, roomArea(A) / 10), { kind: 'pew', at: 'wall', widths: [2.4, 1.8], w: 2.4, d: 0.5, h: 0.9, color: wood, use: 'sit', front: 0.6, score: plainWall }),
+    { kind: 'screen', at: 'wall', hung: true, w: 1.8, d: 0.06, h: 1.0, color: SCREEN, score: (c, f) => plainWall(c) + Math.min(f.doorDist(c.x, c.z), 4) * 0.2 },
+    pottedPlant(1.4, 0.55, LEAF),
+  ];
+}
+
+/** A care home's day room: armchairs and sofas round the walls, tables for cards and meals, the TV. */
+function dayRoom(A: Area, r: Rng): Item[] {
+  const fab = r.pick(FABRIC), area = roomArea(A);
+  return [
+    { kind: 'tvStand', at: 'wall', w: 1.4, d: 0.45, h: 0.5, color: WOOD[2], kids: [{ kind: 'tv', du: 0, dv: 0, w: 1.2, d: 0.08, h: 0.7, color: SCREEN, onTop: true }], score: plainWall },
+    ...many(Math.min(8, area / 6), { kind: 'armchair', at: 'wall', w: 0.85, d: 0.85, h: 0.95, color: fab, use: 'sit', score: plainWall }),
+    ...many(Math.min(4, area / 14), tableFor4(r, WOOD[1])),
+    pottedPlant(1.4, 0.6, LEAF), pottedPlant(1.2, 0.6, LEAF), wallPicture(r.pick(FABRIC), 1.0, 0.7),
+  ];
+}
+
+/** A resident's room in a care home: a bed, a wardrobe, an armchair by the window. */
+function careRoom(r: Rng): Item[] {
+  return [
+    { kind: 'bed', at: 'wall', w: 1.0, d: 2.05, h: 0.6, color: r.pick(FABRIC), use: 'sleep', front: 0.8, score: (c, f) => plainWall(c) + Math.min(f.doorDist(c.x, c.z), 3) * 0.3 },
+    { kind: 'nightstand', at: 'wall', w: 0.45, d: 0.4, h: 0.55, color: WOOD[1], score: (c, f) => -f.cornerGap(c) },
+    { kind: 'wardrobe', at: 'wall', w: 1.0, d: 0.6, h: 2.0, color: WOOD[1], front: 0.7, score: plainWall },
+    { kind: 'armchair', at: 'wall', w: 0.8, d: 0.8, h: 0.95, color: r.pick(FABRIC), use: 'sit', score: (c) => (c.edge?.kind === 'window' ? 2 : 0) },
+  ];
+}
+
+/** A fire station's engine hall: the engines nose to the doors, lockers and racks along the walls. */
+function engineHall(A: Area, r: Rng): Item[] {
+  const along = alongRoom(A), red: C3 = r.chance(0.8) ? [0.75, 0.1, 0.08] : [0.9, 0.85, 0.2];
+  return [
+    ...many(Math.max(1, Math.min(3, roomArea(A) / 45)), { kind: 'car', at: 'free', w: 2.5, d: 7.5, h: 3.0, color: red, front: 1.2, score: (c, f) => (along(c) ? 0 : 1) - Math.abs(f.doorDist(c.x, c.z) - 5) * 0.2 }),
+    ...many(Math.min(8, roomArea(A) / 20), { kind: 'shelf', at: 'wall', w: 1.0, d: 0.5, h: 1.9, color: [0.55, 0.57, 0.6], front: 0.8, score: plainWall }),
+    { kind: 'palletRack', at: 'wall', w: 2.4, d: 0.8, h: 2.4, color: [0.3, 0.3, 0.32], front: 1.0, score: plainWall },
+  ];
+}
+
+/** A supermarket's floor: the tills by the way in, aisles of shelves, the chiller cabinets along a wall. */
+function supermarket(A: Area, r: Rng, need: Need): Item[] {
+  const area = roomArea(A), fixture = fixtureColor(r);
+  return [
+    ...many(Math.max(2, Math.min(5, Math.ceil(need.staff / 2))), serveCounter('counter', 1.8, [0.3, 0.3, 0.32], true, 0.7)),
+    ...many(Math.min(10, area / 25), { kind: 'fridge', at: 'wall', w: 1.2, d: 0.8, h: 2.0, color: [0.88, 0.9, 0.92], front: 1.2, score: plainWall }),
+    ...many(Math.min(30, area / 9), aisleOf(A, fixture)),
+  ];
 }

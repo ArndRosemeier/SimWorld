@@ -24,7 +24,8 @@ import { townMapOf, townMapTransferables } from '../plan/townMap';
 import type { FromTown, ToTown } from './townProtocol';
 import { serve } from './serve';
 import { signInstances } from '../build/signs';
-import { placeGraphOf } from '../plan/placeGraph';
+import { buildingRef, placeGraphOf } from '../plan/placeGraph';
+import { landmarkBody } from '../interior/landmark';
 import { townRoads } from '../plan/roads';
 import { cityName } from '../plan/names';
 import { PLACE_KINDS } from '../sim/places';
@@ -122,18 +123,24 @@ function handle(m: ToTown): FromTown {
       return { type: 'interior', mesh: out(mb), at: [cx, base + I.storeys[f].y, cz], radius: Math.hypot(x1 - x0, z1 - z0) / 2, floors: I.storeys.length, about, ms: ms() };
     }
     case 'indoors': {
-      const b = cells[m.cell]?.buildings[m.index];
-      if (!b) throw new Error(`no building ${m.index} in cell ${m.cell}`);
+      const ref = buildingRef(m.building);
       places ??= placeGraphOf(town);
-      const code = m.cell * 65536 + m.index, work = places.places.find((p) => p.building === code && !p.homes);
-      const I = planInterior(b, work ? { staff: work.staff, capacity: work.capacity } : undefined);
-      const { base } = buildingBase(b, terrain);
-      const ind = indoorsOf(I, base, windowOpenings(b));
+      const work = places.places.find((p) => p.building === m.building && !p.homes);
+      const use = work ? { staff: work.staff, capacity: work.capacity } : undefined;
+      // A town building, or a public building's walk-in body.
+      const lm = ref && 'site' in ref ? macro.landmarks.find((l) => l.id === ref.site) : undefined;
+      const body = lm ? landmarkBody(lm, terrain, use) : null;
+      const b = ref && 'cell' in ref ? cells[ref.cell]?.buildings[ref.index] : body?.b;
+      if (!b) throw new Error(`no building to go into (${m.building})`);
+      const I = planInterior(b, body ? body.place : use);
+      const base = lm ? lm.base : buildingBase(b, terrain).base;
+      const ind = indoorsOf(I, base, body ? body.windows : windowOpenings(b));
       const [x0, z0, x1, z1] = polyBounds(b.poly), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
       const mb = new MeshBuilder(INTERIOR_SPECS);
       mb.setOrigin(cx, base, cz);
       buildIndoors(mb, I, ind);
-      const about = `${b.style} ${b.use}${b.amenity ? ` (${b.amenity})` : ''}, ${I.storeys.length} floor${I.storeys.length > 1 ? 's' : ''}, ${I.units.length} home${I.units.length === 1 ? '' : 's'}`;
+      const what = lm ? lm.name : `${b.style} ${b.use}${b.amenity ? ` (${b.amenity})` : ''}`;
+      const about = `${what}, ${I.storeys.length} floor${I.storeys.length > 1 ? 's' : ''}, ${I.units.length} home${I.units.length === 1 ? '' : 's'}`;
       return { type: 'indoors', mesh: out(mb), at: [cx, base, cz], indoors: ind, about, ms: ms() };
     }
   }

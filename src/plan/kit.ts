@@ -95,6 +95,11 @@ export interface LmPart {
    * built into a mesh of its own (build/landmarks) that is only drawn close by.
    */
   inner?: boolean;
+  /**
+   * A box one can walk into (SimWorld): its storeys (the material's ground floor height `gh`, then `fh` each). The
+   * interior planner furnishes it for the landmark's kind (src/interior/landmark.ts).
+   */
+  body?: number;
 }
 
 /** A walkable inside (the town hall's): its outline, height range and where its room lights hang. */
@@ -183,6 +188,8 @@ export interface Opt {
   clear?: boolean;
   /** Walkable however thin (LmPart.deck). */
   deck?: boolean;
+  /** The walk-in box, with this many storeys (LmPart.body). */
+  body?: number;
 }
 
 /** Builds parts in a local frame (nested frames for sub-assemblies like planes). */
@@ -249,6 +256,7 @@ export class Kit {
     };
     if (o.clear) part.clear = true;
     if (o.deck) part.deck = true;
+    if (o.body) part.body = o.body;
     this.parts.push(part);
     return part;
   }

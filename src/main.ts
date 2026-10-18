@@ -29,7 +29,7 @@ import { Precipitation } from './render/precip';
 import { ChimneySmoke } from './render/smoke';
 import { WEATHER_KINDS, describeWeather, forceWeather, weatherAt, type Weather, type WeatherKind } from './sim/weather';
 import { setParcels } from './render/tsl/ground';
-import { showTown } from './render/townView';
+import { showTown, type TownView } from './render/townView';
 import { meshFromData } from './render/meshes';
 import { WorkerPool } from './workers/pool';
 import townWorkerUrl from './workers/town.worker.ts?worker&url';
@@ -38,6 +38,7 @@ import type { FromTex, ToTex } from './workers/texProtocol';
 import { loadTextures, loadVegetationTextures } from './render/textures';
 import { INTERIOR, useTextures } from './render/materials';
 import { InteriorView } from './render/interiorView';
+import { SITE, buildingRef } from './plan/placeGraph';
 import { GoingInside } from './game/inside';
 import { openWhatsNew, VERSION, whatsNewButton } from './app/whatsNew';
 import { Shell } from './app/shell';
@@ -159,7 +160,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const inside = new URLSearchParams(location.search).get('inside');
   if (inside) return showInside(inside, pool, stage, lights, renderer, camera, scene);
   const indoors = new URLSearchParams(location.search).get('indoors');
-  if (indoors) return showIndoors(indoors, pool, stage, renderer, camera, scene, () => { fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15); return showTown(stage, pool, town, () => {}, () => {}).ready; });
+  if (indoors) return showIndoors(indoors, pool, stage, renderer, camera, scene, () => { fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15); const v = showTown(stage, pool, town, () => {}, () => {}); return v.ready.then(() => v); });
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   // What the town sounds like where: one worker works it out alongside the meshes.
   void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { time.region = { region: { coastal: r.map.coastal } }; audio.setTown(r.map); });
@@ -211,7 +212,10 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const followId = q.has('follow') ? num('follow', -1) : -1;
   // The picker comes up over the town once it shows; picking someone plays as them (?be=<id> skips the picker).
   // Going into the building the player's person is in: its interior, the people in it, its room lights.
-  const goingIn = new GoingInside(sim, street, new InteriorView(pool, stage));
+  const goingIn = new GoingInside(sim, street, new InteriorView(pool, stage), (building, shown) => {
+    const ref = buildingRef(building), m = ref && 'site' in ref ? view.landmarks[ref.site] : undefined;
+    if (m) m.visible = shown;
+  });
   const playing = new Playing(sim, cam, street, settings.seed);
   shell.add({ label: 'Choose who to be', group: 'Play', open: () => void playing.choose() });
   const hud = document.getElementById('hud');
@@ -318,22 +322,26 @@ async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage
 }
 
 /**
- * `?indoors=<cell>/<index>` (`index` in the cell's buildings, as `buildingRef` decodes `Place.building`): the whole
+ * `?indoors=<cell>/<index>` (`index` in the cell's buildings, as `buildingRef` decodes `Place.building`; `site/<id>` a
+ * public building): the whole
  * building as the game shows it when you are inside (src/render/interiorView.ts), seen at eye height from a step in
  * through its street door, turning slowly (or fixed with `a=`, radians from looking straight in). `spot=<k>` stands
  * at the k-th spot instead (a bed, a seat, a desk); `room=0…1` the room light (default 1).
  */
-async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene, outside: () => Promise<unknown>): Promise<void> {
+async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene, outside: () => Promise<TownView>): Promise<void> {
   const q = new URLSearchParams(location.search);
-  const [cell, index] = arg.split('/').map(Number);
+  const [a, b] = arg.split('/');
   step('Planning the rooms', 0.5);
   const view = new InteriorView(pool, stage);
-  const r = await view.enter({ cell, index });
+  const r = await view.enter(a === 'site' ? SITE + Number(b) : Number(a) * 65536 + Number(b));
   if (!r) throw new Error('no interior');
   view.setRoomLight(Number(q.get('room') ?? 1));
   // The town round it, to look out of the windows at.
   step('Building the town', 0.6);
-  await outside();
+  const around = await outside();
+  // A public building's own shell goes while you are in it, as in the game.
+  const own = a === 'site' ? around.landmarks[Number(b)] : undefined;
+  if (own) own.visible = false;
   // (The fog stays: it is part of every shader's key, and the game keeps it when you go in.)
   const { indoors: ind } = r, door = ind.doors[0], spot = q.has('spot') ? ind.spots[Number(q.get('spot'))] : undefined;
   const [x, y, z, look] = spot ? [spot.x, spot.y, spot.z, spot.yaw] : [door.x - door.nx * 1.2, door.y, door.z - door.nz * 1.2, Math.atan2(-door.nx, -door.nz)];

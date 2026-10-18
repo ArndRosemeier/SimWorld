@@ -41,7 +41,8 @@ export function buildingRef(code: number): { cell: number; index: number } | { s
   return { cell: code >>> 16, index: code & 0xffff };
 }
 
-const SITE_KIND: Record<LandmarkKind, PlaceKind> = {
+/** The sim's place kind of each public building. */
+export const SITE_KIND: Record<LandmarkKind, PlaceKind> = {
   townhall: 'townhall', church: 'church', school: 'school', kindergarten: 'kindergarten', clinic: 'doctor',
   fire: 'fire', supermarket: 'supermarket', sports: 'sports', station: 'station', carehome: 'carehome', petrol: 'petrol',
 };

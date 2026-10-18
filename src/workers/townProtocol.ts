@@ -45,8 +45,8 @@ export type ToTown =
   | { type: 'map' }
   /** The cutaway of one storey of a building (`building`: its id in the cell). */
   | { type: 'interior'; cell: number; building: number; floor: number }
-  /** A whole building to walk around in (`index`: its place in the cell's buildings, as `buildingRef` decodes `Place.building`). */
-  | { type: 'indoors'; cell: number; index: number };
+  /** A whole building to walk around in, by its `Place.building` code (a town building, or a public building's walk-in body). */
+  | { type: 'indoors'; building: number };
 
 /** What the main thread needs to know about the town to lay out the view. */
 export interface TownSummary {

@@ -18,7 +18,9 @@ export type RoomType =
   // Workplaces: offices, shops, places to eat and drink, services.
   | 'office' | 'meeting' | 'shop' | 'dining' | 'bakehouse' | 'salon' | 'reading' | 'cell'
   // Halls.
-  | 'workshop' | 'garage' | 'factory' | 'parking' | 'nave';
+  | 'workshop' | 'garage' | 'factory' | 'parking' | 'nave'
+  // Public buildings.
+  | 'classroom' | 'consulting' | 'playroom' | 'dayroom';
 
 export type FurnKind =
   | 'bed' | 'bedDouble' | 'wardrobe' | 'nightstand' | 'sofa' | 'armchair' | 'coffeeTable' | 'tvStand' | 'tv' | 'rug'
