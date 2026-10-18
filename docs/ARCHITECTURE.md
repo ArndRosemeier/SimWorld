@@ -17,6 +17,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | `src/talk` | The procedural text engine (background chatter, fallback answers). Pure. | core, `src/sim` types |
 | `src/llm` | OpenRouter, the model roster, task routing, usage ledger, prompt building, response contracts. No state of its own about NPCs. | core, `src/sim` types |
 | `src/render` | three.js: renderer, Stage, materials, lights, meshes, views. | everything pure |
+| `src/audio` | Web Audio: the ambience mixer and spatial one-shots, driven by place, time and weather (*planned*, track G). | everything pure |
 | `src/app` | DOM UI: loading/selector, chat panel, HUD, settings. | everything |
 | `src/game` | Glue: the main loop, input, wiring the sim worker to the views. | everything |
 
@@ -40,14 +41,15 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | I need a material | Add or reuse a *kind* (`VERTEX_COLOR_SOLID`, `TERRAIN`, `GROUND`, `WATER`, `FACADE`; `kind.make()`). Textured kinds need `useTextures({ facade })` before the warm-up. Never `new ...Material` elsewhere (guarded). | `src/render/materials.ts` |
 | A kind's look as a TSL node graph (terrain land use, ground layers, water) | `terrainLook`, `groundLook`, `waterLook` (applied by the kind in materials.ts); the seed's field patchwork `setParcels(parcelParams(seed))`; noise from `h_noise2`/`h_fbm2` (`@futuremagic/humanoid/three/nodes/peopleNoise`) | `src/render/tsl/ground.ts` |
 | A building's look: textured walls and roofs, procedural windows, doors, shop fronts, rooms behind the glass | `facadeLook(mat, arrays)` (the `FACADE` kind) reading `facadeSpecs()` | `src/render/tsl/facade.ts` |
-| Shared TSL pieces: hashes, normal maps without tangents, the scene's light state | `h11`, `h21`, `perturbNormalUV`, `LIGHT` (night, dayLight, litFrac, shopLit, eatLit, wet; the day cycle sets them) | `src/render/tsl/common.ts` |
+| Shared TSL pieces: hashes, normal maps without tangents, the scene's light state | `h11`, `h21`, `perturbNormalUV`, `LIGHT` (night, dayLight, litFrac, shopLit, eatLit, wet; season and snow to come). Written only by the sky view (`src/render/sky.ts`, *planned*, track B), which reads the sim's date and weather | `src/render/tsl/common.ts` |
 | The facade (and ground) texture arrays for the shaders | `loadTextures(pool, family, onProgress?, size?)` → `MaterialArrays` | `src/render/textures.ts` |
-| I need a light | The fixed set from `makeLights` (a pool for lamps, planned). Never `new ...Light` elsewhere (guarded). | `src/render/lights.ts` |
+| I need a light | The fixed set from `makeLights` (a pool of real lights for the street lamps nearest the camera, *planned*, track B). Never `new ...Light` elsewhere (guarded). | `src/render/lights.ts` |
 | Put something into the visible scene | `stage.add(obj)`: compiles first, then adds | `src/render/stage.ts` |
 | Compile something added to your own group later | `stage.prepare(obj)` | `src/render/stage.ts` |
 | Compile while something already plays on screen | `stage.warmLater(objs)` | `src/render/stage.ts` |
 | Turn mesh data into a mesh of a kind | `meshFromData(data: MeshData, kind)` (checks the attributes are the kind's), `wear(mesh, kind)` | `src/render/meshes.ts` |
 | Point the sun's shadow at what the camera sees | `fitSunShadow(lights, x, y, z, r)` | `src/render/lights.ts` |
+| Lettering in the world: shop names and hours, street-name and traffic signs, the town entrance sign, notice boards, clocks, timetables | one text atlas generated at load, sampled by the kinds that show text | `src/render/textAtlas.ts` *planned* (track A) |
 | Show the whole town (from above) | `showTown(stage, pool, summary)`: every piece from the town workers onto the stage, centre first | `src/render/townView.ts` |
 | Did something compile on the render path? Is a shader over budget? | `shaders.report()` in the console; `stage.hudLine()` | `src/render/shaders/monitor.ts` |
 | A human: body, skeleton, materials, clothes, animation | `Humanoid` | `@futuremagic/humanoid/three` |
@@ -103,6 +105,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Plan the town and build its mesh data off the main thread | the town workers (`ToTown` / `FromTown`, `TownSummary`) | `src/workers/town.worker.ts`, `src/workers/townProtocol.ts` |
 | Generate the material texture layers off the main thread | the texture workers (`ToTex` / `FromTex`) | `src/workers/tex.worker.ts`, `src/workers/texProtocol.ts` |
 | Run the society simulation | the sim worker, talked to through `SimClient` | `src/workers/sim.worker.ts`, `src/game/SimClient.ts` *planned* |
+| What does a view need from the sim? Where people and pets are and what they do, lit dwellings, cars at home, trips, each dwelling's look (wealth, upkeep, kids, pets, car) | `SimView`: `viewOf(world)` as transferable typed arrays, sent by the sim worker. Every view (people, traffic, windows, gardens) reads it; no view keeps a second channel to the sim, and the planner and build get the per-dwelling look as data, never by deriving it from the plan | `src/sim/view.ts` *planned* (track C) |
 | Save or load anything | `src/persist` (guarded: `localStorage` only there) | `src/persist/` *planned* |
 
 ### The society (`src/sim`)
@@ -116,7 +119,12 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Where can actors be? | `PlaceGraph` (places with kind, capacity, opening hours, staff slots; road nodes and edges). The planner produces one with `placeGraphOf(town)` (`src/plan/placeGraph.ts`); tests make one with `testTown(seed, size)` | `src/sim/places.ts`, `src/sim/testTown.ts` |
 | What does a place kind offer, when is it open, who works there? | `KINDS` (services, gossip rate, capacity), `defaultHours(kind)`, `defaultStaff(kind, scale)`, the one source: the planner (`placeGraphOf`) and `testTown` both use it, and it stays pure data (anything stateful moves it to a neutral module, never widens the plan→sim allow list); `isOpen(world, place, clock)` | `src/sim/placeKinds.ts`, `src/sim/schedule.ts` |
 | How long does it take to get between places? Which one is nearest? | `world.travel.minutes(a, b, car)`, `world.travel.nearest(from, candidates)` | `src/sim/travel.ts` |
+| Who is travelling right now, and how (foot, car, bike, bus, train)? | `world.trips` (mode, from, to, depart, arrive), filled by `go`; traffic is spawned from it | `src/sim/travel.ts` *planned* (track E) |
+| Bus and train lines, stops, timetables, the school bus | `src/sim/transit.ts` (pure, so people ride the bus in the sim) | `src/sim/transit.ts` *planned* (track D) |
 | Game time: day, weekday, minute of day | `dayOf`, `weekdayOf`, `minuteOfDay`, `onDay`, `atMinute` | `src/sim/time.ts` |
+| What date is it, which season, when does the sun rise and set? Is it a holiday, a school day? | `dateOf(world, clock)`, `seasonOf`, `sunAt(world, clock)`, `holidayOn`, `termOn`. The real start date comes in through `createWorld(graph, seed, { start })`; the pure layers never read the wall clock (guarded) | `src/sim/calendar.ts` *planned* (track B; holidays and terms track E) |
+| What is the weather (sky, rain, temperature, snow cover, wind)? | `weatherAt(world, clock)`: a seeded chain by season, the same for the live tick, the chronicle and the screen | `src/sim/weather.ts` *planned* (track B) |
+| What is on in town today: market, bin day per street, services, matches, club meetings, the council, the festival, weddings and funerals? | `agendaOn(world, day)`; clubs and institutions add their meetings here, there is no second calendar | `src/sim/agenda.ts` *planned* (track E) |
 | Make a world with its population | `createWorld(graph, seed)` (households, kin, jobs from staff slots, schools, habits, pets, livestock, wildlife, relationships) | `src/sim/synth.ts` |
 | Add one person, animal or household; (re)settle school, routine and habits | `newPerson`, `newAnimal`, `adoptPet`, `addHousehold`, `settle` (used by synthesis and life events) | `src/sim/synth.ts` |
 | Common questions about an actor: living person? traits, values, household, job, car, commute; places of a kind or service | `isPerson`, `traitOf`, `valueOf`, `householdOf`, `jobOf`, `hasCar`, `commute`, `placesOf`, `placesWith`, `ageOf`, `nameOf` | `src/sim/world.ts` |
@@ -124,9 +132,11 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | What happened to this person while time was skipped? | `digest(world, id, since)`: their memories and the news they heard, nothing they don't know | `src/sim/chronicle.ts` |
 | A random number inside the sim | `tickRng(world, ...purpose)`: derived from (seed, clock, purpose), so saves need no generator state | `src/sim/world.ts` |
 | Births, deaths, illness, romance, jobs, moving, pets, crime | `lifeDay(world, days)` (daily in `tick`; coarse steps in the chronicle); `world.life.events` is the record; `leaveTown` for anyone dying or moving away; `partnerOf`, `vacantHomes`, `moveInto` | `src/sim/life.ts` |
+| Money: wages, pensions, household budgets, rent, bills, prices, a business's customers and accounts | `src/sim/economy.ts` | `src/sim/economy.ts` *planned* (track F) |
+| Clubs, congregations, the council: members, office holders, meetings; local politics and its issues | `src/sim/groups.ts`, `src/sim/politics.ts` (meetings go into the agenda) | `src/sim/groups.ts`, `src/sim/politics.ts` *planned* (track F) |
 | Move an actor or change what they do | `go(world, id, place, activity, until)` (travel, followers); decisions come from `decideAll` | `src/sim/schedule.ts` |
 | Who meets whom right now? | `encounters(world)` (last tick's conversations, with what was told); `presentAt(world, place)`; one conversation, live or in the chronicle: `encounter(world, place, a, b, hub, rng)` | `src/sim/encounters.ts` |
-| What does this person believe, and from whom? | `beliefsOf(world, id)`; facts are created with `addFact` and spread with `witness` / `tell` / `broadcast`; `reach` for rumour metrics | `src/sim/knowledge.ts` |
+| What does this person believe, and from whom? | `beliefsOf(world, id)`; facts are created with `addFact` and spread with `witness` / `tell` / `broadcast` (phone calls and messages between close ties, *planned*, track E); `reach` for rumour metrics | `src/sim/knowledge.ts` |
 | What does this person just know (region lore, where someone grew up), without it being news? | standing knowledge: `addStanding(world, fact, { share, minAge, holders })`, `knowsStanding`, `standingOf(world, id)` (source `SOURCE_COMMON`, never fades, never gossiped). Region lore and people's ties to it come from `createWorld(graph, seed, { region })` via `settleRegion` → `world.region`; a real place to move to: `regionDestination(world, rng, service?)` | `src/sim/knowledge.ts`, `src/sim/region.ts` |
 | What does this person remember? Which memories matter for this conversation? | `remember`, `memoriesOf`, `recall(world, id, query)` | `src/sim/memory.ts` |
 | How do two actors feel about each other? | `relation(world, a, b)`; `bond`, `meet` to change it | `src/sim/relations.ts` |
@@ -147,3 +157,9 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Turn an NPC reply into state changes | the `npc.appraisal` task: `APPRAISAL_SCHEMA` → `parseAppraisal` → `Proposal` for `applyProposal` | `src/llm/appraisal.ts` |
 | Test anything that calls an LLM | `replayTransport(recordings)` (never the network); real recordings from `test/slow/openrouter.slow.test.ts` with `LLM_RECORD=1` | `src/llm/recorded.ts` |
 | Background chatter, a fallback answer, any generated sentence | the procedural text engine | `src/talk/` |
+
+### Sound
+
+| Question | The one way | Where |
+|---|---|---|
+| Play a sound: ambience bed, spatial one-shot | the audio engine (guarded: `AudioContext` only there) | `src/audio/` *planned* (track G) |
