@@ -14,7 +14,8 @@ import { phrasings } from '../src/talk/facts';
 import { contract, expand, finish, TalkMemory } from '../src/talk/grammar';
 import { Discourse, realiseSlots, tie } from '../src/talk/refer';
 import { say } from '../src/talk/realise';
-import { dialectMarked, voiceOf } from '../src/talk/voice';
+import { dialectMarked } from '../src/lang/dialect';
+import { voiceOf } from '../src/talk/voice';
 import { ACTS } from '../src/talk/acts';
 
 const fresh = () => createWorld(testTown(11, 120), 11);

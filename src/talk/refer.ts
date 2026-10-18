@@ -14,7 +14,7 @@ import { ACTOR_PERSON, FEMALE, type ActorId } from '../sim/actors';
 import type { PlaceId } from '../sim/places';
 import { BONDS, FAMILY_MASK, bondBit, type Bond } from '../sim/relations';
 import { SPECIES } from '../sim/species';
-import { ageOf, firstName, householdOf, jobOf, nameOf, type World } from '../sim/world';
+import { ageOf, firstName, householdOf, jobOf, lastName, nameOf, type World } from '../sim/world';
 import { dwellingWord } from '../lang/words';
 import { expand } from './grammar';
 import type { Voice } from './voice';
@@ -30,6 +30,12 @@ export class Discourse {
 
   /** The place the story at hand is about (people are not described by their job there). */
   topicPlace: PlaceId = -1;
+
+  /** The story is the speaker's own romance: their partner goes by name ("Ivan and I are together", not "my boyfriend and I"). */
+  ownRomance = false;
+
+  /** The story is about someone's job (they are not described by a job then). */
+  jobStory = false;
 
   /** Someone was already placed by their street ("from Kepler Lane") in this conversation. */
   streetSaid = false;
@@ -54,7 +60,10 @@ export class Discourse {
   }
 }
 
-const female = (world: World, who: ActorId) => world.actors.cols.sex[who] === FEMALE;
+export const female = (world: World, who: ActorId): boolean => world.actors.cols.sex[who] === FEMALE;
+
+/** "herself" or "himself". */
+export const reflexive = (world: World, who: ActorId): string => (female(world, who) ? 'herself' : 'himself');
 const isPersonActor = (world: World, who: ActorId) => world.actors.cols.kind[who] === ACTOR_PERSON;
 
 /** "he"/"him"/"his", "she"/"her"/"her". */
@@ -124,13 +133,14 @@ const TELLING_ROLES: ReadonlySet<string> = new Set([
 function describe(world: World, who: ActorId, d: Discourse): string {
   if (!isPersonActor(world, who)) return nameOf(world, who);
   const age = ageOf(world, who), f = female(world, who);
-  const surname = world.people.last[world.actors.cols.row[who]];
+  const surname = lastName(world, who);
   const rng = d.rng;
   const job = jobOf(world, who);
   const options: string[] = [];
   // By a job that says who they are (an appositive closes with a comma: "Leo, the baker, got…"), unless the story
   // is about that place.
-  if (job && TELLING_ROLES.has(job.role) && job.place !== d.topicPlace && world.graph.places[job.place]?.kind !== 'away') {
+  // (Not in a story about a job: "Linda, the priest at Christ Church, just started in Oakborough".)
+  if (job && !d.jobStory && TELLING_ROLES.has(job.role) && job.place !== d.topicPlace && world.graph.places[job.place]?.kind !== 'away') {
     const role = job.role === 'waiter' && f ? 'waitress' : job.role;
     options.push(`${nameOf(world, who)}, the ${role},`, `${firstName(world, who)}, the ${role} at ${placeName(world, job.place, d)},`, `the ${role} at ${placeName(world, job.place, d)}`);
   }
@@ -169,12 +179,12 @@ function firstReference(world: World, who: ActorId, d: Discourse, voice: Voice |
   if (!isPersonActor(world, who)) {
     // A pet: by name to those who know it, else "the Kellers' dog".
     const hh = householdOf(world, who);
-    if (familiarity(world, d.listener, who) > 0.2 || !hh) return nameOf(world, who);
-    return `${nameOf(world, who)}, the ${hh.surname}s' ${SPECIES[world.actors.cols.species[who]]?.name ?? 'pet'}`;
+    if (familiarity(world, d.listener, who) > 0.2 || !hh) return firstName(world, who);
+    return `${firstName(world, who)}, the ${hh.surname}s' ${SPECIES[world.actors.cols.species[who]]?.name ?? 'pet'}`;
   }
   const mine = tie(world, d.speaker, who), yours = tie(world, d.listener, who);
   const first = firstName(world, who);
-  if (mine && isFamilyTie(mine)) {
+  if (mine && isFamilyTie(mine) && !(d.ownRomance && (mine === 'partner' || mine === 'spouse'))) {
     const w = kinWord(world, who, mine, voice, rng);
     if (w) return rng.float() < 0.25 && mine !== 'ex' ? `my ${w} ${first}` : `my ${w}`;
   }
@@ -187,7 +197,7 @@ function firstReference(world: World, who: ActorId, d: Discourse, voice: Voice |
   if (mine === 'neighbour' && fl < 0.3) return rng.float() < 0.5 ? `${first} next door` : `${first} from next door`;
   if (fl >= 0.3 || (yours && yours !== 'neighbour')) return d.namesake(who) ? nameOf(world, who) : first;
   if (fl >= 0.12) return nameOf(world, who);
-  if (fs >= 0.3 && rng.float() < 0.3) return `${first}, a friend of mine`;
+  if (fs >= 0.3 && rng.float() < 0.3) return `${first}, a friend of mine,`;
   return describe(world, who, d);
 }
 
@@ -200,7 +210,7 @@ function shortReference(world: World, who: ActorId, d: Discourse, voice: Voice |
   const known = d.mentioned(who) || familiarity(world, d.listener, who) >= 0.3;
   let np: string;
   const mine = tie(world, d.speaker, who), yours = tie(world, d.listener, who);
-  const word = mine && isFamilyTie(mine) ? kinWord(world, who, mine, voice, d.rng) : null;
+  const word = mine && isFamilyTie(mine) && !(d.ownRomance && (mine === 'partner' || mine === 'spouse')) ? kinWord(world, who, mine, voice, d.rng) : null;
   const yword = !word && yours && isFamilyTie(yours) ? kinWord(world, who, yours, null, d.rng) : null;
   if (word) np = `my ${word}`;
   else if (yword) np = `your ${yword}`;
@@ -268,7 +278,7 @@ function family(world: World, who: ActorId, d: Discourse): string {
     const w = t && isFamilyTie(t) ? kinWord(world, who, t, null, null) : null;
     if (w) return `${mine} ${w}'s family`;
   }
-  const last = world.people.last[world.actors.cols.row[who]];
+  const last = lastName(world, who);
   return /([sxz]|ch|sh)$/.test(last) ? `the ${last} family` : `the ${last}s`;
 }
 
@@ -292,7 +302,7 @@ function pair(world: World, s: ActorId, o: ActorId, d: Discourse, c: Case, voice
     let x = part(s), y = part(o);
     if (x === y) { x = nameOf(world, s); y = nameOf(world, o); }
     // "Frederick and Laura Lowe", not "Frederick Lowe and Laura Lowe".
-    const last = (who: ActorId) => world.people.last[world.actors.cols.row[who]];
+    const last = (who: ActorId) => lastName(world, who);
     if (x === nameOf(world, s) && y === nameOf(world, o) && last(s) === last(o)) x = firstName(world, s);
     np = `${x} and ${y}`;
   }

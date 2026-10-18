@@ -11,7 +11,7 @@
  * - swear: mild swearing; the disagreeable and careless, never children.
  *
  * One dialect for everyone: region-neutral English (Arnd, 2026-10-18: the world is invented and only western
- * adjacent, nothing may identify a region). `DIALECT_MARKED` lists the words that would, for the tests to catch.
+ * adjacent, nothing may identify a region). `DIALECT_MARKED` (src/lang/dialect.ts) lists the words that would, for the tests to catch.
  */
 import { hash3i, hashToFloat } from '@futuremagic/core';
 import type { ActorId } from '../sim/actors';
@@ -49,23 +49,6 @@ const PET: Record<AgeGroup, readonly string[]> = {
   adult: ['if you ask me', 'I must say', 'I tell you', 'you know'],
   old: ['if you ask me', 'I must say', 'I tell you', 'I can tell you'],
 };
-
-/**
- * Words that mark a region's English ("mom", "mum", "vacation", "fall", "Alright?", "y'all"): none of them may be
- * said in town. The tests run every bank, every story phrasing and a day of talk against it.
- */
-export const DIALECT_MARKED: readonly RegExp[] = [
-  /\b(mom|moms|mommy|momma|mum|mums|mummy)\b/i, /\bvacation\b/i, /\bholiday\b/, /\b(the|this|in|last|next) fall\b/i, /\bautumn\b/,
-  /\by'all\b/i, /\beh\?/i, /^Alright\?/, /\b(mate|buddy|bloody|blimey|knackered|cheers|ta|innit|reckon|gotten|y'know)\b/i,
-  /\b(queue|fortnight|poorly|gran|grandad|flatmate|the flats|apartments?|sidewalk|pavement|petrol|candy|sweets|rubbish|garbage|trash)\b/i,
-  /\b(courting|fella|lads|folks|awesome|brilliant|proper|sorted|cuppa|hiya|oi|cosy|cozy|realise|realize)\b/i,
-];
-
-/** The first word or phrase of `text` that marks a region's English, or null. */
-export function dialectMarked(text: string): string | null {
-  for (const re of DIALECT_MARKED) { const m = re.exec(text); if (m) return m[0]; }
-  return null;
-}
 
 /** The voice of a person (cheap; call it per line). */
 export function voiceOf(world: World, id: ActorId): Voice {

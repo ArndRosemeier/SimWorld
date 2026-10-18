@@ -14,7 +14,7 @@ import type { Fact } from '../sim/knowledge';
 export type Tone = 'tragic' | 'sad' | 'bad' | 'good' | 'scandal' | 'crime' | 'news' | 'politics' | 'event';
 
 /** Whether someone could have seen it happen ("I saw it myself" fits a fight or a break-in, not someone's holiday). */
-export const isSeeable = (t: Tone): boolean => t === 'crime' || t === 'scandal' || t === 'event' || t === 'politics';
+export const isSeeable = (t: Tone): boolean => t === 'crime' || t === 'scandal';
 
 interface Rule { re: RegExp; tone: Tone; lines: readonly string[] }
 

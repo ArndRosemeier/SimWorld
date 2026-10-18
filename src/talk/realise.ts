@@ -10,11 +10,11 @@
 import { Rng } from '@futuremagic/core';
 import type { ActorId } from '../sim/actors';
 import { beliefAbout, isAbout, SOURCE_BROADCAST, SOURCE_COMMON, SOURCE_WITNESSED, type Fact } from '../sim/knowledge';
-import { householdOf, tickRng, type World } from '../sim/world';
+import { tickRng, type World } from '../sim/world';
 import { ACTS, phrasesFor, type ActName } from './acts';
 import { isSeeable, phrasings, type Tone } from './facts';
 import { bare, capital, contract, decap, fillSlots, finish, pick, uncontract, type PickContext, type TalkMemory } from './grammar';
-import { Discourse, isFamilyTie, namesOf, objectForm, pronoun, realiseSlots, refer, tie } from './refer';
+import { Discourse, isFamilyTie, namesOf, objectForm, pronoun, realiseSlots, refer, reflexive, tie } from './refer';
 import { FILLERS, voiceOf, type Voice } from './voice';
 
 /** Hedges that say the source is nobody in particular (not before "my sister told me"). */
@@ -106,10 +106,9 @@ export function say(world: World, fact: Fact | number, speaker: ActorId, listene
   const tone = toneOf(f);
   const self = isAbout(f, speaker);
   const parts: string[] = [];
-  // News about the teller's own household or close family needs no "apparently".
-  const hh = householdOf(world, speaker);
+  // News about the teller's own family needs no "apparently".
   const kin = f.subject >= 0 ? tie(world, speaker, f.subject) : null;
-  const own = self || (hh !== null && f.subject >= 0 && householdOf(world, f.subject) === hh) || (!!kin && isFamilyTie(kin));
+  const own = self || (!!kin && isFamilyTie(kin));
 
   // Opener.
   const forced = typeof opts.opener === 'string' ? opts.opener : null;
@@ -128,7 +127,11 @@ export function say(world: World, fact: Fact | number, speaker: ActorId, listene
   }
 
   // The story, hedged.
+  d.ownRomance = /going out with|moved in with|got engaged|got married/.test(f.text) && (f.subject === speaker || f.object === speaker);
+  d.jobStory = f.topic === 'job';
   let body = clause(world, f, d, ctx, voice);
+  d.ownRomance = false;
+  d.jobStory = false;
   // No hedge that starts like the opener ("I don't know if you've heard. I don't know if it's true, but…").
   const opened = parts.join(' ').toLowerCase();
   const unlike = (s: string) => !opened || !opened.includes(s.toLowerCase().split(' ').slice(0, 3).join(' '));
@@ -150,7 +153,7 @@ export function say(world: World, fact: Fact | number, speaker: ActorId, listene
       if (named && isAbout(f, source)) {
         // Told by the very person the story is about: "She told me herself", never their full name again.
         const pro = pronoun(world, source, 'subj');
-        after = fillSlots(phrase('hedge.told.self', voice, ctx), { Pro: capital(pro), pro_obj: pronoun(world, source, 'obj'), self: world.actors.cols.sex[source] === 0 ? 'herself' : 'himself' });
+        after = fillSlots(phrase('hedge.told.self', voice, ctx), { Pro: capital(pro), pro_obj: pronoun(world, source, 'obj'), self: reflexive(world, source) });
         sourced = true;
       } else if (named) {
         const np = refer(world, source, d, 'subj', voice);

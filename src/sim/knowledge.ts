@@ -339,7 +339,8 @@ export function exchange(world: World, teller: ActorId, listener: ActorId, hub: 
   const rel = world.relations;
   // Children neither hear nor pass on someone else's adult business outside the family.
   const young = (ageOf(world, listener) < 13 || age < 13) && !rel.isFamily(teller, listener);
-  const little = ageOf(world, listener) < 8 || age < 8;
+  const little = ageOf(world, listener) < 8;
+  const grownUpKin = ageOf(world, listener) >= 13 && rel.isFamily(teller, listener);
   const rr = rel.row(teller, listener);
   const home = householdOf(world, listener);
   const familiarity = rr >= 0 ? rel.t.cols.familiarity[rr] : 0;
@@ -354,7 +355,9 @@ export function exchange(world: World, teller: ActorId, listener: ActorId, hub: 
     if (f.subject === listener) continue; // you don't gossip to someone about themselves
     if (young && isAdultStory(f)) continue; // nor tell a child someone else's adult business
     if (little && isAdultStory(f)) continue; // and a small child is kept out of it even at home
-    if (age < 13 && (isAdultStory(f) || f.topic === 'job' || f.topic === 'politics')) continue; // children pass on children's news
+    if (f.subject === teller && f.topic === 'crime') continue; // nobody spreads their own misdeeds
+    // Children pass on children's news, and tell their family what they saw themselves.
+    if (age < 13 && (isAdultStory(f) || f.topic === 'job' || f.topic === 'politics') && !(grownUpKin && c.source[r] === SOURCE_WITNESSED)) continue;
     if (f.text.startsWith("{subject}'s family are away") && householdOf(world, f.subject) === householdOf(world, teller)) continue; // one's own family's trip is no news
     if (f.subject >= 0 && home !== null && householdOf(world, f.subject) === home) continue; // nor about their own household
     // Small news (a holiday, a new job) is only worth telling to someone who knows the people, or about one's own.
