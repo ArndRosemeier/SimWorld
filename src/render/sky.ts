@@ -17,6 +17,7 @@ import { strikesIn, type Weather } from '../sim/weather';
 import { CROP_OF, cropLook, type Crop } from '../world/landuse';
 import { aimSun, type Lights } from './lights';
 import { SKY_DOME } from './materials';
+import { WINDOW_LIGHT } from './windowLight';
 import { meshFromData } from './meshes';
 import { LIGHT, SEASON } from './tsl/common';
 import { VEG } from './tsl/vegetation';
@@ -41,6 +42,10 @@ export class DaySky {
   day = 0;
   /** Night now, 0 day … 1 full night (as `LIGHT.night`). */
   night = 0;
+  /** The street lamps now, 0 off … 1 on (as `LIGHT.lamps`). */
+  lamps = 0;
+  /** The council's rule (src/sim/politics.ts `lightsOffAtMidnight`): street lamps dark from midnight to dawn. */
+  lampsOffAtMidnight = false;
   private pulses: { t: number; amp: number; angle: number; up: number }[] = [];
   private now = 0;
   private readonly look = [0, 0, 0, 0];
@@ -138,6 +143,10 @@ export class DaySky {
 
     // The light state every look reads.
     LIGHT.night.value = this.night = night;
+    const smallHours = minuteOfDay(clock) < 12 * 60; // after midnight; dawn ends the night anyway
+    LIGHT.lamps.value = this.lamps = this.lampsOffAtMidnight && smallHours ? 0 : night;
+    // A room needs its lamp by day under heavy cloud: a little on a normal day, fully in a storm.
+    WINDOW_LIGHT.gloom.value = lerp(0.15, 1, smoothstep(0.35, 0.9, w.dark));
     LIGHT.dayLight.value = day;
     LIGHT.wet.value = w.wet;
     LIGHT.snow.value = smoothstep(0.3, 5, w.snowCm);

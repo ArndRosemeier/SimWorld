@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.094 — Chimney smoke follows who is home
+
+- A house whose people are all out or asleep has its heating turned down, so its chimney smokes less often. Houses with someone up and about smoke the most.
+
+## v0.093 — Lamps on under storm clouds; street lights off after midnight by vote
+
+- On a dark, rainy or stormy day, people who are at home switch their lights on, so the windows glow by day too. On a normal day only a few rooms are lit.
+- If the council votes to switch the street lights off at midnight, the lamps go dark from midnight until dawn. That covers both the lamp heads and the light they throw on the street.
+
 ## v0.092 — Notice boards, posters and window notices
 
 - The town hall, library, church, post office, supermarket, newsagent and square each have a notice board (a cork board by the entrance, or cards in the shop window) with the town's real notices pinned on it: events, funerals, lost pets, openings and closings.
