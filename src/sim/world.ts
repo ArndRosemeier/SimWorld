@@ -7,6 +7,8 @@
  */
 import { Rng, deriveSeed } from '@futuremagic/core';
 import type { ActorId, ActorTable } from './actors';
+import type { Agenda } from './agenda';
+import { pruneAgenda } from './agenda';
 import type { AnimalTable } from './animals';
 import type { Intention } from './intentions';
 import type { Knowledge } from './knowledge';
@@ -55,6 +57,8 @@ export interface World {
   readonly intentions: Intention[][];
   /** Encounters of the last tick (who met whom where, and what was told). Read by views and the chatter engine. */
   readonly encounters: Encounter[];
+  /** What is on in town (src/sim/agenda.ts). */
+  readonly agenda: Agenda;
   /** Journeys under way (src/sim/travel.ts): filled by `go`, dropped on arrival. */
   readonly trips: Trip[];
   /** Per-conversation clamps and the decision log of `applyProposal`. */
@@ -103,6 +107,7 @@ export function tick(world: World, minutes = 1): void {
  */
 export function passDays(world: World, days: number): void {
   lifeDay(world, days);
+  pruneAgenda(world, world.clock);
   forget(world, days);
   fadeRelations(world.relations, world.clock, days);
   const day = world.clock / MINUTES_PER_DAY;
@@ -120,6 +125,10 @@ export function nameOf(world: World, id: ActorId): string {
   const r = a.row[id];
   return a.kind[id] === 0 ? `${world.people.first[r]} ${world.people.last[r]}` : world.animals.name[r];
 }
+
+/** First name of a person (an animal's name). */
+export const firstName = (world: World, id: ActorId): string =>
+  world.actors.cols.kind[id] === 0 ? world.people.first[world.actors.cols.row[id]] : nameOf(world, id);
 
 // ---- lookups shared by the sim systems ---------------------------------------------------------------------
 

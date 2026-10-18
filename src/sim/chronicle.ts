@@ -17,7 +17,7 @@ import { KINDS } from './placeKinds';
 import type { PlaceId } from './places';
 import { NEED_COUNT } from './species';
 import { MINUTES_PER_DAY } from './time';
-import { isPerson, jobOf, nameOf, passDays, tickRng, traitOf, type World } from './world';
+import { firstName, isPerson, jobOf, passDays, tickRng, traitOf, type World } from './world';
 
 export interface ChronicleOptions {
   /** Days per step (default: 1 for skips up to two weeks, else 7). Coarser steps are faster and blurrier. */
@@ -192,7 +192,7 @@ export function digest(world: World, id: ActorId, since: number, max = 20): Dige
     if (seen.has(f.root) || (c.source[r] === SOURCE_WITNESSED && (f.subject === id || f.object === id))) continue;
     seen.add(f.root);
     const src = c.source[r];
-    const from = src >= 0 ? ` (${world.people.first[world.actors.cols.row[src]] ?? nameOf(world, src)} told me)` : '';
+    const from = src >= 0 ? ` (${firstName(world, src)} told me)` : '';
     out.push({ time: c.heardAt[r], text: factText(world, f) + from, kind: 'heard', importance: c.salience[r] * c.confidence[r] });
   }
   return out.sort((x, y) => y.importance - x.importance || x.time - y.time).slice(0, max);

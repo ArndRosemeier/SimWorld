@@ -8,7 +8,7 @@ import type { PlaceId } from './places';
 import type { World } from './world';
 import { PROPOSABLE_INTENTIONS } from './mind/proposal';
 
-export const INTENTION_KINDS = [...PROPOSABLE_INTENTIONS, 'eat', 'visit', 'seeDoctor'] as const;
+export const INTENTION_KINDS = [...PROPOSABLE_INTENTIONS, 'eat', 'visit', 'seeDoctor', 'attend'] as const;
 export type IntentionKind = (typeof INTENTION_KINDS)[number];
 export type Origin = 'routine' | 'need' | 'event' | 'llm' | 'player';
 
@@ -23,7 +23,7 @@ export interface Intention {
   /** Higher wins; work is 50, sleep 60; 'avoid' does not compete, it filters. */
   priority: number;
   origin: Origin;
-  /** Fact for 'tell', -1 otherwise. */
+  /** Fact for 'tell', the occasion id for 'attend' (src/sim/agenda.ts), -1 otherwise. */
   fact: number;
   item: string;
   /** Why, in plain words, for the debug overlay and prompts ("promised Mara to meet at the fountain"). */
