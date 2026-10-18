@@ -15,7 +15,7 @@ import { Parking } from './parking';
 import { RoadNet } from './roadNet';
 import { Traffic, type Car, type VKind } from './traffic';
 import type { CarTrip } from './trips';
-import { Buses, type BusTrip } from './buses';
+import { Buses, exitTowardRegion } from './buses';
 import type { World } from '../sim/world';
 
 /** Household car models, most common first (a small western town). */
@@ -42,16 +42,19 @@ export class TownTraffic {
   readonly net: RoadNet;
   readonly parking: Parking;
   readonly traffic: Traffic;
-  private readonly pending: { trip: CarTrip; car: Car; t: number }[] = [];
+  /** Vehicles waiting for room to pull out or come in: tried every frame until they go or RETRY_S runs out. */
+  private readonly waiting: { go: () => boolean; t: number }[] = [];
   private throughN = 0;
   private buses: Buses | null = null;
-  private readonly busesWaiting: BusTrip[] = [];
+  private world: World | null = null;
   /** Game clock (s) minus Traffic time (s), set at every game minute. */
   private clockOffset = 0;
   /** Stats for the HUD and tests. */
   readonly stats = { trips: 0, walked: 0, parked: 0, through: 0, buses: 0, busStops: 0 };
 
-  constructor(town: Town, private readonly places: readonly Place[], private readonly seed: number) {
+  /** `world` (optional until the view has one) tells the roads to the region towns apart. */
+  constructor(town: Town, private readonly places: readonly Place[], private readonly seed: number, world?: World) {
+    this.world = world ?? null;
     this.net = new RoadNet(town);
     this.parking = new Parking(this.net);
     this.traffic = new Traffic(this.net, this.parking);
@@ -73,11 +76,16 @@ export class TownTraffic {
     this.clockOffset = clock * 60 - this.traffic.time;
     for (const trip of trips) {
       const car = householdCar(this.seed, trip.household);
+      // Home from the city: the car comes in on the road from there (it was never parked in town).
+      if (trip.fromRegion !== null) {
+        if (trip.toRegion === null && this.comeHome(trip, car)) this.stats.trips++;
+        continue;
+      }
       const at = this.parking.restAt(car.key), from = this.places[trip.from];
       // The car is out with someone else, or stands somewhere else: on foot this time.
       if (!at || !from || Math.hypot(at.x - from.x, at.z - from.z) > CAR_REACH) { this.stats.walked++; continue; }
       this.stats.trips++;
-      if (!this.start(trip, car)) this.pending.push({ trip, car, t: 0 });
+      this.launch(() => this.start(trip, car));
     }
     this.through(clock);
   }
@@ -87,34 +95,49 @@ export class TownTraffic {
    * per game minute, after `trips`).
    */
   transit(world: World, since: number, clock: number): void {
+    this.world = world;
     this.buses ??= new Buses(world, this.net);
-    this.busesWaiting.push(...this.buses.due(since, clock));
-    this.startBuses();
-  }
-
-  private startBuses(): void {
-    for (let i = this.busesWaiting.length - 1; i >= 0; i--) {
-      const b = this.busesWaiting[i];
+    for (const b of this.buses.due(since, clock)) {
       const goal = Buses.goal(b, (c) => c * 60 - this.clockOffset);
-      // A bus that cannot get in (a car right at the town edge) tries again next frame.
-      if (this.traffic.enter(b.car, b.enter, goal)) { this.stats.buses++; this.busesWaiting.splice(i, 1); }
+      this.launch(() => !!this.traffic.enter(b.car, b.enter, goal) && ++this.stats.buses > 0);
     }
   }
 
   /** Run the cars for dt seconds. */
   update(dt: number): void {
-    for (let i = this.pending.length - 1; i >= 0; i--) {
-      const p = this.pending[i];
-      p.t += dt;
-      if (this.start(p.trip, p.car) || p.t > RETRY_S) this.pending.splice(i, 1);
+    for (let i = this.waiting.length - 1; i >= 0; i--) {
+      const w = this.waiting[i];
+      w.t += dt;
+      if (w.go() || w.t > RETRY_S) this.waiting.splice(i, 1);
     }
-    if (this.busesWaiting.length) this.startBuses();
     this.traffic.update(dt);
   }
 
+  /** Put a vehicle on the road now, or as soon as there is room (a car in the way of pulling out or coming in). */
+  private launch(go: () => boolean): void {
+    if (!go()) this.waiting.push({ go, t: 0 });
+  }
+
   private start(trip: CarTrip, car: Car): boolean {
+    // Out to the city or the nearby town: off the map by the road that leads there.
+    if (trip.toRegion !== null) {
+      const exit = this.exitFor(trip.toRegion);
+      return exit >= 0 && !!this.traffic.depart(car, { exit });
+    }
     const to = this.places[trip.to];
     return !!to && !!this.traffic.depart(car, { park: true, x: to.x, z: to.z });
+  }
+
+  private comeHome(trip: CarTrip, car: Car): boolean {
+    const to = this.places[trip.to], exit = this.exitFor(trip.fromRegion);
+    if (!to || exit < 0 || this.parking.restAt(car.key)) return false;
+    this.launch(() => !!this.traffic.enter(car, exit, { park: true, x: to.x, z: to.z }));
+    return true;
+  }
+
+  /** The exit towards a region town (by its compass direction; the first exit before a world is known). */
+  private exitFor(region: string | null): number {
+    return this.world ? exitTowardRegion(this.world, this.net, region) : this.net.nodes.findIndex((n) => n.exit);
   }
 
   /** Cars from the region passing through, at the hour's rate (seeded per game minute). */

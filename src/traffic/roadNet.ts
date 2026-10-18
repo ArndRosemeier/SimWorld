@@ -282,6 +282,24 @@ export class RoadNet {
     return { edges, fwd };
   }
 
+  /**
+   * The exit (a country road leaving the map) whose direction from the middle of town is nearest a
+   * compass bearing (degrees, 0 north = −z, 90 east = +x); -1 without exits.
+   */
+  exitToward(bearing: number): number {
+    let cx = 0, cz = 0;
+    for (const n of this.nodes) { cx += n.x; cz += n.z; }
+    cx /= Math.max(1, this.nodes.length); cz /= Math.max(1, this.nodes.length);
+    let best = -1, bo = Infinity;
+    this.nodes.forEach((n, i) => {
+      if (!n.exit) return;
+      const b = (Math.atan2(n.x - cx, -(n.z - cz)) * 180) / Math.PI;
+      const off = Math.abs(((((b - bearing) % 360) + 540) % 360) - 180);
+      if (off < bo) { bo = off; best = i; }
+    });
+    return best;
+  }
+
   /** Node nearest to an edge param (the end you would reach first). */
   edgeEndNear(eid: number, s: number): number {
     const e = this.edges[eid];
