@@ -1,14 +1,15 @@
 /**
  * The public buildings one can walk into: a landmark's walk-in body (the box part its kind marks `body`, src/plan/kit.ts
  * LmPart.body: the church's nave, the school's main block, the clinic, the care home, the fire station's engine hall,
- * the supermarket, the station building, the petrol kiosk) as a building the interior planner furnishes for its
+ * the supermarket, the station building, the petrol kiosk, the town hall's main block) as a building the interior planner furnishes for its
  * kind (src/interior/fill/work.ts: pews before the altar, classrooms off a corridor, consulting rooms, residents'
- * rooms, the engines, aisles and tills, the ticket hall), with the windows its walls are drawn with.
+ * rooms, the engines, aisles and tills, the ticket hall, the town hall's counters, offices and council chamber), with
+ * the windows its walls are drawn with.
  *
  * New in SimWorld.
  */
 import type { BuildingDesc } from '../plan/building';
-import { landmarkParts, partOutline, type LmPart } from '../plan/landmarkParts';
+import { TOWNHALL_DOOR, landmarkParts, partOutline, type LmPart } from '../plan/landmarkParts';
 import type { Landmark } from '../plan/landmarks';
 import { SITE_KIND } from '../plan/placeGraph';
 import { bodyOpenings, type WallWindows } from '../build/massing';
@@ -18,7 +19,7 @@ import type { PlaceUse } from './building';
 /** A landmark's walk-in body: the building the planner furnishes, the kind it is furnished as, its windows. */
 export interface LandmarkBody { b: BuildingDesc; place: PlaceUse; windows: WallWindows[] }
 
-/** The walk-in body of `lm` (null when its kind has none: the town hall's hall is its own, the sports ground has none). `place`: the sim's staff and capacity. */
+/** The walk-in body of `lm` (null when its kind has none: the sports ground). `place`: the sim's staff and capacity. */
 export function landmarkBody(lm: Landmark, terrain: Terrain, place?: PlaceUse): LandmarkBody | null {
   const parts = landmarkParts(lm, terrain), p = parts.find((q) => q.body);
   return p ? { b: bodyDesc(lm, p), place: { ...place, kind: SITE_KIND[lm.kind] }, windows: bodyOpenings(parts) } : null;
@@ -31,5 +32,7 @@ function bodyDesc(lm: Landmark, p: LmPart): BuildingDesc {
   return {
     id: lm.id, poly, front: 0, style: 'modern', use: 'civic', floors, floorH, groundH, roof: 'flat', pitch: 0, setbacks: [],
     wall: 0, trim: 0, roofMat: 0, accent: 0, bay: p.m.bay, shopfront: false, seed: lm.seed, attached: false, units: 0, landmark: true,
+    // (The town hall's door in the middle of its front, where its steps and gateway are.)
+    ...(lm.kind === 'townhall' ? { door: { at: 0.5, w: TOWNHALL_DOOR.w } } : {}),
   };
 }

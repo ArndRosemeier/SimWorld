@@ -92,7 +92,8 @@ test('street: someone going along keeps beside the one they are with', () => {
 });
 
 test('street: a track is a pure function of the sim, and a stay laid out later joins the earlier one', () => {
-  const stays = [...tracks.values()].filter((t) => a.dest[t.id] < 0);
+  // (Stays still going three minutes on, so that the later layout is of the same stay.)
+  const stays = [...tracks.values()].filter((t) => a.dest[t.id] < 0 && t.validUntil >= world.clock + 3);
   assert.ok(stays.length > 0, 'someone stays out of doors');
   const p: [number, number, number] = [0, 0, 0], q: [number, number, number] = [0, 0, 0];
   for (const t of stays.slice(0, 40)) {
@@ -205,7 +206,8 @@ test('street: walks keep clear of trees, furniture, parked cars (in car parks an
     if (car) inCar++;
     if (wall) inWall++;
   }
-  assert.ok(people > 30, `${people} people out`);
+  // (At eight on a Monday in the smallest town: the farm hands are in their barns by now.)
+  assert.ok(people > 15, `${people} people out`);
   assert.ok(inThing / people < 0.02, `${inThing} of ${people} walk into a thing`);
   assert.ok(inCar / people < 0.02, `${inCar} of ${people} walk into a car at the kerb`);
   assert.ok(inWall / people < 0.02, `${inWall} of ${people} walk through a wall`);

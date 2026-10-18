@@ -48,7 +48,7 @@ import type { FromTex, ToTex } from '../workers/texProtocol';
 import { loadTextures, loadVegetationTextures } from '../render/textures';
 import { INTERIOR, useTextures } from '../render/materials';
 import { InteriorView } from '../render/interiorView';
-import { SITE, buildingRef } from '../plan/placeGraph';
+import { SITE, buildingRef, farmCode } from '../plan/placeGraph';
 import { GoingInside } from './inside';
 import { openWhatsNew, VERSION } from '../app/whatsNew';
 import type { TitleScreen } from '../app/title';
@@ -398,17 +398,17 @@ async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage
 
 /**
  * `?indoors=<cell>/<index>` (`index` in the cell's buildings, as `buildingRef` decodes `Place.building`; `site/<id>` a
- * public building): the whole
+ * public building; `farm/<id>/<index>` a farm building): the whole
  * building as the game shows it when you are inside (src/render/interiorView.ts), seen at eye height from a step in
  * through its street door, turning slowly (or fixed with `a=`, radians from looking straight in). `spot=<k>` stands
  * at the k-th spot instead (a bed, a seat, a desk); `room=0…1` the room light (default 1).
  */
 async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene, outside: () => Promise<TownView>): Promise<void> {
   const q = new URLSearchParams(location.search);
-  const [a, b] = arg.split('/');
+  const [a, b, c] = arg.split('/');
   step('Planning the rooms', 0.5);
   const view = new InteriorView(pool, stage);
-  const r = await view.enter(a === 'site' ? SITE + Number(b) : Number(a) * 65536 + Number(b));
+  const r = await view.enter(a === 'site' ? SITE + Number(b) : a === 'farm' ? farmCode(Number(b), Number(c)) : Number(a) * 65536 + Number(b));
   if (!r) throw new Error('no interior');
   view.setRoomLight(Number(q.get('room') ?? 1));
   // The town round it, to look out of the windows at.

@@ -104,10 +104,6 @@
     "reason": "MeshBuilder.build() (the mesh data) and an LLM task's build() (its prompt): conventional method names, different things."
   },
   {
-    "key": "same name: simworld/build/meshBuilder.ts#put + simworld/plan/landmarkParts.ts#put",
-    "reason": "MeshBuilder's attribute store put(v) vs a local put closure: conventional names."
-  },
-  {
     "key": "same name: simworld/build/meshBuilder.ts#put + simworld/world/rural.ts#put",
     "reason": "MeshBuilder's attribute store put(v) vs a local put closure: conventional names."
   },
@@ -602,14 +598,6 @@
   {
     "key": "idiom: [.run Promise] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
     "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
-  },
-  {
-    "key": "same name: simworld/game/inside.ts#enter + simworld/render/interiorView.ts#enter",
-    "reason": "Layers of one thing: going into a building in the game (people, light) calls the view that draws its interior."
-  },
-  {
-    "key": "same name: simworld/game/inside.ts#enter + simworld/traffic/traffic.ts#enter",
-    "reason": "Unrelated: the player going into a building, and a vehicle entering the traffic."
   },
   {
     "key": "same name: simworld/game/inside.ts#leave + simworld/sim/groups.ts#leave",

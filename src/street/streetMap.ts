@@ -15,7 +15,8 @@ import type { HeightGrid } from '../workers/simProtocol';
 import { footprintsOf, type Footprints } from '../plan/footprints';
 import { townRoads, type TownRoads } from '../plan/roads';
 import { signFootprints, signSpots } from '../plan/signs';
-import { buildingRef, eachBuilding, SITE } from '../plan/placeGraph';
+import { buildingOf, eachBuilding, eachFarmBuilding, SITE } from '../plan/placeGraph';
+import { frontDoor } from '../plan/terrace';
 import { landmarkBody } from '../interior/landmark';
 import { buildingBase, buildingHeight } from '../build/massing';
 import { BODY } from './clearance';
@@ -23,8 +24,8 @@ import type { PlaceGraph, PlaceId, PlaceKind } from '../sim/places';
 import { CURB_H, deckHeight, type DeckSpan } from '../world/ground';
 import { SeatBook, seatsOf, type Seat } from './seats';
 
-/** Place kinds people are seen at while they stay (everything else is indoors). */
-export const OUTDOOR: ReadonlySet<PlaceKind> = new Set<PlaceKind>(['park', 'square', 'sports', 'cemetery', 'street', 'woods', 'field', 'farm']);
+/** Place kinds people are seen at while they stay (everything else is indoors: a farm's work is in its barn, out in the fields is 'field'). */
+export const OUTDOOR: ReadonlySet<PlaceKind> = new Set<PlaceKind>(['park', 'square', 'sports', 'cemetery', 'street', 'woods', 'field']);
 
 /** Radius (m) of the patch people use at an outdoor place with no outline of its own. */
 const PATCH: Partial<Record<PlaceKind, number>> = { sports: 30, woods: 60, field: 50, farm: 20 };
@@ -172,9 +173,9 @@ export class StreetMap {
   private entrance(place: PlaceId): { door: [number, number]; step: [number, number] } {
     let en = this.entrances.get(place);
     if (en) return en;
-    const pl = this.graph.places[place], ref = buildingRef(pl.building);
+    const pl = this.graph.places[place];
     en = { door: [pl.x, pl.z], step: [pl.x, pl.z] };
-    const poly = ref && 'cell' in ref ? this.town.cells[ref.cell]?.buildings[ref.index]?.poly : undefined;
+    const poly = pl.building >= 0 ? buildingOf(this.town, pl.building)?.poly : undefined;
     if (poly) {
       let best = Infinity, ux = 0, uz = 0, fx = 0, fz = 0;
       for (let i = 0; i < poly.length; i += 2) {
@@ -262,6 +263,12 @@ export class StreetMap {
         const body = landmarkBody(lm, t)?.b;
         if (body) list.push({ code: SITE + lm.id, poly: body.poly, y0: lm.base - 1, y1: lm.base + buildingHeight(body) + 1, b: polyBounds(body.poly) });
       }
+      // The farm buildings, each with its door (a shed or a second barn is nobody's place, but you can walk in).
+      eachFarmBuilding(this.town.rural, (b, code) => {
+        const { base, low } = buildingBase(b, t), d = frontDoor(b);
+        list.push({ code, poly: b.poly, y0: low - 1, y1: base + buildingHeight(b) + 1, b: polyBounds(b.poly) });
+        this.doorsOf.set(code, [d.x, d.z]);
+      });
       this.solids = list;
       this.graph.places.forEach((pl, id) => {
         if (pl.building < 0) return;

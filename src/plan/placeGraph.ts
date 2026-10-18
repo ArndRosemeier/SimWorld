@@ -21,28 +21,61 @@ import { LineSource, townRoads } from './roads';
 import { careHomeRooms, siteToWorld, inSite, type LandmarkKind } from './landmarks';
 import { frontDoor } from './terrace';
 import { PEOPLE_PER_HOME, type Town } from './town';
+import type { RuralPlan } from '../world/rural';
 
 /**
  * `Place.building` codes: a town building is `cell * 65536 + index` in its cell plan; a public
- * building's site is SITE + landmark id; a farm is FARM + farm id.
+ * building's site is SITE + landmark id; a farm building is `farmCode(farm id, index)`, its index in
+ * the farm's `rural.layout(id).buildings`.
  */
 export const SITE = 0x40000000, FARM = 0x50000000;
+/** Codes kept for each farm's buildings (a farm has four at most). */
+const FARM_SLOTS = 16;
 
 /** The `Place.building` code of building `index` of cell `cell`. */
 export const buildingCode = (cell: number, index: number): number => cell * 65536 + index;
+/** The `Place.building` code of building `index` of farm `farm`. */
+export const farmCode = (farm: number, index: number): number => FARM + farm * FARM_SLOTS + index;
 
 /** Every building of the town's cells with its `Place.building` code (and its cell and index in it). */
 export function eachBuilding(cells: readonly CellPlan[], fn: (b: BuildingDesc, code: number, cell: number, index: number) => void): void {
   cells.forEach((plan, ci) => plan.buildings.forEach((b, bi) => fn(b, buildingCode(ci, bi), ci, bi)));
 }
 
+/** Every farm building out in the country with its `Place.building` code. */
+export function eachFarmBuilding(rural: RuralPlan, fn: (b: BuildingDesc, code: number) => void): void {
+  for (const f of rural.farms) rural.layout(f.id).buildings.forEach((b, i) => fn(b, farmCode(f.id, i)));
+}
+
 /** Decode `Place.building` (null for -1). */
-export function buildingRef(code: number): { cell: number; index: number } | { site: number } | { farm: number } | null {
+export function buildingRef(code: number): { cell: number; index: number } | { site: number } | { farm: number; index: number } | null {
   if (code < 0) return null;
-  if (code >= FARM) return { farm: code - FARM };
+  if (code >= FARM) return { farm: Math.floor((code - FARM) / FARM_SLOTS), index: (code - FARM) % FARM_SLOTS };
   if (code >= SITE) return { site: code - SITE };
   return { cell: code >>> 16, index: code & 0xffff };
 }
+
+/** The building `code` names: a cell's or a farm's (null for a public building, whose walk-in body is src/interior/landmark.ts `landmarkBody`). */
+export function buildingOf(town: Pick<Town, 'cells' | 'rural'>, code: number): BuildingDesc | null {
+  const ref = buildingRef(code);
+  if (!ref || 'site' in ref) return null;
+  if ('cell' in ref) return town.cells[ref.cell]?.buildings[ref.index] ?? null;
+  return ref.farm < town.rural.farms.length ? town.rural.layout(ref.farm).buildings[ref.index] ?? null : null;
+}
+
+/** Which of a farm's buildings is the farmhouse (the one that is not a barn) and which the main barn (the biggest barn); -1 when it has none. */
+export function farmRoles(buildings: readonly BuildingDesc[]): { house: number; barn: number } {
+  let house = -1, barn = -1, big = 0;
+  buildings.forEach((b, i) => {
+    if (!isBarn(b)) { if (house < 0) house = i; return; }
+    const a = Math.abs(polyArea(b.poly));
+    if (a > big) { big = a; barn = i; }
+  });
+  return { house, barn };
+}
+
+/** Is farm building `b` a barn or a shed (src/world/rural.ts barnDesc), not the farmhouse? */
+export const isBarn = (b: BuildingDesc): boolean => b.style === 'warehouse';
 
 /** The sim's place kind of each public building. */
 export const SITE_KIND: Record<LandmarkKind, PlaceKind> = {
@@ -206,8 +239,12 @@ export function placeGraphOf(town: Town): PlaceGraph {
     const at = attach(gx, gz);
     let name = `${fr.pick(ROOTS)} Farm`;
     for (let k = 0; k < 12 && taken.has(name); k++) name = `${fr.pick(ROOTS)} Farm`;
-    placeOf('farm', name, at.street, gx, gz, at.node, FARM + f.id);
-    placeOf('farmhouse', `${name} House`, at.street, gx, gz, at.node, FARM + f.id, 1);
+    // The farm's work in its barn, the family in the farmhouse: each at its front door (at the gate if the farm has none).
+    const bs = rural.layout(f.id).buildings, { house, barn } = farmRoles(bs);
+    const doorOf = (i: number): [number, number] => { if (i < 0) return [gx, gz]; const d = frontDoor(bs[i]); return [d.x, d.z]; };
+    const [bx, bz] = doorOf(barn), [hx, hz] = doorOf(house);
+    placeOf('farm', name, at.street, bx, bz, at.node, barn < 0 ? -1 : farmCode(f.id, barn));
+    placeOf('farmhouse', `${name} House`, at.street, hx, hz, at.node, house < 0 ? -1 : farmCode(f.id, house), 1);
     const [fx, fz] = rural.fromFrame(f, f.hu + 80, 0);
     placeOf('field', `${name} Fields`, -1, fx, fz, at.node, -1);
   }

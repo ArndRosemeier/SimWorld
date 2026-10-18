@@ -586,9 +586,9 @@ export class RuralPlan {
       out.boxes.push(cx, cz, hu, hv, c, n);
     };
     const a = this.terrain.profile.arch;
-    // Farmhouse on the +v side near the gate, facing the yard.
+    // Farmhouse on the +v side near the gate, facing the yard: one family's home over both storeys.
     const hw = r.range(6, 7.5), hd = r.range(4.5, 5.5);
-    put(-f.hu + 4 + hw, f.hv - hd - 1, hw, hd, 0, -1, (p, fr) => this.desc(r, out.buildings.length, p, fr, a.warm > 0.5 ? 'mediterranean' : r.chance(a.oldWorld) ? 'oldstone' : 'house', { floors: 2, roof: r.chance(0.7) ? 'gable' : 'hip' }));
+    put(-f.hu + 4 + hw, f.hv - hd - 1, hw, hd, 0, -1, (p, fr) => ({ ...this.desc(r, out.buildings.length, p, fr, a.warm > 0.5 ? 'mediterranean' : r.chance(a.oldWorld) ? 'oldstone' : 'house', { floors: 2, roof: r.chance(0.7) ? 'gable' : 'hip' }), homes: 1 }));
     // The barn along the -v side.
     const bl = r.range(11, 15), bw = r.range(6.5, 8);
     put(Math.min(f.hu - 1 - bl, -f.hu + 10 + bl), -f.hv + bw + 1, bl, bw, 0, 1, (p, fr) => this.barnDesc(r, out.buildings.length, p, fr));
