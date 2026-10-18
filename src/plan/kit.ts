@@ -100,6 +100,11 @@ export interface LmPart {
    * interior planner furnishes it for the landmark's kind (src/interior/landmark.ts).
    */
   body?: number;
+  /**
+   * A clock face (a thin box): its dial looks out on the part's +v side (1) or -v side (-1). The
+   * hands are not parts: the signs draw the time on it (src/plan/signs.ts `clockSpots`).
+   */
+  clock?: 1 | -1;
 }
 
 /** A walkable inside (the town hall's): its outline, height range and where its room lights hang. */
@@ -263,6 +268,19 @@ export class Kit {
 
   box(u: number, v: number, hu: number, hv: number, y0: number, y1: number, m: PartMat, o: Opt = {}): LmPart {
     return this.add(PK.Box, u, v, { hx: hu, hz: hv, y0, y1, m }, o, true, 1);
+  }
+
+  /**
+   * A square clock face of half size `half` centred at height `y` on the wall through (u, v) whose
+   * outside is (ou, ov) (a unit axis of the frame): a light plate the signs draw the dial and the
+   * time on.
+   */
+  clockFace(u: number, v: number, ou: number, ov: number, half: number, y: number): LmPart {
+    const rot = ou !== 0 ? Math.PI / 2 : 0;
+    const f = this.box(u + ou * 0.12, v + ov * 0.12, half, 0.12, y - half, y + half, mat(PLASTER, [1.15, 1.12, 1.02]), { rot, detail: true, solid: false });
+    // Outward along the part's v, which is (-sin rot, cos rot) in the frame.
+    f.clock = -ou * Math.sin(rot) + ov * Math.cos(rot) >= 0 ? 1 : -1;
+    return f;
   }
 
   cyl(u: number, v: number, r: number, r2: number, y0: number, y1: number, m: PartMat, o: Opt = {}): LmPart {

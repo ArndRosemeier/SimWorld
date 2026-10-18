@@ -7,7 +7,7 @@
  * Ported from Scale's core package (clip.ts).
  */
 import ClipperLib from 'clipper-lib';
-import type { Poly } from './geom2';
+import { pointInPoly, type Poly } from './geom2';
 
 const S = 100;
 
@@ -107,6 +107,11 @@ export function strokePolylines(lines: number[][], halfWidth: number, join: Join
   const tree = new ClipperLib.PolyTree();
   co.Execute(tree, halfWidth * S);
   return treeToShapes(tree);
+}
+
+/** Is (x, z) inside the shape (in its outline, in none of its holes)? */
+export function inShape(s: Shape, x: number, z: number): boolean {
+  return pointInPoly(s.outer, x, z) && !s.holes.some((h) => pointInPoly(h, x, z));
 }
 
 export function shapeArea(s: Shape): number {

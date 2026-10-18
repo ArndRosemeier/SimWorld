@@ -44,6 +44,8 @@ const SIZE: Partial<Record<PropType, [number, number]>> = {
   [PropType.Gravestone]: [0.35, 0.2],
   [PropType.Grave]: [0.5, 1.1],
   [PropType.Tomb]: [1.5, 1.5],
+  [PropType.GardenFence]: [1.25, 0.12],
+  [PropType.Garage]: [1.7, 3.1],
 };
 /** Grid cell size (m) of the lookup. */
 const CELL = 8;

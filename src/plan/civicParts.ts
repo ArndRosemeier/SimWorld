@@ -47,6 +47,8 @@ export function church(k: Kit, lm: Landmark, r: Rng): void {
   k.box(0, (tv0 + tv1) / 2, tw + 0.25, tw + 0.25, B + th, B + th + 0.5, plain, { solid: false, detail: true });
   if (P.spire) k.pyramid(0, (tv0 + tv1) / 2, tw, tw, B + th + 0.5, B + P.towerH, 0, roof, { solid: true });
   else k.pyramid(0, (tv0 + tv1) / 2, tw + 0.2, tw + 0.2, B + th + 0.5, B + th + 3.5, 0, roof);
+  // A clock on the tower's front, under the belfry.
+  k.clockFace(0, tv0, 0, -1, Math.min(1.3, tw * 0.55), B + th - 2.4);
   // The cross (or a weathercock) on top.
   k.box(0, (tv0 + tv1) / 2, 0.08, 0.08, B + (P.spire ? P.towerH : th + 3.5), B + (P.spire ? P.towerH : th + 3.5) + 2, mat(METAL, [1.2, 1.0, 0.45]), { detail: true, solid: false });
   // Steps up to the door.
@@ -209,6 +211,7 @@ export function station(k: Kit, lm: Landmark): void {
     pitched(k, 0, bv, P.bw / 2, P.bd / 2, B + H, 0.55, mat(wallL, WHITE), roofOf(P.roof));
     // The clock gable over the entrance.
     k.box(0, bv - P.bd / 2 - 0.3, 3, 0.3, B + H, B + H + 2.4, mat(wallL, WHITE), { solid: false });
+    k.clockFace(0, bv - P.bd / 2 - 0.6, 0, -1, 0.85, B + H + 1.2);
   } else {
     // A glazed entrance hall at the front.
     k.box(0, bv - P.bd / 2 - 1.5, 4, 1.5, B, B + 3.6, mat(GLASS, [0.82, 0.9, 0.94], WIN | CURTAIN, 1.2, 3.6, 3.6), { top: mat(METAL_ROOF, WHITE, ROOF) });

@@ -1,5 +1,48 @@
 # Changelog
 
+## v0.114 — Bus stops with timetables
+
+- Every bus stop in town now has a post at the kerb where the bus pulls up, with a BUS flag and the stop's name.
+- The post carries the stop's printed timetable: each line and direction, weekdays, Saturdays and school days, with the times the bus leaves that stop.
+- People walk round the posts.
+
+## v0.113 — Overheard talk asks and answers more naturally
+
+- People now ask about each other's own news (a new job, a move, a baby's name, an illness) and get concrete answers: dates said as "next Saturday", pet names, where something was found, how long ago.
+- Fewer stock greetings and goodbyes when someone has news to tell, and fewer lines repeated across the day.
+- Gossip no longer gets pinned on the listener or their family, children only pass on family and event news, and illness stories stop once the person is well.
+- Old news no longer says "just", and grammar fixes ("You've to", "our/your/their" for couples).
+
+## v0.112 — Holiday decorations outside
+
+- Homes that decorate for Halloween put pumpkins on the doorstep, some of them carved.
+- At Christmas, houses that put up lights hang strings of coloured or warm white bulbs along the front eaves. They light up at dusk.
+- The square gets the town's Christmas tree for the whole season, with timber market huts round it while the Christmas market is on.
+- In festival week, bunting hangs across the streets round the square, and striped stalls stand on the square on festival days.
+
+## v0.111 — Public clocks tell the time
+
+- The clocks on the church tower, the town hall's clock tower and the old station's gable now show the game's time of day, to the minute.
+- Plain dials with hour marks and no numerals; every public clock in town agrees.
+
+## v0.110 — Trick-or-treaters on Halloween
+
+- On Halloween evening (31 October, 17:00 to 20:30) children go from door to door in their street and the next ones, ringing at the homes that put up Halloween decorations, then go home.
+- Children from 8 go on their own. Smaller ones go with a parent or an older brother or sister, never alone.
+- Children wear costumes that evening: ghosts, witches with pointed hats, cats with ears, pumpkins and vampires.
+- When two small children walk with a grown-up, they now walk one on each side instead of in the same spot.
+
+## v0.109 — Fences, garages and carports
+
+- Houses have a white picket fence, a low brick wall or a hedge along the front, with gaps at the driveway and the path.
+- Many driveways end at a garage, or have a timber carport over the car.
+- Fixed: concrete, stone and planter shrubs on street furniture rendered black (planters, bench legs, statue plinths, cemetery walls and graves).
+
+## v0.108 — Windows you can look out of
+
+- Inside a building, the walls have openings where the facade has its windows, and you see the street through them.
+- The glass of every facade is see-through from inside.
+
 ## v0.107 — An Easter egg hunt in the park
 
 - On Easter Sunday late morning, after church, the children of the town hunt eggs in the park (on the square if there is no park), and the grown-ups who live with young children come along.

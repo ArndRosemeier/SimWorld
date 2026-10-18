@@ -3,15 +3,19 @@ import assert from 'node:assert/strict';
 import { planTown } from '../src/plan/town';
 import { placeGraphOf } from '../src/plan/placeGraph';
 import { createWorld } from '../src/sim/synth';
-import { householdOf, tick, tripOf } from '../src/sim/world';
+import { ageOf, householdOf, isPerson, tick, tripOf } from '../src/sim/world';
+import { civilOf, daysOf } from '../src/sim/calendar';
+import { DECOR_HALLOWEEN, homeDecor } from '../src/sim/decor';
+import { DOOR_LEG, doorRound, trickOrTreater } from '../src/street/trickOrTreat';
 import { townFace, tripRow, viewOf, viewTransfers } from '../src/sim/view';
 import { agendaOn } from '../src/sim/agenda';
 import { ACTOR_PERSON } from '../src/sim/actors';
 import { StreetMap, OUTDOOR } from '../src/street/streetMap';
 import { trackOf, sample, type Track } from '../src/street/tracks';
-import { outfitOf, bodyKey, type LookInfo } from '../src/street/looks';
+import { costumeOf, dressUpDay, outfitOf, bodyKey, type LookInfo } from '../src/street/looks';
 import { buildingLooksOf, litShares, windowSlots } from '../src/street/windows';
 import { spotsFor, whoIsInside } from '../src/street/inside';
+import { stopBoards } from '../src/street/stops';
 import { planInterior } from '../src/interior/building';
 import { buildingRef } from '../src/plan/placeGraph';
 import { A } from '../src/sim/actors';
@@ -249,4 +253,59 @@ test('inside: everyone in a building and not leaving is there, a household keeps
   assert.equal(new Set(given.filter((k) => k >= 0)).size, given.filter((k) => k >= 0).length);
   night.forEach((p, i) => { if (p.unit >= 0 && given[i] >= 0) assert.ok(spots[given[i]].use === 'sleep' && spots[given[i]].unit === p.unit, `bed of home ${p.unit}`); });
   assert.ok(given.some((k) => k >= 0 && spots[k].use === 'sleep'));
+});
+
+test('street: on Halloween evening children go round the decorated homes, the small ones with a grown-up, in costume', () => {
+  const w = createWorld(graph, 1), c = w.actors.cols;
+  const y = civilOf(w.epoch).year, hw = daysOf(y, 10, 31) >= w.epoch ? daysOf(y, 10, 31) : daysOf(y + 1, 10, 31);
+  w.clock = (hw - w.epoch) * 1440 + 16 * 60;
+  for (let id = 0; id < w.actors.count; id++) c.until[id] = w.clock;
+  tick(w, 105); // 17:45
+  const out = Array.from({ length: w.actors.count }, (_, id) => id).filter((id) =>
+    isPerson(w, id) && c.dest[id] < 0 && c.place[id] >= 0 && trickOrTreater(w, id, c.place[id], c.arrive[id]));
+  const kids = out.filter((id) => ageOf(w, id) < 13);
+  assert.ok(kids.length >= 5, `${kids.length} children out trick-or-treating`);
+  for (const id of kids) if (ageOf(w, id) < 8) assert.ok(c.with[id] >= 0 && ageOf(w, c.with[id]) >= 13, `${id} (${ageOf(w, id).toFixed(0)}) has someone older with them`);
+  // Each round rings only at decorated homes, and the walk is at each door in turn.
+  const flags = homeDecor(w).flags;
+  let rounds = 0;
+  for (const id of out) {
+    if (c.with[id] >= 0 || rounds >= 12) continue;
+    const anchor = c.arrive[id], [home, ...doors] = doorRound(w, map, id, anchor);
+    for (const d of doors) assert.ok(flags[d] & DECOR_HALLOWEEN && w.graph.places[d].homes > 0, 'a decorated home');
+    if (!doors.length) continue;
+    rounds++;
+    const t = trackOf(w, map, id, w.clock)!, r = Math.floor((w.clock - anchor) / DOOR_LEG) + 1;
+    assert.equal(home, c.home[id]);
+    const [dx, dz] = map.doorStep(r < doors.length ? doors[r] : home);
+    const p = sample(t.keys, anchor + (r + 0.95) * DOOR_LEG, [0, 0, 0]);
+    assert.ok(Math.hypot(p[0] - dx, p[2] - dz) < 0.3, `at the door: ${Math.hypot(p[0] - dx, p[2] - dz).toFixed(2)} m off`);
+  }
+  assert.ok(rounds >= 3, `${rounds} rounds`);
+  // Costumes for children that evening, none for grown-ups, everyday clothes the day before.
+  const child: LookInfo = { id: kids[0], sex: c.sex[kids[0]], birth: c.birth[kids[0]], household: -1, role: '' };
+  const adult: LookInfo = { id: 0, sex: 0, birth: Math.floor(w.clock / 1440) - 40 * 365, household: -1, role: '' };
+  assert.ok(dressUpDay(10, 31, w.clock) && !dressUpDay(10, 30, w.clock) && !dressUpDay(10, 31, w.clock - 3 * 60));
+  const everyday = outfitOf(1, child, w.clock, 0.4);
+  assert.ok(costumeOf(1, child, w.clock, everyday)?.head || costumeOf(1, child, w.clock, everyday)?.back);
+  assert.equal(costumeOf(1, adult, w.clock, everyday), null);
+});
+
+test('bus stops: a post by the kerb near each stop, its timetable facing the pavement, clear of the buildings', () => {
+  const stops = stopBoards(town, map.roads, world);
+  assert.ok(stops.length >= 2, `${stops.length} bus stops`);
+  for (const st of stops) {
+    const pl = world.graph.places[st.place];
+    assert.ok(Math.hypot(st.x - pl.x, st.z - pl.z) < 120, `${st.name}: near its place`);
+    assert.ok(st.rows.length > 0 && st.rows.every((r) => r.mode === 'bus'), `${st.name}: bus times`);
+    assert.ok(Math.abs(st.y - town.terrain.height(st.x, st.z)) < 1e-6);
+    assert.ok(!map.fp.insideBuilding(st.x, st.z, 0.1), `${st.name}: on the pavement`);
+    for (const c of town.cells) for (let o = 0; o < c.props.length; o += 6) {
+      if (c.props[o] === PropType.Tree && Math.hypot(c.props[o + 1] - st.x, c.props[o + 2] - st.z) < 1.2) assert.fail(`${st.name}: post in a tree`);
+    }
+    // On the pavement, not the carriageway: the road's centre is behind the post (its front faces away from it).
+    const hit = map.roads.nearest(st.x, st.z, 30)!, L = map.roads.lines[hit.li];
+    assert.ok(Math.hypot(hit.px - st.x, hit.pz - st.z) > L.width / 2 - 0.05, `${st.name}: off the carriageway`);
+    assert.ok(-Math.sin(st.yaw) * (st.x - hit.px) - Math.cos(st.yaw) * (st.z - hit.pz) > 0, `${st.name}: faces the pavement`);
+  }
 });

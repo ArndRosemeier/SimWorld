@@ -1,7 +1,8 @@
 /**
  * The town's signs on the stage (town-realism track A): shop fascias, hanging signs, brass plates
  * and works' names, opening hours on the doors, estate agents' boards, public buildings' name
- * boards, street-name posts and the town signs. The town workers list the instances per model
+ * boards, street-name posts, the town signs and the public clocks (the game's time of day). The
+ * town workers list the instances per model
  * (src/build/signs.ts, the mounts from src/plan/signs.ts); here each model is a geometry-instanced
  * mesh of the `FURNITURE` kind, every instance with its own lettering slot of the text atlas
  * (`iSign`). What a sign says comes from the facts (`SignFacts`: the sim's town face, the planner's
@@ -14,7 +15,8 @@
 import { Group, Vector3, type Camera, type Mesh } from 'three/webgpu';
 import type { WorkerPool } from '../workers/pool';
 import type { FromTown, ToTown } from '../workers/townProtocol';
-import { SIGN_STRIDE, type SignWhat } from '../build/signs';
+import { SHEET, SIGN_STRIDE, type SignWhat } from '../build/signs';
+import { yawAxes } from '../plan/signs';
 import type { AtlasRect, SlotSize } from '../build/textAtlasLayout';
 import type { Notice } from '../sim/media';
 import { PLACE_KINDS } from '../sim/places';
@@ -22,7 +24,10 @@ import { LOOK_FOR_SALE, LOOK_TO_LET } from '../sim/economy';
 import { hoursLines } from '../sim/hours';
 import { boardWord, fillName } from '../lang/words';
 import { FURNITURE } from './materials';
+import { CURB_H } from '../world/ground';
+import type { StopBoard } from '../street/stops';
 import { instancedFromData, showInstances } from './meshes';
+import { propModels } from './propsView';
 import { lettering, type Painter } from './textAtlas';
 import * as paint from './signPaint';
 import type { SignFacts } from './signFacts';
@@ -43,6 +48,10 @@ export interface SignsShown {
   setFacts(facts: SignFacts): void;
   /** Give the signs the notices up in town (the sim's media, `day` today's game day); they redraw what changed at the next update. */
   setNotices(notices: readonly Notice[], day: number): void;
+  /** The time of day for the public clocks (minute of the day); they move at the next update when it changes. */
+  setTime(minuteOfDay: number): void;
+  /** Add the bus stops (the sim's, src/street/stops.ts): a post, a flag and the timetable at each; once. */
+  addStops(stops: readonly StopBoard[]): Promise<void>;
   /** Once a frame: show the signs in range of the camera, with their words. */
   update(camera: Camera): void;
 }
@@ -67,10 +76,10 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
   let facts: SignFacts = r.facts;
   const group = new Group();
   group.name = 'signs';
-  const models = await Promise.all(signs.groups.map(async (g, i): Promise<ModelSigns> => {
-    const m = await pool.run({ type: 'propModel', model: g.model }, priority + 1 + i * 0.01);
-    if (m.type !== 'propModel') throw new Error(`town worker: propModel answered ${m.type}`);
-    const I = g.inst, n = I.length / SIGN_STRIDE;
+  const meshes = await propModels(pool, signs.groups, priority + 1);
+  /** One model's signs as an instanced mesh in `group` (`I`: SIGN_STRIDE floats per instance). */
+  const modelSigns = (model: string, I: ArrayLike<number>, data: Parameters<typeof instancedFromData>[0]): ModelSigns => {
+    const n = I.length / SIGN_STRIDE;
     const pose = new Float32Array(n * 4), size = new Float32Array(n * 2), tint = new Float32Array(n * 4), what = new Int32Array(n);
     for (let k = 0, o = 0; k < n; k++, o += SIGN_STRIDE) {
       pose.set([I[o], I[o + 1], I[o + 2], I[o + 3]], k * 4);
@@ -79,12 +88,15 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
       what[k] = I[o + 6];
       tint.set([I[o + 7], I[o + 8], I[o + 9], (k * 7.31) % 50], k * 4);
     }
-    const mesh = instancedFromData(m.mesh, FURNITURE, 0, n);
-    mesh.name = g.model;
+    const mesh = instancedFromData(data, FURNITURE, 0, n);
+    mesh.name = model;
     group.add(mesh);
     const s = mesh.geometry.boundingSphere!;
-    return { mesh, n, pose, size, tint, sign: new Float32Array(n * 4), what, range: g.model.startsWith('f:signBoard') ? RANGE : POST_RANGE, radius: s.center.length() + s.radius };
-  }));
+    return { mesh, n, pose, size, tint, sign: new Float32Array(n * 4), what, range: model.startsWith('f:signBoard') ? RANGE : POST_RANGE, radius: s.center.length() + s.radius };
+  };
+  const models = signs.groups.map((g, i) => modelSigns(g.model, g.inst, meshes[i].mesh));
+  /** The bus stops (`addStops`). */
+  let stops: readonly StopBoard[] = [];
 
   const words = lettering();
   const blankRect = words.put('sign:blank', 'strip', 'blank', paint.blank)!;
@@ -95,6 +107,8 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
   /** The notices up at each place, oldest first. */
   let noticesAt = new Map<number, Notice[]>();
   let noticesSaid = '';
+  /** The minute of the day the public clocks show. */
+  let minute = 720;
   const agentName = () => {
     for (let p = 0; p < facts.name.length; p++) if (PLACE_KINDS[facts.kind[p]] === 'estateagent' && facts.name[p]) return facts.name[p];
     return fillName(boardWord('agent'), { city: signs.town });
@@ -127,6 +141,12 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
       case 'town': return own(`town|${w.back}|${signs.town}`, paint.townSign(signs.town, w.back));
       case 'post': return { key: '', said: 'post', size: 'strip', paint: paint.blank };
       case 'cork': return own('cork', paint.cork(w.stand ? 1.4 / 0.8 : 1.0 / 0.75));
+      case 'clock': return { key: 'clock', said: `${minute}`, size: 'card', paint: paint.clockFace(minute) };
+      case 'busFlag': return own(`bus|${stops[w.stop].name}`, paint.busFlag(stops[w.stop].name));
+      case 'timetable': {
+        const st = stops[w.stop];
+        return own(`timetable|${st.name}|${st.rows.map((r) => `${r.code}>${r.to}:${r.days}:${r.times.join(',')}`).join(';')}`, paint.timetable(st));
+      }
       case 'notice': {
         const list = noticesAt.get(w.place);
         const n = list && (w.every ? list[w.k % list.length] : list[w.k]);
@@ -212,6 +232,35 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
         if (!list) noticesAt.set(p, (list = []));
         list.push(n);
       }
+      readFacts();
+      stale = true;
+    },
+    setTime(m) {
+      const now = Math.floor(m);
+      if (now === minute) return;
+      minute = now;
+      signs.what.forEach((w, i) => { if (w.t === 'clock') sayings.set(i, sayingOf(w, i, '')); });
+      stale = true;
+    },
+    async addStops(list) {
+      if (stops.length || !list.length) return;
+      stops = list;
+      // A post at the kerb, the flag high up across the pavement (read from both ways), the timetable at eye height facing the pavement.
+      const posts: number[] = [], flags: number[] = [], tables: number[] = [];
+      const post = signs.what.push({ t: 'post', slot: null }) - 1;
+      list.forEach((st, k) => {
+        const y = st.y + CURB_H, { nx, nz } = yawAxes(st.yaw);
+        posts.push(st.x, y, st.z, 0, 0, 0, post, 0, 0, 0);
+        const flag = signs.what.push({ t: 'busFlag', stop: k, slot: 'card' }) - 1;
+        flags.push(st.x + nx * 0.3, y + 2.25, st.z + nz * 0.3, st.yaw + Math.PI / 2, 0.5, 0.5, flag, 0.95, 0.95, 0.95);
+        const table = signs.what.push({ t: 'timetable', stop: k, slot: 'sheet' }) - 1;
+        tables.push(st.x + nx * 0.07, y + 1.45, st.z + nz * 0.07, st.yaw, 0.4 * SHEET, 0.4, table, 0.96, 0.96, 0.94);
+      });
+      const groups = [{ model: 'f:signPost:0', inst: posts }, { model: 'f:signBoard:1', inst: flags }, { model: 'f:signBoard:0', inst: tables }];
+      const data = await propModels(pool, groups, priority + 2);
+      models.push(...groups.map((g, i) => modelSigns(g.model, g.inst, data[i].mesh)));
+      // (FURNITURE's shader is built: this only checks.)
+      await stage.prepare(group);
       readFacts();
       stale = true;
     },

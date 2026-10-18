@@ -29,6 +29,8 @@ export type ToTown =
   | { type: 'bridges' }
   /** Every street prop (furniture, parked cars) as instance lists per model (src/build/streetProps.ts); `kerbCars` false leaves out the cars at the kerbs (the traffic draws its own there). */
   | { type: 'props'; kerbCars?: boolean }
+  /** The outdoor holiday decorations as instance lists per model (src/build/decorProps.ts, DECOR_STRIDE floats each). */
+  | { type: 'decor' }
   /** One prop model's mesh data, by its `PropGroup.model` key. */
   | { type: 'propModel'; model: string }
   /** The town's trees, shrubs and yews as tree records (src/build/forest.ts `townTrees`). */
@@ -76,6 +78,7 @@ export type FromTown =
   | { type: 'bridges'; ground: MeshData | null; buildings: MeshData | null; ms: number }
   /** `lamps`: the street lamp heads (`lampsOf`, LAMP_STRIDE floats each). */
   | { type: 'props'; groups: PropGroup[]; lamps: Float32Array; ms: number }
+  | { type: 'decor'; groups: PropGroup[]; ms: number }
   /** `far`: a vehicle's far stand-in (`propFar`), null for furniture. */
   | { type: 'propModel'; mesh: MeshData; far: MeshData | null; ms: number }
   | { type: 'trees'; recs: Float32Array; ms: number }

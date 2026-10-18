@@ -7,8 +7,11 @@
  * thread (canvas 2D). New in SimWorld.
  */
 import { hashString } from '@futuremagic/core';
-import { boardWord } from '../lang/words';
+import { boardWord, fillName } from '../lang/words';
 import type { Notice } from '../sim/media';
+import type { StopTimetable } from '../sim/transit';
+import { weekdayName } from '../sim/calendar';
+import { hhmm } from '../sim/time';
 import type { Painter } from './textAtlas';
 
 const SANS = 'Arial, Helvetica, sans-serif', SERIF = 'Georgia, "Times New Roman", serif';
@@ -182,6 +185,83 @@ export function townSign(town: string, back: boolean): Painter {
     } else {
       fit(g, town, w / 2, h * 0.36, w - 60, h * 0.24, SERIF, '#1d3d6b', 'bold');
       fit(g, boardWord('thanks'), w / 2, h * 0.64, w - 80, h * 0.12, SERIF, '#1d3d6b', 'bold', true);
+    }
+  };
+}
+
+/**
+ * A public clock's dial at `minute` of the day: a cream plate, a black ring, a mark for each hour
+ * (heavier at the quarters) and the hour and minute hands. No numerals, so no country's style.
+ */
+export function clockFace(minute: number): Painter {
+  return (g, w, h) => {
+    const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2;
+    g.fillStyle = '#efe9d8'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#1c1c1c'; g.lineWidth = r * 0.06;
+    g.beginPath(); g.arc(cx, cy, r * 0.9, 0, Math.PI * 2); g.stroke();
+    g.lineCap = 'butt';
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2, s = Math.sin(a), c = -Math.cos(a), q = i % 3 === 0;
+      g.lineWidth = r * (q ? 0.07 : 0.035);
+      g.beginPath(); g.moveTo(cx + s * r * (q ? 0.62 : 0.7), cy + c * r * (q ? 0.62 : 0.7)); g.lineTo(cx + s * r * 0.8, cy + c * r * 0.8); g.stroke();
+    }
+    const hand = (turn: number, len: number, width: number) => {
+      const a = turn * Math.PI * 2;
+      g.lineWidth = width; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(cx - Math.sin(a) * r * 0.1, cy + Math.cos(a) * r * 0.1); g.lineTo(cx + Math.sin(a) * len, cy - Math.cos(a) * len); g.stroke();
+    };
+    const m = ((minute % 1440) + 1440) % 1440;
+    hand((m % 720) / 720, r * 0.45, r * 0.09);
+    hand((m % 60) / 60, r * 0.7, r * 0.055);
+    g.fillStyle = '#1c1c1c'; g.beginPath(); g.arc(cx, cy, r * 0.07, 0, Math.PI * 2); g.fill();
+  };
+}
+
+/** A bus stop's flag: BUS over the stop's name, in the street blades' colours (the town's wayfinding). */
+export function busFlag(name: string): Painter {
+  return (g, w, h) => {
+    g.fillStyle = BLADE_GROUND; g.fillRect(0, 0, w, h);
+    g.strokeStyle = BLADE_INK; g.lineWidth = 6; g.strokeRect(10, 10, w - 20, h - 20);
+    fit(g, boardWord('bus'), w / 2, h * 0.4, w - 50, h * 0.36, SANS, BLADE_INK, 'bold');
+    fit(g, name, w / 2, h * 0.76, w - 40, h * 0.13, SANS, BLADE_INK, '600');
+  };
+}
+
+/** The label of a kind of day on a timetable ("Mon–Fri", "Sat", "Sun", "School days"). */
+function daysLabel(days: StopTimetable['rows'][number]['days']): string {
+  const d = (k: number) => weekdayName(k).slice(0, 3);
+  return days === 'weekday' ? `${d(0)}–${d(4)}` : days === 'saturday' ? d(5) : days === 'sunday' ? d(6) : boardWord('schoolDays');
+}
+
+/**
+ * A bus stop's timetable: the stop's name, then per line and way the kind of day and the times it leaves
+ * here, as many to a row as fit.
+ */
+export function timetable(t: Pick<StopTimetable, 'name' | 'rows'>): Painter {
+  return (g, w, h) => {
+    g.fillStyle = '#fbfaf6'; g.fillRect(0, 0, w, h);
+    g.fillStyle = BLADE_GROUND; g.fillRect(0, 0, w, 54);
+    fit(g, boardWord('departures'), w / 2, 18, w - 20, 18, SANS, BLADE_INK, 'bold');
+    fit(g, t.name, w / 2, 40, w - 20, 17, SANS, BLADE_INK, '600');
+    const per = 5, size = 13;
+    // Rows of times under each heading, smaller when there is a lot to fit.
+    const lines = t.rows.reduce((n, r) => n + 1 + Math.ceil(r.times.length / per), 0);
+    const lh = Math.min(19, (h - 64) / Math.max(1, lines));
+    let y = 62 + lh / 2;
+    for (const r of t.rows) {
+      const line = `${r.code}  ${fillName(boardWord('towards'), { place: r.to })}`;
+      g.fillStyle = '#e6e2d6'; g.fillRect(6, y - lh / 2, w - 12, lh);
+      g.save();
+      g.font = `bold ${Math.round(lh * 0.66)}px ${SANS}`; g.fillStyle = '#20252b'; g.textBaseline = 'middle';
+      g.textAlign = 'left'; g.fillText(line, 10, y, w * 0.62);
+      g.textAlign = 'right'; g.fillText(daysLabel(r.days), w - 10, y, w * 0.34);
+      g.font = `600 ${Math.round(Math.min(size, lh * 0.62))}px ${SANS}`; g.textAlign = 'left';
+      for (let i = 0; i < r.times.length; i += per) {
+        y += lh;
+        r.times.slice(i, i + per).forEach((m, k) => g.fillText(hhmm(m), 12 + k * ((w - 20) / per), y));
+      }
+      g.restore();
+      y += lh;
     }
   };
 }

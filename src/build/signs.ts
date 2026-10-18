@@ -9,7 +9,7 @@
 import { hash32, hashToFloat } from '@futuremagic/core';
 import { CURB_H } from '../world/ground';
 import { SITE } from '../plan/placeGraph';
-import { HANG_OUT, POSTER_Y, signSpots, yawAxes, type FrontSign } from '../plan/signs';
+import { clockSpots, HANG_OUT, POSTER_Y, signSpots, yawAxes, type FrontSign } from '../plan/signs';
 import type { TownRoads } from '../plan/roads';
 import type { Town } from '../plan/town';
 import { buildingBase } from './massing';
@@ -29,7 +29,9 @@ export const SIGN_STRIDE = 10;
  *    street-name post itself (always shown); cork: a notice board's cork (`stand`: the
  *    free-standing one, else the one on a wall); notice: pin `k` of the notices up at `place` (a
  *    board place's board, a shop's window, a street's lamp posts; `every`: the street's posts show
- *    its notices in turn, so post k shows notice k mod n).
+ *    its notices in turn, so post k shows notice k mod n); clock: a public clock's dial (the time
+ *    of day, all clocks alike); timetable, busFlag: bus stop `stop`'s timetable and its flag (the stops
+ *    come from the sim worker, src/street/stops.ts, and join the signs later: `SignsShown.addStops`).
  */
 export type SignWhat =
   | { t: 'front'; place: number; style: FrontSign['style']; slot: SlotSize }
@@ -40,7 +42,10 @@ export type SignWhat =
   | { t: 'town'; back: boolean; slot: SlotSize }
   | { t: 'post'; slot: null }
   | { t: 'cork'; stand: boolean; slot: SlotSize }
-  | { t: 'notice'; place: number; k: number; every: boolean; slot: SlotSize };
+  | { t: 'notice'; place: number; k: number; every: boolean; slot: SlotSize }
+  | { t: 'clock'; slot: SlotSize }
+  | { t: 'timetable'; stop: number; slot: SlotSize }
+  | { t: 'busFlag'; stop: number; slot: SlotSize };
 
 /** One model's instances (`model`: 'f:<FurnitureKind>:<variant>', as street props). */
 export type SignGroup = ModelInstances;
@@ -60,7 +65,7 @@ export type SignPlaces = readonly { id: number; kind: string; name: string; buil
 /** Notice boards: the wall one and the free-standing one (width, height m; pins across, in two rows under a header). */
 const WALL_BOARD = { w: 1.0, h: 0.75, cols: 3 }, STAND_BOARD = { w: 1.4, h: 0.8, cols: 4 };
 /** A notice's width to its height (the `sheet` slot's). */
-const SHEET = 256 / 352;
+export const SHEET = 256 / 352;
 /** A board's face stands this far out from its origin (the signBoard model's depth); pinned notices just in front of it. */
 const PIN_OUT = 0.022;
 
@@ -176,6 +181,9 @@ export function signInstances(town: Town, roads: TownRoads, places: SignPlaces, 
     addSign(BOARD, g.x, y + 1.6, g.z, g.yaw, 2.4, 1.2, front, [0.9, 0.9, 0.88]);
     addSign(BOARD, g.x, y + 1.6, g.z, g.yaw + Math.PI, 2.4, 1.2, back, [0.9, 0.9, 0.88]);
   }
+  // Public clocks: a dial on each landmark clock face (src/plan/signs.ts `clockSpots`).
+  const clock = say({ t: 'clock', slot: 'card' });
+  for (const c of clockSpots(town)) addSign(BOARD, c.x, c.y, c.z, c.yaw, c.size, c.size, clock, [0.95, 0.94, 0.9]);
   return { groups: lists.groups(), what, town: name };
 }
 
