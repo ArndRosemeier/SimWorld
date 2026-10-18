@@ -136,6 +136,10 @@
     "reason": "The shape of every texture generator: a per-pixel Tex.each loop sampling tileable TNoise.fbm; it is the generator contract, not a copy."
   },
   {
+    "key": "idiom: [.each .round Math] in simworld/build/texgen/ground.ts + simworld/build/texgen/interior.ts + simworld/build/texgen/roof.ts",
+    "reason": "Texture generators round a feature size to a whole count per tile (Math.round(W / size)) so the pattern wraps, then loop Tex.each; the tiling contract, not a copy."
+  },
+  {
     "key": "same name: simworld/build/texgen/facade.ts#extra + simworld/build/texgen/ground.ts#extra",
     "reason": "Two implementations of the one StoneOpts.extra hook (per-layer stone detail), not two copies of a helper."
   },

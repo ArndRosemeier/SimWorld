@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FACADE_LAYER_COUNT, FACADE_TILE_METERS, GROUND_LAYER_COUNT, GROUND_TILE_METERS, generateFacadeLayer, generateGroundLayer, type TexLayer } from '../src/build/texgen';
+import { FACADE_LAYER_COUNT, FACADE_TILE_METERS, GROUND_LAYER_COUNT, GROUND_TILE_METERS, INTERIOR_LAYER_COUNT, INTERIOR_TILE_METERS, generateFacadeLayer, generateGroundLayer, generateInteriorLayer, type TexLayer } from '../src/build/texgen';
 import { TNoise, newCell, worley } from '../src/build/texgen/core';
 import { newHit, randomCourses } from '../src/build/texgen/layout';
 
-// The two cheapest layers at a small size: facade 11 (metal panel), ground 5 (cobble).
+// Cheap layers at a small size: facade 11 (metal panel), ground 5 (cobble), interior 8 (wall tiles).
 const S = 64;
 
 /** Mean absolute difference of channel c between columns (or rows) a and b of a size x size RGBA8 image. */
@@ -46,7 +46,8 @@ function assertRanges(name: string, l: TexLayer): void {
 test('texgen: layers are deterministic, tile seamlessly and keep the channel conventions', () => {
   assert.equal(FACADE_TILE_METERS.length, FACADE_LAYER_COUNT);
   assert.equal(GROUND_TILE_METERS.length, GROUND_LAYER_COUNT);
-  for (const [name, gen] of [['facade 11', () => generateFacadeLayer(11, S)], ['ground 5', () => generateGroundLayer(5, S)]] as const) {
+  assert.equal(INTERIOR_TILE_METERS.length, INTERIOR_LAYER_COUNT);
+  for (const [name, gen] of [['facade 11', () => generateFacadeLayer(11, S)], ['ground 5', () => generateGroundLayer(5, S)], ['interior 8', () => generateInteriorLayer(8, S)]] as const) {
     const a = gen(), b = gen();
     assert.deepEqual(a.albedo, b.albedo, `${name}: albedo deterministic`);
     assert.deepEqual(a.normal, b.normal, `${name}: normal deterministic`);

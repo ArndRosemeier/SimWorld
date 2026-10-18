@@ -21,7 +21,7 @@ import townWorkerUrl from './workers/town.worker.ts?worker&url';
 import texWorkerUrl from './workers/tex.worker.ts?worker&url';
 import type { FromTex, ToTex } from './workers/texProtocol';
 import { loadTextures } from './render/textures';
-import { VERTEX_COLOR_SOLID, useTextures } from './render/materials';
+import { INTERIOR, useTextures } from './render/materials';
 import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
@@ -53,7 +53,9 @@ async function start(): Promise<void> {
   await texPool.start(() => ({ type: 'init' }));
   const texSize = Number(new URLSearchParams(location.search).get('tex')) === 512 ? 512 : 256;
   step('Making the materials', 0.02);
-  const facade = loadTextures(texPool, 'facade', (done, total) => step('Making the materials', 0.02 + (0.1 * done) / total), texSize);
+  // Facades first, then the interiors' finishes (queued behind them in the same pool).
+  const facade = loadTextures(texPool, 'facade', (done, total) => step('Making the materials', 0.02 + (0.08 * done) / total), texSize);
+  const interior = loadTextures(texPool, 'interior', (done, total) => step('Making the materials', 0.1 + (0.02 * done) / total), texSize, 100);
 
   const canvas = document.createElement('canvas');
   document.body.prepend(canvas);
@@ -69,7 +71,7 @@ async function start(): Promise<void> {
   const lights = makeLights(scene);
   const stage = new Stage(renderer, scene, camera);
   stage.shadowCamera = lights.sun.shadow.camera;
-  useTextures({ facade: await facade });
+  useTextures({ facade: await facade, interior: await interior });
   texPool.dispose();
   step('Preparing the shaders', 0.12);
   await stage.warmUp();
@@ -113,7 +115,7 @@ async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage
   step('Planning the rooms', 0.5);
   const r = await pool.run({ type: 'interior', cell, building, floor: Number(q.get('floor') ?? 0) }, 0);
   if (r.type !== 'interior') throw new Error(r.type === 'error' ? r.message : 'no interior');
-  if (r.mesh) await stage.add(meshFromData(r.mesh, VERTEX_COLOR_SOLID));
+  if (r.mesh) await stage.add(meshFromData(r.mesh, INTERIOR));
   scene.fog = null;
   const [x, y, z] = r.at, R = Math.max(8, r.radius * 1.5), fixed = q.has('a') ? Number(q.get('a')) : null;
   fitSunShadow(lights, x, y, z, r.radius * 1.5);
