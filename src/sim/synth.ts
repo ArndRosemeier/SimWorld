@@ -14,9 +14,15 @@ import { newMemories } from './memory';
 import { settleRegion, type Region } from './region';
 import { newMindLedger } from './mind/apply';
 import { newLife } from './life';
-import { history } from './chronicle';
+import { levelMarket, newEconomy, settleEconomy } from './economy';
+import { history, historyDays } from './chronicle';
+import { newAgenda, townAgenda } from './agenda';
+import { withOffsite } from './offsite';
+import { DEFAULT_LATITUDE, epochFor, type CivilDate } from './calendar';
+
+const DEFAULT_DATE: CivilDate = { year: 2026, month: 10, day: 19 };
 import { FEMALE_NAMES, MALE_NAMES, PET_NAMES, SURNAMES } from './names';
-import { HABIT_COUNT, PersonTable, T_CONSC, T_EXTRA, T_OPEN, V_FAITH, type Habit, HABITS, type Household } from './people';
+import { HABIT_COUNT, PersonTable, T_CONSC, T_EXTRA, T_OPEN, V_FAITH, type Habit, HABITS, type Household, type Job } from './people';
 import { KINDS, isHome } from './placeKinds';
 import type { PlaceGraph, PlaceId, PlaceKind } from './places';
 import { bond, bondBit, FAMILY_MASK, Relations, type Bond } from './relations';
@@ -37,6 +43,13 @@ interface Spec { age: number; sex: number; role: 'head' | 'partner' | 'child' | 
 export interface WorldOptions {
   /** Game day the world starts on (default 0, a Monday). With `history`, the day the history starts. */
   startDay?: number;
+  /**
+   * The real date of the first day of play (default 19 October 2026). The calendar puts that week on the clock:
+   * play starts on the Monday of it plus `startDay`'s weekday. The app passes today's date.
+   */
+  start?: CivilDate;
+  /** The town's latitude in degrees (default 51). */
+  latitude?: number;
   /** The country around the town (the planner's `regionOf(town)`): lore everyone knows, people's ties to it. */
   region?: Region;
   /**
@@ -48,13 +61,18 @@ export interface WorldOptions {
 }
 
 /** Make a world for a place graph: places indexed, population synthesised, relationships seeded (and optionally a history lived), clock at 06:00. */
-export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions = {}): World {
+export function createWorld(planned: PlaceGraph, seed: number, opts: WorldOptions = {}): World {
+  // The city, the next town and the secondary school there join the graph before it is indexed.
+  const { graph, offsite } = withOffsite(planned, opts.region);
   const idx = placeIndex(graph);
   const world: World = {
     seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
+    epoch: epochFor(opts.start ?? DEFAULT_DATE, (opts.startDay ?? 0) + historyDays(opts.history ?? 0)),
+    latitude: opts.latitude ?? DEFAULT_LATITUDE, offsite,
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
-    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(), region: null,
+    intentions: [], encounters: [], trips: [], agenda: newAgenda(), mind: newMindLedger(), life: newLife(), region: null,
+    economy: newEconomy(graph.places.length),
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);
@@ -97,6 +115,9 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     if (rng.chance(0.6)) world.people.last[a.row[adult]] = parents.surname;
   }
 
+  // Businesses the town cannot carry have closed already (their units stand empty), before anyone is hired.
+  levelMarket(world, rng.fork('market'));
+
   // ---- jobs from staff slots ------------------------------------------------------------------------------
   for (const place of graph.places) for (const s of place.staff) for (let i = 0; i < s.count; i++) {
     world.jobs.push({ id: world.jobs.length, place: place.id, role: s.role, days: s.days, start: s.start, end: s.end, minAge: s.minAge, holder: -1 });
@@ -116,7 +137,9 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
   rng.shuffle(seekers);
   const jobOrder = rng.shuffle(world.jobs.slice());
   // Senior roles first so they go to older people; farm jobs prefer farmhouse residents.
-  jobOrder.sort((x, y) => y.minAge - x.minAge);
+  // Jobs in town are filled first; whoever finds none there commutes.
+  const away = (j: Job) => (graph.places[j.place].kind === 'away' ? 1 : 0);
+  jobOrder.sort((x, y) => away(x) - away(y) || y.minAge - x.minAge);
   const taken = new Set<ActorId>();
   for (const job of jobOrder) {
     const farm = graph.places[job.place].kind === 'farm';
@@ -142,6 +165,8 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     const age = yearsOf(id), p = a.row[id];
     pc.money[p] = age < 16 ? r.range(5, 40) : pc.job[p] >= 0 ? r.range(800, 6000) : r.range(100, 2500);
   }
+  // Budgets, savings and business ledgers; the frailest old people living alone move into the care home.
+  settleEconomy(world, rng.fork('economy'));
 
   // ---- relationships beyond the household -----------------------------------------------------------------
   const byPlace = (pick: (id: ActorId) => PlaceId) => {
@@ -161,8 +186,8 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
       }
     }
   };
-  // Colleagues.
-  for (const staff of byPlace((id) => (pc.job[a.row[id]] >= 0 ? world.jobs[pc.job[a.row[id]]].place : -1)).values()) {
+  // Colleagues (commuters to the city work in different firms, so not them).
+  for (const staff of byPlace((id) => { const j = jobOf(world, id); return j && graph.places[j.place].kind !== 'away' ? j.place : -1; }).values()) {
     linkWithin(staff, 'colleague', Math.min(staff.length - 1, 8), { familiarity: 0.5, affection: 0.15, trust: 0.45 });
   }
   // Classmates: same school, within a year of age.
@@ -234,6 +259,7 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     }
   }
 
+  townAgenda(world);
   if (opts.history) {
     history(world, opts.history);
     // Morning of the first day of play: everyone at home, deciding what to do.
@@ -318,7 +344,9 @@ export function enrol(world: World, id: ActorId, r: Rng): void {
   const pc = world.people.cols, p = world.actors.cols.row[id], home = world.actors.cols.home[id];
   const age = ageOf(world, id);
   pc.school[p] = -1;
-  if (age >= 6 && age <= 17 && pc.job[p] < 0) pc.school[p] = world.travel.nearest(home, placesOf(world, ['school']));
+  // Primary school in town to 10; from 11 the secondary school in the next town, by bus (when the town has one).
+  if (age >= 11 && age <= 17 && pc.job[p] < 0 && world.offsite.secondary >= 0) pc.school[p] = world.offsite.secondary;
+  else if (age >= 6 && age <= 17 && pc.job[p] < 0) pc.school[p] = world.travel.nearest(home, placesOf(world, ['school']));
   else if (age >= 3 && age <= 5 && r.chance(0.85)) pc.school[p] = world.travel.nearest(home, placesOf(world, ['kindergarten']));
 }
 

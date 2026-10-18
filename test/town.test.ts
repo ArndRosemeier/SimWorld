@@ -123,7 +123,8 @@ test('the place graph: every home, workplace and street on one connected road ne
   const w = createWorld(g, 1);
   const people = w.people.first.length;
   assert.ok(people > town.dwellings * 1.6 && people < town.dwellings * 3.2, `${people} people in ${town.dwellings} homes`);
-  assert.ok(w.jobs.filter((j) => j.holder >= 0).length / w.jobs.length > 0.9, 'jobs filled');
+  const inTown = w.jobs.filter((j) => w.graph.places[j.place].kind !== 'away');
+  assert.ok(inTown.filter((j) => j.holder >= 0).length / inTown.length > 0.9, 'jobs in town filled');
   for (const p of g.places) assert.ok(w.travel.minutes(0, p.id) < 180, `${p.name} reachable`);
 });
 

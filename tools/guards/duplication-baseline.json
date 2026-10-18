@@ -28,7 +28,7 @@
     "reason": "One designer per public building (the Designer contract from Scale): the same closure shape, each with its own sizes and parameters for its parts; a table would hide the drawing rules."
   },
   {
-    "key": "idiom: [.actors .cols .people .row] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
+    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
@@ -36,20 +36,12 @@
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
+    "key": "idiom: [.filter .households .length .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
+    "reason": "Different questions over the household list (who lives alone, which care-home rooms are taken, which households still have members; emptied households stay as records): each is a one-line Array.filter with its own predicate, and the shared part is Array.filter itself."
+  },
+  {
     "key": "idiom: [.angle .cos .sin Math] in simworld/geom/geom2.ts + simworld/plan/cell.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
     "reason": "Axis vectors of a frame (cos, sin of its angle) computed once for a loop; the point transforms go through geom2 frameToWorld / worldToFrame."
-  },
-  {
-    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/sim/travel.ts + simworld/street/streetMap.ts",
-    "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
-  },
-  {
-    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/placeGraph.ts + simworld/plan/terrace.ts + simworld/plan/town.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
-    "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
-  },
-  {
-    "key": "idiom: [.hypot .x .z Math] in simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/placeGraph.ts",
-    "reason": "Distance between two points with x and z: Math.hypot is the one way; a wrapper would add nothing."
   },
   {
     "key": "same name: simworld/llm/openrouter.ts#stream + simworld/llm/recorded.ts#stream",
@@ -138,5 +130,121 @@
   {
     "key": "same name: simworld/build/texgen/facade.ts#extra + simworld/build/texgen/ground.ts#extra",
     "reason": "Two implementations of the one StoneOpts.extra hook (per-layer stone detail), not two copies of a helper."
+  },
+  {
+    "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/fill/area.ts + simworld/interior/storey.ts",
+    "reason": "The length of a wall segment ({ax, az, bx, bz}, the interior's IWall and the filler's Edge) before walking along it."
+  },
+  {
+    "key": "idiom: [.bay .max .round Math] in simworld/build/massing.ts + simworld/plan/building.ts + simworld/plan/terrace.ts",
+    "reason": "Bays along a facade edge (count from the bay width): massing lays out the facade, streetDoor finds the door bay; the door bay itself has one seam (doorBayOf / streetDoor)."
+  },
+  {
+    "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/home.ts + simworld/interior/fill/work.ts",
+    "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
+  },
+  {
+    "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/place.ts + simworld/interior/storey.ts",
+    "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
+  },
+  {
+    "key": "idiom: [.cx .ux .uz] in simworld/build/massing.ts + simworld/interior/cores.ts + simworld/interior/fill/place.ts",
+    "reason": "Reading an oriented box (minAreaRect's OBB: centre, axes, half sizes) into local frame coordinates; the box type is geom2's OBB, the arithmetic is the use of it."
+  },
+  {
+    "key": "idiom: [.hu .hv .ux .uz] in simworld/build/massing.ts + simworld/interior/cores.ts + simworld/interior/fill/split.ts",
+    "reason": "Reading an oriented box (minAreaRect's OBB: centre, axes, half sizes) into local frame coordinates; the box type is geom2's OBB, the arithmetic is the use of it."
+  },
+  {
+    "key": "idiom: [.ux .uz] in simworld/interior/fill/split.ts + simworld/interior/fill/work.ts + simworld/plan/cell.ts",
+    "reason": "Reading an oriented box (minAreaRect's OBB: centre, axes, half sizes) into local frame coordinates; the box type is geom2's OBB, the arithmetic is the use of it."
+  },
+  {
+    "key": "same name: simworld/interior/building.ts#items + simworld/interior/storey.ts#items",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/cores.ts#P + simworld/interior/fill/place.ts#p",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/cores.ts#P + simworld/interior/fill/split.ts#P",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/cores.ts#P + simworld/interior/storey.ts#P",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/cores.ts#P + simworld/plan/landmarkParts.ts#P",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/cores.ts#rect + simworld/interior/fill/split.ts#rect",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/cores.ts#wall + simworld/interior/storey.ts#wall",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/home.ts#score + simworld/interior/fill/place.ts#score",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/home.ts#score + simworld/interior/fill/work.ts#score",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/home.ts#score + simworld/plan/landmarks.ts#score",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/home.ts#score + simworld/plan/town.ts#score",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/place.ts#p + simworld/interior/fill/split.ts#P",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/place.ts#p + simworld/interior/storey.ts#P",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/place.ts#p + simworld/plan/landmarkParts.ts#P",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/place.ts#score + simworld/interior/fill/work.ts#score",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/split.ts#P + simworld/interior/storey.ts#P",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/split.ts#P + simworld/plan/landmarkParts.ts#P",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/fill/work.ts#score + simworld/plan/landmarks.ts#score",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "same name: simworld/interior/storey.ts#P + simworld/plan/landmarkParts.ts#P",
+    "reason": "Short local closure or field names in different scopes for different things (a frame's point P, a rect, a wall pusher, an item list, a score field); not one function."
+  },
+  {
+    "key": "idiom: [.junctions .length] in simworld/build/ground.ts + simworld/plan/cell.ts + simworld/plan/terrace.ts",
+    "reason": "A loop over a cell plan's flat junction list (x, z, degree triples), the plan's own format; each use asks something different of it."
+  },
+  {
+    "key": "idiom: [.actors .count .row] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts",
+    "reason": "A loop over every actor reading its row in its kind's table: a plain loop over the columns is the one way (surfaced when the street layer's files joined the idiom mining; no new copy)."
+  },
+  {
+    "key": "idiom: [.filter .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
+    "reason": "Filtering a household's members by a condition that differs at each use (earners, adults, children); a helper would only wrap Array.filter."
   }
 ]

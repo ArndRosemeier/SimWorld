@@ -11,24 +11,26 @@
 import { clamp, hashCombine, type Rng } from '@futuremagic/core';
 import { A, ACTOR_ANIMAL, ACTOR_PERSON, EMOTION_COUNT, FEMALE, MALE, type ActorId } from './actors';
 import { intend } from './intentions';
+import { addOccasion, cancelOccasion, type Occasion } from './agenda';
 import { addFact, broadcast, witness } from './knowledge';
 import { remember } from './memory';
 import { EMOTIONS, type Emotion } from './mind/proposal';
 import { PET_NAMES } from './names';
-import { T_AGREE, T_CONSC, T_EXTRA, T_NEURO, T_OPEN, V_HONEST, V_LOYAL, type Household, type Job } from './people';
+import { T_AGREE, T_CONSC, T_EXTRA, T_NEURO, T_OPEN, V_FAITH, V_HONEST, V_LOYAL, type Household, type Job } from './people';
 import type { PlaceId, PlaceKind } from './places';
 import { isHome } from './placeKinds';
 import { bond, bondBit, FAMILY_MASK, liking, unbond } from './relations';
 import { SPECIES, speciesId } from './species';
 import { addHousehold, adoptPet, fitRoutine, newAnimal, newPerson, settle, type HouseholdType } from './synth';
 import { regionDestination, type RegionPlace } from './region';
-import { DAYS_PER_YEAR, MINUTES_PER_DAY } from './time';
-import { ageOf, commute, householdOf, isPerson, jobOf, nameOf, placesOf, tickRng, traitOf, valueOf, type World } from './world';
+import { careHomeRoom, jobOpen, moveToCareHome } from './economy';
+import { DAYS_PER_YEAR, MINUTES_PER_DAY, weekdayOf } from './time';
+import { ageOf, commute, firstName, householdOf, isPerson, jobOf, nameOf, placesOf, tickRng, traitOf, valueOf, type World } from './world';
 
 export const LIFE_EVENTS = [
   'birthday', 'schoolStart', 'schoolEnd', 'illness', 'recovery', 'death', 'dating', 'moveIn', 'marriage', 'breakup',
   'divorce', 'affair', 'pregnancy', 'birth', 'hired', 'fired', 'quit', 'retired', 'leftHome', 'arrived', 'departed',
-  'petAdopted', 'theft', 'burglary', 'vandalism', 'fight',
+  'petAdopted', 'theft', 'burglary', 'vandalism', 'fight', 'engagement', 'funeral',
 ] as const;
 export type LifeEventKind = (typeof LIFE_EVENTS)[number];
 
@@ -55,9 +57,13 @@ export interface Life {
   pregnant: Map<ActorId, Pregnancy>;
   /** Couples (`coupleKey`) → day they got together. */
   together: Map<number, number>;
+  /** Engaged couples (`coupleKey`) → their wedding (occasion ids in the agenda). */
+  engaged: Map<number, Engagement>;
 }
 
-export const newLife = (): Life => ({ events: [], pregnant: new Map(), together: new Map() });
+export interface Engagement { x: ActorId; y: ActorId; wedding: number; reception: number }
+
+export const newLife = (): Life => ({ events: [], pregnant: new Map(), together: new Map(), engaged: new Map() });
 
 /** Who moves to a small town: mostly young people and families (work, a cheaper house, a garden). */
 const NEWCOMERS_HOUSE: [HouseholdType, number][] = [['coupleYoung', 0.25], ['family', 0.55], ['singleParent', 0.05], ['coupleMid', 0.1], ['multiGen', 0.05]];
@@ -101,6 +107,7 @@ export function lifeDay(world: World, days = 1): void {
   homes(world, day, rng.fork('homes'));
   pets(world, day, rng.fork('pets'));
   crime(world, day, rng.fork('crime'));
+  ceremonies(world, day);
 }
 
 // ---- shared helpers --------------------------------------------------------------------------------------
@@ -139,7 +146,7 @@ function setPartners(world: World, x: ActorId, y: ActorId, together: boolean): v
   if (y < cache.length) cache[y] = together ? x : -1;
 }
 
-function log(world: World, day: number, kind: LifeEventKind, who: ActorId, other: ActorId, place: PlaceId, fact = -1): void {
+export function log(world: World, day: number, kind: LifeEventKind, who: ActorId, other: ActorId, place: PlaceId, fact = -1): void {
   world.life.events.push({ day, kind, who, other, place, fact });
 }
 
@@ -150,14 +157,14 @@ function news(world: World, knowers: readonly ActorId[], f: { topic: string; tex
   return fact;
 }
 
-function feel(world: World, id: ActorId, e: Emotion, amount: number): void {
+export function feel(world: World, id: ActorId, e: Emotion, amount: number): void {
   const k = id * EMOTION_COUNT + EMOTIONS.indexOf(e);
   const em = world.actors.cols.emotions;
   em[k] = Math.max(em[k], clamp(amount, 0, 1));
 }
 
 /** People who would hear first: the household and the family. */
-function closeTo(world: World, ...ids: ActorId[]): ActorId[] {
+export function closeTo(world: World, ...ids: ActorId[]): ActorId[] {
   const out = new Set<ActorId>();
   for (const id of ids) {
     if (id < 0) continue;
@@ -172,6 +179,12 @@ function closeTo(world: World, ...ids: ActorId[]): ActorId[] {
 function shiftAffection(world: World, a: ActorId, b: ActorId, to: number): void {
   const c = world.relations.t.cols;
   for (const [x, y] of [[a, b], [b, a]]) c.affection[world.relations.ensure(x, y)] = to;
+}
+
+/** The heads of the households on the street of `place` (who notice a move, a closure, a new shop), except `not`. */
+export function neighboursOf(world: World, place: PlaceId, not?: Household): ActorId[] {
+  const street = world.streetOf[place];
+  return world.households.filter((o) => o !== not && o.members.length && world.streetOf[o.home] === street).map((o) => o.members[0]);
 }
 
 /** Free dwelling units: one entry per unit not occupied by a household with members. */
@@ -226,6 +239,7 @@ export function leaveTown(world: World, id: ActorId, rng: Rng): void {
   const pc = world.people.cols, p = a.row[id];
   if (pc.job[p] >= 0) { world.jobs[pc.job[p]].holder = -1; pc.job[p] = -1; }
   world.life.pregnant.delete(id);
+  for (const e of world.life.engaged.values()) if (e.x === id || e.y === id) callOff(world, e.x, e.y);
   const hh = householdOf(world, id);
   if (!hh) return;
   hh.members.splice(hh.members.indexOf(id), 1);
@@ -253,7 +267,7 @@ function birthdays(world: World, day: number, rng: Rng): void {
     if (!a.alive[id] || a.kind[id] !== ACTOR_PERSON || day <= a.birth[id]) continue;
     const age = Math.floor((day - a.birth[id]) / 365);
     if (age === Math.floor((day - step - a.birth[id]) / 365)) continue;
-    if (age === 3 || age === 6 || age === 18) {
+    if (age === 3 || age === 6 || age === 11 || age === 18) {
       settle(world, id, rng.fork('settle', id));
       if (age === 6) log(world, day, 'schoolStart', id, -1, world.people.cols.school[a.row[id]]);
       if (age === 18) log(world, day, 'schoolEnd', id, -1, -1);
@@ -320,6 +334,7 @@ function personDies(world: World, day: number, id: ActorId, rng: Rng): void {
     remember(world, m, { who: [id], summary: `${nameOf(world, id)} died`, importance: 0.6 + close * 0.4, emotion: 'sadness', fact });
   }
   log(world, day, 'death', id, -1, world.actors.cols.home[id], fact);
+  planFuneral(world, day, id, rng);
   leaveTown(world, id, rng.fork('leave', id));
 }
 
@@ -416,7 +431,7 @@ function couple(world: World, day: number, x: ActorId, y: ActorId, rng: Rng): vo
   const strain = clamp(1 + traitOf(world, x, T_NEURO) + traitOf(world, y, T_NEURO) - traitOf(world, x, T_AGREE) - traitOf(world, y, T_AGREE) - liking(world.relations, x, y) - liking(world.relations, y, x), 0.2, 3);
   if (rng.chance(happens((married ? 0.02 : day - since < 365 ? 0.35 : 0.12) * strain))) { breakUp(world, day, x, y, married, together, rng); return; }
   if (!together && day - since > 120 && rng.chance(happens(0.5))) moveIn(world, day, x, y, rng);
-  else if (together && !married && day - since > 365 && Math.min(ageOf(world, x), ageOf(world, y)) >= 20 && rng.chance(happens(0.08))) marry(world, day, x, y);
+  else if (together && !married && day - since > 365 && Math.min(ageOf(world, x), ageOf(world, y)) >= 20 && rng.chance(happens(0.08)) && !world.life.engaged.has(key)) engage(world, day, x, y, rng);
 }
 
 /** Does `id` run their own household (not living with their parents)? */
@@ -439,10 +454,15 @@ function moveIn(world: World, day: number, x: ActorId, y: ActorId, rng: Rng): vo
   log(world, day, 'moveIn', x, y, into.home, fact);
 }
 
-function marry(world: World, day: number, x: ActorId, y: ActorId): void {
+/** Family, household and friends of the people a ceremony is about. */
+function guestsOf(world: World, ...ids: ActorId[]): ActorId[] {
+  const guests = closeTo(world, ...ids);
+  for (const id of ids) for (const f of bonded(world, id, bondBit('friend'))) if (!guests.includes(f)) guests.push(f);
+  return guests;
+}
+
+function marry(world: World, day: number, x: ActorId, y: ActorId, guests = guestsOf(world, x, y)): void {
   bond(world.relations, x, y, 'spouse');
-  const guests = closeTo(world, x, y);
-  for (const f of [...bonded(world, x, bondBit('friend')), ...bonded(world, y, bondBit('friend'))]) if (!guests.includes(f)) guests.push(f);
   const fact = news(world, guests, { topic: 'family', text: '{subject} and {object} got married', subject: x, object: y, magnitude: 0.6 });
   for (const g of guests) {
     feel(world, g, 'joy', g === x || g === y ? 0.9 : 0.4);
@@ -465,6 +485,7 @@ function breakUp(world: World, day: number, x: ActorId, y: ActorId, married: boo
     remember(world, p, { who: [q], summary: `${nameOf(world, q)} and I split up`, importance: 0.9, emotion: 'sadness', fact });
   }
   log(world, day, married ? 'divorce' : 'breakup', x, y, -1, fact);
+  callOff(world, x, y);
   if (!together) return;
   // One of them moves out: whoever did not run the household, to a free home, or out of town.
   const hh = householdOf(world, x)!;
@@ -594,7 +615,7 @@ function work(world: World, day: number, rng: Rng): void {
       remember(world, id, { who: [], summary: `I lost my job at ${world.graph.places[job.place].name}`, importance: 0.9, emotion: 'sadness', fact });
       log(world, day, 'fired', id, -1, job.place, fact);
     } else if (rng.chance(happens(0.05 * (0.5 + traitOf(world, id, T_OPEN))))) {
-      const options = world.jobs.filter((j) => j.holder < 0 && j.place !== job.place && ageOf(world, id) >= j.minAge);
+      const options = world.jobs.filter((j) => j.holder < 0 && j.place !== job.place && ageOf(world, id) >= j.minAge && jobOpen(world, j));
       if (options.length === 0) continue;
       const next = options[rng.int(0, options.length - 1)];
       vacate(world, id);
@@ -603,7 +624,7 @@ function work(world: World, day: number, rng: Rng): void {
     }
   }
   // Vacancies fill in about three weeks, from the people in town without work.
-  const open = world.jobs.filter((j) => j.holder < 0 && rng.chance(happens(18)));
+  const open = world.jobs.filter((j) => j.holder < 0 && jobOpen(world, j) && rng.chance(happens(18)));
   if (open.length === 0) return;
   const seekers: ActorId[] = [];
   for (let id = 0; id < world.actors.count; id++) {
@@ -669,6 +690,13 @@ function homes(world: World, day: number, rng: Rng): void {
       moveInto(world, id, to, rng.fork('move', id));
       const fact = news(world, closeTo(world, id), { topic: 'family', text: '{subject} moved in with {object}', subject: id, object: kids[0], place: to.home, magnitude: 0.3 });
       log(world, day, 'moveIn', id, kids[0], to.home, fact);
+    } else if (careHomeRoom(world) >= 0) {
+      for (const an of hh.animals.slice()) leaveTown(world, an, rng.fork('leave', an));
+      moveToCareHome(world, id, rng.fork('care', id));
+      const home = world.actors.cols.home[id];
+      const fact = news(world, closeTo(world, id), { topic: 'family', text: '{subject} moved into {place}', subject: id, place: home, magnitude: 0.4 });
+      remember(world, id, { who: [], summary: `I moved into ${world.graph.places[home].name}`, importance: 0.9, emotion: 'sadness', fact });
+      log(world, day, 'moveIn', id, -1, home, fact);
     } else {
       const fact = news(world, closeTo(world, id), { topic: 'family', text: `{subject} moved into a care home${where(regionDestination(world, rng.fork('dest', id), 'hospital'))}`, subject: id, magnitude: 0.4 });
       log(world, day, 'departed', id, -1, -1, fact);
@@ -679,8 +707,7 @@ function homes(world: World, day: number, rng: Rng): void {
   for (const hh of world.households) {
     if (hh.members.length === 0 || world.graph.places[hh.home].kind === 'farmhouse' || !rng.chance(happens(0.02))) continue;
     const head = hh.members[0];
-    const street = world.streetOf[hh.home];
-    const neighbours = world.households.filter((o) => o !== hh && o.members.length && world.streetOf[o.home] === street).flatMap((o) => o.members.slice(0, 1));
+    const neighbours = neighboursOf(world, hh.home, hh);
     const fact = news(world, [...closeTo(world, head), ...neighbours], { topic: 'family', text: `{subject} and family are moving away${where(regionDestination(world, rng.fork('dest', head)), ' to ')}`, subject: head, place: hh.home, magnitude: 0.45 });
     for (const m of hh.members.slice()) { log(world, day, 'departed', m, head, hh.home, fact); leaveTown(world, m, rng.fork('leave', m)); }
     for (const an of hh.animals.slice()) leaveTown(world, an, rng.fork('leave', an));
@@ -695,8 +722,7 @@ function homes(world: World, day: number, rng: Rng): void {
       world.people.cols.money[personRow(world, m)] = rng.range(200, 3000);
     }
     if (rng.chance(0.3)) newPet(world, day, hh, rng.fork('pet', hh.id), false);
-    const street = world.streetOf[home];
-    const neighbours = world.households.filter((o) => o !== hh && o.members.length && world.streetOf[o.home] === street).flatMap((o) => o.members.slice(0, 1));
+    const neighbours = neighboursOf(world, home, hh);
     // Where they come from: the villages and towns around, or further away.
     const from = rng.chance(0.6) ? regionDestination(world, rng.fork('from', home, day)) : null;
     if (world.region) for (const m of hh.members) if (ageOf(world, m) >= 18) world.region.origin.set(m, from?.name ?? '');
@@ -829,3 +855,100 @@ function fight(world: World, day: number, x: ActorId, rng: Rng): void {
   log(world, day, 'fight', x, y, place, fact);
 }
 
+
+// ---- ceremonies ------------------------------------------------------------------------------------------
+// Weddings and funerals are occasions in the town's agenda (src/sim/agenda.ts): planned ahead, attended by their
+// guests (an intention the day before, which beats work), and held on the day: the couple are married, mourners
+// remember the funeral. In the coarse chronicle nobody walks there, but the ceremony still takes place.
+
+/** Game day of the next Saturday on or after `day`. */
+const saturdayFrom = (day: number) => day + ((5 - weekdayOf(day * MINUTES_PER_DAY) + 7) % 7);
+
+/** `x` and `y` get engaged: the news, and the wedding (and its party) go into the agenda for a Saturday months ahead. */
+export function engage(world: World, day: number, x: ActorId, y: ActorId, rng: Rng): void {
+  const faith = (valueOf(world, x, V_FAITH) + valueOf(world, y, V_FAITH)) / 2;
+  const church = placesOf(world, ['church']), hall = placesOf(world, ['townhall']);
+  const venue = (faith > 0.35 && church.length) || !hall.length ? church[0] ?? -1 : hall[0];
+  const guests = guestsOf(world, x, y);
+  const fact = news(world, guests, { topic: 'romance', text: '{subject} and {object} got engaged', subject: x, object: y, magnitude: 0.5 });
+  for (const [p, q] of [[x, y], [y, x]]) remember(world, p, { who: [q], summary: `${nameOf(world, q)} and I got engaged`, importance: 0.9, emotion: 'joy', fact });
+  log(world, day, 'engagement', x, y, venue, fact);
+  if (venue < 0) { marry(world, day, x, y, guests); return; }
+  const at = saturdayFrom(day + rng.int(56, 140)) * MINUTES_PER_DAY;
+  const couple = `${firstName(world, x)} and ${firstName(world, y)}`;
+  const wedding = addOccasion(world, {
+    kind: 'wedding', name: `${couple}'s wedding`, place: venue, start: at + 13 * 60, end: at + 14 * 60, pull: 0, appeal: 'all',
+    guests, activity: world.graph.places[venue].kind === 'church' ? A.worship : A.socialize, about: [x, y],
+  });
+  const halls = placesOf(world, ['restaurant', 'pub']);
+  const reception = halls.length === 0 ? -1 : addOccasion(world, {
+    kind: 'reception', name: `${couple}'s wedding party`, place: halls[rng.int(0, halls.length - 1)], start: at + 14.5 * 60, end: at + 21 * 60,
+    pull: 0, appeal: 'all', guests, activity: A.socialize, about: [x, y],
+  }).id;
+  world.life.engaged.set(coupleKey(x, y), { x, y, wedding: wedding.id, reception });
+}
+
+/** The wedding is off (a break-up, a death, someone left town). */
+function callOff(world: World, x: ActorId, y: ActorId): void {
+  const e = world.life.engaged.get(coupleKey(x, y));
+  if (!e) return;
+  world.life.engaged.delete(coupleKey(x, y));
+  for (const o of [e.wedding, e.reception]) {
+    const occ = world.agenda.once.find((k) => k.id === o);
+    if (!occ) continue;
+    for (const g of occ.guests ?? []) {
+      const l = world.intentions[g];
+      if (l) for (let k = l.length - 1; k >= 0; k--) if (l[k].kind === 'attend' && l[k].fact === o) l.splice(k, 1);
+    }
+    cancelOccasion(world, o);
+  }
+}
+
+function planFuneral(world: World, day: number, id: ActorId, rng: Rng): void {
+  const church = placesOf(world, ['church']), cemetery = placesOf(world, ['cemetery']);
+  const venue = (valueOf(world, id, V_FAITH) > 0.2 && church.length) || !cemetery.length ? church[0] ?? -1 : cemetery[0];
+  if (venue < 0) return;
+  let d = day + rng.int(6, 10);
+  if (weekdayOf(d * MINUTES_PER_DAY) === 6) d++;
+  const at = d * MINUTES_PER_DAY;
+  addOccasion(world, {
+    kind: 'funeral', name: `${nameOf(world, id)}'s funeral`, place: venue, start: at + 11 * 60, end: at + 12.5 * 60, pull: 0,
+    appeal: 'all', guests: guestsOf(world, id).filter((g) => g !== id), activity: A.worship, about: [id],
+  });
+}
+
+/**
+ * Ceremonies around midnight: tomorrow's guests mean to go (an intention that beats work), and the ones held in the
+ * days just past take effect.
+ */
+function ceremonies(world: World, day: number): void {
+  const now = day * MINUTES_PER_DAY;
+  const a = world.actors.cols;
+  for (const o of world.agenda.once) {
+    if (o.kind !== 'wedding' && o.kind !== 'reception' && o.kind !== 'funeral') continue;
+    if (o.start >= now && o.start < now + MINUTES_PER_DAY) {
+      for (const g of o.guests ?? []) if (a.alive[g] && !(o.about.includes(g) && o.kind === 'funeral')) {
+        intend(world, g, { kind: 'attend', place: o.place, at: o.start - 45, until: o.end, priority: o.kind === 'reception' ? 58 : 72, fact: o.id, origin: 'event', reason: `going to ${o.name}` });
+      }
+    }
+    if (o.start >= now - step * MINUTES_PER_DAY && o.start < now) hold(world, Math.floor(o.start / MINUTES_PER_DAY), o);
+  }
+}
+
+function hold(world: World, day: number, o: Occasion): void {
+  const a = world.actors.cols;
+  const guests = (o.guests ?? []).filter((g) => a.alive[g]);
+  if (o.kind === 'wedding') {
+    const [x, y] = o.about;
+    if (!world.life.engaged.has(coupleKey(x, y))) return;
+    world.life.engaged.delete(coupleKey(x, y));
+    if (a.alive[x] && a.alive[y] && partnerOf(world, x) === y) marry(world, day, x, y, guests);
+  } else if (o.kind === 'funeral') {
+    const dead = o.about[0];
+    for (const g of guests) {
+      feel(world, g, 'sadness', 0.3 + Math.max(0, liking(world.relations, g, dead)) * 0.4);
+      remember(world, g, { who: [dead], summary: `I went to ${o.name}`, importance: 0.5, emotion: 'sadness' });
+    }
+    log(world, day, 'funeral', dead, -1, o.place, -1);
+  }
+}

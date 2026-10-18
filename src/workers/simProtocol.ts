@@ -1,13 +1,19 @@
 /**
  * Messages between the main thread (src/game/SimClient.ts) and the sim worker (src/workers/sim.worker.ts).
  * The worker owns the society (L0) and the street layer (L1); the main thread asks it, a few times a second,
- * to run up to a clock and to say who is out of doors near the camera, and where they walk (tracks).
+ * to run up to a clock and to say who is out of doors near the camera, and where they walk (tracks). With
+ * each new game minute it also sends the sim's view snapshot (`SimView`), which every view reads.
  */
+import type { CivilDate } from '../sim/calendar';
+import type { SimView } from '../sim/view';
 import type { TownSettings } from '../world/settings';
 
 export type ToSim =
-  /** Plan the town, make the world, run it to `clock` (game minutes since day 0, 00:00). */
-  | { type: 'init'; settings: TownSettings; clock: number }
+  /**
+   * Plan the town, make the world (play starting on the real date `start`, game day `startDay`: its weekday) and
+   * run it to `clock` (game minutes since day 0, 00:00).
+   */
+  | { type: 'init'; settings: TownSettings; start: CivilDate; startDay: number; clock: number }
   /**
    * Run the world up to `clock` (whole minutes are ticked; the fraction only places the tracks), then report
    * the street around (x, z): tracks that are new or changed within `r` metres, and who went out of it.
@@ -50,6 +56,7 @@ export interface HeightGrid {
 }
 
 export type FromSim =
-  | { type: 'ready'; clock: number; people: number; ground: HeightGrid; ms: number }
-  | { type: 'street'; clock: number; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; ms: number }
+  | { type: 'ready'; clock: number; people: number; ground: HeightGrid; view: SimView; ms: number }
+  /** `view`: the snapshot, when the game minute has moved on since the last one sent (else null). */
+  | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; ms: number }
   | { type: 'error'; message: string };

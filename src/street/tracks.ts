@@ -9,11 +9,11 @@
  *
  * Time is in game minutes (the sim's clock, fractional between ticks).
  */
-import { closestOnPolyline, polylineLength, resample, slicePolyline } from '../geom/geom2';
+import { closestOnPolyline, polylineCum, polylineLength, resample, slicePolyline } from '../geom/geom2';
 import { hash2f, hashCombine } from '@futuremagic/core';
 import type { ActorId } from '../sim/actors';
 import type { PlaceId, PlaceKind } from '../sim/places';
-import type { World } from '../sim/world';
+import { tripOf, type World } from '../sim/world';
 import { OUTDOOR, type StreetMap } from './streetMap';
 
 export interface Track {
@@ -55,11 +55,11 @@ const DEFAULT_STAY = { leg: 8, speed: STROLL };
 
 /** What the track depends on in L0: where, where to, since when, doing what, with whom. */
 export function signature(world: World, id: ActorId): number {
-  const a = world.actors.cols;
+  const a = world.actors.cols, trip = a.dest[id] >= 0 ? tripOf(world, id) : undefined;
   let h = hashCombine(a.place[id] + 7, a.dest[id] + 11);
-  h = hashCombine(h, a.depart[id]);
-  h = hashCombine(h, a.activity[id] * 4 + a.byCar[id] * 2 + a.alive[id]);
-  h = hashCombine(h, a.from[id] + 13);
+  h = hashCombine(h, trip ? trip.depart : -1);
+  h = hashCombine(h, a.activity[id] * 2 + a.alive[id]);
+  h = hashCombine(h, (trip ? trip.from : -1) + 13);
   return hashCombine(h, a.with[id] + 17);
 }
 
@@ -67,7 +67,8 @@ export function signature(world: World, id: ActorId): number {
 export function outside(world: World, id: ActorId): boolean {
   const a = world.actors.cols;
   if (!a.alive[id]) return false;
-  if (a.dest[id] >= 0) return !a.byCar[id];
+  // On foot only: cars, bikes and buses are the traffic's (a trip the sim has no record of is walked).
+  if (a.dest[id] >= 0) return (tripOf(world, id)?.mode ?? 'foot') === 'foot';
   const p = a.place[id];
   return p >= 0 && OUTDOOR.has(world.graph.places[p].kind);
 }
@@ -110,8 +111,9 @@ export function sample(keys: ArrayLike<number>, t: number, out: [number, number,
 /** A walk from the door (or spot) left to the door (or spot) of the destination, departure to arrival. */
 function tripKeys(world: World, map: StreetMap, id: ActorId): number[] {
   const a = world.actors.cols;
-  const from = a.from[id] >= 0 ? a.from[id] : a.home[id], to = a.dest[id];
-  const t0 = a.depart[id], t1 = Math.max(a.arrive[id], t0 + 0.5);
+  const trip = tripOf(world, id);
+  const from = trip ? trip.from : a.home[id], to = a.dest[id];
+  const t0 = trip ? trip.depart : a.arrive[id] - world.travel.minutes(from, to), t1 = Math.max(a.arrive[id], t0 + 0.5);
   const [ox, oz] = whereAt(world, map, id, from, t0);
   const [dx, dz] = whereAt(world, map, id, to, t1);
   const path = walkPath(world, map, id, from, to, ox, oz, dx, dz);
@@ -138,7 +140,7 @@ export function walkPath(world: World, map: StreetMap, id: ActorId, from: PlaceI
   const lastStart = polylineLength(walk) - polylineLength(lines[lines.length - 1]);
   const last = lastStart + closestOnPolyline(lines[lines.length - 1], dx, dz).s;
   if (last - first < 1) return [ox, oz, dx, dz];
-  return [ox, oz, ...slicePolyline(walk, first, last), dx, dz];
+  return [ox, oz, ...slicePolyline({ pts: walk, cum: polylineCum(walk) }, first, last), dx, dz];
 }
 
 /** Each person walks their own line, a little in or out from the middle of the sidewalk. */

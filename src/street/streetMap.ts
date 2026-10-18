@@ -9,7 +9,7 @@
 import { hash3f } from '@futuremagic/core';
 import { offsetPolyline, pointInPoly, polyArea, polyBounds, type Poly } from '../geom/geom2';
 import type { Shape } from '../geom/clip';
-import { bridgeProfile, type Profile } from '../build/bridges';
+import { bridgeDecksAt } from '../build/bridges';
 import type { Town } from '../plan/town';
 import type { PlaceGraph, PlaceId, PlaceKind } from '../sim/places';
 import { CURB_H } from '../world/ground';
@@ -28,15 +28,13 @@ export class StreetMap {
   private readonly edgeOf = new Map<number, number>();
   /** The outline of each outdoor place that has one (parks, squares, cemeteries, sports grounds). */
   private readonly areas = new Map<PlaceId, Shape>();
-  private readonly bridges: { p: Profile; hw: number }[] = [];
+  /** The bridge deck height at a point, null off the decks. */
+  private readonly deck: (x: number, z: number) => number | null;
 
   constructor(readonly town: Town, readonly graph: PlaceGraph) {
     const n = graph.nodes.length;
     graph.edges.forEach((e, i) => { this.edgeOf.set(e.a * n + e.b, i); this.edgeOf.set(e.b * n + e.a, i); });
-    for (const br of town.macro.bridges) {
-      const p = bridgeProfile(br, town.terrain);
-      if (p) this.bridges.push({ p, hw: br.width / 2 + 1 });
-    }
+    this.deck = bridgeDecksAt(town.macro.bridges, town.terrain);
     // Outdoor places with an outline: the cell shape their centre lies in, or their public building's site.
     for (const pl of graph.places) {
       if (!OUTDOOR.has(pl.kind) || pl.kind === 'street') continue;
@@ -56,13 +54,7 @@ export class StreetMap {
 
   /** Ground height where people stand: the sidewalk level (terrain plus the curb), a bridge deck over water. */
   groundY(x: number, z: number): number {
-    for (const { p, hw } of this.bridges) {
-      const s = (x - p.ax) * p.dx + (z - p.az) * p.dz;
-      if (s < p.s0 || s > p.s1) continue;
-      const off = Math.abs((x - p.ax) * p.dz - (z - p.az) * p.dx);
-      if (off < hw) return p.y(s) + CURB_H;
-    }
-    return this.town.terrain.height(x, z) + CURB_H;
+    return (this.deck(x, z) ?? this.town.terrain.height(x, z)) + CURB_H;
   }
 
   /** The road edge between two nodes, -1 if none. */

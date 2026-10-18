@@ -10,6 +10,7 @@ import { regionOf } from '../plan/region';
 import { createWorld } from '../sim/synth';
 import { tick, nameOf, jobOf, householdOf, type World } from '../sim/world';
 import { ACTIVITIES, ACTOR_PERSON } from '../sim/actors';
+import { viewOf, viewTransfers } from '../sim/view';
 import { StreetMap } from '../street/streetMap';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, ToSim, TrackMsg } from './simProtocol';
@@ -23,6 +24,8 @@ const tracks = new Map<number, Track>();
 const shown = new Map<number, { sig: number; validUntil: number }>();
 /** Actors the main thread has the info of. */
 const known = new Set<number>();
+/** The clock of the last view snapshot sent. */
+let sentAt = -1;
 /** Extra distance before someone shown counts as gone (no flicker at the edge). */
 const KEEP = 40;
 
@@ -32,14 +35,17 @@ function handle(m: ToSim): FromSim {
   if (m.type === 'init') {
     const town = planTown(m.settings);
     const graph = placeGraphOf(town);
-    world = createWorld(graph, m.settings.seed, { region: regionOf(town) });
-    map = new StreetMap(town, graph);
+    world = createWorld(graph, m.settings.seed, { region: regionOf(town), start: m.start, startDay: m.startDay });
+    map = new StreetMap(town, world.graph);
     runTo(Math.max(m.clock, world.clock));
-    return { type: 'ready', clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), ms: took() };
+    sentAt = world.clock;
+    return { type: 'ready', clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), ms: took() };
   }
   if (!world || !map) throw new Error('sim worker: not initialised');
   runTo(m.clock);
-  return { type: 'street', clock: world.clock, ...street(world, map, m.clock, m.x, m.z, m.r), ms: took() };
+  const view = world.clock !== sentAt ? viewOf(world) : null;
+  sentAt = world.clock;
+  return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), ms: took() };
 }
 
 /** Tick the world up to the whole minute of `clock`. */
@@ -107,7 +113,7 @@ function heightGrid(map: StreetMap, half: number, step: number): HeightGrid {
 }
 
 serve<ToSim, FromSim>(handle, (r) => {
-  if (r.type === 'ready') return [r.ground.h.buffer];
-  if (r.type === 'street') return r.tracks.map((t) => t.keys.buffer);
+  if (r.type === 'ready') return [r.ground.h.buffer, ...viewTransfers(r.view)];
+  if (r.type === 'street') return [...r.tracks.map((t) => t.keys.buffer), ...(r.view ? viewTransfers(r.view) : [])];
   return [];
 });

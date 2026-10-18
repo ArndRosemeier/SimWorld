@@ -180,7 +180,7 @@ export function planRegion(h: RegionHints): Region {
   const commuters = rng.pick(villages);
   say('opinion', `Houses in ${commuters.name} have got expensive since people from ${city.name} started buying there.`, 0.4, 0.3, commuters.name);
 
-  return { town: T, county, places: [city, near, ...villages], lore };
+  return { town: T, county, places: [city, near, ...villages], lore, rail: byTrain ? (h.railTerminus ? 'terminus' : 'through') : null, coastal: h.coastal };
 }
 
 // ---- village characters -------------------------------------------------------------------------------------

@@ -36,7 +36,9 @@ test('synthesis: every job is a real slot held by someone old enough; children g
     assert.equal(pc.job[world.actors.cols.row[j.holder]], j.id);
     assert.ok(ageOf(world, j.holder) >= j.minAge, `${j.role} held by a ${ageOf(world, j.holder)}-year-old`);
   }
-  assert.ok(world.jobs.filter((j) => j.holder >= 0).length / world.jobs.length > 0.9, 'most positions filled');
+  const inTown = world.jobs.filter((j) => world.graph.places[j.place].kind !== 'away');
+  assert.ok(inTown.filter((j) => j.holder >= 0).length / inTown.length > 0.9, 'most positions in town filled');
+  assert.ok(world.jobs.some((j) => j.holder >= 0 && world.graph.places[j.place].kind === 'away'), 'nobody commutes');
   for (const id of persons) {
     const age = ageOf(world, id), p = world.actors.cols.row[id];
     if (age >= 6 && age <= 15) assert.ok(pc.school[p] >= 0, `${nameOf(world, id)} (${age}) has a school`);

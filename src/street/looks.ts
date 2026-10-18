@@ -40,10 +40,12 @@ export function makeHumanAge(years: number): number {
  */
 export function appearanceOf(seed: number, p: LookInfo, clock: number): HumanoidAppearance {
   const years = Math.floor(yearsAt(p, clock));
-  const own = randomAppearance('human', deriveSeed(seed, 'look', p.id), { gender: p.sex === FEMALE ? 0.04 : 0.96, age: makeHumanAge(years + 0.5) });
+  const body = { gender: p.sex === FEMALE ? 0.04 : 0.96, age: makeHumanAge(years + 0.5) };
+  const own = randomAppearance('human', deriveSeed(seed, 'look', p.id), body);
   if (p.household < 0) return own;
   // A family's colouring runs in it: three parts the household's, one part their own.
-  const fam = randomAppearance('human', deriveSeed(seed, 'family', p.household), {});
+  const family = deriveSeed(seed, 'family', p.household);
+  const fam = randomAppearance('human', family);
   const mix = (a: number, b: number) => a * 0.75 + b * 0.25;
   return { ...own, african: mix(fam.african, own.african), asian: mix(fam.asian, own.asian), caucasian: mix(fam.caucasian, own.caucasian) };
 }
@@ -70,9 +72,9 @@ function vis(seed: number, primary: C3, secondary: C3, pattern = 'plain', wear =
 
 /**
  * What a person wears on the day of `clock`: a fresh choice every day from their own taste. `cold` 0 (a hot
- * summer day) to 1 (freezing) brings sweaters, coats, boots and hats.
+ * summer day) to 1 (freezing) brings sweaters, coats, boots and hats; `wet` (it rains as they set out) raincoats.
  */
-export function outfitOf(seed: number, p: LookInfo, clock: number, cold: number): EquipmentVisuals {
+export function outfitOf(seed: number, p: LookInfo, clock: number, cold: number, wet = false): EquipmentVisuals {
   const day = Math.floor(clock / MINUTES_PER_DAY);
   const r = new Rng(deriveSeed(seed, 'outfit', p.id, day));
   const taste = new Rng(deriveSeed(seed, 'taste', p.id));
@@ -101,8 +103,8 @@ export function outfitOf(seed: number, p: LookInfo, clock: number, cold: number)
         l === 'shorts' ? (1 - cold) ** 2 * (child ? 2.5 : 1.1) : l === 'skirt' ? (old ? 1.6 : 1.1) : l === 'chinos' ? (old ? 3 : 1.5) : old ? 0.4 : 2.5);
       eq.legs = { defId: legs, visual: vis(u(), legs === 'jeans' ? r.pick(DENIM) : colour(), colour(), legs === 'chinos' ? 'plain' : pattern(), legs === 'jeans' ? 0.35 : 0.15) };
     }
-    if (r.chance(0.1 + cold * 0.75)) {
-      const outer = r.weighted(['jacket', 'coat', 'raincoat'], (o) => (o === 'coat' ? cold * 2 + (old ? 1 : 0.2) : o === 'raincoat' ? 0.4 : 1.2));
+    if (r.chance(Math.min(1, 0.1 + cold * 0.75 + (wet ? 0.6 : 0)))) {
+      const outer = r.weighted(['jacket', 'coat', 'raincoat'], (o) => (o === 'coat' ? cold * 2 + (old ? 1 : 0.2) : o === 'raincoat' ? (wet ? 4 : 0.4) : 1.2));
       eq.back = { defId: outer, visual: vis(u(), colour(), colour(), r.chance(0.15) && outer === 'jacket' ? 'leather' : 'plain') };
     }
     const feet = r.weighted(['sneakers', 'shoes', 'boots'], (s) => (s === 'sneakers' ? (old ? 0.8 : child ? 5 : 3) : s === 'boots' ? cold * 2 + 0.3 : old ? 3 : 1.5));
@@ -112,12 +114,5 @@ export function outfitOf(seed: number, p: LookInfo, clock: number, cold: number)
   return eq;
 }
 
-/**
- * How cold it feels on the day of `clock`, 0 (summer heat) … 1 (deep winter), from the time of year alone.
- * Stands in until the weather (the "Sky, weather and seasons" track) says how warm today really is.
- */
-export function coldOf(clock: number, startDayOfYear: number): number {
-  const doy = (Math.floor(clock / MINUTES_PER_DAY) + startDayOfYear) % DAYS_PER_YEAR;
-  // Coldest around 15 January, warmest around 15 July.
-  return clamp(0.5 + 0.5 * Math.cos(((doy - 15) / DAYS_PER_YEAR) * Math.PI * 2), 0, 1);
-}
+/** How cold it feels, 0 (20 °C and warmer) … 1 (freezing, −2 °C and below), from the weather people dressed for. */
+export const coldOf = (tempC: number): number => clamp((20 - tempC) / 22, 0, 1);

@@ -5,6 +5,7 @@
 import type { EquipmentVisuals } from '@futuremagic/humanoid';
 import { appearanceOf, bodyKey, coldOf, outfitOf } from '../street/looks';
 import { ACTOR_PERSON } from '../sim/actors';
+import { isWetOut } from '../sim/weather';
 import type { Figure, Look, PeopleView } from '../render/people/peopleView';
 import type { SimClient, Walker } from './SimClient';
 
@@ -21,8 +22,12 @@ class WalkerFigure implements Figure {
     const s = this.street, clock = s.sim.clock, info = this.w.info;
     const key = bodyKey(info, clock);
     if (this.cached?.key !== key) this.cached = { key, look: { bodyKey: key, app: appearanceOf(s.seed, info, clock), outfitKey: '', outfit: {} } };
+    // Dressed in the morning for the day's weather: a new outfit each day.
     const day = `${Math.floor(clock / 1440)}`;
-    if (this.outfit?.key !== day) this.outfit = { key: day, eq: outfitOf(s.seed, info, clock, coldOf(clock, s.startDayOfYear)) };
+    if (this.outfit?.key !== day) {
+      const w = s.sim.view.morning;
+      this.outfit = { key: day, eq: outfitOf(s.seed, info, clock, coldOf(w.tempC), isWetOut(w)) };
+    }
     return { ...this.cached.look, outfitKey: this.outfit.key, outfit: this.outfit.eq };
   }
 }
@@ -32,8 +37,7 @@ export class Street {
   private readonly p0: [number, number, number] = [0, 0, 0];
   private readonly p1: [number, number, number] = [0, 0, 0];
 
-  /** `startDayOfYear`: the calendar day game day 0 falls on (the season until the weather says more). */
-  constructor(readonly sim: SimClient, readonly people: PeopleView, readonly seed: number, readonly startDayOfYear: number) {}
+  constructor(readonly sim: SimClient, readonly people: PeopleView, readonly seed: number) {}
 
   /** People out of doors around the camera this frame, placed on their tracks. */
   figuresNow(): Figure[] {

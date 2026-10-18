@@ -17,7 +17,7 @@ import { KINDS } from './placeKinds';
 import type { PlaceId } from './places';
 import { NEED_COUNT } from './species';
 import { MINUTES_PER_DAY } from './time';
-import { isPerson, jobOf, nameOf, passDays, tickRng, traitOf, type World } from './world';
+import { firstName, isPerson, jobOf, passDays, tickRng, traitOf, type World } from './world';
 
 export interface ChronicleOptions {
   /** Days per step (default: 1 for skips up to two weeks, else 7). Coarser steps are faster and blurrier. */
@@ -47,13 +47,16 @@ export function chronicle(world: World, days: number, opts: ChronicleOptions = {
   settleAtHome(world);
 }
 
+/** Days of history for `years` years (whole weeks). */
+export const historyDays = (years: number): number => Math.round((years * 365) / 7) * 7;
+
 /**
  * The town's past before play (plan §2.4): `years` of chronicle, coarse far back and finer toward the present, so old
  * events have left kin, exes, grudges and secrets, and recent ones are still talked about. Whole weeks, so the
  * weekday is kept.
  */
 export function history(world: World, years: number): void {
-  const total = Math.round((years * 365) / 7) * 7;
+  const total = historyDays(years);
   const recent = Math.min(total, 28), year = Math.min(total - recent, 336);
   // Far back only the life events matter: what was said then is long forgotten.
   chronicle(world, total - recent - year, { step: 56, talksPerDay: 0 });
@@ -148,6 +151,7 @@ function settleAtHome(world: World): void {
     for (let n = 0; n < NEED_COUNT; n++) a.needs[id * NEED_COUNT + n] = Math.max(a.needs[id * NEED_COUNT + n], 0.7);
   }
   world.encounters.length = 0;
+  world.trips.length = 0;
 }
 
 // ---- the digest ------------------------------------------------------------------------------------------
@@ -169,10 +173,15 @@ export function digest(world: World, id: ActorId, since: number, max = 20): Dige
   const out: DigestItem[] = [];
   const seen = new Set<number>();
   const lines = new Set<string>();
+  const k = world.knowledge, c = k.beliefs.cols;
+  // Stories someone told them are told as heard (with who told them), not as the memory of hearing it.
+  const told = new Set<number>();
+  for (const r of k.byHolder[id] ?? []) if (c.heardAt[r] >= since && c.source[r] >= 0) told.add(k.facts[c.fact[r]].root);
   for (const m of world.memory.byPerson[id] ?? []) {
     if (m.time < since) continue;
     if (m.fact >= 0) {
       const root = world.knowledge.facts[m.fact].root;
+      if (told.has(root)) continue;
       if (seen.has(root) && lines.has(m.summary)) continue;
       seen.add(root);
     }
@@ -180,7 +189,6 @@ export function digest(world: World, id: ActorId, since: number, max = 20): Dige
     lines.add(m.summary);
     out.push({ time: m.time, text: m.summary, kind: 'lived', importance: m.importance });
   }
-  const k = world.knowledge, c = k.beliefs.cols;
   for (const r of k.byHolder[id] ?? []) {
     if (c.heardAt[r] < since) continue;
     const f = k.facts[c.fact[r]];
@@ -188,7 +196,7 @@ export function digest(world: World, id: ActorId, since: number, max = 20): Dige
     if (seen.has(f.root) || (c.source[r] === SOURCE_WITNESSED && (f.subject === id || f.object === id))) continue;
     seen.add(f.root);
     const src = c.source[r];
-    const from = src >= 0 ? ` (${world.people.first[world.actors.cols.row[src]] ?? nameOf(world, src)} told me)` : '';
+    const from = src >= 0 ? ` (${firstName(world, src)} told me)` : '';
     out.push({ time: c.heardAt[r], text: factText(world, f) + from, kind: 'heard', importance: c.salience[r] * c.confidence[r] });
   }
   return out.sort((x, y) => y.importance - x.importance || x.time - y.time).slice(0, max);

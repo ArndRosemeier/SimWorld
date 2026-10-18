@@ -7,7 +7,7 @@ import { buildCharacter, buildTransfers, loadHumanAssets, setHumanAssetBase } fr
 import type { FromBody, ToBody } from './bodyProtocol';
 import { serve } from './serve';
 
-async function handle(m: ToBody): Promise<FromBody> {
+async function bodyJob(m: ToBody): Promise<FromBody> {
   if (m.type === 'init') {
     setHumanAssetBase(m.assetBase);
     await loadHumanAssets();
@@ -20,4 +20,4 @@ async function handle(m: ToBody): Promise<FromBody> {
   return { type: 'build', build };
 }
 
-serve<ToBody, FromBody>(handle, (r) => (r.type === 'build' ? buildTransfers(r.build) : []));
+serve<ToBody, FromBody>(bodyJob, (r) => (r.type === 'build' ? buildTransfers(r.build) : []));

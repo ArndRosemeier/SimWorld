@@ -139,7 +139,7 @@ export class PeopleView {
       if (look.outfitKey !== s.outfitKey) { s.outfitKey = look.outfitKey; s.human.dress(look.outfit); }
       this.pose(s, f, d, dt, time);
     }
-    this.retire();
+    this.dropUnseen();
   }
 
   private pose(s: Slot, f: Figure, d: number, dt: number, time: number): void {
@@ -208,7 +208,7 @@ export class PeopleView {
   }
 
   /** Keep at most SPARE humans nobody is drawing; the ones unseen longest go first. */
-  private retire(): void {
+  private dropUnseen(): void {
     const idle = [...this.slots.values()].filter((s) => s.ready && s.seen !== this.frame).sort((a, b) => a.seen - b.seen);
     for (const s of idle.slice(0, Math.max(0, idle.length - SPARE))) { this.drop(s); this.slots.delete(s.id); }
     // A slot waiting for a build slot that nobody needs any more.

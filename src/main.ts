@@ -5,7 +5,8 @@
  * game come in their own changes (docs/design/simworld-plan.md R2).
  *
  * `?seed=…&size=…` (0 … 1) pick the town; `?tex=…` the texture size in texels (256 default, 512 sharper and slower); `?at=x,z&r=…&h=…&a=…` fix the drone's centre, distance,
- * height and angle (radians) instead of circling, for screenshots.
+ * height and angle (radians) instead of circling, for screenshots. `?inside=<cell>/<building>&floor=…`
+ * shows one storey of a building as a cutaway instead (showInside).
  *
  * The society runs in the sim worker from the start; Enter takes the camera down to the street, where the
  * inhabitants out of doors walk their real errands (src/game/street.ts, keys in src/game/camera.ts).
@@ -19,22 +20,24 @@ import { Stage } from './render/stage';
 import { fitSunShadow, makeLights } from './render/lights';
 import { setParcels } from './render/tsl/ground';
 import { showTown } from './render/townView';
+import { meshFromData } from './render/meshes';
 import { WorkerPool } from './workers/pool';
 import townWorkerUrl from './workers/town.worker.ts?worker&url';
 import texWorkerUrl from './workers/tex.worker.ts?worker&url';
 import type { FromTex, ToTex } from './workers/texProtocol';
 import { loadTextures } from './render/textures';
-import { useTextures } from './render/materials';
+import { VERTEX_COLOR_SOLID, useTextures } from './render/materials';
 import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
-import { SimClient } from './game/SimClient';
+import { SimClient, playStart } from './game/SimClient';
 import { Street } from './game/street';
 import { CameraControl } from './game/camera';
 import { PeopleView } from './render/people/peopleView';
 import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
 import { FEMALE, MALE } from './sim/actors';
-import { hhmm, minuteOfDay, weekdayOf } from './sim/time';
+import { hhmm, minuteOfDay } from './sim/time';
+import { formatDate } from './sim/calendar';
 
 const SKY = 0xa9c8e4;
 
@@ -50,20 +53,6 @@ function step(text: string, frac?: number): void {
   if (el) el.textContent = text;
   const bar = document.querySelector<HTMLElement>('#loading .bar i');
   if (bar && frac !== undefined) bar.style.width = `${Math.round(frac * 100)}%`;
-}
-
-/** The game clock to start at: day 0 (a Monday) at `?time=HH:MM`, by default the time of day now. */
-function startClock(): number {
-  const t = new URLSearchParams(location.search).get('time');
-  const m = t && /^\d{1,2}:\d{2}$/.test(t) ? Number(t.split(':')[0]) * 60 + Number(t.split(':')[1]) : new Date().getHours() * 60 + new Date().getMinutes();
-  // The world is made at 06:00 of day 0; earlier times are the next morning.
-  return m >= 360 ? m : m + 1440;
-}
-
-/** Day of the year today (0 = 1 January): game day 0 is today, so the season is the real one. */
-function dayOfYear(): number {
-  const now = new Date();
-  return Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(now.getFullYear(), 0, 1)) / 86400000);
 }
 
 /** Two looks whose shaders the warm-up compiles (every human after them is a cache hit). */
@@ -86,7 +75,8 @@ async function start(): Promise<void> {
   const q0 = new URLSearchParams(location.search);
   const rate = Math.max(0, Number(q0.get('speed') ?? 1)) || 1;
   // The society: planned and populated in its own worker while the rest loads.
-  const simulated = SimClient.start(settings, startClock(), rate);
+  const play = playStart(new URLSearchParams(location.search).get('time'));
+  const simulated = SimClient.start(settings, play.start, play.startDay, play.clock, rate);
   // The town workers start planning at once; the texture workers generate the facade textures
   // meanwhile (the shaders need them before the warm-up), then the renderer warms up.
   const pool = new WorkerPool<ToTown, FromTown>(townWorkerUrl, Math.min(4, cores));
@@ -114,7 +104,7 @@ async function start(): Promise<void> {
   useTextures({ facade: await facade });
   texPool.dispose();
   step('Making the people', 0.1);
-  const { view: people, warm } = await PeopleView.create(stage, sampleLooks(settings.seed, startClock()), Math.min(2, cores));
+  const { view: people, warm } = await PeopleView.create(stage, sampleLooks(settings.seed, play.clock), Math.min(2, cores));
   scene.add(people.root);
   step('Preparing the shaders', 0.12);
   await stage.warmUp(warm);
@@ -125,12 +115,14 @@ async function start(): Promise<void> {
   if (ready.type !== 'ready') throw new Error('the town workers did not start');
   const town = ready.town;
   setParcels(town.parcels);
+  const inside = new URLSearchParams(location.search).get('inside');
+  if (inside) return showInside(inside, pool, stage, lights, renderer, camera, scene);
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total));
 
   step('Waking the town', 0.15);
   const sim = await simulated;
-  const street = new Street(sim, people, settings.seed, dayOfYear());
+  const street = new Street(sim, people, settings.seed);
 
   // The drone drift: a slow circle around the town, high enough to see it whole (or fixed by ?at=…).
   const q = new URLSearchParams(location.search);
@@ -141,7 +133,6 @@ async function start(): Promise<void> {
   if (q.has('street')) { const [sx, sz] = q.get('street')!.split(',').map(Number); cam.toStreet(sx, sz, num('yaw', 0)); }
   const followId = q.has('follow') ? num('follow', -1) : -1;
   const hud = document.getElementById('hud');
-  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   let shown = false, last = performance.now(), shadowMode = '';
   renderer.setAnimationLoop((t: number) => {
     const dt = Math.min(0.1, (t - last) / 1000);
@@ -151,7 +142,7 @@ async function start(): Promise<void> {
     const target = cam.mode === 'follow' ? street.where(cam.following) : null;
     cam.update(dt, t, target);
     const ground = cam.mode === 'drone' ? { x: cx, z: cz } : { x: camera.position.x, z: camera.position.z };
-    sim.update(ground.x, ground.z);
+    sim.poll(ground.x, ground.z);
     people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);
     // The sun's shadow covers the whole town from above, the streets around you down there.
     if (cam.mode !== 'drone') fitSunShadow(lights, camera.position.x, camera.position.y, camera.position.z, 70);
@@ -162,10 +153,36 @@ async function start(): Promise<void> {
     if (hud) {
       const c = sim.clock, n = people.counts;
       const who = cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '\nEnter: down to the street' : '\nW A S D walk, drag to look, F follow someone, Esc up';
-      hud.textContent = `${DAYS[weekdayOf(c)]} ${hhmm(Math.floor(minuteOfDay(c)))} · ${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${who}`;
+      hud.textContent = `${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(c)))}, ${Math.round(sim.view.weather.tempC)} °C ${sim.view.weather.kind} · ${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${who}`;
     }
   });
   await view.ready;
+}
+
+/**
+ * `?inside=<cell>/<building>&floor=<n>`: the dollhouse cutaway of one storey of a building, the
+ * camera circling it (or fixed with `a=`), to look at interiors before the game can walk in.
+ */
+async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, lights: ReturnType<typeof makeLights>, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene): Promise<void> {
+  const q = new URLSearchParams(location.search);
+  const [cell, building] = arg.split('/').map(Number);
+  step('Planning the rooms', 0.5);
+  const r = await pool.run({ type: 'interior', cell, building, floor: Number(q.get('floor') ?? 0) }, 0);
+  if (r.type !== 'interior') throw new Error(r.type === 'error' ? r.message : 'no interior');
+  if (r.mesh) await stage.add(meshFromData(r.mesh, VERTEX_COLOR_SOLID));
+  scene.fog = null;
+  const [x, y, z] = r.at, R = Math.max(8, r.radius * 1.5), fixed = q.has('a') ? Number(q.get('a')) : null;
+  fitSunShadow(lights, x, y, z, r.radius * 1.5);
+  document.getElementById('loading')?.remove();
+  const hud = document.getElementById('hud');
+  renderer.setAnimationLoop((t: number) => {
+    stage.frame();
+    const a = fixed ?? t * 0.0001;
+    camera.position.set(x + Math.cos(a) * R, y + R * 0.9, z + Math.sin(a) * R);
+    camera.lookAt(x, y, z);
+    renderer.render(scene, camera);
+    if (hud) hud.textContent = `${r.about} · ${stage.hudLine()}`;
+  });
 }
 
 // The version and What's new sit on the start screen and stay in the corner once the town is up.

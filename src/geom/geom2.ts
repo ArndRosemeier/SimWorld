@@ -383,27 +383,34 @@ function segNormal(pts: number[], i: number, j: number): P2 {
   return [-dz / l, dx / l];
 }
 
-/** The point at arc length `s` along an open polyline (clamped to its ends). */
-export function pointOnPolyline(pts: number[], s: number): P2 {
-  for (let i = 0; i + 3 < pts.length; i += 2) {
-    const l = Math.hypot(pts[i + 2] - pts[i], pts[i + 3] - pts[i + 1]);
-    if (s <= l || i + 4 >= pts.length) {
-      const t = l > 0 ? Math.max(0, Math.min(1, s / l)) : 0;
-      return [pts[i] + (pts[i + 2] - pts[i]) * t, pts[i + 1] + (pts[i + 3] - pts[i + 1]) * t];
-    }
-    s -= l;
-  }
-  return [pts[0], pts[1]];
+/** A polyline with the arc length at each of its vertices (`polylineCum`). */
+export interface MeasuredLine { pts: ArrayLike<number>; cum: Float64Array }
+
+/** Arc length at each vertex of a polyline (x, z, …). */
+export function polylineCum(pts: ArrayLike<number>): Float64Array {
+  const n = pts.length >> 1, cum = new Float64Array(n);
+  for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + Math.hypot(pts[i * 2] - pts[i * 2 - 2], pts[i * 2 + 1] - pts[i * 2 - 1]);
+  return cum;
 }
 
-/** The part of an open polyline from arc length s0 to s1 (s0 < s1), both ends included. */
-export function slicePolyline(pts: number[], s0: number, s1: number): number[] {
-  const out = [...pointOnPolyline(pts, s0)];
-  let acc = 0;
-  for (let i = 2; i < pts.length; i += 2) {
-    acc += Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]);
-    if (acc > s0 + 1e-3 && acc < s1 - 1e-3) out.push(pts[i], pts[i + 1]);
-  }
-  out.push(...pointOnPolyline(pts, s1));
+/** The point at arc length `s` along a measured polyline (clamped to its ends). */
+export function alongLine(L: MeasuredLine, s: number): P2 {
+  const i = Math.min(L.cum.length - 1, Math.max(1, upperBound(L.cum, s)));
+  const t = Math.max(0, Math.min(1, (s - L.cum[i - 1]) / Math.max(1e-6, L.cum[i] - L.cum[i - 1])));
+  return [L.pts[i * 2 - 2] + (L.pts[i * 2] - L.pts[i * 2 - 2]) * t, L.pts[i * 2 - 1] + (L.pts[i * 2 + 1] - L.pts[i * 2 - 1]) * t];
+}
+
+/** The part of a measured polyline between arc lengths s0 < s1 (x, z, …, both ends included). */
+export function slicePolyline(L: MeasuredLine, s0: number, s1: number): number[] {
+  const out = [...alongLine(L, s0)];
+  for (let i = upperBound(L.cum, s0); i < L.cum.length && L.cum[i] < s1 - 0.05; i++) if (L.cum[i] > s0 + 0.05) out.push(L.pts[i * 2], L.pts[i * 2 + 1]);
+  out.push(...alongLine(L, s1));
   return out;
+}
+
+/** First index whose value exceeds s (binary search over a sorted array). */
+export function upperBound(a: Float64Array, s: number): number {
+  let lo = 0, hi = a.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= s) lo = m + 1; else hi = m; }
+  return lo;
 }

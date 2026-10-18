@@ -44,7 +44,7 @@ export class CameraControl {
       this.keys.add(e.code);
       if (e.code === 'Enter' && this.mode === 'drone') this.toStreet(this.drone.cx, this.drone.cz);
       else if (e.code === 'KeyF') this.follow(this.pickNear(this.x, this.z));
-      else if (e.code === 'Escape') this.back();
+      else if (e.code === 'Escape') this.goUp();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
@@ -71,7 +71,7 @@ export class CameraControl {
     this.following = id;
   }
 
-  back(): void {
+  goUp(): void {
     if (this.mode === 'follow') this.mode = 'street';
     else this.mode = 'drone';
     this.following = -1;

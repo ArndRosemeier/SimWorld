@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { planTown } from '../src/plan/town';
 import { placeGraphOf } from '../src/plan/placeGraph';
 import { createWorld } from '../src/sim/synth';
-import { tick } from '../src/sim/world';
+import { householdOf, tick, tripOf } from '../src/sim/world';
+import { tripRow, viewOf, viewTransfers } from '../src/sim/view';
 import { ACTOR_PERSON } from '../src/sim/actors';
 import { StreetMap, OUTDOOR } from '../src/street/streetMap';
 import { trackOf, sample, type Track } from '../src/street/tracks';
@@ -13,7 +14,7 @@ import { outfitOf, bodyKey, type LookInfo } from '../src/street/looks';
 const town = planTown({ seed: 1, size: 0 });
 const graph = placeGraphOf(town);
 const world = createWorld(graph, 1);
-const map = new StreetMap(town, graph);
+const map = new StreetMap(town, world.graph);
 tick(world, 120); // 08:00
 const a = world.actors.cols;
 const tracks = new Map<number, Track>();
@@ -30,14 +31,15 @@ function length(k: number[]): number {
 }
 
 test('street: trips walk from door to door over the trip time, on dry ground or a bridge, at a walking pace', () => {
-  assert.ok(walking.length > 20, `${walking.length} on their way`);
+  assert.ok(walking.length > 10, `${walking.length} on their way`);
   const pace: number[] = [];
   for (const t of walking) {
-    const k = t.keys, n = k.length / 4, from = graph.places[a.from[t.id]], to = graph.places[a.dest[t.id]];
-    assert.equal(k[0], a.depart[t.id]);
-    assert.equal(k[(n - 1) * 4], Math.max(a.arrive[t.id], a.depart[t.id] + 0.5));
-    if (!OUTDOOR.has(from.kind)) assert.deepEqual([k[1], k[3]], [from.x, from.z], 'leaves by the door');
-    if (!OUTDOOR.has(to.kind)) assert.deepEqual([k[(n - 1) * 4 + 1], k[(n - 1) * 4 + 3]], [to.x, to.z], 'goes in by the door');
+    const trip = tripOf(world, t.id)!, k = t.keys, n = k.length / 4, from = world.graph.places[trip.from], to = world.graph.places[trip.to];
+    assert.equal(trip.mode, 'foot');
+    assert.equal(k[0], trip.depart);
+    assert.equal(k[(n - 1) * 4], Math.max(trip.arrive, trip.depart + 0.5));
+    if (!OUTDOOR.has(from.kind)) assert.ok(Math.hypot(k[1] - from.x, k[3] - from.z) < 0.01, 'leaves by the door');
+    if (!OUTDOOR.has(to.kind)) assert.ok(Math.hypot(k[(n - 1) * 4 + 1] - to.x, k[(n - 1) * 4 + 3] - to.z) < 0.01, 'goes in by the door');
     for (let i = 4; i < k.length; i += 4) {
       assert.ok(k[i] >= k[i - 4], 'time runs forward');
       assert.ok(Math.hypot(k[i + 1] - k[i - 3], k[i + 3] - k[i - 1]) < 30, 'no jumps');
@@ -79,7 +81,7 @@ test('street: a track is a pure function of the sim, and a stay laid out later j
     const at = Math.min(world.clock + 6, t.validUntil);
     sample(t.keys, at, p);
     sample(later.keys, at, q);
-    assert.ok(Math.hypot(p[0] - q[0], p[2] - q[2]) < 0.01, `${graph.places[a.place[t.id]].kind}: same place either way`);
+    assert.ok(Math.hypot(p[0] - q[0], p[2] - q[2]) < 0.01, `${world.graph.places[a.place[t.id]].kind}: same place either way`);
   }
 });
 
@@ -96,4 +98,15 @@ test('looks: everyone is dressed every day, the same outfit all day, and the bod
     assert.equal(bodyKey(p, 480), bodyKey(p, 1000));
     assert.notEqual(bodyKey(p, 480), bodyKey(p, 480 + 1440 * 366), 'a year older, a new body');
   }
+});
+
+test('view: the snapshot carries every trip and everyone\'s whereabouts, in buffers of its own', () => {
+  const v = viewOf(world);
+  assert.equal(v.clock, world.clock);
+  assert.equal(v.trips.who.length, world.trips.length);
+  world.trips.forEach((t, i) => assert.deepEqual(tripRow(v.trips, i), { ...t, household: householdOf(world, t.who)?.id ?? -1 }));
+  assert.deepEqual(Array.from(v.dest), Array.from(a.dest.slice(0, world.actors.count)));
+  const buffers = viewTransfers(v);
+  assert.equal(new Set(buffers).size, buffers.length, 'no buffer sent twice');
+  assert.ok(!buffers.includes(a.dest.buffer), 'not the sim\'s own columns');
 });

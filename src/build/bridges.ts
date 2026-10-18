@@ -24,7 +24,7 @@ export interface BridgeMeshes {
 }
 
 /** A bridge laid out along its edge: a straight line from a, the water span s0..s1, the deck height. */
-export interface Profile {
+interface Profile {
   ax: number; az: number; dx: number; dz: number;
   /** Length of the edge (the deck runs 0..L). */
   L: number;
@@ -36,7 +36,7 @@ export interface Profile {
 /** Deck height above the ground at its land ends (just above the cell carriageway it meets). */
 const DECK_LIFT = 0.01;
 
-export function bridgeProfile(br: Bridge, terrain: Terrain): Profile | null {
+function profileOf(br: Bridge, terrain: Terrain): Profile | null {
   const p = br.pts;
   const ax = p[0], az = p[1], bx = p[p.length - 2], bz = p[p.length - 1];
   const L = Math.hypot(bx - ax, bz - az);
@@ -62,6 +62,37 @@ export function bridgeProfile(br: Bridge, terrain: Terrain): Profile | null {
 }
 
 /**
+ * The deck heights of all bridges at a point: a function of (x, z) giving the deck surface of the bridge whose
+ * water span it lies on (within half its width plus `margin`), or null off every deck. For things placed by
+ * position (people on the street layer); traffic follows a deck by arc length (`bridgeDeckSurface`).
+ */
+export function bridgeDecksAt(bridges: readonly Bridge[], terrain: Terrain, margin = 1): (x: number, z: number) => number | null {
+  const decks = bridges.flatMap((br) => { const p = profileOf(br, terrain); return p ? [{ p, hw: br.width / 2 + margin }] : []; });
+  return (x, z) => {
+    for (const { p, hw } of decks) {
+      const s = (x - p.ax) * p.dx + (z - p.az) * p.dz;
+      if (s < p.s0 || s > p.s1) continue;
+      if (Math.abs((x - p.ax) * p.dz - (z - p.az) * p.dx) < hw) return p.y(s);
+    }
+    return null;
+  };
+}
+
+/**
+ * Height of a bridged arterial's deck at arc length s along its edge, or null when the bridge has
+ * no water span (then the road lies on the ground).
+ */
+export function bridgeDeckSurface(br: Bridge, terrain: Terrain): ((s: number) => number) | null {
+  const pr = profileOf(br, terrain);
+  if (!pr) return null;
+  // The profile runs along the straight line from the edge's first to its last point.
+  const P = br.pts, cum = [0];
+  for (let i = 2; i < P.length; i += 2) cum.push(cum[cum.length - 1] + Math.hypot(P[i] - P[i - 2], P[i + 1] - P[i - 1]));
+  const k = pr.L / Math.max(1e-6, cum[cum.length - 1]);
+  return (s) => pr.y(s * k);
+}
+
+/**
  * Pier stations (arc length) of a stone or girder bridge between its span ends; none for the
  * other styles.
  */
@@ -79,7 +110,7 @@ export function buildBridges(bridges: readonly Bridge[], terrain: Terrain, edges
   const mb = new MeshBuilder(facadeSpecs());
   mb.set('aSeed', 0.5);
   for (const br of bridges) {
-    const pr = bridgeProfile(br, terrain);
+    const pr = profileOf(br, terrain);
     if (pr) buildBridge(deck, mb, br, edges[br.edge], pr);
   }
   return { deck: deck.empty ? null : deck, structure: mb.empty ? null : mb };
