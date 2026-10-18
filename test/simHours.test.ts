@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Rng } from '@futuremagic/core';
-import { businessHours, withLocalHours } from '../src/sim/hours';
+import { businessHours, hoursLines, withLocalHours } from '../src/sim/hours';
 import { defaultHours } from '../src/sim/placeKinds';
 import type { Hours } from '../src/sim/places';
 
@@ -37,4 +37,12 @@ test('hours: the world gets its own copy, schools and churches keep theirs, and 
   assert.equal(a.places[1], places[1]);
   assert.equal(a.places[2], places[2]);
   assert.deepEqual(places[0].hours, defaultHours('clothes'), 'the planner\'s graph is untouched');
+});
+
+test('hours: a door sign lists every day, runs of days with the same hours on one line', () => {
+  const D = (...d: number[]) => d.reduce((m, x) => m | (1 << x), 0);
+  assert.deepEqual(hoursLines([{ days: D(0, 1, 3, 4), open: 540, close: 1050 }, { days: D(2), open: 540, close: 780 }, { days: D(5), open: 555, close: 750 }, { days: D(5), open: 840, close: 960 }]),
+    ['Mon–Tue  9:00–17:30', 'Wed  9:00–13:00', 'Thu–Fri  9:00–17:30', 'Sat  9:15–12:30 14:00–16:00', 'Sun  Closed']);
+  assert.deepEqual(hoursLines([{ days: 0b1111111, open: 660, close: 1500 }]), ['Mon–Sun  11:00–1:00']);
+  assert.deepEqual(hoursLines([]), ['Mon–Sun  Closed']);
 });
