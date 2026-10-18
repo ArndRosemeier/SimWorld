@@ -1,13 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { planTown } from '../src/plan/town';
-import { buildGround, groundSurfaces, GROUND_LAYER_COUNT } from '../src/build/ground';
+import { buildGround, cellGround, groundSurfaces, GROUND_LAYER_COUNT } from '../src/build/ground';
 import { intersection, shapesToPolys, shapeArea } from '../src/geom/clip';
 import { buildTerrainTile, buildWaterTile, terrainTiles, terrainSkirt, terrainMeshHeight, waterSources, TERRAIN_DROP } from '../src/build/terrainMesh';
-import { buildCountryRoads, countryRoadSurface } from '../src/build/rural';
+import { buildCountryRoads, countryGround } from '../src/build/rural';
 import type { MeshBuilder, MeshData } from '../src/build/meshBuilder';
 import type { Terrain } from '../src/world/terrain';
 import { CURB_H } from '../src/world/ground';
+import { buildBridges } from '../src/build/bridges';
+import { drawnGround, settle } from '../src/build/drawnGround';
+import { RoadNet } from '../src/traffic/roadNet';
+import { Parking } from '../src/traffic/parking';
+import { DIMS } from '../src/traffic/traffic';
+import { meshHeights, onStep, wheelContacts } from './groundCheck';
 
 // One small town shared by the file (planning it is the expensive part).
 const town = planTown({ seed: 1, size: 0 });
@@ -116,8 +122,8 @@ test('no two surfaces of a cell lie on each other (they would fight)', () => {
 
 test('country roads stand clear above the drawn terrain, also far out on its coarse grid', () => {
   let n = 0, worst = Infinity;
+  const y = countryGround(rural, null, terrain);
   for (const R of rural.roads) {
-    const y = countryRoadSurface(R, terrain);
     let len = 0;
     for (let i = 2; i < R.pts.length; i += 2) len += Math.hypot(R.pts[i] - R.pts[i - 2], R.pts[i + 1] - R.pts[i - 1]);
     for (let s = R.trim + 10; s < len; s += 23) {
@@ -129,10 +135,76 @@ test('country roads stand clear above the drawn terrain, also far out on its coa
         acc += l;
       }
       if (terrain.isWater(x, z, 2)) continue;
-      worst = Math.min(worst, y(s) - terrainMeshHeight(terrain, x, z));
+      worst = Math.min(worst, y(x, z) - terrainMeshHeight(terrain, x, z));
       n++;
     }
   }
   assert.ok(n > 200, `${n} points`);
   assert.ok(worst > TERRAIN_DROP, `closest ${worst.toFixed(3)} m above the terrain mesh`);
+});
+
+// ---------------------------------------------------------------- the drawn ground (src/build/drawnGround.ts)
+
+const drawn = drawnGround(town);
+const deck = buildBridges(macro.bridges, terrain, macro.edges).deck?.build();
+const meshY = meshHeights([...Object.entries(meshes).filter(([k]) => k !== 'water').map(([, m]) => m), ...(deck ? [deck] : [])]);
+/** How far below / above the meshes the drawn ground may say (m): paint lies 4 cm over the carriageway. */
+const BELOW = 0.05, ABOVE = 0.03;
+
+test('the drawn ground is the height the ground meshes draw: town cells, country roads and lips, yards, rail', () => {
+  const pts: [number, number][] = [];
+  for (const c of cells.slice(0, 2)) for (let x = c.bounds[0]; x < c.bounds[2]; x += 1.9) for (let z = c.bounds[1]; z < c.bounds[3]; z += 1.9) pts.push([x, z]);
+  // Across every country road (its camber, its lips), off the town's ground.
+  for (const R of rural.roads) {
+    for (let i = 2; i < R.pts.length; i += 2) {
+      const dx = R.pts[i] - R.pts[i - 2], dz = R.pts[i + 1] - R.pts[i - 1], l = Math.hypot(dx, dz);
+      for (let o = -R.hw - 0.5; o <= R.hw + 0.5; o += 0.7) pts.push([R.pts[i - 2] + dx / 2 - (dz / l) * o, R.pts[i - 1] + dz / 2 + (dx / l) * o]);
+    }
+  }
+  let n = 0;
+  const bad: string[] = [];
+  for (const [x, z] of pts) {
+    const m = meshY(x, z);
+    if (m !== m || terrain.isWater(x, z, 0) || onStep(meshY, x, z)) continue;
+    n++;
+    const d = drawn.heightAt(x, z) - m;
+    if (!(d >= -BELOW && d <= ABOVE)) bad.push(`(${x.toFixed(1)}, ${z.toFixed(1)}): ${d.toFixed(3)} m`);
+  }
+  assert.ok(n > 20000, `${n} points`);
+  // (A paint marking can overhang the carriageway it lies on.)
+  assert.ok(bad.length <= n / 5000, `${bad.length} of ${n} points off what is drawn: ${bad.slice(0, 8).join(', ')}`);
+});
+
+test('every vehicle stands with its wheels on the drawn road: lanes, bays, driveways, country roads', () => {
+  const net = new RoadNet(town), park = new Parking(net, cells.flatMap((c) => c.parking));
+  const st = { y: 0, pitch: 0, roll: 0 }, tmp = { x: 0, z: 0, dx: 0, dz: 0 };
+  let n = 0;
+  const bad: string[] = [];
+  // Only where the meshes built here draw the ground: the two cells, the countryside off every cell.
+  const built = cells.slice(0, 2).map((c) => cellGround(c, terrain)), others = cells.slice(2).map((c) => cellGround(c, terrain));
+  const country = countryGround(rural, macro.rail, terrain);
+  const inBuilt = (x: number, z: number) => built.some((g) => g(x, z) === g(x, z)) || (country(x, z) === country(x, z) && !others.some((g) => g(x, z) === g(x, z)));
+  const check = (x: number, z: number, yaw: number, [L, W]: [number, number], what: string) => {
+    settle((px, pz) => net.groundAt(px, pz), x, z, yaw, L, W, st);
+    const wheels = wheelContacts(x, z, yaw, L, W, st);
+    if (!wheels.every(([wx, , wz]) => inBuilt(wx, wz))) return;
+    for (const [wx, wy, wz] of wheels) {
+      const m = meshY(wx, wz);
+      if (m !== m || onStep(meshY, wx, wz)) continue;
+      n++;
+      if (!(wy - m >= -BELOW && wy - m <= ABOVE)) bad.push(`${what} wheel at (${wx.toFixed(1)}, ${wz.toFixed(1)}) ${(wy - m).toFixed(3)} m`);
+    }
+  };
+  for (const e of net.edges) for (const fwd of [true, false]) {
+    const off = net.laneOffset(e, fwd, 0);
+    for (let s = 2; s < e.len - 2; s += 12) {
+      net.lanePoint(e, s, off, tmp);
+      const dx = fwd ? tmp.dx : -tmp.dx, dz = fwd ? tmp.dz : -tmp.dz;
+      check(tmp.x, tmp.z, Math.atan2(-dx, -dz), DIMS.sedan, 'car');
+      check(tmp.x, tmp.z, Math.atan2(-dx, -dz), DIMS.bus, 'bus');
+    }
+  }
+  for (const s of park.spots) check(s.x, s.z, s.yaw, DIMS.sedan, s.drive ? 'driveway car' : 'parked car');
+  assert.ok(n > 3000, `${n} wheels`);
+  assert.ok(bad.length <= n / 500, `${bad.length} of ${n} wheels off the road: ${bad.slice(0, 8).join(', ')}`);
 });

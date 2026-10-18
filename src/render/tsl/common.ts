@@ -78,12 +78,20 @@ export const SEASON = {
  * A geometry-instanced copy's placement (`instancedFromData`, src/render/meshes.ts; the
  * attributes src/build/vegetation.ts `INSTANCE_SPECS`: iPose x, y, z, yaw and iSize across, up):
  * `p` scaled, turned by the yaw about +Y (as three's rotation) and moved; `scaled = false` turns
- * a direction only.
+ * a direction only. `tilted`: first tipped by the instance's iTilt (x pitch about +X, nose (−Z) up
+ * positive; y roll about the forward axis, right side (+X) up positive), as vehicles on a slope.
  */
-export function posed(p, scaled = true) {
+export function posed(p, scaled = true, tilted = false) {
   const pose = attribute('iPose', 'vec4'), size = attribute('iSize', 'vec2');
   const c = cos(pose.w), s = sin(pose.w);
-  const q = scaled ? p.mul(vec3(size.x, size.y, size.x)) : p;
+  let q = scaled ? p.mul(vec3(size.x, size.y, size.x)) : p;
+  if (tilted) {
+    const tilt = attribute('iTilt', 'vec2');
+    const cp = cos(tilt.x), sp = sin(tilt.x), cr = cos(tilt.y), sr = sin(tilt.y);
+    // Roll about the forward axis, then pitch about +X.
+    const rx = q.x.mul(cr).sub(q.y.mul(sr)), ry = q.y.mul(cr).add(q.x.mul(sr));
+    q = vec3(rx, ry.mul(cp).sub(q.z.mul(sp)), ry.mul(sp).add(q.z.mul(cp)));
+  }
   const r = vec3(q.x.mul(c).add(q.z.mul(s)), q.y, q.z.mul(c).sub(q.x.mul(s)));
   return scaled ? r.add(pose.xyz) : r;
 }
@@ -91,12 +99,13 @@ export function posed(p, scaled = true) {
 /**
  * Place a kind's geometry-instanced meshes by `posed`: the position (both passes, the shadow's
  * too; `position` if the look moves the posed vertex further, like the wind) and the turned normals.
+ * `tilted`: tipped by iTilt too (the kind has it among its instanced attributes).
  */
-export function poseByInstance(mat: NodeMaterial, position = posed(positionGeometry)): void {
-  mat.positionNode = position;
+export function poseByInstance(mat: NodeMaterial, position?: ReturnType<typeof posed>, tilted = false): void {
+  mat.positionNode = position ?? posed(positionGeometry, true, tilted);
   const base = mat.setupPosition;
   mat.setupPosition = function (builder) {
-    normalLocal.assign(posed(normalLocal, false));
+    normalLocal.assign(posed(normalLocal, false, tilted));
     return base.call(this, builder);
   };
 }

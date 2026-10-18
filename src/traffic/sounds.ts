@@ -9,7 +9,7 @@
  * New in SimWorld. Pure (no three.js, no Web Audio: the audio is handed in), so tests can listen.
  */
 import { VEHICLE_KINDS } from '../build/vehicles';
-import { CAR_STRIDE, HORN_STRIDE, STATE_STRIDE, vehiclePose, type TrafficMsg } from './feed';
+import { CAR_STRIDE, HORN_STRIDE, POSE_STRIDE, STATE_STRIDE, vehiclePose, type TrafficMsg } from './feed';
 import { isTrainKey } from './trains';
 import { isBikeKey } from './townTraffic';
 
@@ -47,8 +47,8 @@ export class StreetSounds {
   private idle: Loop | null = null;
   private time = 0;
   private lastPass = -Infinity;
-  private readonly p = new Float32Array(4);
-  private readonly q = new Float32Array(4);
+  private readonly p = new Float32Array(POSE_STRIDE);
+  private readonly q = new Float32Array(POSE_STRIDE);
 
   /** Once a frame (`dt` real seconds), with the listener at (x, y, z) and the game clock. */
   listen(dt: number, x: number, y: number, z: number, clock: number, m: TrafficMsg | null, audio: StreetAudio): void {
