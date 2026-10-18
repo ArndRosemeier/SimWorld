@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.023 — The town has weather
+
+- The town has weather of its own, the same for everyone in it: sunny spells, cloud, drizzle, rain, thunderstorms on summer afternoons, morning fog in autumn and winter, and snow in winter that stays on the ground until it thaws.
+- Streets stay wet for a while after rain, and wet streets freeze to ice on cold nights.
+- Not on screen yet: the sky and the people start reacting to it in the next changes.
+
+## v0.022 — Traffic: the town's cars, driven by its people
+
+- The town has a road network for cars: right-hand lanes, speed limits in km/h (50 on the main roads, 30 in the side streets, 80 out of town), traffic lights where main roads cross, and side roads that give way to the main road.
+- Cars come from the inhabitants: when someone sets off by car, their household's car pulls out of its kerbside bay, drives there and parks in a free bay near where they are going. A car out with one person is not there for the rest of the family.
+- A few cars from the region pass through on the country roads, more in the rush hours.
+- Not on screen yet: the cars are drawn in the next change, on top of the car models.
+
 ## v0.021 — Every journey is recorded
 
 - The simulation now keeps a list of everyone who is on their way somewhere: where from, where to, when they left and arrive, and whether they walk or drive. Children and the dog travel with whoever takes them, in the same car.

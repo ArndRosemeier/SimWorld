@@ -14,6 +14,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | `src/interior` | Building interiors (ported from Scale's interior designer): storeys cut into rooms by a theme, doors, stairs and lifts, furniture, and the spots where people sleep, sit and work. Pure data from the building. | core, `src/geom`, `src/plan`, `src/build/massing` (tiers); from `src/sim` only types and `src/sim/placeKinds.ts` (guarded) |
 | `src/build` | Mesh data from the plan: terrain tiles, water, the town's ground, building shells with facade attributes, landmarks, country roads, the procedural material textures (ported from Scale). Typed arrays, runs in workers. | core, `src/geom`, `src/plan`, `src/world` (no three.js, guarded) |
 | `src/workers` | The worker pool and the workers (town workers, texture workers; the sim worker, planned). | everything pure |
+| `src/traffic` | The town's traffic: the road network for cars, the cars driving and parking, the car trips out of the sim. Pure, runs on the main thread for the visible town and in headless tests. | core, `src/plan`, `src/world`, `src/build`, `src/sim` (reads the world, never writes it) |
 | `src/talk` | The procedural text engine (background chatter, fallback answers). Pure. | core, `src/sim` types |
 | `src/llm` | OpenRouter, the model roster, task routing, usage ledger, prompt building, response contracts. No state of its own about NPCs. | core, `src/sim` types |
 | `src/render` | three.js: renderer, Stage, materials, lights, meshes, views. | everything pure |
@@ -75,6 +76,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Which ground-floor uses does a town have, which sim place kind is each? | `AmenityKind`, `amenityCounts(pop, warm)`, `PLACE_KIND_OF`, `EATERY_OF`, `AMENITY_LABEL` (hours, staff and capacity are the sim's `placeKinds`) | `src/plan/amenities.ts` |
 | What is this shop front / workplace? | `b.amenity` (set by `planTown`), `b.eatery` for the terrace kind | `src/plan/town.ts`, `src/plan/eatery.ts` |
 | The country around the town (big city, larger town, villages, river, roads), as lore | `regionOf(town)` → `Region` (sim contract in `src/sim/region.ts`); `planRegion(hints)` without planning a town | `src/plan/region.ts` |
+| The town's roads as one network of lines (arterials, streets, footpaths, country roads, tracks) cut at their junctions, with street names | `townRoads(town)` → `TownRoads` (`lines`, `nodes`, `streets`, `nearest`); `alongLine`, `slicePolyline`. The place graph and the traffic network are both built from it | `src/plan/roads.ts` |
 | The town as the sim sees it (places, addresses, road network) | `placeGraphOf(town)` → `PlaceGraph`; `buildingRef(place.building)` back to the cell building, site or farm | `src/plan/placeGraph.ts` |
 | Build mesh data (any kind) | `MeshBuilder(specs)` → `build(): MeshData`; the specs are the material kind's `attributes` | `src/build/meshBuilder.ts` |
 | A procedural material texture layer (facade, roof, ground; tileable RGBA8 albedo+roughness, normal+height+AO) | `generateFacadeLayer(i, size)`, `generateGroundLayer(i, size)`, `FACADE_TILE_METERS`, `GROUND_TILE_METERS`, `TEX_SIZE`; building blocks `TNoise`, `worley`, `Tex`, `Layout`, `brickWall`, `stoneBlocks` | `src/build/texgen/` |
@@ -90,6 +92,18 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Look at interiors without the game | `?inside=<cell>/<building>&floor=<n>` in the browser; floor plans as SVG: `npx tsx tools/interior/plans.ts` | `src/main.ts`, `tools/interior/plans.ts` |
 | 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |
 | Polygon union, difference, intersection, offset | `src/geom/clip.ts` (clipper) | `src/geom/clip.ts` |
+
+### Traffic (`src/traffic`)
+
+| Question | The one way | Where |
+|---|---|---|
+| The roads cars use: edges, lanes, speed limit (km/h), junction rules (lights, give way), surface height (bridge decks), routes | `new RoadNet(town)`: `edges` (`kmh`, `rule`, `park`), `nodes` (`signal`, `exit`), `carRoute`, `laneOffset` (right-hand, lane 0 at the kerb), `lanePoint`, `heightAt`, `nearestEdge`, `ruleAt`, `rank`; the limits `LIMITS` | `src/traffic/roadNet.ts` |
+| Height of a country road or a bridged main road where cars drive on it | `countryRoadSurface(road, terrain)`, `bridgeDeckSurface(bridge, terrain)` (RoadNet samples them per edge) | `src/build/rural.ts`, `src/build/bridges.ts` |
+| Where do parked cars stand? Is there a free bay near here? | `Parking`: kerbside bays and farm yards (`spots`), `parkNear`, `nearestFree`, `reserve`/`arrive`/`release`, `spotOf`, `restAt`, `occupied()`; no bay near: off the street (not drawn) | `src/traffic/parking.ts` |
+| Make a car drive somewhere, park, leave the map; may a person cross here? | `Traffic`: `depart(car, goal)` (a parked car), `enter(car, exit, goal)` (from the region), `place(car, edge, fwd, s, goal)` (scripted: buses, rounds); `update(dt)`; `vehicles`, `onPark`, `onGone`; `obstacles` (people on the road), `safeToCross(x, z)`; `weatherK`, `daylight` | `src/traffic/traffic.ts` |
+| Which inhabitants set off by car just now? Where does a household's car stand at load? | `carTripsSince(world, clock)` → `CarTrip[]` (the drivers of `world.trips`, companions ride along); `carPlace(world, household)` | `src/traffic/trips.ts` |
+| The town's traffic from the sim (household cars, through traffic) | `TownTraffic(town, places, seed)`: `placeCars`, `trips(trips, clock)` once per game minute, `update(dt)` per frame; a household's car model `householdCar(seed, household)` | `src/traffic/townTraffic.ts` |
+| Draw the cars | the vehicle view *planned* (instanced `VEHICLE` kind, per-instance lights) | `src/render/vehiclesView.ts` *planned* |
 
 ### The app (`src/app`)
 
@@ -123,7 +137,8 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Bus and train lines, stops, timetables, the school bus | `src/sim/transit.ts` (pure, so people ride the bus in the sim) | `src/sim/transit.ts` *planned* (track D) |
 | Game time: day, weekday, minute of day | `dayOf`, `weekdayOf`, `minuteOfDay`, `onDay`, `atMinute` | `src/sim/time.ts` |
 | What date is it, which season, when does the sun rise and set? Is it a holiday, a school day? | `dateOf(world, clock)`, `seasonOf`, `warmth`, `sunAt(world, clock)`, `holidayOn`, `termOn`, `schoolDay`. Game day 0 is a Monday; `world.epoch` maps it to a real date, which comes in through `createWorld(graph, seed, { start })`; the pure layers never read the wall clock (guarded). `runsLike(world, clock)` is the weekday a day runs like (public holidays run like Sundays): opening hours (`isOpen`) and shifts (`worksOn`, `src/sim/schedule.ts`) read the week only through it | `src/sim/calendar.ts` |
-| What is the weather (sky, rain, temperature, snow cover, wind)? | `weatherAt(world, clock)`: a seeded chain by season, the same for the live tick, the chronicle and the screen | `src/sim/weather.ts` *planned* (track B) |
+| What is the weather (sky, temperature, rain or snow, wind, wet streets, lying snow, ice, frost)? Is it nice out, cold, wet, foul? How do people say it? | `weatherAt(world, clock?)` → `Weather`: a seeded chain by season, a pure function of (seed, epoch, minute), cached per minute, the same for the live tick, the chronicle and the screen; `isWetOut`, `isCold`, `isHot`, `isNiceOut`, `isFoul`, `describeWeather`; without a world (the screen before the sim runs) `new WeatherModel(seed, epoch).weather(clock)` | `src/sim/weather.ts` |
+| Where do the sun and the moon stand (direction, height), what phase is the moon? | `sunPosition(world, clock)`, `moonPosition`, `moonPhase`, `moonLit`, `yearPhase` (consistent with `sunAt`'s sunrise and sunset); world axes east +x, north -z | `src/sim/calendar.ts` |
 | What is on in town today: market, bin day per street, services, matches, club meetings, the council, the festival, weddings and funerals? | `agendaOn(world, day)`; clubs and institutions add their meetings here, there is no second calendar | `src/sim/agenda.ts` *planned* (track E) |
 | Make a world with its population | `createWorld(graph, seed)` (households, kin, jobs from staff slots, schools, habits, pets, livestock, wildlife, relationships) | `src/sim/synth.ts` |
 | Add one person, animal or household; (re)settle school, routine and habits | `newPerson`, `newAnimal`, `adoptPet`, `addHousehold`, `settle` (used by synthesis and life events) | `src/sim/synth.ts` |
