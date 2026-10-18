@@ -9,6 +9,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Folder | What | May import |
 |---|---|---|
 | `src/sim` | The society: actors, places, schedules, needs, encounters, knowledge, minds, intentions, life events. Pure data, runs in a worker and in headless tests. **The single source of truth for every inhabitant.** | core only (guarded) |
+| `src/setting` | The invented world's conventions (D27, plan R7): the lexicon (one word per thing where British and American English differ), money, plate, phone, address and emergency-number formats, school grades, the real-place deny list. Pure data (*planned*, Town planner port). | core only (guarded); every layer may import it |
 | `src/geom` | 2D polygon geometry and polygon booleans (ported from Scale's core). Pure. | core only (guarded) |
 | `src/plan`, `src/world` | The town planner and terrain (ported from Scale). Pure data. | core; from `src/sim` only `import type` (the place graph contract) and the per-kind defaults in `src/sim/placeKinds.ts` |
 | `src/interior` | Building interiors (ported from Scale's interior designer): storeys cut into rooms by a theme, doors, stairs and lifts, furniture, and the spots where people sleep, sit and work. Pure data from the building. | core, `src/geom`, `src/plan`, `src/build/massing` (tiers); from `src/sim` only types and `src/sim/placeKinds.ts` (guarded) |
@@ -278,3 +279,9 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Question | The one way | Where |
 |---|---|---|
 | Play a sound: ambience bed, spatial one-shot | the audio engine (guarded: `AudioContext` only there) | `src/audio/` *planned* (track G) |
+
+### The setting
+
+| Question | The one way | Where |
+|---|---|---|
+| What is this thing called in the game world? How are prices, licence plates, phone numbers, addresses, the emergency number and school grades written? Is this generated name a real place? | the setting module: the lexicon, the formats, the real-place deny list (D27, plan R7). Never a string literal with a real currency, format or dialect word elsewhere; a test scans phrase banks and labels | `src/setting/` *planned* (Town planner port) |

@@ -35,6 +35,7 @@ Grounded in a read of `Scale` (commit `eee2b85`, 17 Oct 2026), `Dunfinity`, `Ass
 | D24 | **Holidays:** Christmas, New Year, Easter, Halloween, plus the town's own summer festival and Christmas market. No national holidays (they would place the town). |
 | D25 | **The secondary school is in the larger nearby town** (lore, D19); a school bus takes the teenagers there every school morning and back in the afternoon. |
 | D26 | **Town realism** (checklist [town-realism.md](town-realism.md)): anything visible that changes over time is caused by the sim and read from it; seeded decoration only for wear and clutter. Built as tracks A–H across threads (R8). |
+| D27 | **An invented world, only western-adjacent** (Arnd, 18 Oct 2026): people drive on the right and have English names, but nothing identifies a real region. No real places, brands or institutions, no strongly British or American words, no real currency, and no real plate, phone, postcode or emergency-number formats. The rules are in R7. |
 
 ## Round 2: what these decisions change
 
@@ -138,13 +139,35 @@ The player possesses an existing person. That has big consequences, mostly good:
   returned with each response. No budget enforcement.
 - Recorded responses for tests; NPC↔NPC talk never calls an LLM at runtime.
 
-### R7. Town scope for D10
+### R7. Town scope and setting (D10, D27)
 
-Modern, placeless western town: no German or US specifics in names, signage, or institutions beyond what is common to
-both. Crime exists only at a low rate (theft, a bar fight, vandalism), romance is a normal part of the relationship
-model (attraction, dating, cheating, break-ups, marriage), politics is local only (council, mayor, a local issue to
-argue about, like a new road or closing the pool).
+The town lies in an invented country that is only western-adjacent: modern, right-hand traffic (D20), English names,
+Christmas and Easter (D24), and nothing that points to a real region. Crime exists only at a low rate (theft, a bar
+fight, vandalism), romance is a normal part of the relationship model (attraction, dating, cheating, break-ups,
+marriage), politics is local only (council, mayor, a local issue to argue about, like a new road or closing the pool).
 
+What the player can read or hear (signs, labels, UI, chatter, the paper, LLM prompts, lore, generated names) follows
+these rules:
+
+- **Names.** Given and family names sound English. Every place name is invented: the town, its streets, the big city,
+  the nearby town and the villages (D19). A generated name that is a well-known real place is rejected.
+- **Words.** No word that clearly marks Britain or America (pavement/sidewalk, petrol/gas, lorry, chemist/drugstore,
+  high street, mum/mom, county, sheriff, zip code, motorway/interstate). Where the two differ, one word is chosen once
+  in the setting lexicon and everyone uses it; a term both sides share (pharmacy, truck, fuel station, apartment, bin
+  day) is preferred.
+- **Spelling.** One convention: colour, centre, metre, neighbour, grey, travelled, organise (what most of the repo's
+  text already uses). Code identifiers follow their libraries (`color` in three.js).
+- **Money.** No real currency name or symbol (no dollar, pound, euro, cent, penny, $, £, €). Default: plain numbers
+  with a decimal point ("12.50", said "twelve fifty"); Arnd may choose an invented name instead.
+- **Formats.** Licence plates, phone numbers, addresses and the emergency number use invented formats chosen once in
+  the setting module. Never a real one: not 911, 999, 112, 000 or 111.
+- **Schools.** Years are grades, used everywhere: the town's primary school has grades 1 to 6, the secondary school in
+  the nearby town grades 7 to 12 (D25); younger children go to the kindergarten.
+- **Institutions and brands.** Generic or invented: the health centre, the town council, the district (the level above
+  the town), the railway. No NHS, DMV, real chains or real products.
+
+All of this lives in one place, `src/setting/` (lexicon, formats, the real-place deny list, and a test that scans the
+phrase banks and labels for banned words); every layer may import it. Owner: the Town planner port thread.
 
 ### R8. Town realism (D20–D26)
 
