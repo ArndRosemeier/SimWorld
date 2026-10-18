@@ -56,7 +56,10 @@ export type Goal =
    * Stop in the kerb lane by (x, z) with the hazards on for `dwell` seconds (a bus stop, the bin
    * lorry at a row of houses, the post van), then drive on to `then`.
    */
-  | { halt: true; x: number; z: number; dwell: number; then: Goal; /** Not before this (`Traffic.time`): a bus early for its timetable. */ leave?: number; /** Pull into a lay-by off the lane (a bus stop), so traffic goes past. */ bay?: boolean; tag?: number };
+  | { halt: true; x: number; z: number; dwell: number; then: Goal; /** Not before this (`Traffic.time`): a bus early for its timetable. */ leave?: number; /** Pull into a lay-by off the lane (a bus stop), so traffic goes past. */ bay?: boolean; tag?: number; /** An emergency: blue lights and siren on the way, the lights while there. */ urgent?: boolean };
+
+/** Is this goal an emergency call (blue lights and siren)? */
+export const urgent = (g: Goal): boolean => 'halt' in g && !!g.urgent;
 
 export interface Vehicle {
   id: number;
@@ -95,7 +98,7 @@ export interface Vehicle {
   stopAt: number;
   /** Seconds standing at a halt (−1: not halted). */
   halted: number;
-  /** Siren and flashers: ignores red lights; cars ahead pull over to the kerb. */
+  /** Siren and flashers (on an `urgent` call): ignores red lights; cars ahead pull over to the kerb. */
   siren: boolean;
   /** Pulled towards the kerb (+, yielding to a siren) or the centre line (−, overtaking), 0..1. */
   pull: number;
@@ -278,7 +281,7 @@ export class Traffic {
       id: this.nextId++, car, length: L, width: W, edge, fwd, lane: 0, s,
       route: { edges: [edge], fwd: [fwd] }, ri: 0, speed: 0, pace: r.range(0.9, 1.08),
       x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, turn: null, brake: 0, indicator: 0, headlights: 0, wait: 0, jam: 0,
-      goal, spot: null, stopAt: NaN, halted: -1, siren: car.kind === 'ambulance' || car.kind === 'firetruck', pull: 0, drive: null, alive: true,
+      goal, spot: null, stopAt: NaN, halted: -1, siren: urgent(goal), pull: 0, drive: null, alive: true,
     };
     this.pose(v);
     return v;
@@ -553,7 +556,7 @@ export class Traffic {
     const j = this.journey(v.car.key, v.edge, v.fwd, v.s, g.then);
     // No way on from here (never in a connected town): stand until the gridlock breaker takes it.
     if (!j) return;
-    v.goal = g.then; v.route = j.route; v.ri = 0; v.spot = j.spot; v.stopAt = j.stopAt; v.halted = -1; v.indicator = 0;
+    v.goal = g.then; v.route = j.route; v.ri = 0; v.spot = j.spot; v.stopAt = j.stopAt; v.halted = -1; v.indicator = 0; v.siren = urgent(g.then);
   }
 
   /** The way between the kerb lane where the car stands and its driveway spot (`out`: backing out, from the spot). */
