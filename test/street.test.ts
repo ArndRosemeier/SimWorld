@@ -11,6 +11,9 @@ import { StreetMap, OUTDOOR } from '../src/street/streetMap';
 import { trackOf, sample, type Track } from '../src/street/tracks';
 import { outfitOf, bodyKey, type LookInfo } from '../src/street/looks';
 import { buildingLooksOf, litShares, windowSlots } from '../src/street/windows';
+import { spotsFor, whoIsInside } from '../src/street/inside';
+import { planInterior } from '../src/interior/building';
+import { buildingRef } from '../src/plan/placeGraph';
 import { A } from '../src/sim/actors';
 import { pointInPoly, polyCentroid } from '../src/geom/geom2';
 import { TrafficFeed } from '../src/traffic/feed';
@@ -192,4 +195,28 @@ test('street: walks keep clear of trees, furniture, parked cars (in car parks an
   assert.ok(inThing / people < 0.02, `${inThing} of ${people} walk into a thing`);
   assert.ok(inCar / people < 0.02, `${inCar} of ${people} walk into a car at the kerb`);
   assert.ok(inWall / people < 0.02, `${inWall} of ${people} walk through a wall`);
+});
+
+test('inside: everyone in a building and not leaving is there, a household keeps its home, and beds go to their own sleepers', () => {
+  // A building of flats with people at home.
+  const flats = world.graph.places.find((p) => p.homes >= 2 && p.building >= 0 && 'cell' in buildingRef(p.building)! && whoIsInside(world, p.building).length >= 3)!;
+  assert.ok(flats, 'a block of flats with people in');
+  const ins = whoIsInside(world, flats.building);
+  for (const p of ins) assert.ok(a.place[p.id] === flats.id && a.dest[p.id] < 0, `${p.id} is in`);
+  const unitOf = new Map<number, number>();
+  for (const p of ins) {
+    const hh = householdOf(world, p.id)!;
+    if (hh.home !== flats.id) { assert.equal(p.unit, -1, 'a visitor has no home here'); continue; }
+    assert.ok(p.unit >= 0 && p.unit < flats.homes);
+    if (unitOf.has(hh.id)) assert.equal(unitOf.get(hh.id), p.unit, 'one household, one home');
+    unitOf.set(hh.id, p.unit);
+  }
+  // At night: each sleeper in a bed of their own home, no spot twice.
+  const ref = buildingRef(flats.building) as { cell: number; index: number };
+  const spots = planInterior(town.cells[ref.cell].buildings[ref.index]).spots;
+  const night = ins.map((p) => ({ ...p, activity: A.sleep }));
+  const given = spotsFor(night, spots);
+  assert.equal(new Set(given.filter((k) => k >= 0)).size, given.filter((k) => k >= 0).length);
+  night.forEach((p, i) => { if (p.unit >= 0 && given[i] >= 0) assert.ok(spots[given[i]].use === 'sleep' && spots[given[i]].unit === p.unit, `bed of home ${p.unit}`); });
+  assert.ok(given.some((k) => k >= 0 && spots[k].use === 'sleep'));
 });
