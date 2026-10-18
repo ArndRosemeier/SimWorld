@@ -114,5 +114,32 @@ export function outfitOf(seed: number, p: LookInfo, clock: number, cold: number,
   return eq;
 }
 
+/** Children dress up on Halloween (31 October) from late afternoon, for trick-or-treating. */
+export const dressUpDay = (month: number, day: number, clock: number): boolean =>
+  month === 10 && day === 31 && clock % MINUTES_PER_DAY >= 16 * 60;
+
+/** The Halloween costumes, made of the everyday wardrobe's pieces and a few of their own (src/render/people/wardrobe.ts). */
+const COSTUMES = ['ghost', 'witch', 'cat', 'pumpkin', 'vampire'] as const;
+
+/** A child's Halloween costume (the same all evening), over today's shoes; null for grown-ups. */
+export function costumeOf(seed: number, p: LookInfo, clock: number, everyday: EquipmentVisuals): EquipmentVisuals | null {
+  if (yearsAt(p, clock) >= 13) return null;
+  const r = new Rng(deriveSeed(seed, 'costume', p.id, Math.floor(clock / MINUTES_PER_DAY)));
+  const u = () => r.int(0, 0x7fffffff);
+  const black: C3 = [0.06, 0.06, 0.07], white: C3 = [0.93, 0.93, 0.9], orange: C3 = [0.95, 0.45, 0.08], green: C3 = [0.2, 0.45, 0.15];
+  const purple: C3 = [0.3, 0.12, 0.4], red: C3 = [0.6, 0.05, 0.08];
+  const feet = everyday.feet;
+  switch (r.pick(COSTUMES)) {
+    case 'ghost': return { chest: { defId: 'robe', visual: vis(u(), white, white) }, head: { defId: 'beanie', visual: vis(u(), white, white) }, feet };
+    case 'witch': {
+      const c = r.chance(0.5) ? black : purple;
+      return { chest: { defId: 'robe', visual: vis(u(), c, c) }, head: { defId: 'witchHat', visual: vis(u(), black, c) }, feet };
+    }
+    case 'cat': return { chest: { defId: 'hoodie', visual: vis(u(), black, black) }, legs: { defId: 'jeans', visual: vis(u(), black, black) }, head: { defId: 'ears', visual: vis(u(), black, black) }, feet };
+    case 'pumpkin': return { chest: { defId: 'hoodie', visual: vis(u(), orange, orange) }, legs: { defId: 'chinos', visual: vis(u(), green, green) }, head: { defId: 'beanie', visual: vis(u(), green, green) }, feet };
+    default: return { chest: { defId: 'shirt', visual: vis(u(), white, white) }, back: { defId: 'coat', visual: vis(u(), black, red) }, legs: { defId: 'chinos', visual: vis(u(), black, black) }, feet };
+  }
+}
+
 /** How cold it feels, 0 (20 °C and warmer) … 1 (freezing, −2 °C and below), from the weather people dressed for. */
 export const coldOf = (tempC: number): number => clamp((20 - tempC) / 22, 0, 1);

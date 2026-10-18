@@ -106,12 +106,8 @@ function townhall(k: Kit, lm: Landmark, r: Rng): void {
       k.box(0, f0 + dp, dw, dp, B - 0.3, B, mat(GRANITE, [0.85, 0.85, 0.85]), { map: 0, foot: true });
       stepV = f0;
     }
-    // Clock faces near the top.
-    const cy = th - 4;
-    for (const [du, dv, rot] of [[0, -ts - 0.12, 0], [0, ts + 0.12, 0], [-ts - 0.12, 0, Math.PI / 2], [ts + 0.12, 0, Math.PI / 2]] as const) {
-      k.box(tu + du, tv + dv, 1.9, 0.12, cy - 1.9, cy + 1.9, mat(PLASTER, [1.15, 1.12, 1.02]), { rot, detail: true, solid: false });
-      k.box(tu + du * 1.03, tv + dv * 1.03, 0.12, 0.06, cy - 0.1, cy + 1.5, mat(METAL, [0.1, 0.1, 0.1]), { rot, detail: true, solid: false });
-    }
+    // Clock faces near the top, one on each side (the signs show the time on them).
+    for (const [ou, ov] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) k.clockFace(tu + ou * ts, tv + ov * ts, ou, ov, 1.9, th - 4);
     if (st === 1) k.pyramid(tu, tv, ts + 0.3, ts + 0.3, th, th + ts * 3.2, 0, mat(r.pick([SLATE, ZINC]), r.chance(0.4) ? COPPER : WHITE, ROOF));
     else if (st === 2) {
       k.cyl(tu, tv, ts * 0.8, ts * 0.8, th, th + 4, mat(wallL, pastel, WIN | ARCH, 2, 4, 4), { solid: false });
