@@ -43,8 +43,9 @@ test('appraisal: refs become ids, the partner is the belief source, zero steps a
     relations: [{ toward: 'P2', trust: -1, affection: 0, respect: null, reason: 'spreads gossip' }, { toward: 'P3', trust: 0, affection: 0, respect: 0, reason: 'nothing' }, { toward: 'P1', trust: 1, affection: null, respect: null, reason: 'self' }],
     emotion: { kind: 'surprise', intensity: 2, toward: null },
     beliefs: [{ claim: 'The mill is closing', about: ['P7'], stance: 'doubts' }],
-    utterances: [{ claim: '[P3] cleans for the Brandts', about: ['[P3]'], kind: 'lie' }],
+    utterances: [{ claim: '[P3] cleans for the Brandts', about: ['[P3]'], kind: 'lie', topic: 'job' }],
     intentions: [
+      { kind: 'constructor', person: null, place: null, topic: null, item: null, when: null, quote: 'Closing' },
       { kind: 'meet', person: 'P2', place: 'L2', topic: null, item: null, when: { in_minutes: null, clock: '17:00', day: 0 }, quote: "Meet me at the fountain at five" },
       { kind: 'tell', person: 'P3', place: null, topic: 'the mill', item: null, when: null, quote: 'I will tell Anna everything' },
       { kind: 'fly', person: null, place: null, topic: null, item: null, when: null, quote: 'x' },
@@ -52,20 +53,20 @@ test('appraisal: refs become ids, the partner is the belief source, zero steps a
     memory: { summary: 'Tom said the mill is closing.', importance: 14 },
     end_conversation: null,
   });
-  const { proposal, dropped } = parseAppraisal('```json\n' + json + '\n```', input, refsFor(input.context));
+  const { proposal, dropped, utterances } = parseAppraisal('```json\n' + json + '\n```', input, refsFor(input.context));
   assert.deepEqual([proposal.npc, proposal.partner, proposal.conversation], [RUTH, TOM, 'c-ruth-tom-1']);
   const saturday = 5 * 1440;
   assert.deepEqual(proposal.changes, [
     { kind: 'relation', toward: TOM, trust: -1 / 3, reason: 'spreads gossip' },
     { kind: 'emotion', emotion: 'surprise', delta: 2 / 3, reason: '' },
     { kind: 'belief', claim: { text: 'The mill is closing', topic: 'other', secret: false }, plausibility: 0.45 },
-    { kind: 'utterance', claim: { text: 'Anna Keller cleans for the Brandts', about: ANNA, topic: 'other', secret: false }, utterance: 'lie' },
     { kind: 'intention', intention: 'meet', person: TOM, place: FOUNTAIN, at: saturday + 17 * 60, reason: 'Meet me at the fountain at five' },
     { kind: 'memory', summary: 'Tom said the mill is closing.', importance: 1, emotion: 'surprise' },
   ]);
-  assert.deepEqual(dropped.map((d) => d.split(':')[0]), ['relation', 'belief', 'intention tell', 'intention']);
+  assert.deepEqual(utterances, [{ claim: { text: 'Anna Keller cleans for the Brandts', about: ANNA, topic: 'job', secret: false }, form: 'lie' }], 'held back until the sim takes utterances');
+  assert.deepEqual(dropped.map((d) => d.split(':')[0]), ['relation', 'belief', 'intention', 'intention tell', 'intention']);
   assert.match(dropped[0], /toward the speaker themselves/);
-  assert.match(dropped[2], /quote not found in the reply/);
+  assert.match(dropped[3], /quote not found in the reply/);
   assert.throws(() => parseAppraisal('sorry, I cannot', input, refsFor(input.context)));
 });
 
