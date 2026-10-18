@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.139 — Bug reports are reproduced before they are fixed
+
+- Every bug you report with F8 is now replayed from its link in a test browser before anyone starts the fix, so the fix is checked against what you actually saw.
+
 ## v0.138 — Debug menu: go anywhere, free camera, see colliders, doors and walks
 
 - The debug menu (Shift+Ctrl+F12) can move you at once to a person, into a building or to a point.
