@@ -440,12 +440,8 @@
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
   {
-    "key": "idiom: [.add .prepare] in simworld/render/propsView.ts + simworld/render/signsView.ts + simworld/render/townView.ts",
+    "key": "idiom: [.add .prepare] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts + simworld/render/townView.ts",
     "reason": "The Stage's contract for adding to your own group (stage.prepare, then group.add; docs/SHADERS.md): each view says it once where it places its meshes."
-  },
-  {
-    "key": "idiom: [.front .length .poly] in simworld/plan/building.ts + simworld/plan/cell.ts + simworld/plan/signs.ts",
-    "reason": "A building's front edge read from its footprint (plan/building.ts streetDoor, cell.ts, signs.ts): each reads the edge for its own purpose (the door, the lot, the sign mounts); the door itself has one seam (streetDoor)."
   },
   {
     "key": "same name: simworld/render/propsView.ts#update + simworld/render/signsView.ts#update",
@@ -578,5 +574,25 @@
   {
     "key": "idiom: [.households .length .members] in simworld/sim/decor.ts + simworld/sim/lostPets.ts + simworld/sim/media.ts",
     "reason": "Skipping empty households in a loop over world.households (one guard line); each system goes on to read different columns of the household."
+  },
+  {
+    "key": "idiom: [.Path .cls .streets] in simworld/build/decorProps.ts + simworld/build/streetProps.ts + simworld/plan/terrace.ts",
+    "reason": "Walking a cell's streets and skipping footpaths (RoadClass.Path): each caller dresses the carriageways for its own purpose (bunting spans, street props, terrace fronts); the street list itself is the one seam."
+  },
+  {
+    "key": "idiom: [.groups .map .name] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
+    "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
+  },
+  {
+    "key": "idiom: [.inst .length] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
+    "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
+  },
+  {
+    "key": "idiom: [.run Promise] in simworld/render/decorView.ts + simworld/render/propsView.ts + simworld/render/signsView.ts",
+    "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
+  },
+  {
+    "key": "idiom: [.from Array] in simworld/interior/building.ts + simworld/render/railView.ts + simworld/render/textures.ts",
+    "reason": "Array.from({ length }) is the language's way to fill a list of n; the three lists (storeys, rail lamps, bark strips) share nothing else."
   }
 ]

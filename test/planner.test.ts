@@ -7,6 +7,7 @@ import { crossingsOf, crossingSetback } from '../src/plan/crossings';
 import { flatsDoor, isSliver, MIN_FLAT_FLOOR } from '../src/plan/building';
 import { frontDoor } from '../src/plan/terrace';
 import { careHomeRooms, siteToWorld } from '../src/plan/landmarks';
+import { decorInstances, DECOR_STRIDE } from '../src/build/decorProps';
 import { amenityCounts } from '../src/plan/amenities';
 import { CARE_ROOMS_PER_PERSON } from '../src/sim/placeKinds';
 import { closestOnPolyline, pointInPoly, polyArea } from '../src/geom/geom2';
@@ -127,5 +128,23 @@ test('houses: a driveway beside most, on their lot, its car spot clear of buildi
       assert.ok(!c.buildings.some((b) => pointInPoly(b.poly, x, z)), 'a garage or fence in a house');
       assert.ok(!c.carriageway.some((r) => pointInPoly(r.outer, x, z) && !r.holes.some((h) => pointInPoly(h, x, z))), 'a garage or fence on the road');
     }
+  }
+});
+
+test('holiday decorations: pumpkins and lights at the homes, a tree and stalls on the square, bunting near it', () => {
+  const t = towns[0], g = placeGraphOf(t);
+  const sq = g.places.find((p) => p.kind === 'square') ?? g.places.find((p) => p.kind === 'park')!;
+  const groups = decorInstances(t.cells, t.terrain, sq);
+  const count = (model: string) => (groups.find((x) => x.model === model)?.inst.length ?? 0) / DECOR_STRIDE;
+  const homes = t.cells.reduce((n, c) => n + c.buildings.filter((b) => b.style === 'house').length, 0);
+  assert.ok(count('f:pumpkin:0') >= homes, `${count('f:pumpkin:0')} pumpkins for ${homes} houses`);
+  assert.ok(count('f:stringLights:0') + count('f:stringLights:1') > homes, 'lights along the houses');
+  assert.equal(count('f:xmasTree:0'), 1);
+  assert.ok(count('f:marketStall:0') >= 6, `${count('f:marketStall:0')} stalls`);
+  assert.ok(count('f:bunting:0') > 10, 'bunting near the square');
+  const feet = t.cells.flatMap((c) => c.buildings.map((b) => b.poly));
+  for (const gr of groups) for (let o = 0; o < gr.inst.length; o += DECOR_STRIDE) {
+    if (gr.model.startsWith('f:stringLights')) continue; // (on the wall itself)
+    assert.ok(!feet.some((p) => pointInPoly(p, gr.inst[o], gr.inst[o + 2])), `${gr.model} inside a building`);
   }
 });

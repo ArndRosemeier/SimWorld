@@ -24,6 +24,7 @@ import { hoursLines } from '../sim/hours';
 import { boardWord, fillName } from '../lang/words';
 import { FURNITURE } from './materials';
 import { instancedFromData, showInstances } from './meshes';
+import { propModels } from './propsView';
 import { lettering, type Painter } from './textAtlas';
 import * as paint from './signPaint';
 import type { SignFacts } from './signFacts';
@@ -70,9 +71,8 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
   let facts: SignFacts = r.facts;
   const group = new Group();
   group.name = 'signs';
-  const models = await Promise.all(signs.groups.map(async (g, i): Promise<ModelSigns> => {
-    const m = await pool.run({ type: 'propModel', model: g.model }, priority + 1 + i * 0.01);
-    if (m.type !== 'propModel') throw new Error(`town worker: propModel answered ${m.type}`);
+  const meshes = await propModels(pool, signs.groups, priority + 1);
+  const models = signs.groups.map((g, i): ModelSigns => {
     const I = g.inst, n = I.length / SIGN_STRIDE;
     const pose = new Float32Array(n * 4), size = new Float32Array(n * 2), tint = new Float32Array(n * 4), what = new Int32Array(n);
     for (let k = 0, o = 0; k < n; k++, o += SIGN_STRIDE) {
@@ -82,12 +82,12 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
       what[k] = I[o + 6];
       tint.set([I[o + 7], I[o + 8], I[o + 9], (k * 7.31) % 50], k * 4);
     }
-    const mesh = instancedFromData(m.mesh, FURNITURE, 0, n);
+    const mesh = instancedFromData(meshes[i].mesh, FURNITURE, 0, n);
     mesh.name = g.model;
     group.add(mesh);
     const s = mesh.geometry.boundingSphere!;
     return { mesh, n, pose, size, tint, sign: new Float32Array(n * 4), what, range: g.model.startsWith('f:signBoard') ? RANGE : POST_RANGE, radius: s.center.length() + s.radius };
-  }));
+  });
 
   const words = lettering();
   const blankRect = words.put('sign:blank', 'strip', 'blank', paint.blank)!;
