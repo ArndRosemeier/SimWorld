@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.114 — Bus stops with timetables
+
+- Every bus stop in town now has a post at the kerb where the bus pulls up, with a BUS flag and the stop's name.
+- The post carries the stop's printed timetable: each line and direction, weekdays, Saturdays and school days, with the times the bus leaves that stop.
+- People walk round the posts.
+
 ## v0.113 — Overheard talk asks and answers more naturally
 
 - People now ask about each other's own news (a new job, a move, a baby's name, an illness) and get concrete answers: dates said as "next Saturday", pet names, where something was found, how long ago.
