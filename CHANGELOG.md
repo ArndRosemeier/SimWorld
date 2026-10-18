@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.098 — People walk round sign posts
+
+- Street-name posts, estate agents' posts, name and notice boards and the town signs now count as obstacles: people on the pavement step round them instead of walking through.
+- Street-name posts stand in the strip along the kerb with the street lamps, leaving the pavement clear for walking.
+
+## v0.097 — Overheard talk sounds more like people
+
+- People ask about the news they hear and get answers that fit: "Boy or girl?", "Is it serious?", "Did they catch anyone?", "How long have they been together?".
+- The same piece of news no longer goes round the whole town all day; small news like a family's trip is only passed on to people who know them.
+- Goodbyes fit the news: no cheery "See you!" after sad news, and often a "Tell her I said congratulations" instead of a stock goodbye.
+- Children talk like children and are kept out of grown-up gossip.
+- Everyone speaks one plain English with no words that point to a real country.
+
+## v0.096 — Level crossing barriers, lamps and train sounds
+
+- The level crossings on the country roads have barrier posts on both sides: when a train comes the red lamps flash in turn, the bells ring, and the striped arms come down across the road; they rise again once the train has gone.
+- Trains sound their horn as they near a crossing, and rush past with a roar when you stand close to the line.
+
 ## v0.095 — Sign words that fit the invented town
 
 - Every word on the town's boards and street furniture now comes from the town's shared word list: estate boards say FOR RENT and FOR SALE with "Call to view", door cards say OPENING HOURS, notice boards say NOTICES.

@@ -186,3 +186,32 @@ test('replay: requests are kept and drift from the recorded request is reported'
   assert.equal(transport.requests[0].model, GLM);
   assert.deepEqual(transport.drift, ['speech']);
 });
+
+test('decide: a decision model rates an exchange; an outage falls back to the next model, the ledger records both', async () => {
+  const answers = { natural: { type: 'score' as const, score: 3.2, confidence: 0.8, probabilities: {} }, fits: { type: 'noul' as const, noul: 0.9 } };
+  const { llm, ledger, transport } = setup([
+    { name: 'down', model: 'typesafe/jev-1.14', requestHash: 'none', synthetic: true, httpError: { status: 503, message: 'down' } },
+    { name: 'rate', model: 'typesafe/jev-1.13', requestHash: 'none', synthetic: true, decision: { model: 'typesafe/jev-1.13-20260917', answers, usage: { input_tokens: 400, output_tokens: 60, cost: 0.00002 } } },
+  ]);
+  const r = await llm.decide('talk.rate', { exchange: 'Ann: Lovely day.\nBob: Isn\'t it.' });
+  assert.deepEqual(r.output, { naturalness: 4.2, fits: 0.9 });
+  assert.equal(r.model, 'typesafe/jev-1.13');
+  assert.equal(r.failures.length, 1);
+  const req = transport.requests[1] as unknown as { state: { exchange: string }; questions: Record<string, unknown> };
+  assert.match(req.state.exchange, /Lovely day/);
+  assert.deepEqual(Object.keys(req.questions), ['natural', 'fits']);
+  const t = ledger.total();
+  assert.equal(t.calls, 2);
+  assert.equal(t.failures, 1);
+  assert.ok(Math.abs(t.cost - 0.00002) < 1e-12);
+  // A missing answer breaks the contract.
+  const bad = setup([{ name: 'bad', model: 'typesafe/jev-1.14', requestHash: 'none', synthetic: true, decision: { answers: { fits: answers.fits } } }]);
+  await assert.rejects(bad.llm.decide('talk.rate', { exchange: 'x' }), /no recording left|no score answer/);
+});
+
+test('openrouter transport: decisions go to the Decisions API', async () => {
+  let url = '';
+  const t = openRouterTransport({ apiKey: 'k', fetch: async (u) => { url = u; return { ok: true, status: 200, json: async () => ({ answers: {} }), text: async () => '', body: null }; } });
+  await t.decide!({ model: 'typesafe/jev-1.14', state: {}, questions: {} });
+  assert.equal(url, 'https://openrouter.ai/api/alpha/decisions');
+});
