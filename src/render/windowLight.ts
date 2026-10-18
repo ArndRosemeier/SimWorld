@@ -64,14 +64,22 @@ export function setLitShares(shares: Uint8Array): void {
 }
 
 /**
- * TSL: whether a home or office window is lit. `xz`: a world point just inside the wall, `pick`: the window's
- * own random number in [0, 1). Outside the town's buildings the clock's `fallback` share decides.
+ * TSL: the share of a building's people in and awake (0 … 1) at a world point inside it, or -1 outside the town's
+ * buildings (or before the sim is ready). Also read by the chimney smoke (src/render/tsl/smoke.ts).
  */
-export function windowLit(xz: ReturnType<typeof vec2>, pick: ReturnType<typeof float>, fallback: ReturnType<typeof float>) {
+export function buildingAwake(xz: ReturnType<typeof vec2>) {
   const m = texture(mapTex, xz.sub(uOrigin).mul(uInvSize));
   // The slot + 1 as two bytes (low, high); 0 is no building.
   const slot = floor(dot(m.rg, vec2(255, 65280)).add(0.5)).sub(1).toVar();
   const su = slot.mod(SHARE_W).add(0.5).div(SHARE_W), sv = floor(slot.div(SHARE_W)).add(0.5).div(SHARE_H);
-  const share = texture(shareTex, vec2(su, sv)).r.mul(max(LIGHT.night, WINDOW_LIGHT.gloom));
-  return pick.lessThan(select(slot.lessThan(0), fallback, share));
+  return select(slot.lessThan(0), float(-1), texture(shareTex, vec2(su, sv)).r);
+}
+
+/**
+ * TSL: whether a home or office window is lit. `xz`: a world point just inside the wall, `pick`: the window's
+ * own random number in [0, 1). Outside the town's buildings the clock's `fallback` share decides.
+ */
+export function windowLit(xz: ReturnType<typeof vec2>, pick: ReturnType<typeof float>, fallback: ReturnType<typeof float>) {
+  const awake = buildingAwake(xz).toVar();
+  return pick.lessThan(select(awake.lessThan(0), fallback, awake.mul(max(LIGHT.night, WINDOW_LIGHT.gloom))));
 }
