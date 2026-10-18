@@ -8,6 +8,10 @@
     "reason": "2D and 3D variants of the same noise in one file; merging them would cost the hot path a dimension branch."
   },
   {
+    "key": "idiom: [.actors .cols .people .row] in simworld/sim/actions.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
     "key": "same name: simworld/llm/openrouter.ts#stream + simworld/llm/recorded.ts#stream",
     "reason": "Both implement Transport.stream (the real OpenRouter connection and the recorded/recording test transports); one interface method, different jobs."
   }
