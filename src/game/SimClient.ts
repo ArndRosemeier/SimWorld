@@ -18,7 +18,7 @@ import type { WindowSlots } from '../street/windows';
 import type { StopBoard } from '../street/stops';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
-import { dropSave, readSave, storeSave } from '../persist/saves';
+import { dropSave, packSave, readSave, storeSave, unpackSave } from '../persist/saves';
 
 /** Real milliseconds between street updates (the plan's L1 rate, ~5 Hz). */
 const UPDATE_MS = 200;
@@ -62,6 +62,18 @@ export function followSim(w: ScreenWorld, sim: SimClient): void {
 
 /** The store key of a town's save: one save per town (its settings). */
 const saveKey = (s: TownSettings): string => `town:${s.seed}:${s.size}`;
+
+/** A save file's bytes from `url`, as `saveWorld` made them. */
+async function fetchSave(url: string): Promise<Uint8Array | null> {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return await unpackSave(new Uint8Array(await r.arrayBuffer()));
+  } catch (e) {
+    console.warn(`save not fetched from ${url}`, e);
+    return null;
+  }
+}
 
 /** Someone out of doors near the camera. */
 export interface Walker {
@@ -108,18 +120,31 @@ export class SimClient {
 
   /**
    * Start the worker: it plans the town, makes the world (play beginning on the real date `start`, game day
-   * `startDay`) and runs it to `clock`.
+   * `startDay`) and runs it to `clock`. `until` runs it to that world clock instead (history included: a report's
+   * repro link, src/game/report.ts); `saveUrl` plays on from a save file fetched from there (a report's save).
    */
-  static async boot(settings: TownSettings, start: CivilDate, startDay: number, clock: number, rate: number, opts: { resume?: boolean } = {}): Promise<SimClient> {
+  static async boot(settings: TownSettings, start: CivilDate, startDay: number, clock: number, rate: number, opts: { resume?: boolean; until?: number; saveUrl?: string } = {}): Promise<SimClient> {
     const key = saveKey(settings);
-    const save = opts.resume ? await readSave(key) : null;
+    const save = opts.saveUrl ? { bytes: await fetchSave(opts.saveUrl) } : opts.resume ? await readSave(key) : null;
     const pool = new WorkerPool<ToSim, FromSim>(simWorkerUrl, 1);
-    const [ready] = await pool.start(() => ({ type: 'init', settings, start, startDay, clock, save: save?.bytes ?? null }));
+    const [ready] = await pool.start(() => ({ type: 'init', settings, start, startDay, clock, until: opts.until, save: save?.bytes ?? null }));
     if (ready.type !== 'ready') throw new Error(ready.type === 'error' ? ready.message : 'the sim worker did not start');
     const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view, key, ready.windows, ready.stops);
     c.restart(ready.clock);
-    if (save && !ready.resumed) void dropSave(key); // it no longer fits this build or town
+    c.resumed = ready.resumed;
+    if (save && !ready.resumed && !opts.saveUrl) void dropSave(key); // it no longer fits this build or town
+    if (opts.saveUrl && !ready.resumed) console.warn(`the save from ${opts.saveUrl} does not fit this build or town: playing a fresh one`);
     return c;
+  }
+
+  /** Whether play went on from a save (then seed, start and clock alone do not give this world). */
+  resumed = false;
+  /** Days skipped with the time skip so far (the skip's chronicle is not the live tick: no repro from the clock). */
+  skipped = 0;
+
+  /** The world as save bytes, gzipped (a save file). */
+  async saveFile(): Promise<Uint8Array> {
+    return packSave((await this.saveBytes()).bytes);
   }
 
   /**
@@ -127,8 +152,12 @@ export class SimClient {
    * was stored. `boot(..., { resume: true })` plays on from it.
    */
   async saveNow(): Promise<boolean> {
-    const m = await this.pool.run<Extract<FromSim, { type: 'saved' }>>({ type: 'save' }, 0);
+    const m = await this.saveBytes();
     return storeSave(this.key, m.bytes, m.clock);
+  }
+
+  private saveBytes(): Promise<Extract<FromSim, { type: 'saved' }>> {
+    return this.pool.run<Extract<FromSim, { type: 'saved' }>>({ type: 'save' }, 0);
   }
 
   /** Save when the tab is hidden (closing, switching away) and every `AUTOSAVE_MS` of play. */
@@ -155,6 +184,7 @@ export class SimClient {
       if (m.view.town) this.town = m.view.town;
       this.walkers.clear();
       this.restart(m.clock);
+      this.skipped += days;
     } finally {
       this.busy = false;
     }

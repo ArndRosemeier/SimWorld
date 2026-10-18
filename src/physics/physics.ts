@@ -13,7 +13,7 @@ export type Rapier = typeof RAPIER;
 export type Collider = RAPIER.Collider;
 export type CharacterController = RAPIER.KinematicCharacterController;
 
-import type { SolidBox, SolidFloor, SolidPost } from './solids';
+import { EDGES, type SolidBox, type SolidFloor, type SolidPost } from './solids';
 
 export class Physics {
   private readonly sets = new Map<string, RAPIER.Collider[]>();
@@ -72,6 +72,41 @@ export class Physics {
     if (!old) return;
     for (const c of old) this.world.removeCollider(c, false);
     this.sets.delete(key);
+  }
+
+  /**
+   * Every box, post and body within `r` of (x, z) as line segments (x0, y0, z0, x1, y1, z1 each): a box's 12 edges, an
+   * upright cylinder or capsule as two rings of 8 and 4 uprights; the ground and the floors are left out. For the
+   * debug menu's Show colliders (src/game/debugView.ts).
+   */
+  outlines(x: number, z: number, r: number): number[] {
+    const out: number[] = [], T = this.R.ShapeType;
+    this.world.forEachCollider((c) => {
+      const t = c.translation();
+      if (Math.hypot(t.x - x, t.z - z) > r) return;
+      const q = c.rotation(), sh = c.shape;
+      // A local point turned by the collider's rotation and moved to it.
+      const turned = (lx: number, ly: number, lz: number): [number, number, number] => {
+        const ix = q.w * lx + q.y * lz - q.z * ly, iy = q.w * ly + q.z * lx - q.x * lz, iz = q.w * lz + q.x * ly - q.y * lx, iw = -q.x * lx - q.y * ly - q.z * lz;
+        return [t.x + ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y, t.y + iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z, t.z + iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x];
+      };
+      const seg = (a: [number, number, number], b: [number, number, number]) => out.push(...a, ...b);
+      if (sh.type === T.Cuboid) {
+        const h = (sh as RAPIER.Cuboid).halfExtents;
+        const p = (i: number) => turned(i & 1 ? h.x : -h.x, i & 2 ? h.y : -h.y, i & 4 ? h.z : -h.z);
+        for (const [a, b] of EDGES) seg(p(a), p(b));
+      } else if (sh.type === T.Cylinder || sh.type === T.Capsule) {
+        const { halfHeight: hh, radius: rr } = sh as RAPIER.Cylinder;
+        const ring = (k: number, y: number) => turned(Math.cos((k * Math.PI) / 4) * rr, y, Math.sin((k * Math.PI) / 4) * rr);
+        const top = sh.type === T.Capsule ? hh + rr : hh;
+        for (let k = 0; k < 8; k++) {
+          seg(ring(k, -top), ring(k + 1, -top));
+          seg(ring(k, top), ring(k + 1, top));
+          if (k % 2 === 0) seg(ring(k, -top), ring(k, top));
+        }
+      }
+    });
+    return out;
   }
 
   /** The keys of the sets in place. */

@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.139 — Bug reports are reproduced before they are fixed
+
+- Every bug you report with F8 is now replayed from its link in a test browser before anyone starts the fix, so the fix is checked against what you actually saw.
+
+## v0.138 — Debug menu: go anywhere, free camera, see colliders, doors and walks
+
+- The debug menu (Shift+Ctrl+F12) can move you at once to a person, into a building or to a point.
+- A free camera flies anywhere, through walls and floors (W A S D, Q and E, drag to look, Escape to go back).
+- Switches draw what you bump into, the doors with how near you must be for a building to open up, and where everyone out of doors is walking.
+
+## v0.137 — Debug menu and Report this spot
+
+- Shift+Ctrl+F12 opens a debug menu: version, seed, game time, where you stand, frames per second and shader stats, plus setting the date and time, autopilot and a shader report.
+- F8 (or Report this spot in the debug menu) copies a report of the moment to paste into the project chat: your note, a link that loads the same town, time, person and spot again, and the browser's errors. When the world came from a save or a time skip, it can download the save to attach.
+
 ## v0.136 — A minimap
 
 - A small round map now sits in the bottom right corner while you are down in the streets. It shows the streets with their names, the buildings, water and woods, your home, the building you are in, the bus stops and the people you know who are out near you (family in green, others in blue).

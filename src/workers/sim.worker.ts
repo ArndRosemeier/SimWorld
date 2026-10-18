@@ -60,7 +60,8 @@ function simJob(m: ToSim): FromSim {
     map = new StreetMap(town, world.graph);
     forget();
     // With a history the world's day 0 lies that many weeks back (the same weekday): play starts after it.
-    if (!resumed) runTo(Math.max(m.clock + historyDays(HISTORY_YEARS) * MINUTES_PER_DAY, world.clock));
+    // `until`: the world clock itself (history included), as a report's repro link gives it.
+    if (!resumed) runTo(Math.max(m.until ?? m.clock + historyDays(HISTORY_YEARS) * MINUTES_PER_DAY, world.clock));
     traffic = new TrafficFeed((roads = town), world);
     sentAt = world.clock;
     // The bus stops' posts, with their timetables; people walk round the posts.
@@ -95,7 +96,7 @@ function simJob(m: ToSim): FromSim {
 
 /** A player request (src/sim/player.ts), answered with their status after it. */
 function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
-  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], near: null, info: null, status: null, ms: 0 };
+  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], near: null, located: null, info: null, status: null, ms: 0 };
   if (op.op === 'cards') out.cards = cardsOf(w);
   else if (op.op === 'become') { becomePlayer(w, op.id, op.autopilot); out.info = infoOf(w, op.id); known.add(op.id); }
   else if (op.op === 'autopilot') setAutopilot(w, op.on);
@@ -103,13 +104,31 @@ function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
   else if (op.op === 'digest' && w.player) out.digest = digest(w, w.player.id, op.since);
   else if (op.op === 'steer') steerPlayer(w, op.x, op.z, op.building);
   else if (op.op === 'near') out.near = map!.solidsNear(op.x, op.z, op.r);
+  else if (op.op === 'locate') out.located = locate(w, map!, op.id);
   // The menu is wanted after a move too (what is there to do where they are going).
   if (op.op === 'actions' || op.op === 'go' || op.op === 'become') out.actions = playerActions(w);
   // Their track changes at once: drop it, so the next street update makes and sends the new one.
-  if (op.op !== 'cards' && op.op !== 'digest' && op.op !== 'near' && w.player) tracks.delete(w.player.id);
+  if (op.op !== 'cards' && op.op !== 'digest' && op.op !== 'near' && op.op !== 'locate' && w.player) tracks.delete(w.player.id);
   out.status = playerOut(w, map!, w.clock);
   out.ms = took();
   return out;
+}
+
+/** Where `id` is now: on their track out of doors, else the doorstep of the place they are at (and its building). */
+function locate(w: World, map: StreetMap, id: number): PlayerReply['located'] {
+  if (id < 0 || id >= w.actors.count) return null;
+  const name = nameOf(w, id), clock = w.clock;
+  let t = tracks.get(id);
+  if (!t || t.sig !== signature(w, id) || clock >= t.validUntil) t = trackOf(w, map, id, clock) ?? undefined;
+  if (t && clock <= t.hideAfter) {
+    const p: [number, number, number] = [0, 0, 0];
+    sample(t.keys, clock, p);
+    return { x: p[0], z: p[2], building: -1, name };
+  }
+  const here = w.actors.cols.place[id];
+  if (here < 0) return null;
+  const [x, z] = map.doorStep(here), kind = w.graph.places[here].kind;
+  return { x, z, building: OUTDOOR.has(kind) ? -1 : w.graph.places[here].building, name };
 }
 
 /** The player's status, placed on the street when they are out of doors (wherever the camera is). */

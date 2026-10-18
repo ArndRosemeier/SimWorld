@@ -21,8 +21,16 @@
  * drone view without the title or the picker, for screenshots (the looks check, tools/looks/check.mjs): once the town is built the
  * page's root gets `data-town="built"`.
  * T talks to the person nearest you (or the one you follow), out of doors or in the building you are in.
+ *
+ * A report's repro link (Shift+Ctrl+F12 → Report this spot, F8; src/game/report.ts, docs/REPORTS.md) adds `?clock=<world
+ * minute>` (the world run to that minute from the start `date`), `?stand=x,y,z,yaw,building` and `?look=orbit,pitch`
+ * (where `be` stands and looks), `?autopilot` (their routine runs them), and `?save=<url>` plays on from a save file.
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
+import { DebugMenu } from '../app/debug';
+import { addDebugTools } from './debugTools';
+import { DebugView } from './debugView';
+import { parseLook, parseStand } from './report';
 import { createRenderer, GraphicsUnavailable } from '../render/renderer';
 import { Stage } from '../render/stage';
 import { fitSunShadow, makeLights, placeLamps } from '../render/lights';
@@ -86,6 +94,7 @@ function settingsFromUrl(): TownSettings {
 /** The title screen the game loads behind, and the screen's frame (set by `bootTown`). */
 let title: TitleScreen;
 let shell: Shell;
+let debug: DebugMenu;
 
 function step(text: string, frac?: number): void {
   title.step(text, frac);
@@ -112,7 +121,9 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const rate = Math.max(0, Number(q0.get('speed') ?? 1)) || 1;
   // The society: planned and populated in its own worker while the rest loads.
   // `?resume`: play on from this town's last save (made when the tab is hidden, and every few minutes).
-  const simulated = SimClient.boot(settings, play.start, play.startDay, play.clock, rate, { resume: q0.has('resume') });
+  // A report's repro link (src/game/report.ts): `?clock=` runs the world to that minute, `?save=<url>` plays on from a save file.
+  const until = q0.has('clock') && Number.isFinite(Number(q0.get('clock'))) ? Number(q0.get('clock')) : undefined;
+  const simulated = SimClient.boot(settings, play.start, play.startDay, play.clock, rate, { resume: q0.has('resume'), until, saveUrl: q0.get('save') ?? undefined });
   // The town workers start planning at once; the texture workers generate the facade textures
   // meanwhile (the shaders need them before the warm-up), then the renderer warms up.
   const pool = new WorkerPool<ToTown, FromTown>(townWorkerUrl, Math.min(4, cores));
@@ -191,6 +202,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   decorate();
   if (q0.has('skip')) await sim.skip((Number(q0.get('skip')) || 1) * MINUTES_PER_DAY);
   sim.keepSaved();
+  // A repro (a report's link, a save file) must not replace the player's own save of this town.
+  if (until !== undefined || q0.has('save') || q0.has('stand')) sim.autosave = false;
   shell.add({ label: 'Paper', group: 'Town', open: () => openPaper(sim.view) });
   shell.add({ label: 'Save now', group: 'Game', open: () => void sim.saveNow().then((ok) => shell.say(ok ? 'Saved' : 'Could not save here')) });
   shell.add({ label: 'Load last save', group: 'Game', open: () => {
@@ -231,6 +244,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   });
   const playing = new Playing(sim, cam, street, settings.seed, goingIn);
   shell.add({ label: 'Choose who to be', group: 'Play', open: () => void playing.choose() });
+  const debugView = new DebugView(stage, sim, playing, goingIn);
+  addDebugTools(debug, { sim, cam, camera, playing, stage, settings, start: play.start, view: debugView });
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
   const straight = q.has('be') || q.has('street') || q.has('still') || followId >= 0;
@@ -240,7 +255,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     shown = true;
     title.dismiss();
     audio.startTown();
-    if (q.has('be') || !straight) void playing.takeOver(q.has('be') ? num('be', -1) : null);
+    if (q.has('be') || !straight) void playing.takeOver(q.has('be') ? num('be', -1) : null, { stand: parseStand(q.get('stand')), look: parseLook(q.get('look')), autopilot: q.has('autopilot') });
   };
   /** The media the signs last got (the sim's view brings a new one each game minute). */
   let shownMedia: MediaView | undefined;
@@ -265,6 +280,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   shell.add({ label: 'Map', group: 'Town', open: () => void openMap() });
   const minimap = new Minimap(fetchMap, () => void openMap());
   renderer.setAnimationLoop((t: number) => {
+    if (lastT) debug.frame(t - lastT);
     const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
     lastT = t;
     stage.frame();
@@ -278,6 +294,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     const ground = player ?? (cam.mode === 'drone' ? { x: cx, z: cz } : { x: camera.position.x, z: camera.position.z });
     mapAt = ground;
     sim.poll(ground.x, ground.z);
+    debugView.overlay(t, ground.x, ground.z);
     people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);
     vehicles.show(camera, sim.clock, sim.traffic, sim.parked);
     rail.animate(camera, dt, sim.clock, sim.crossingPosts, sim.traffic, audio);
@@ -414,6 +431,8 @@ export async function bootTown(screen: TitleScreen, audio: TownAudio): Promise<v
   // The screen's frame: the top bar and the one menu every window opens from (src/app/shell.ts). What's new sits on
   // the title (plan R2) and goes with it; the menu has it once the town is up.
   shell = new Shell();
+  // The debug menu (Shift+Ctrl+F12), out of the normal Menu: "Report this spot" and the tools (src/app/debug.ts, docs/REPORTS.md).
+  debug = new DebugMenu();
   const urlQ = new URLSearchParams(location.search);
   const play = playStart(urlQ.get('time'), urlQ.get('date'));
   const time = screenWorld(settingsFromUrl().seed, play);

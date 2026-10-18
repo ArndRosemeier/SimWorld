@@ -10,7 +10,10 @@ import { TitleScreen } from './app/title';
 import { VERSION, whatsNewButton } from './app/whatsNew';
 import { reloadForUpdate } from './app/update';
 import { TownAudio } from './audio/townAudio';
+import { watchConsole } from './app/consoleLog';
 
+// Console errors and warnings from the very start, for a report (debug menu → Report this spot).
+watchConsole();
 const { seed } = settingsFromQuery(new URLSearchParams(location.search));
 // Sound starts with the first click or key (browsers allow nothing earlier): the title music, then the town.
 const audio = new TownAudio(seed);
