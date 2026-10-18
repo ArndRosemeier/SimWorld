@@ -28,7 +28,7 @@
     "reason": "One designer per public building (the Designer contract from Scale): the same closure shape, each with its own sizes and parameters for its parts; a table would hide the drawing rules."
   },
   {
-    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/politics.ts + simworld/sim/synth.ts",
+    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/politics.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts",
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
@@ -208,10 +208,6 @@
     "reason": "Each reads its own record's point list `P`; a field name, not a copied step (tipped over the threshold by the traffic sounds' new files)."
   },
   {
-    "key": "idiom: [.fillRect] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
-    "reason": "Canvas 2D fills for three different drawings (map, sign faces, text atlas); the canvas API used, not copied."
-  },
-  {
     "key": "idiom: [.overlap] in simworld/build/decorProps.ts + simworld/street/clearance.ts + simworld/street/streetMap.ts",
     "reason": "Each calls the one footprint overlap test (Footprints.overlap); used, not copied."
   },
@@ -248,7 +244,7 @@
     "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
   },
   {
-    "key": "idiom: [.cos .sin .yaw Math] in simworld/interior/building.ts + simworld/interior/fill/place.ts + simworld/interior/reach.ts + simworld/interior/storey.ts",
+    "key": "idiom: [.cos .sin .yaw Math] in simworld/build/debugBars.ts + simworld/interior/building.ts + simworld/interior/fill/place.ts + simworld/interior/reach.ts + simworld/interior/storey.ts",
     "reason": "A piece's yaw turned into its axes (cos, sin) once before a loop over its corners or spots; a helper would return two numbers through an allocation in hot furnishing loops."
   },
   {
@@ -432,7 +428,7 @@
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
   {
-    "key": "idiom: [.save .translate] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "key": "idiom: [.save .translate] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
   {
@@ -452,7 +448,7 @@
     "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
   {
-    "key": "idiom: [.known .to] in simworld/sim/life.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
+    "key": "idiom: [.known .to] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
     "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
   },
   {
@@ -524,16 +520,20 @@
     "reason": "WorkerPool.run is the one seam for worker requests; each caller asks its own op."
   },
   {
-    "key": "idiom: [.fillRect .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
-    "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
+    "key": "idiom: [.fillRect .fillStyle] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the title's town at dusk, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
   },
   {
     "key": "idiom: [.find .kind .landmarks] in simworld/plan/signs.ts + simworld/plan/town.ts + simworld/street/streetMap.ts",
     "reason": "Finding a landmark of a kind in the town's list is one Array.find; the town plan, the walkers' map and the signs (the sports ground's works board) each look up the one they need, and a helper would only rename find."
   },
   {
-    "key": "idiom: [.beginPath .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "key": "idiom: [.beginPath .save] in simworld/app/minimap.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the map, the signs' painters (a clock's dial) and the atlas pictures each paint their own shapes; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.arc .beginPath .fillStyle] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/render/signPaint.ts",
+    "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the map, the title's moon and trees and the signs' painters (a clock's dial) each paint their own round shapes; a wrapper would only rename the canvas API."
   },
   {
     "key": "idiom: [.lineWidth .strokeStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
@@ -542,10 +542,6 @@
   {
     "key": "idiom: [.actors .count .row] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts",
     "reason": "A pass over every actor reading their person row: the World's own column layout (actors → people rows), each pass doing its own work."
-  },
-  {
-    "key": "same name: simworld/app/chatPanel.ts#describe + simworld/game/street.ts#describe",
-    "reason": "Unrelated: the chat panel's line for a change a conversation made, and the street's HUD line about the person followed."
   },
   {
     "key": "idiom: [.ElseIf .assign] in simworld/render/tsl/decor.ts + simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts",
@@ -632,6 +628,50 @@
     "reason": "Unrelated per-frame updates: the building you are in (people, light, doors), and the traffic."
   },
   {
+    "key": "idiom: [.PI .stroke Math] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar for rings and dots (arc to Math.PI * 2, stroke): the map's marks, the signs' dials and the atlas pictures each draw their own shapes; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.cols .relations .t] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/schedule.ts",
+    "reason": "Reads of the relations table's columns that every sim system makes for its own question (the player's ties for the minimap here); the shared part is the table API itself."
+  },
+  {
+    "key": "idiom: [.addColorStop .createLinearGradient] in simworld/app/title.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar for a gradient: the title's dusk sky and the signs' and atlas pictures' shading each make their own; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.append .label] in simworld/app/debug.ts + simworld/app/llmSettings.ts + simworld/app/shell.ts",
+    "reason": "Each panel puts its own rows' labels into its own elements (menu entries, debug tools, model rows); the shared part is already el() in src/app/dom.ts."
+  },
+  {
+    "key": "idiom: [.warn console] in simworld/game/SimClient.ts + simworld/persist/saves.ts + simworld/workers/sim.worker.ts",
+    "reason": "A save that cannot be fetched, stored or loaded is said once where it fails, each with its own words; play goes on without it (the report collects the warnings, src/app/consoleLog.ts)."
+  },
+  {
+    "key": "same name: simworld/app/debug.ts#add + simworld/app/shell.ts#add",
+    "reason": "The debug menu and the game's Menu are two separate panels by design (Arnd: debug tools stay out of the normal menu); add() is each one's way to take an entry."
+  },
+  {
+    "key": "idiom: [.arc .beginPath] in simworld/app/mapPanel.ts + simworld/app/title.ts + simworld/render/signPaint.ts",
+    "reason": "Canvas 2D's own grammar for a circle (start a path, arc): the map's dots and rings, the title's moon and the signs' dials each draw their own; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.beginPath .fillStyle] in simworld/app/title.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar (set the fill colour, start a path, fill it): the title's pictures, the signs' painters and the atlas pictures each paint their own shapes; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.addEventListener .preventDefault] in simworld/app/mapPanel.ts + simworld/app/minimap.ts + simworld/game/debugTools.ts",
+    "reason": "The DOM's own grammar for taking an event over (the map's wheel and drag, the debug menu's forms); each handler does something different, a wrapper would only rename addEventListener."
+  },
+  {
+    "key": "idiom: [.ax .az .bx .bz] in simworld/build/interior.ts + simworld/interior/storey.ts + simworld/interior/ways.ts",
+    "reason": "Reading a wall's end points (IWall ax, az, bx, bz) where each piece of code walks along a wall: the wall record is the one seam, what is done along it differs."
+  },
+  {
+    "key": "idiom: [.ax .az] in simworld/interior/fill/area.ts + simworld/interior/indoors.ts + simworld/interior/ways.ts",
+    "reason": "Reading a wall's end points (IWall ax, az, bx, bz) where each piece of code walks along a wall: the wall record is the one seam, what is done along it differs."
+  },
+  {
     "key": "same name: simworld/build/vegetationTex.ts#cell + simworld/interior/reach.ts#cell",
     "reason": "Different things: a texture cell and FloorGrid.cell (the grid cell at a point of a floor)."
   },
@@ -650,13 +690,5 @@
   {
     "key": "same name: simworld/interior/reach.ts#near + simworld/world/rural.ts#near",
     "reason": "FloorGrid.near (nearest free cell) and a rural distance helper; different concepts."
-  },
-  {
-    "key": "idiom: [.ax .az .bx .bz] in simworld/build/interior.ts + simworld/interior/storey.ts + simworld/interior/ways.ts",
-    "reason": "Reading a wall's end points (IWall ax, az, bx, bz) where each piece of code walks along a wall: the wall record is the one seam, what is done along it differs."
-  },
-  {
-    "key": "idiom: [.ax .az] in simworld/interior/fill/area.ts + simworld/interior/indoors.ts + simworld/interior/ways.ts",
-    "reason": "Reading a wall's end points (IWall ax, az, bx, bz) where each piece of code walks along a wall: the wall record is the one seam, what is done along it differs."
   }
 ]

@@ -91,7 +91,7 @@ export interface NpcPromptInput {
   /** The person the NPC talks with (the player's inhabitant), as this NPC sees them. */
   partner: PersonRef & { knownFacts?: string[] };
   /** Mood and body right now, in plain words ("tired, a bit irritable, hungry"). */
-  state: { mood: string; activity: string; needs?: string };
+  state: { mood: string; activity: string; needs?: string; plans?: string[] };
   /** `clock` is how the NPC would say the time ("Saturday 07:40"); `minute` is the absolute game minute (for intentions). */
   scene: { place: PlaceRef; clock: string; minute: number; weather?: string; present: PersonRef[] };
   /** Everyone else the NPC knows who might come up (family, friends, people in recalled memories). */
@@ -286,6 +286,7 @@ export function stageNote(input: NpcPromptInput, refs: RefTable): string {
     `[Not spoken. ${s.clock}, at ${s.place.name} [${refs.place(s.place.id)}]${s.weather ? `, ${s.weather}` : ''}. You were ${input.state.activity}. You feel ${input.state.mood}${input.state.needs ? `; ${input.state.needs}` : ''}.`,
     others.length ? `Also here: ${others.map((p) => `${p.name} [${refs.person(p.id)}]`).join(', ')}.` : `Nobody else is within earshot.`,
   ];
+  if (input.state.plans?.length) lines.push(`Your day: ${input.state.plans.join('; ')}.`);
   if (input.memories.length) lines.push(`This brings to mind:`, ...input.memories.map((m) => `- ${m.when}: ${m.summary}`));
   return lines.join('\n') + ']';
 }

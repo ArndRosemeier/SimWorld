@@ -12,6 +12,7 @@ import { presentAt } from '../sim/encounters';
 import { beliefsOf, SOURCE_WITNESSED, standingOf, type BeliefView } from '../sim/knowledge';
 import { memoriesOf, recall, words, type Memory as SimMemory } from '../sim/memory';
 import { HABIT_COUNT } from '../sim/people';
+import { plansToday } from '../sim/profile';
 import type { PlaceId } from '../sim/places';
 import { relation } from '../sim/relations';
 import { placeNow } from '../sim/schedule';
@@ -151,6 +152,11 @@ export function chatContext(world: World, npc: ActorId, partner: ActorId, conver
     knownFacts.push(occupationText(world, partner));
   }
   if (fam >= 0.45 && homeOf(world, partner)) knownFacts.push(`lives in ${homeOf(world, partner)}`);
+  // Living under one roof, they know each other's day.
+  if (a.home[npc] >= 0 && a.home[npc] === a.home[partner]) {
+    const day = plansToday(world, partner);
+    knownFacts.push(day.length ? `today: ${day.join('; ')}` : 'has nothing fixed on today');
+  }
   for (const b of held) if (b.fact.subject === partner && knownFacts.length < 6) knownFacts.push(`${b.text} (${b.source === partner ? 'they told you' : 'you heard'})`);
 
   // --- the scene.
@@ -163,11 +169,12 @@ export function chatContext(world: World, npc: ActorId, partner: ActorId, conver
     }
   }
   const { mood, needs } = moodOf(world, npc);
+  const plans = plansToday(world, npc);
   const input: NpcPromptInput = {
     conversation,
     npc: npcCard(world, npc),
     partner: { id: partner, name: nameOf(world, partner), ...pf, ...(knownFacts.length ? { knownFacts } : {}) },
-    state: { mood, activity: activityOf(world, npc).replace(/^on your way/, 'on the way'), ...(needs ? { needs } : {}) },
+    state: { mood, activity: activityOf(world, npc).replace(/^on your way/, 'on the way'), ...(needs ? { needs } : {}), ...(plans.length ? { plans } : {}) },
     scene: {
       place: { id: here, name: scenePlace.kind === 'street' && scenePlace.street ? scenePlace.street : scenePlace.name, kind: scenePlace.kind },
       clock: clockWords(world, world.clock), minute: world.clock, weather: describeWeather(weatherAt(world)), present,

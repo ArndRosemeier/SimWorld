@@ -42,11 +42,21 @@ async function through(bytes: Uint8Array, stream: CompressionStream | Decompress
   return new Uint8Array(await out.arrayBuffer());
 }
 
+/** A save's bytes gzipped (as stored, and as a save file to download), unchanged where the browser cannot. */
+export async function packSave(bytes: Uint8Array): Promise<Uint8Array> {
+  return typeof CompressionStream === 'function' ? through(bytes, new CompressionStream('gzip')) : bytes;
+}
+
+/** A save file's bytes as `saveWorld` made them: gunzipped when gzipped (they start 1f 8b), else as they are. */
+export async function unpackSave(bytes: Uint8Array): Promise<Uint8Array> {
+  return bytes[0] === 0x1f && bytes[1] === 0x8b ? through(bytes, new DecompressionStream('gzip')) : bytes;
+}
+
 /** Store `bytes` under `key` (one save per key; a new one replaces it). False when storage is unavailable. */
 export async function storeSave(key: string, bytes: Uint8Array, clock: number): Promise<boolean> {
   try {
     const gzip = typeof CompressionStream === 'function';
-    const row: Row = { packed: gzip ? await through(bytes, new CompressionStream('gzip')) : bytes, gzip, clock, storedAt: Date.now() };
+    const row: Row = { packed: await packSave(bytes), gzip, clock, storedAt: Date.now() };
     await request('readwrite', (s) => s.put(row, key));
     return true;
   } catch (e) {

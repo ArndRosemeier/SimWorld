@@ -42,3 +42,13 @@ test('inside: the body walks up a flight of stairs onto the floor above, and fin
   assert.ok(av.x > 4.2 && Math.abs(av.y - 2.8) < 0.1, `up on the floor above (${av.x.toFixed(2)}, ${av.y.toFixed(2)})`);
   av.dispose();
 });
+
+test('the camera as a ball stops short of a wall by its radius, where a ray would touch it', async () => {
+  const phys = await Physics.create({ x0: -20, z0: -20, step: 1, n, h: new Float32Array(n * n) });
+  // A room's wall at x = 2 (0.4 m thick: its inner face at 1.8).
+  phys.setSolids('b:3', wallBoxes([2, -5, 8, -5, 8, 5, 2, 5], 0, 3));
+  const ray = phys.clear(0, 1.5, 0, 1, 0, 0, 5), ball = phys.clear(0, 1.5, 0, 1, 0, 0, 5, undefined, 0.22);
+  assert.ok(Math.abs(ray - 1.8) < 0.02, `ray meets the face (${ray.toFixed(2)})`);
+  assert.ok(Math.abs(ball - 1.58) < 0.03, `ball stops its radius short (${ball.toFixed(2)})`);
+  assert.equal(phys.clear(0, 1.5, 0, -1, 0, 0, 5, undefined, 0.22), 5, 'open the other way');
+});

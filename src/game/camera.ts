@@ -12,11 +12,13 @@
 import type { PerspectiveCamera } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
 
-export type CameraMode = 'drone' | 'street' | 'follow' | 'play';
+export type CameraMode = 'drone' | 'street' | 'follow' | 'play' | 'free';
 
 /** Eye height when walking (m). */
 const EYE = 1.65;
 const WALK = 1.6, HURRY = 6;
+/** The free camera's speed (m/s), with Shift. */
+const FLY = 8, FLY_FAST = 40;
 
 export interface Followed { x: number; y: number; z: number; vx: number; vz: number }
 
@@ -27,6 +29,18 @@ export interface PlayTarget extends Followed { outside: boolean }
 const EASE = 1.4, EASE_COMPILING = 0.45;
 /** While steering: how far behind the head the camera stays when nothing is in the way (m). */
 const STEER_BACK = 3.4;
+/**
+ * The steering camera as a ball this big (m): it stops this far short of walls, ceilings and furniture, so the
+ * near plane (NEAR_CLOSE) never cuts into them.
+ */
+export const EYE_BALL = 0.22;
+/**
+ * Near plane (m): NEAR_FAR as a rule (the town far off needs its depth precision: the ground's draped surfaces are
+ * spaced for it), down to NEAR_MIN only while something is that close to the camera (a wall, the person's body).
+ */
+const NEAR_MIN = 0.1, NEAR_FAR = 1;
+/** Closer than this to the head (m), the camera would look through the body: it is not drawn then. */
+const HIDE_AT = 0.75;
 
 export class CameraControl {
   mode: CameraMode = 'drone';
@@ -50,6 +64,8 @@ export class CameraControl {
   private lookPitch = -0.22;
   /** Steering last frame (to carry the view over when it starts). */
   private steering = false;
+  /** The free camera (debug menu): its height, and the mode it came from (Escape or `freeCamera(false)` goes back). */
+  private fly = { y: 0, from: 'drone' as CameraMode };
   /** Asks the game for someone to follow near (x, z), someone else each time (-1: none found). */
   pickNear: (x: number, z: number) => number = () => -1;
 
@@ -62,6 +78,7 @@ export class CameraControl {
       if (e.target instanceof HTMLElement && /input|textarea/i.test(e.target.tagName)) return;
       this.keys.add(e.code);
       if (this.mode === 'play') return;
+      if (this.mode === 'free') { if (e.code === 'Escape') this.freeCamera(false); return; }
       if (e.code === 'Enter' && this.mode === 'drone') this.toStreet(this.drone.cx, this.drone.cz);
       else if (e.code === 'KeyF') this.follow(this.pickNear(this.x, this.z));
       else if (e.code === 'Escape') this.goUp();
@@ -128,7 +145,24 @@ export class CameraControl {
     if (this.mode === 'play') this.mode = 'drone';
   }
 
+  /**
+   * The free camera (debug menu): from where the camera is, W A S D along the view (Shift faster), Q and E down
+   * and up, drag to look, through walls and floors; off (or Escape) goes back to the mode it came from.
+   */
+  freeCamera(on: boolean): void {
+    if (on === (this.mode === 'free')) return;
+    if (!on) { this.mode = this.fly.from; if (this.mode === 'play') this.play(); return; }
+    const p = this.camera.position, e = this.camera.matrixWorld.elements;
+    this.fly = { y: p.y, from: this.mode };
+    this.x = p.x; this.z = p.z;
+    this.yaw = Math.atan2(e[8], e[10]);
+    this.pitch = clamp(Math.asin(clamp(-e[9], -1, 1)), -1.2, 1.0);
+    this.mode = 'free';
+    this.following = -1;
+  }
+
   goUp(): void {
+    if (this.mode === 'free') return this.freeCamera(false);
     if (this.mode === 'follow') this.mode = 'street';
     else this.mode = 'drone';
     this.following = -1;
@@ -142,6 +176,8 @@ export class CameraControl {
    */
   updatePlay(dt: number, t: number, target: PlayTarget, compiling: boolean): void {
     if (this.steering) { this.steering = false; this.fyaw = this.orbit; this.orbit = 0; }
+    this.setNear(NEAR_FAR);
+    this.tooClose = false;
     let ex: number, ey: number, ez: number, ay: number;
     if (target.outside) {
       const speed = Math.hypot(target.vx, target.vz);
@@ -182,10 +218,16 @@ export class CameraControl {
     return { x, z, hurry: k.has('ShiftLeft') || k.has('ShiftRight') };
   }
 
-  /** Steer from behind someone facing `yaw` (0 looks to −z): the camera swings round behind them. */
-  behind(yaw: number): void {
+  /** Steer from behind someone facing `yaw` (0 looks to −z): the camera swings round behind them (tilted `pitch`, if given). */
+  behind(yaw: number, pitch?: number): void {
     this.orbit = yaw;
+    if (pitch !== undefined) this.lookPitch = pitch;
     this.steering = true;
+  }
+
+  /** Which way the steering camera looks: its turn round the person and its tilt (a report, src/game/report.ts). */
+  get look(): { orbit: number; pitch: number } {
+    return { orbit: this.orbit, pitch: this.lookPitch };
   }
 
   /**
@@ -194,7 +236,7 @@ export class CameraControl {
    * (`clear(dx, dy, dz, max)`: how far from the head the view is free along that direction). From afar (the flight
    * down from the drone) it eases in as `updatePlay` does.
    */
-  updateSteer(dt: number, head: { x: number; y: number; z: number }, compiling: boolean, clear: (dx: number, dy: number, dz: number, max: number) => number): void {
+  updateSteer(dt: number, head: { x: number; y: number; z: number }, compiling: boolean, clear: (dx: number, dy: number, dz: number, max: number) => number, room: (x: number, y: number, z: number) => number = () => Infinity): void {
     if (!this.steering) {
       // Carry on looking the way the camera looks now.
       const e = this.camera.matrixWorld.elements;
@@ -202,11 +244,14 @@ export class CameraControl {
       this.steering = true;
     }
     const cp = Math.cos(this.lookPitch), dx = Math.sin(this.orbit) * cp, dy = -Math.sin(this.lookPitch), dz = Math.cos(this.orbit) * cp;
-    const back = Math.max(0.5, Math.min(STEER_BACK, clear(dx, dy, dz, STEER_BACK + 0.3) - 0.3));
+    // As far back as there is room for the camera ball (a wall, a ceiling, a wardrobe, a shut door pulls it in).
+    const back = Math.max(0.05, Math.min(STEER_BACK, clear(dx, dy, dz, STEER_BACK) - 0.02));
     const ex = head.x + dx * back, ey = head.y + dy * back, ez = head.z + dz * back;
     const e = this.eye, l = this.at;
     const far = Math.hypot(ex - e.x, ey - e.y, ez - e.z) > 8;
-    const k = far ? 1 - Math.exp(-dt * (compiling ? EASE_COMPILING : EASE)) : 1 - Math.exp(-dt * 16);
+    // Easing out again is smooth; pulling in is at once (else it sits in the wall for a few frames).
+    const pullIn = !far && back < Math.hypot(e.x - head.x, e.y - head.y, e.z - head.z);
+    const k = far ? 1 - Math.exp(-dt * (compiling ? EASE_COMPILING : EASE)) : pullIn ? 1 : 1 - Math.exp(-dt * 16);
     e.x += (ex - e.x) * k; e.y += (ey - e.y) * k; e.z += (ez - e.z) * k;
     const kl = far ? Math.min(1, k * 2.5) : 1;
     const ax = head.x - dx, ay = head.y - dy, az = head.z - dz;
@@ -214,12 +259,27 @@ export class CameraControl {
     this.camera.position.set(e.x, e.y, e.z);
     this.camera.lookAt(l.x, l.y, l.z);
     this.x = head.x; this.z = head.z;
+    const toHead = Math.hypot(e.x - head.x, e.y - head.y, e.z - head.z);
+    // Nothing nearer than the near plane: the nearest solid, and the body (about 0.35 m round the head).
+    this.setNear(far ? NEAR_FAR : clamp(Math.min(room(e.x, e.y, e.z) * 0.6, (toHead - 0.35) * 0.8), NEAR_MIN, NEAR_FAR));
+    this.tooClose = !far && toHead < HIDE_AT;
+  }
+
+  /** The steering camera is so close to the head that the body would fill the view: the game leaves it undrawn. */
+  tooClose = false;
+
+  private setNear(n: number): void {
+    if (this.camera.near === n) return;
+    this.camera.near = n;
+    this.camera.updateProjectionMatrix();
   }
 
   /** Place the camera for this frame. `target`: where the followed person is (null: lost them). `t`: ms. */
   update(dt: number, t: number, target: Followed | null): void {
     const cam = this.camera;
     if (this.mode === 'play') return;
+    this.setNear(NEAR_FAR);
+    this.tooClose = false;
     if (this.mode === 'follow' && !target) this.mode = 'street';
     if (this.mode === 'drone') {
       const d = this.drone, a = d.fixed ?? t * 0.00002;
@@ -240,6 +300,7 @@ export class CameraControl {
       this.x = target.x; this.z = target.z; this.yaw = look;
       return;
     }
+    if (this.mode === 'free') return this.flyFrame(dt);
     // Walking: forward is where the camera looks, flattened.
     const k = this.keys, sp = (k.has('ShiftLeft') || k.has('ShiftRight') ? HURRY : WALK) * dt;
     const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
@@ -253,6 +314,22 @@ export class CameraControl {
     cam.position.set(this.x, y, this.z);
     const cp = Math.cos(this.pitch);
     cam.lookAt(this.x + fx * cp, y + Math.sin(this.pitch), this.z + fz * cp);
+  }
+
+  /** A frame of the free camera: along the view, up and down, never held by the ground. */
+  private flyFrame(dt: number): void {
+    const k = this.keys, sp = (k.has('ShiftLeft') || k.has('ShiftRight') ? FLY_FAST : FLY) * dt;
+    const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    const s = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
+    const u = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
+    this.yaw += ((k.has('ArrowLeft') ? 1 : 0) - (k.has('ArrowRight') ? 1 : 0)) * dt * 1.6;
+    const cp = Math.cos(this.pitch), fx = -Math.sin(this.yaw) * cp, fy = Math.sin(this.pitch), fz = -Math.cos(this.yaw) * cp;
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    this.x += (fx * f + rx * s) * sp;
+    this.fly.y += (fy * f + u) * sp;
+    this.z += (fz * f + rz * s) * sp;
+    this.camera.position.set(this.x, this.fly.y, this.z);
+    this.camera.lookAt(this.x + fx, this.fly.y + fy, this.z + fz);
   }
 }
 

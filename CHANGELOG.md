@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.139 — Bug reports are reproduced before they are fixed
+
+- Every bug you report with F8 is now replayed from its link in a test browser before anyone starts the fix, so the fix is checked against what you actually saw.
+
+## v0.138 — Debug menu: go anywhere, free camera, see colliders, doors and walks
+
+- The debug menu (Shift+Ctrl+F12) can move you at once to a person, into a building or to a point.
+- A free camera flies anywhere, through walls and floors (W A S D, Q and E, drag to look, Escape to go back).
+- Switches draw what you bump into, the doors with how near you must be for a building to open up, and where everyone out of doors is walking.
+
+## v0.137 — Debug menu and Report this spot
+
+- Shift+Ctrl+F12 opens a debug menu: version, seed, game time, where you stand, frames per second and shader stats, plus setting the date and time, autopilot and a shader report.
+- F8 (or Report this spot in the debug menu) copies a report of the moment to paste into the project chat: your note, a link that loads the same town, time, person and spot again, and the browser's errors. When the world came from a save or a time skip, it can download the save to attach.
+
+## v0.136 — A minimap
+
+- A small round map now sits in the bottom right corner while you are down in the streets. It shows the streets with their names, the buildings, water and woods, your home, the building you are in, the bus stops and the people you know who are out near you (family in green, others in blue).
+- North stays up. The button on its rim turns it with the way you face instead, and it remembers your choice. The mouse wheel zooms it, and a click opens the big town map.
+- The big town map now marks your home, the building you are in, the bus stops and the people you know too.
+
+## v0.135 — The camera no longer cuts through your person
+
+- The camera behind the person you play no longer cuts them or the walls open when it comes close, in small rooms, hallways and on stairs.
+- It keeps clear of walls, ceilings, furniture and shut doors, and pulls in at once instead of sitting inside a wall for a moment.
+- Only when there is no room at all (your back to a wall) is your own person left out of view, so the camera never looks out through their head.
+
+## v0.134 — Hands at rest
+
+- Sitting on chairs, benches and sofas, people rest their hands on their thighs or in their lap, fingers loosely curled, instead of holding them open on their knees.
+- In bed, the hands lie on the mattress or on the belly instead of hanging in the air.
+- Everyone has their own way of resting their hands, so a room of sitters does not look cloned.
+
+## v0.133 — Talk to people indoors
+
+- T now talks to whoever is near you wherever you are: your family at home, the staff and customers in a shop, people at work, in the church or the school. Before, only people out on the street could be talked to.
+- Only people on your floor and awake can be talked to; someone seated stays in their seat while you talk.
+- Family know each other's day: the people you live with know when you start work or school and what you have on today, and everyone knows their own plans ("Any plans today?" gets a real answer, with or without a language model).
+
+## v0.132 — The title screen: Total Town
+
+- The game is now called Total Town (working title). It opens on a title screen: the name, an alpha badge with the version, and a small town at dusk under the stars whose windows light up one by one while the game gets ready behind it.
+- The title shows almost at once: the heavy parts (3D, the shaders, building the town, the town's year of history) load behind it instead of in front of a loading bar.
+- Click once to start the title music (there is a mute button in the corner). When everything is ready, "Enter the town" takes you to choosing who to be, with no stutter from shaders being prepared.
+
 ## v0.131 — A clear message when the game's helpers fail to start
 
 - Opening SimWorld from an older cached page right after an update no longer stops at "Start failed:" with an empty error: the page notices it is out of date and loads the new version by itself.
