@@ -27,6 +27,8 @@ import { dropSave, packSave, readSave, storeSave, unpackSave } from '../persist/
 const UPDATE_MS = 200;
 /** Real milliseconds between autosaves. */
 const AUTOSAVE_MS = 5 * 60_000;
+/** The game minutes the town runs per step while catching up with a look ahead (each a moment of work in the sim worker). */
+const LOOK_STEP = 60;
 /** How far around the camera the worker reports people (m). */
 export const STREET_RADIUS = 260;
 
@@ -60,7 +62,7 @@ export function screenWorld(seed: number, play: ReturnType<typeof playStart>): S
 /** Put `w` on the running sim: its epoch (from the view's date) and its clock now. */
 export function followSim(w: ScreenWorld, sim: SimClient): void {
   w.epoch = sim.view.date.days - Math.floor(sim.view.clock / 1440);
-  w.clock = sim.clock;
+  w.clock = sim.shownClock;
 }
 
 /** The store key of a town's save: one save per town (its settings). */
@@ -170,7 +172,8 @@ export class SimClient {
   /** Save when the tab is hidden (closing, switching away) and every `AUTOSAVE_MS` of play. */
   keepSaved(): void {
     let last = performance.now();
-    const save = (): void => { last = performance.now(); if (this.autosave) void this.saveNow(); };
+    // Never the town as looked ahead in the picker (that is not where play is).
+    const save = (): void => { last = performance.now(); if (this.autosave && !this.look) void this.saveNow(); };
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') save(); });
     setInterval(() => { if (performance.now() - last >= AUTOSAVE_MS) save(); }, AUTOSAVE_MS / 4);
   }
@@ -183,20 +186,88 @@ export class SimClient {
    * worker's skip). Everyone out of doors is drawn afresh.
    */
   async skip(minutes: number): Promise<void> {
+    await this.skipTo(this.clock + minutes);
+    // (Under a day the skip is the live tick, as in play: the clock alone still repeats it.)
+    if (minutes >= MINUTES_PER_DAY) this.skipped += Math.round(minutes / MINUTES_PER_DAY);
+  }
+
+  /** Run the world to game clock `to` (from the world as marked, with `fromMark`); everyone out of doors is drawn afresh. */
+  private async skipTo(to: number, fromMark = false): Promise<void> {
     await this.inflight;
     this.busy = true;
     try {
-      const m = await this.pool.run<Extract<FromSim, { type: 'skipped' }>>({ type: 'skip', to: this.clock + minutes }, 0);
+      const m = await this.pool.run<Extract<FromSim, { type: 'skipped' }>>({ type: 'skip', to, fromMark }, 0);
       this.view = m.view; this.onView?.(m.view);
       if (m.view.town) this.town = m.view.town;
       this.walkers.clear();
       this.onSkip?.();
       this.restart(m.clock);
-      // (Under a day the skip is the live tick, as in play: the clock alone still repeats it.)
-      if (minutes >= MINUTES_PER_DAY) this.skipped += Math.round(minutes / MINUTES_PER_DAY);
     } finally {
       this.busy = false;
     }
+  }
+
+  /**
+   * The picker's look ahead (its start slider): the world as it was when it began (kept in the sim worker), the
+   * real time then, and the clock wanted now; null while not looking ahead.
+   */
+  private look: { from: number; real: number; want: number; running: Promise<void> | null } | null = null;
+
+  /** Game clock now as if nobody looked ahead (the picker's "now"). */
+  get nowClock(): number {
+    const L = this.look;
+    return L ? L.from + ((performance.now() - L.real) / 60000) * this.rate : this.clock;
+  }
+
+  /** The clock the screen shows: while the town catches up with a look ahead, the time it is catching up to (the sky goes there at once). */
+  get shownClock(): number {
+    const L = this.look;
+    return L?.running ? L.want + ((performance.now() - L.real) / 60000) * this.rate : this.clock;
+  }
+
+  /** Is the town still catching up with a look ahead? */
+  get catchingUp(): boolean {
+    return !!this.look?.running;
+  }
+
+  /**
+   * Look `minutes` ahead of now (the picker's slider): the town runs on to then a game hour at a time, so it can be
+   * watched catching up; back from the world as it was when the looking began when the time is earlier than where
+   * it got to. Resolves once it is there (a later call takes over the same run).
+   */
+  async lookAhead(minutes: number): Promise<void> {
+    if (!this.look) {
+      await this.inflight;
+      const m = await this.pool.run<Extract<FromSim, { type: 'marked' }>>({ type: 'mark', on: true }, 0);
+      this.look ??= { from: m.clock, real: performance.now(), want: m.clock, running: null };
+    }
+    const L = this.look;
+    L.want = L.from + minutes;
+    L.running ??= this.catchUp(L).finally(() => { L.running = null; });
+    return L.running;
+  }
+
+  private async catchUp(L: NonNullable<SimClient['look']>): Promise<void> {
+    for (;;) {
+      if (this.look !== L) return;
+      const elapsed = ((performance.now() - L.real) / 60000) * this.rate, want = L.want + elapsed, at = this.clock;
+      if (Math.abs(want - at) < 1) return;
+      if (want < at - 1) await this.skipTo(Math.min(want, L.from + elapsed + LOOK_STEP), true);
+      else await this.skipTo(Math.min(want, at + LOOK_STEP));
+    }
+  }
+
+  /**
+   * Stop looking ahead: `keep` stays at the time looked at (play starts there); else back to now, as if nobody had
+   * looked.
+   */
+  async endLook(keep: boolean): Promise<void> {
+    const L = this.look;
+    if (!L) return;
+    if (!keep) { L.want = L.from; await (L.running ??= this.catchUp(L).finally(() => { L.running = null; })); }
+    else await L.running;
+    this.look = null;
+    await this.pool.run<Extract<FromSim, { type: 'marked' }>>({ type: 'mark', on: false }, 0);
   }
 
   /** The player's person as of the worker's last answer (src/sim/player.ts), null while nobody is picked. */

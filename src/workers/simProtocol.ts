@@ -38,8 +38,10 @@ export type ToSim =
    * Skip `days` whole days (the time skip, `chronicle`), to the same time of day; the street starts afresh, so
    * the main thread drops everyone it has.
    */
-  /** The time skip to game clock `to` (SimClient.skip). */
-  | { type: 'skip'; to: number }
+  /** The time skip to game clock `to` (SimClient.skip); `fromMark`: from the world as `mark` kept it (the picker's look ahead going back). */
+  | { type: 'skip'; to: number; fromMark?: boolean }
+  /** Keep the world as it is now (`on`), to look ahead from and come back to (the picker's start slider); or let it go. */
+  | { type: 'mark'; on: boolean }
   /** A step of a conversation with an inhabitant (src/chat/ops.ts), against the world as it is now. */
   | { type: 'chat'; req: ChatRequest }
 
@@ -66,7 +68,9 @@ export type PlayerOp =
   /** Where inhabitant `id` is now (the debug menu's Go to a person): on the street, or the building they are in. */
   | { op: 'locate'; id: number }
   /** Who cannot be taken over now (in a car, on a bus, out of town: src/sim/player.ts `waitOf`), for the picker. */
-  | { op: 'waits' };
+  | { op: 'waits' }
+  /** What inhabitant `id` is doing now, in words (the picker's open card). */
+  | { op: 'doing'; id: number };
 
 /** The answer to a `PlayerOp` (empty lists where the op asks for nothing), with the player's status after it. */
 export type { NearSolids };
@@ -79,6 +83,8 @@ export interface PlayerReply {
   near: NearSolids | null;
   /** `locate`'s answer: out of doors their spot (building -1), indoors their place's doorstep and its building; null: no such person. */
   located: { x: number; z: number; building: number; name: string } | null;
+  /** `doing`'s answer ('' for any other op). */
+  doing: string;
   /** The player's person's looks and name (after `become`), for drawing them while the player walks them. */
   info: ActorInfo | null;
   /** `waits`' answer: everyone who cannot be taken over now, why, and about when they are back (clock, null: not known). */
@@ -137,6 +143,7 @@ export type FromSim =
   | PlayerReply
   | { type: 'saved'; clock: number; bytes: Uint8Array; ms: number }
   | { type: 'skipped'; clock: number; view: SimView; ms: number }
+  | { type: 'marked'; clock: number; ms: number }
   | { type: 'chat'; res: ChatResponse }
   /** Everyone inside the building asked about, with their info and what they are up to; whether its street doors open from outside (src/street/inside.ts doorAccess). */
   | { type: 'inside'; people: (InsidePerson & { info: ActorInfo; doing: string })[]; access: { open: boolean; resident: boolean }; ms: number }
