@@ -99,6 +99,11 @@ export interface Vehicle {
   siren: boolean;
   /** Pulled towards the kerb (+, yielding to a siren) or the centre line (−, overtaking), 0..1. */
   pull: number;
+  /**
+   * Turning into a house's driveway or backing out of it: a quadratic Bezier from the kerb lane (a, at `s`) past the
+   * mouth (c) to the car spot (b), nose towards b all the way; `t` 0..1 from the lane, `out` while backing out.
+   */
+  drive: { ax: number; az: number; ay: number; cx: number; cz: number; bx: number; bz: number; by: number; len: number; t: number; out: boolean } | null;
   alive: boolean;
 }
 
@@ -181,6 +186,8 @@ export class Traffic {
     let v = this.launch(car, edge, fwd, s, goal, (x) => this.placeFree(x));
     if (v === undefined) { fwd = !fwd; v = this.launch(car, edge, fwd, s, goal, (x) => this.placeFree(x)); }
     if (!v) return null;
+    // Out of a driveway: backing out into the lane first.
+    if (spot?.drive && fwd === side > 0) { v.drive = this.drivePath(v, spot, true); this.pose(v); }
     // (The new spot is reserved; the old one is free now.)
     this.parking.release(car.key);
     if (v.spot) v.spot.car = car.key;
@@ -271,7 +278,7 @@ export class Traffic {
       id: this.nextId++, car, length: L, width: W, edge, fwd, lane: 0, s,
       route: { edges: [edge], fwd: [fwd] }, ri: 0, speed: 0, pace: r.range(0.9, 1.08),
       x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, turn: null, brake: 0, indicator: 0, headlights: 0, wait: 0, jam: 0,
-      goal, spot: null, stopAt: NaN, halted: -1, siren: car.kind === 'ambulance' || car.kind === 'firetruck', pull: 0, alive: true,
+      goal, spot: null, stopAt: NaN, halted: -1, siren: car.kind === 'ambulance' || car.kind === 'firetruck', pull: 0, drive: null, alive: true,
     };
     this.pose(v);
     return v;
@@ -343,7 +350,15 @@ export class Traffic {
   /** World pose from the lane position (or the junction connector). */
   private pose(v: Vehicle, dt = 0): void {
     let y: number;
-    if (v.turn) {
+    if (v.drive) {
+      const D = v.drive, t = Math.max(0, Math.min(1, D.t)), u = 1 - t;
+      v.x = u * u * D.ax + 2 * u * t * D.cx + t * t * D.bx;
+      v.z = u * u * D.az + 2 * u * t * D.cz + t * t * D.bz;
+      const dx = 2 * u * (D.cx - D.ax) + 2 * t * (D.bx - D.cx), dz = 2 * u * (D.cz - D.az) + 2 * t * (D.bz - D.cz);
+      v.yaw = Math.atan2(-dx, -dz);
+      y = D.ay + (D.by - D.ay) * t;
+      v.pitch += (0 - v.pitch) * Math.min(1, dt * 4);
+    } else if (v.turn) {
       const T = v.turn, t = T.t, u = 1 - t;
       v.x = u * u * T.ax + 2 * u * t * T.cx + t * t * T.bx;
       v.z = u * u * T.az + 2 * u * t * T.cz + t * t * T.bz;
@@ -373,6 +388,7 @@ export class Traffic {
 
   private step(v: Vehicle, dt: number): void {
     if (v.turn) { this.stepTurn(v, dt); return; }
+    if (v.drive) { this.stepDrive(v, dt); return; }
     const e = this.net.edges[v.edge];
     if (!e) { v.alive = false; return; }
     const along = v.fwd ? v.s : e.len - v.s;
@@ -438,6 +454,7 @@ export class Traffic {
         if (dStop + S0 - 0.2 < gap) { gap = Math.max(0, dStop + S0 - 0.2); leadV = 0; }
         if ((dStop < 0.8 || (bayQueue && gap < 1.2)) && v.speed < 1.5) {
           if ('halt' in v.goal) { this.haltNow(v, dt); return; }
+          if (v.spot?.drive) { v.drive = this.drivePath(v, v.spot, false); v.indicator = v.fwd ? 1 : -1; return; }
           this.parkNow(v);
           return;
         }
@@ -537,6 +554,28 @@ export class Traffic {
     // No way on from here (never in a connected town): stand until the gridlock breaker takes it.
     if (!j) return;
     v.goal = g.then; v.route = j.route; v.ri = 0; v.spot = j.spot; v.stopAt = j.stopAt; v.halted = -1; v.indicator = 0;
+  }
+
+  /** The way between the kerb lane where the car stands and its driveway spot (`out`: backing out, from the spot). */
+  private drivePath(v: Vehicle, spot: Spot, out: boolean): NonNullable<Vehicle['drive']> {
+    const e = this.net.edges[v.edge], off = this.net.laneOffset(e, v.fwd, 0);
+    this.net.lanePoint(e, v.s, off, this.tmp);
+    const ax = this.tmp.x, az = this.tmp.z;
+    this.net.lanePoint(e, spot.drive!.mouth, off, this.tmp);
+    const cx = this.tmp.x, cz = this.tmp.z;
+    const len = Math.max(1, Math.hypot(cx - ax, cz - az) + Math.hypot(spot.x - cx, spot.z - cz));
+    return { ax, az, ay: this.net.heightAt(e, v.s), cx, cz, bx: spot.x, bz: spot.z, by: spot.y, len, t: out ? 1 : 0, out };
+  }
+
+  /** Into the driveway (then parked) or backing out of it (then on along the lane), at a walking pace. */
+  private stepDrive(v: Vehicle, dt: number): void {
+    const D = v.drive!;
+    v.speed += ((D.out ? 1.4 : 2.2) - v.speed) * Math.min(1, dt * 2);
+    v.brake = 0;
+    D.t += ((D.out ? -1 : 1) * v.speed * dt) / D.len;
+    if (!D.out && D.t >= 1) { v.drive = null; this.parkNow(v); return; }
+    if (D.out && D.t <= 0) { v.drive = null; v.speed = 0; }
+    this.pose(v, dt);
   }
 
   /** At its stop: into its spot (or off the street at the goal). */
@@ -685,7 +724,7 @@ export class Traffic {
     for (const l of this.laneIndex.values()) {
       for (let i = l.length - 2; i >= 0; i--) {
         const a = l[i], b = l[i + 1];
-        if (Math.abs(a.pull) > 0.5 || Math.abs(b.pull) > 0.5) continue;
+        if (Math.abs(a.pull) > 0.5 || Math.abs(b.pull) > 0.5 || a.drive) continue;
         const e = this.net.edges[a.edge];
         const over = (a.length + b.length) / 2 + 0.3 - (a.fwd ? b.s - a.s : a.s - b.s);
         if (over <= 0.3) continue;
