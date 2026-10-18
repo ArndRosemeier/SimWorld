@@ -1,20 +1,15 @@
 /**
  * The town's weekly paper, to read in play: a small "Paper" button beside Sound opens the newest edition as the sim
  * printed it (src/sim/media.ts, through `SimView.media`): the masthead, the front page, the town's news by section,
- * What's on, and the notices up on the boards (lost pets, funerals, coming events). Nothing here is made up on the
+ * what is coming up, and the notices up on the boards (lost pets, funerals, coming events). Nothing here is made up on the
  * main thread; before the first edition the panel says the paper is not out yet.
  */
-import type { Notice, Section, Story } from '../sim/media';
+import { paperSection } from '../lang/words';
+import type { Notice, Story } from '../sim/media';
 import type { SimView } from '../sim/view';
 import { el, openDialog } from './dom';
 
-const SECTIONS: { id: Section; name: string }[] = [
-  { id: 'town', name: 'Around town' },
-  { id: 'business', name: 'Business' },
-  { id: 'police', name: 'Police news' },
-  { id: 'family', name: 'Births, marriages and deaths' },
-  { id: 'whatson', name: "What's on" },
-];
+const SECTIONS = (['town', 'business', 'police', 'family', 'whatson'] as const).map((id) => ({ id, name: paperSection(id) }));
 
 /** Notices worth a line in the paper's notices column (a shop's window poster is not). */
 const COLUMN: readonly Notice['kind'][] = ['lostPet', 'funeral', 'event'];
