@@ -64,7 +64,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | What does this person remember? Which memories matter for this conversation? | `memoriesOf`, `recall(world, id, query)` | `src/sim/memory.ts` |
 | How do two actors feel about each other? | `relation(world, a, b)` | `src/sim/relations.ts` |
 | What is this person about to do, and why? | the intention stack: `intentionsOf`, `intend` | `src/sim/intentions.ts` |
-| Apply what an LLM proposed for an NPC (clamped, gated by personality, logged) | `applyProposal(world, id, proposal)`: the only way LLM output changes state. The proposal type is `MindProposal` | `src/sim/mind/apply.ts`, `src/sim/mind/proposal.ts` (types, live) |
+| Apply what an LLM proposed for an NPC (clamped, gated by personality, logged) | `applyProposal(world, id, proposal)`: the only way LLM output changes state. The proposal type is `Proposal` | `src/sim/mind/apply.ts`, `src/sim/mind/proposal.ts` |
 
 ### Language
 
@@ -76,6 +76,6 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Which model runs a task? | `route(roster, task.routing, pins)` (the settings screen shows `llm.plan(task)`) | `src/llm/router.ts` |
 | How much has the LLM cost so far? | the usage ledger: `UsageLedger` (`total()`, `by('task' \| 'model' \| 'npc' \| 'session')`, `onRecord`) | `src/llm/usage.ts` |
 | What does an NPC's prompt contain? | `NpcPromptInput` (card, state, scene, people, places, beliefs, recalled memories, turns: only what that NPC believes) → `speechMessages`; people and places as refs via `RefTable` | `src/llm/prompt.ts` |
-| Turn an NPC reply into state changes | the `npc.appraisal` task: `APPRAISAL_SCHEMA` → `parseAppraisal` → `MindProposal` for `applyProposal` | `src/llm/appraisal.ts` |
+| Turn an NPC reply into state changes | the `npc.appraisal` task: `APPRAISAL_SCHEMA` → `parseAppraisal` → `Proposal` for `applyProposal` (the type mirrors the sim's draft until `src/sim/mind/proposal.ts` lands, then is imported) | `src/llm/appraisal.ts` |
 | Test anything that calls an LLM | `replayTransport(recordings)` (never the network); real recordings from `test/slow/openrouter.slow.test.ts` with `LLM_RECORD=1` | `src/llm/recorded.ts` |
 | Background chatter, a fallback answer, any generated sentence | the procedural text engine | `src/talk/` |

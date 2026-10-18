@@ -85,12 +85,15 @@ export interface Turn {
 }
 
 export interface NpcPromptInput {
+  /** Stable id of this conversation (the sim clamps changes per conversation). */
+  conversation: string;
   npc: NpcCard;
   /** The person the NPC talks with (the player's inhabitant), as this NPC sees them. */
   partner: PersonRef & { knownFacts?: string[] };
   /** Mood and body right now, in plain words ("tired, a bit irritable, hungry"). */
   state: { mood: string; activity: string; needs?: string };
-  scene: { place: PlaceRef; clock: string; weather?: string; present: PersonRef[] };
+  /** `clock` is how the NPC would say the time ("Saturday 07:40"); `minute` is the absolute game minute (for intentions). */
+  scene: { place: PlaceRef; clock: string; minute: number; weather?: string; present: PersonRef[] };
   /** Everyone else the NPC knows who might come up (family, friends, people in recalled memories). */
   people: PersonRef[];
   /** Places the NPC knows that might come up. */
@@ -113,17 +116,24 @@ export type Message = { role: 'system' | 'user' | 'assistant'; content: string }
 export class RefTable {
   private toId = new Map<string, { kind: RefKind; id: number }>();
   private byKind: Record<RefKind, Map<number, string>> = { person: new Map(), place: new Map() };
+  private names = new Map<string, string>();
 
-  /** The ref of a person (P1, P2, ...), assigned on first use. */
-  person(id: number): string { return this.refOf('person', id); }
+  /** The ref of a person (P1, P2, ...), assigned on first use; the name lets `unref` write it back. */
+  person(id: number, name?: string): string { return this.refOf('person', id, name); }
   /** The ref of a place (L1, L2, ...), assigned on first use. */
-  place(id: number): string { return this.refOf('place', id); }
+  place(id: number, name?: string): string { return this.refOf('place', id, name); }
 
-  private refOf(kind: RefKind, id: number): string {
+  private refOf(kind: RefKind, id: number, name?: string): string {
     const m = this.byKind[kind];
     let r = m.get(id);
     if (!r) { r = `${kind === 'person' ? 'P' : 'L'}${m.size + 1}`; m.set(id, r); this.toId.set(r, { kind, id }); }
+    if (name && !this.names.has(r)) this.names.set(r, name);
     return r;
+  }
+
+  /** Text the model wrote with refs ("[P3] lost her job at L2") back to names, for the sim and the player. */
+  unref(text: string): string {
+    return text.replace(/\[?\b([PL]\d+)\b\]?/g, (m, ref: string) => this.names.get(ref) ?? m);
   }
 
   /** A ref as the model wrote it ("P2", "[p2]") back to what it names. */
@@ -148,12 +158,12 @@ export type RefKind = 'person' | 'place';
 /** Refs in a fixed order (npc, partner, present, people; scene place, places) so prompts are stable. */
 export function refsFor(input: NpcPromptInput): RefTable {
   const t = new RefTable();
-  t.person(input.npc.id);
-  t.person(input.partner.id);
-  for (const p of input.scene.present) t.person(p.id);
-  for (const p of input.people) t.person(p.id);
-  t.place(input.scene.place.id);
-  for (const p of input.places) t.place(p.id);
+  t.person(input.npc.id, input.npc.name);
+  t.person(input.partner.id, input.partner.name);
+  for (const p of input.scene.present) t.person(p.id, p.name);
+  for (const p of input.people) t.person(p.id, p.name);
+  t.place(input.scene.place.id, input.scene.place.name);
+  for (const p of input.places) t.place(p.id, p.name);
   return t;
 }
 

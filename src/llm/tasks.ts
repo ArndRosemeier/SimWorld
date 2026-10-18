@@ -196,9 +196,9 @@ export const TASKS: { [K in TaskName]: TaskSpec<TaskIO[K]['input'], TaskIO[K]['o
     schema: { name: 'reflection', schema: REFLECTION_SCHEMA },
     build(input) {
       const refs = new RefTable();
-      refs.person(input.npc.id);
-      for (const p of input.people) refs.person(p.id);
-      for (const l of input.places) refs.place(l.id);
+      refs.person(input.npc.id, input.npc.name);
+      for (const p of input.people) refs.person(p.id, p.name);
+      for (const l of input.places) refs.place(l.id, l.name);
       const people = input.people.map((p) => `- ${p.name} [${refs.person(p.id)}]${p.bonds?.length ? ` (${p.bonds.join(', ')})` : ''}`);
       const places = input.places.map((l) => `- ${l.name} [${refs.place(l.id)}], ${l.kind}`);
       return {
@@ -218,7 +218,7 @@ export const TASKS: { [K in TaskName]: TaskSpec<TaskIO[K]['input'], TaskIO[K]['o
         const o = i as Record<string, unknown>;
         if (typeof o?.text !== 'string' || !o.text.trim()) { dropped.push('insight without text'); continue; }
         const about = refs.split(o.about, (r) => dropped.push(`insight: unknown ref ${JSON.stringify(r)}`));
-        insights.push({ text: o.text.trim().slice(0, 300), about, importance: typeof o.importance === 'number' ? Math.max(1, Math.min(10, Math.round(o.importance))) : 5 });
+        insights.push({ text: refs.unref(o.text.trim()).slice(0, 300), about, importance: typeof o.importance === 'number' ? Math.max(1, Math.min(10, Math.round(o.importance))) : 5 });
       }
       return { insights, dropped };
     },

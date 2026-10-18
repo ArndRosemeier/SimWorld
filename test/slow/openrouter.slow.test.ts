@@ -70,7 +70,7 @@ test('live: appraisal candidates side by side', { skip: !KEY && 'no OPENROUTER_A
     try {
       const r = await llm.run('npc.appraisal', { context: bakeryScene(), reply });
       const p = r.output.proposal;
-      console.log(`${id}: ${Math.round(performance.now() - t0)} ms, $${ledger.total().cost.toFixed(6)}, intentions ${p.intentions.map((i) => i.kind).join('/') || '-'}, beliefs ${p.beliefs.length}, relations ${p.relations.length}, dropped ${r.output.dropped.length}`);
+      console.log(`${id}: ${Math.round(performance.now() - t0)} ms, $${ledger.total().cost.toFixed(6)}, changes ${p.changes.map((c) => (c.kind === 'intention' ? `intention:${c.intention}` : c.kind)).join(', ') || '-'}, dropped ${r.output.dropped.length}`);
     } catch (e) {
       console.log(`${id}: FAILED ${(e as Error).message}`);
     }

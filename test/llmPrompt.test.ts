@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { speechMessages, refsFor, parseAppraisal, cleanSpeech, TASKS, APPRAISAL_SCHEMA } from '../src/llm';
+import { speechMessages, refsFor, parseAppraisal, cleanSpeech, atMinute, TASKS, APPRAISAL_SCHEMA } from '../src/llm';
 import { replyContains } from '../src/llm/appraisal';
 import { bakeryScene, RUTH, TOM, ANNA, BAKERY, FOUNTAIN } from './fixtures/llm/town';
 
@@ -53,15 +53,18 @@ test('appraisal: refs become ids, the partner is the belief source, zero steps a
     end_conversation: null,
   });
   const { proposal, dropped } = parseAppraisal('```json\n' + json + '\n```', input, refsFor(input.context));
-  assert.deepEqual(proposal.relations, [{ toward: TOM, trust: -1, reason: 'spreads gossip' }]);
-  assert.deepEqual(proposal.emotion, { kind: 'surprise', intensity: 2 });
-  assert.deepEqual(proposal.beliefs, [{ claim: 'The mill is closing', about: { people: [], places: [] }, source: TOM, stance: 'doubts' }]);
-  assert.deepEqual(proposal.utterances[0].about, { people: [ANNA], places: [] });
-  assert.deepEqual(proposal.intentions, [{ kind: 'meet', person: TOM, place: FOUNTAIN, when: { clock: '17:00', day: 0 }, quote: 'Meet me at the fountain at five' }]);
-  assert.deepEqual(proposal.memory, { summary: 'Tom said the mill is closing.', importance: 10 });
-  assert.equal(proposal.endConversation, undefined);
-  assert.deepEqual([proposal.npc, proposal.partner], [RUTH, TOM]);
+  assert.deepEqual([proposal.npc, proposal.partner, proposal.conversation], [RUTH, TOM, 'c-ruth-tom-1']);
+  const saturday = 5 * 1440;
+  assert.deepEqual(proposal.changes, [
+    { kind: 'relation', toward: TOM, trust: -1 / 3, reason: 'spreads gossip' },
+    { kind: 'emotion', emotion: 'surprise', delta: 2 / 3, reason: '' },
+    { kind: 'belief', claim: { text: 'The mill is closing', topic: 'other', secret: false }, plausibility: 0.45 },
+    { kind: 'utterance', claim: { text: 'Anna Keller cleans for the Brandts', about: ANNA, topic: 'other', secret: false }, utterance: 'lie' },
+    { kind: 'intention', intention: 'meet', person: TOM, place: FOUNTAIN, at: saturday + 17 * 60, reason: 'Meet me at the fountain at five' },
+    { kind: 'memory', summary: 'Tom said the mill is closing.', importance: 1, emotion: 'surprise' },
+  ]);
   assert.deepEqual(dropped.map((d) => d.split(':')[0]), ['relation', 'belief', 'intention tell', 'intention']);
+  assert.match(dropped[0], /toward the speaker themselves/);
   assert.match(dropped[2], /quote not found in the reply/);
   assert.throws(() => parseAppraisal('sorry, I cannot', input, refsFor(input.context)));
 });
@@ -80,6 +83,17 @@ test('appraisal: the schema is strict-mode valid (every property required, no ex
   check(APPRAISAL_SCHEMA, 'appraisal');
   const { messages } = TASKS['npc.appraisal'].build(input);
   assert.match(messages[2].content, /Ruth Keller \[P1\]: Closing\? Says who\?[^\n]*\n\nReport what changed/);
+});
+
+test('intention times: minutes from now, a clock time today or on a later day, a passed clock time means the next one', () => {
+  const now = 3 * 1440 + 18 * 60; // day 3, 18:00
+  const d: string[] = [];
+  assert.equal(atMinute({ in_minutes: 30 }, now, d), now + 30);
+  assert.equal(atMinute({ clock: '19:30', day: null }, now, d), 3 * 1440 + 19 * 60 + 30);
+  assert.equal(atMinute({ clock: '17:00', day: null }, now, d), 4 * 1440 + 17 * 60);
+  assert.equal(atMinute({ clock: '9:05', day: 2 }, now, d), 5 * 1440 + 9 * 60 + 5);
+  assert.equal(atMinute({ clock: 'five', day: null }, now, d), undefined);
+  assert.equal(d.length, 1);
 });
 
 test('quotes match loosely; speech is cleaned of name prefixes, quotes and echoed stage notes', () => {

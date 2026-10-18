@@ -1,13 +1,50 @@
 /**
  * The appraisal (plan §3.2, step 3): after each NPC reply, a small fast model reads the exchange and
  * returns what changed in the NPC's mind, in a closed JSON schema. This file owns the wire schema the
- * model must fill, the prompt, and the translation into the sim's `MindProposal` (refs → ids,
- * malformed items dropped and reported). Validation against personality and feasibility is the
- * sim's job (`applyProposal`); here we only make sure the shape and the refs are sound.
+ * model fills, the prompt, and the translation into the sim's `Proposal` for `applyProposal`
+ * (refs → ids, ordinal steps → deltas, clock times → game minutes; malformed items are dropped and
+ * reported). Personality gates, clamping and feasibility are the sim's job.
  */
-import { EMOTIONS, INTENTIONS, type MindProposal, type Step, type When } from '../sim/mind/proposal';
 import { backgroundBlock, transcript, type Message, type NpcPromptInput, type RefKind, type RefTable } from './prompt';
 import type { JsonSchema } from './wire';
+
+// --- the sim's proposal type ------------------------------------------------------------------------
+// MIRROR of the Society simulation thread's draft for src/sim/mind/proposal.ts (agreed 2026-10-18).
+// Replace this block with `import type { ... } from '../sim/mind/proposal'` as soon as that file is on
+// main; nothing else in src/llm may declare these types.
+
+export type ActorId = number;
+export type PlaceId = number;
+export const EMOTIONS = ['joy', 'sadness', 'anger', 'fear', 'surprise', 'disgust'] as const;
+export type Emotion = (typeof EMOTIONS)[number];
+export const INTENTIONS = ['go', 'meet', 'tell', 'avoid', 'callPolice', 'takeLeave', 'quitJob', 'give', 'buy'] as const;
+export type IntentionKind = (typeof INTENTIONS)[number];
+
+export interface Claim {
+  /** One-line paraphrase. */
+  text: string;
+  about?: ActorId;
+  place?: PlaceId;
+  /** From the sim's FACT_TOPICS; 'other' until that list is exported. */
+  topic: string;
+  secret: boolean;
+}
+
+export type ProposalChange =
+  | { kind: 'relation'; toward: ActorId; trust?: number; affection?: number; respect?: number; reason: string }
+  | { kind: 'emotion'; emotion: Emotion; delta: number; reason: string }
+  | { kind: 'belief'; claim: Claim; plausibility: number }
+  | { kind: 'utterance'; claim: Claim; utterance: 'speculation' | 'lie' }
+  | { kind: 'intention'; intention: IntentionKind; person?: ActorId; place?: PlaceId; at?: number; until?: number; item?: string; claimText?: string; reason: string }
+  | { kind: 'memory'; summary: string; importance: number; emotion?: Emotion }
+  | { kind: 'endConversation'; reason: string };
+
+export interface Proposal {
+  npc: ActorId;
+  partner: ActorId;
+  conversation: string;
+  changes: ProposalChange[];
+}
 
 // --- the wire schema (strict mode: every property required, optional ones nullable) -------------
 
@@ -18,6 +55,12 @@ const obj = (properties: Record<string, unknown>, description?: string) => ({
 });
 const step = (what: string) => nullable({ type: 'integer', enum: [-3, -2, -1, 0, 1, 2, 3], description: `${what} change: -3 a lot down .. +3 a lot up, null or 0 for none` });
 const refs = (description: string) => ({ type: 'array', items: { type: 'string' }, description });
+const secret = { type: 'boolean', description: 'true if it is private and the speaker would not repeat it freely' };
+
+/** The model's names for intentions (snake case reads better in a prompt) → the sim's. */
+const WIRE_INTENTIONS: Record<string, IntentionKind> = {
+  go: 'go', meet: 'meet', tell: 'tell', avoid: 'avoid', call_police: 'callPolice', take_leave: 'takeLeave', quit_job: 'quitJob', give: 'give', buy: 'buy',
+};
 
 export const APPRAISAL_SCHEMA: JsonSchema = obj({
   relations: {
@@ -28,26 +71,26 @@ export const APPRAISAL_SCHEMA: JsonSchema = obj({
   emotion: nullable(obj({
     kind: { type: 'string', enum: [...EMOTIONS] },
     intensity: { type: 'integer', enum: [1, 2, 3] },
-    toward: nullable(str('person ref or null')),
+    reason: str('why, in a few words'),
   }, 'The strongest emotion the exchange left in the speaker, or null if they are unmoved.')),
   beliefs: {
     type: 'array',
     description: 'New claims the PARTNER made about the world (people, places, events) and how the speaker takes them. Not small talk, not claims about feelings.',
-    items: obj({ claim: str('the claim in one plain sentence, with refs for people and places, e.g. "P3 lost her job at L2"'), about: refs('refs of the people and places it is about'), stance: { type: 'string', enum: ['accepts', 'doubts', 'rejects'] } }),
+    items: obj({ claim: str('the claim in one plain sentence, with refs for people and places, e.g. "P3 lost her job at L2"'), about: refs('refs of the people and places it is about'), stance: { type: 'string', enum: ['accepts', 'doubts', 'rejects'] }, secret }),
   },
   utterances: {
     type: 'array',
     description: 'Claims about the world the SPEAKER made that are not among their listed beliefs: speculation (a guess) or a lie. Empty if they only said what they believe.',
-    items: obj({ claim: str('the claim in one plain sentence, with refs'), about: refs('refs it is about'), kind: { type: 'string', enum: ['speculation', 'lie'] } }),
+    items: obj({ claim: str('the claim in one plain sentence, with refs'), about: refs('refs it is about'), kind: { type: 'string', enum: ['speculation', 'lie'] }, secret }),
   },
   intentions: {
     type: 'array',
     description: 'Things the speaker clearly committed to doing in their reply ("I\'ll meet you at the fountain at five"). Only real commitments in the speaker\'s own words; never what the partner asked for unless the speaker agreed.',
     items: obj({
-      kind: { type: 'string', enum: [...INTENTIONS] },
+      kind: { type: 'string', enum: Object.keys(WIRE_INTENTIONS) },
       person: nullable(str('person ref involved, or null')),
       place: nullable(str('place ref, or null')),
-      topic: nullable(str('for tell: what to tell; for change_routine: what changes; else null')),
+      topic: nullable(str('for tell: what to tell; else null')),
       item: nullable(str('for buy/give: the item; else null')),
       when: nullable(obj({ in_minutes: nullable({ type: 'integer' }), clock: nullable(str('HH:MM, 24 h')), day: nullable({ type: 'integer', description: '0 today, 1 tomorrow, ...' }) })),
       quote: str('the exact words in the reply that commit to it'),
@@ -87,20 +130,23 @@ export function appraisalMessages(input: AppraisalInput, refs: RefTable): Messag
   ];
 }
 
-// --- the wire → MindProposal --------------------------------------------------------------------
+// --- the wire → Proposal ---------------------------------------------------------------------------
 
 export interface AppraisalResult {
-  proposal: MindProposal;
+  proposal: Proposal;
   /** Items the model returned that could not be used, with why (for the dev overlay and tests). */
   dropped: string[];
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const text = (v: unknown, max = 400): string | undefined => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
-const STEPS = new Set([-3, -2, -1, 0, 1, 2, 3]);
-const asStep = (v: unknown): Step | undefined => (typeof v === 'number' && STEPS.has(v) && v !== 0 ? (v as Step) : undefined);
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
-const CLOCK = /^([01]?\d|2[0-3]):[0-5]\d$/;
+/** An ordinal step -3..3 to a delta -1..1; 0, null and junk are no change. */
+const delta = (v: unknown): number | undefined => (typeof v === 'number' && Number.isInteger(v) && v !== 0 && Math.abs(v) <= 3 ? v / 3 : undefined);
+const CLOCK = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+/** How likely the speaker finds a claim, from their stance. */
+export const PLAUSIBILITY = { accepts: 0.85, doubts: 0.45, rejects: 0.1 } as const;
+const MINUTES_PER_DAY = 1440;
 
 /** Parse the model's JSON text into a proposal. Throws only when the text is not a JSON object at all. */
 export function parseAppraisal(json: string, input: AppraisalInput, refs: RefTable): AppraisalResult {
@@ -108,8 +154,9 @@ export function parseAppraisal(json: string, input: AppraisalInput, refs: RefTab
   try { raw = JSON.parse(stripFence(json)); } catch { throw new Error('appraisal: reply is not JSON'); }
   if (!isObj(raw)) throw new Error('appraisal: reply is not a JSON object');
   const dropped: string[] = [];
-  const npc = input.context.npc.id;
-  const partner = input.context.partner.id;
+  const ctx = input.context;
+  const npc = ctx.npc.id;
+  const changes: ProposalChange[] = [];
 
   /** A single ref of one kind: the id, undefined when absent, null (and reported) when it names nothing usable. */
   const one = (kind: RefKind, r: unknown, what: string): number | undefined | null => {
@@ -119,77 +166,96 @@ export function parseAppraisal(json: string, input: AppraisalInput, refs: RefTab
     dropped.push(`${what}: unknown ${kind} ref ${JSON.stringify(r)}`);
     return null;
   };
-  const about = (v: unknown, what: string) => refs.split(v, (r) => dropped.push(`${what}: unknown ref ${JSON.stringify(r)}`));
-
-  const proposal: MindProposal = { npc, partner, relations: [], beliefs: [], utterances: [], intentions: [] };
+  /** A claim with its first person and first place (the sim's Claim holds one of each). */
+  const claimOf = (v: Record<string, unknown>, what: string): Claim | undefined => {
+    const t = text(v.claim);
+    if (!t) return undefined;
+    const about = refs.split(v.about, (r) => dropped.push(`${what}: unknown ref ${JSON.stringify(r)}`));
+    return stripUndefined({ text: refs.unref(t), about: about.people[0], place: about.places[0], topic: 'other', secret: v.secret === true });
+  };
 
   for (const r of arr(raw.relations)) {
     if (!isObj(r)) { dropped.push('relation: not an object'); continue; }
     const toward = one('person', r.toward, 'relation');
     if (toward == null) { if (toward === undefined) dropped.push('relation: no target'); continue; }
     if (toward === npc) { dropped.push('relation: toward the speaker themselves'); continue; }
-    const rel = { toward, trust: asStep(r.trust), affection: asStep(r.affection), respect: asStep(r.respect), reason: text(r.reason, 200) ?? '' };
-    if (rel.trust === undefined && rel.affection === undefined && rel.respect === undefined) continue; // all zero: no change, not an error
-    proposal.relations.push(stripUndefined(rel));
+    const c = { kind: 'relation' as const, toward, trust: delta(r.trust), affection: delta(r.affection), respect: delta(r.respect), reason: text(r.reason, 200) ?? '' };
+    if (c.trust === undefined && c.affection === undefined && c.respect === undefined) continue; // all zero: no change, not an error
+    changes.push(stripUndefined(c));
   }
 
   if (isObj(raw.emotion)) {
     const e = raw.emotion;
-    const kind = EMOTIONS.find((k) => k === e.kind);
+    const emotion = EMOTIONS.find((k) => k === e.kind);
     const intensity = ([1, 2, 3] as const).find((n) => n === e.intensity);
-    const toward = one('person', e.toward, 'emotion');
-    if (!kind || !intensity) dropped.push(`emotion: bad kind or intensity ${JSON.stringify(e)}`);
-    else proposal.emotion = stripUndefined({ kind, intensity, toward: toward ?? undefined });
+    if (!emotion || !intensity) dropped.push(`emotion: bad kind or intensity ${JSON.stringify(e)}`);
+    else changes.push({ kind: 'emotion', emotion, delta: intensity / 3, reason: text(e.reason, 200) ?? '' });
   }
 
   for (const b of arr(raw.beliefs)) {
-    const claim = isObj(b) ? text(b.claim) : undefined;
+    const claim = isObj(b) ? claimOf(b, 'belief') : undefined;
     const stance = isObj(b) && (b.stance === 'accepts' || b.stance === 'doubts' || b.stance === 'rejects') ? b.stance : undefined;
     if (!claim || !stance) { dropped.push(`belief: missing claim or stance ${JSON.stringify(b)}`); continue; }
-    proposal.beliefs.push({ claim, about: about((b as Record<string, unknown>).about, 'belief'), source: partner, stance });
+    changes.push({ kind: 'belief', claim, plausibility: PLAUSIBILITY[stance] });
   }
 
   for (const u of arr(raw.utterances)) {
-    const claim = isObj(u) ? text(u.claim) : undefined;
+    const claim = isObj(u) ? claimOf(u, 'utterance') : undefined;
     const kind = isObj(u) && (u.kind === 'speculation' || u.kind === 'lie') ? u.kind : undefined;
     if (!claim || !kind) { dropped.push(`utterance: missing claim or kind ${JSON.stringify(u)}`); continue; }
-    proposal.utterances.push({ claim, about: about((u as Record<string, unknown>).about, 'utterance'), kind });
+    changes.push({ kind: 'utterance', claim, utterance: kind });
   }
 
   for (const i of arr(raw.intentions)) {
     if (!isObj(i)) { dropped.push('intention: not an object'); continue; }
-    const kind = INTENTIONS.find((k) => k === i.kind);
+    const intention = typeof i.kind === 'string' ? WIRE_INTENTIONS[i.kind] : undefined;
     const quote = text(i.quote, 300);
-    if (!kind || !quote) { dropped.push(`intention: bad kind or no quote ${JSON.stringify(i)}`); continue; }
-    if (!replyContains(input.reply, quote)) { dropped.push(`intention ${kind}: quote not found in the reply ("${quote}")`); continue; }
-    const p = one('person', i.person, `intention ${kind}`);
-    const l = one('place', i.place, `intention ${kind}`);
-    if (p === null || l === null) continue;
-    proposal.intentions.push(stripUndefined({ kind, person: p, place: l, topic: text(i.topic, 200), item: text(i.item, 80), when: parseWhen(i.when, dropped), quote }));
+    if (!intention || !quote) { dropped.push(`intention: bad kind or no quote ${JSON.stringify(i)}`); continue; }
+    if (!replyContains(input.reply, quote)) { dropped.push(`intention ${intention}: quote not found in the reply ("${quote}")`); continue; }
+    const person = one('person', i.person, `intention ${intention}`);
+    const place = one('place', i.place, `intention ${intention}`);
+    if (person === null || place === null) continue;
+    const topic = text(i.topic, 200);
+    changes.push(stripUndefined({
+      kind: 'intention' as const, intention, person, place, at: atMinute(i.when, ctx.scene.minute, dropped), item: text(i.item, 80),
+      claimText: topic ? refs.unref(topic) : undefined, reason: quote,
+    }));
   }
 
   if (isObj(raw.memory)) {
     const summary = text(raw.memory.summary, 300);
     const imp = raw.memory.importance;
     if (!summary || typeof imp !== 'number' || !Number.isFinite(imp)) dropped.push('memory: missing summary or importance');
-    else proposal.memory = { summary, importance: Math.max(1, Math.min(10, Math.round(imp))) };
+    else {
+      const emotion = changes.find((c) => c.kind === 'emotion');
+      changes.push(stripUndefined({ kind: 'memory' as const, summary: refs.unref(summary), importance: Math.max(1, Math.min(10, Math.round(imp))) / 10, emotion: emotion?.kind === 'emotion' ? emotion.emotion : undefined }));
+    }
   }
 
-  if (isObj(raw.end_conversation)) proposal.endConversation = { reason: text(raw.end_conversation.reason, 200) ?? '' };
+  if (isObj(raw.end_conversation)) changes.push({ kind: 'endConversation', reason: text(raw.end_conversation.reason, 200) ?? '' });
 
-  return { proposal, dropped };
+  return { proposal: { npc, partner: ctx.partner.id, conversation: ctx.conversation, changes }, dropped };
 }
 
-function parseWhen(v: unknown, dropped: string[]): When | undefined {
+/**
+ * The absolute game minute of a `when`: `in_minutes` from now, or a clock time on a day (0 today).
+ * A clock time today that has already passed means the next one (people say "at five" meaning the
+ * coming five o'clock).
+ */
+export function atMinute(v: unknown, now: number, dropped: string[]): number | undefined {
   if (!isObj(v)) return undefined;
-  const w: When = {};
-  if (typeof v.in_minutes === 'number' && v.in_minutes >= 0) w.inMinutes = Math.round(v.in_minutes);
+  if (typeof v.in_minutes === 'number' && v.in_minutes >= 0) return now + Math.round(v.in_minutes);
+  const day = typeof v.day === 'number' && v.day >= 0 ? Math.round(v.day) : undefined;
   if (typeof v.clock === 'string') {
-    if (CLOCK.test(v.clock.trim())) w.clock = v.clock.trim().padStart(5, '0');
-    else dropped.push(`when: bad clock ${JSON.stringify(v.clock)}`);
+    const m = CLOCK.exec(v.clock.trim());
+    if (!m) { dropped.push(`when: bad clock ${JSON.stringify(v.clock)}`); return undefined; }
+    const midnight = Math.floor(now / MINUTES_PER_DAY) * MINUTES_PER_DAY;
+    let at = midnight + (day ?? 0) * MINUTES_PER_DAY + Number(m[1]) * 60 + Number(m[2]);
+    if (day === undefined && at < now) at += MINUTES_PER_DAY;
+    return at;
   }
-  if (typeof v.day === 'number' && v.day >= 0) w.day = Math.round(v.day);
-  return Object.keys(w).length ? w : undefined;
+  if (day !== undefined) return Math.floor(now / MINUTES_PER_DAY) * MINUTES_PER_DAY + day * MINUTES_PER_DAY;
+  return undefined;
 }
 
 /** Loose match: the quote must appear in the reply, ignoring case, punctuation and spacing. */

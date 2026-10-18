@@ -12,6 +12,7 @@ export const FOUNTAIN = 102;
 
 export function bakeryScene(lastLine = 'Morning, Ruth! Did you hear the mill is closing?'): NpcPromptInput {
   return {
+    conversation: 'c-ruth-tom-1',
     npc: {
       id: RUTH, name: 'Ruth Keller', age: 52, gender: 'woman', occupation: 'baker, owns the bakery on Mill Street',
       home: 'the flat above the bakery',
@@ -22,7 +23,7 @@ export function bakeryScene(lastLine = 'Morning, Ruth! Did you hear the mill is 
     },
     partner: { id: TOM, name: 'Tom Brandt', bonds: ['customer'], feelings: { familiarity: 0.6, affection: 0.4, trust: 0.3, respect: 0.2 }, knownFacts: ['works at the mill', 'buys two rye loaves every Saturday'] },
     state: { mood: 'busy but cheerful', activity: 'serving the morning queue', needs: 'a bit tired' },
-    scene: { place: { id: BAKERY, name: 'Keller\'s Bakery', kind: 'bakery' }, clock: 'Saturday 07:40', weather: 'drizzle', present: [{ id: TOM, name: 'Tom Brandt' }] },
+    scene: { place: { id: BAKERY, name: 'Keller\'s Bakery', kind: 'bakery' }, clock: 'Saturday 07:40', minute: 5 * 1440 + 7 * 60 + 40, weather: 'drizzle', present: [{ id: TOM, name: 'Tom Brandt' }] },
     people: [{ id: ANNA, name: 'Anna Keller', bonds: ['sister'], feelings: { familiarity: 1, affection: 0.8, trust: 0.9, respect: 0.6 } }],
     places: [{ id: FOUNTAIN, name: 'the market fountain', kind: 'square' }],
     beliefs: [{ text: 'Anna Keller is looking for a new flat', source: { person: ANNA }, confidence: 0.9, about: { people: [ANNA] } }],
