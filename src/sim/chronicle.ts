@@ -11,6 +11,7 @@
 import type { Rng } from '@futuremagic/core';
 import { A, type ActorId } from './actors';
 import { encounter } from './encounters';
+import { clubEvenings } from './groups';
 import { factText, SOURCE_WITNESSED } from './knowledge';
 import { HABIT_COUNT, T_EXTRA } from './people';
 import { KINDS } from './placeKinds';
@@ -42,6 +43,7 @@ export function chronicle(world: World, days: number, opts: ChronicleOptions = {
     world.clock += d * MINUTES_PER_DAY;
     passDays(world, d);
     converse(world, d, talks, maxTalks);
+    if (talks > 0) clubEvenings(world, d);
     days -= d;
   }
   settleAtHome(world);
@@ -111,10 +113,10 @@ function partner(world: World, x: ActorId, pl: Pools, rng: Rng): [PlaceId, Actor
     return [st, pick(pl.street.get(st), rng)];
   }
   // Someone they know, the better known the likelier (best of two).
-  const rows = world.relations.known(x);
-  if (rows.length === 0) return [-1, -1];
+  const r1 = world.relations.anyKnown(x, rng);
+  if (r1 < 0) return [-1, -1];
   const c = world.relations.t.cols;
-  const r1 = rows[rng.int(0, rows.length - 1)], r2 = rows[rng.int(0, rows.length - 1)];
+  const r2 = world.relations.anyKnown(x, rng);
   const r = c.familiarity[r1] >= c.familiarity[r2] ? r1 : r2;
   return [a.home[c.to[r]], c.to[r]];
 }

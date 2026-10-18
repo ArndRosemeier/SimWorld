@@ -15,8 +15,11 @@ import { settleRegion, type Region } from './region';
 import { newMindLedger } from './mind/apply';
 import { newLife } from './life';
 import { levelMarket, newEconomy, settleEconomy } from './economy';
+import { foundGroups, newGroups } from './groups';
+import { foundPolitics, newPolitics } from './politics';
 import { history, historyDays } from './chronicle';
 import { newAgenda, townAgenda } from './agenda';
+import { withLocalHours } from './hours';
 import { withOffsite } from './offsite';
 import { DEFAULT_LATITUDE, epochFor, type CivilDate } from './calendar';
 
@@ -63,7 +66,9 @@ export interface WorldOptions {
 /** Make a world for a place graph: places indexed, population synthesised, relationships seeded (and optionally a history lived), clock at 06:00. */
 export function createWorld(planned: PlaceGraph, seed: number, opts: WorldOptions = {}): World {
   // The city, the next town and the secondary school there join the graph before it is indexed.
-  const { graph, offsite } = withOffsite(planned, opts.region);
+  const offsiteGraph = withOffsite(planned, opts.region);
+  const { offsite } = offsiteGraph;
+  const graph = withLocalHours(offsiteGraph.graph, seed);
   const idx = placeIndex(graph);
   const world: World = {
     seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
@@ -72,7 +77,7 @@ export function createWorld(planned: PlaceGraph, seed: number, opts: WorldOption
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
     intentions: [], encounters: [], trips: [], agenda: newAgenda(), mind: newMindLedger(), life: newLife(), region: null,
-    economy: newEconomy(graph.places.length),
+    economy: newEconomy(graph.places.length), groups: newGroups(), politics: newPolitics(),
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);
@@ -260,6 +265,8 @@ export function createWorld(planned: PlaceGraph, seed: number, opts: WorldOption
   }
 
   townAgenda(world);
+  foundGroups(world, rng.fork('groups'));
+  foundPolitics(world, rng.fork('politics'));
   if (opts.history) {
     history(world, opts.history);
     // Morning of the first day of play: everyone at home, deciding what to do.

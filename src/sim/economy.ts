@@ -23,10 +23,11 @@ import { closeTo, feel, leaveTown, log, neighboursOf, vacantHomes, type LifeEven
 import { remember } from './memory';
 import { HABITS, HABIT_COUNT, T_CONSC, V_AMBITION, type Household, type Job } from './people';
 import { defaultHours, defaultStaff, isHome, KINDS } from './placeKinds';
-import { PLACE_KINDS, type PlaceId, type PlaceKind } from './places';
+import { PLACE_KINDS, popcount, type PlaceId, type PlaceKind } from './places';
 import { Columns, f32, f64, i32, u8 } from './table';
 import { DAYS_PER_YEAR, MINUTES_PER_DAY } from './time';
-import { dateOf } from './calendar';
+import { monthKey } from './calendar';
+import { businessHours } from './hours';
 import { fitRoutine, pickHabits, settle } from './synth';
 import { ageOf, householdOf, isPerson, jobOf, placesOf, setPlaceKind, tickRng, traitOf, valueOf, type World } from './world';
 
@@ -132,7 +133,6 @@ const CARE_FEE = 2900;
 
 /** Weekly hours of a job (shift length × days per week). */
 const weeklyHours = (job: Job): number => ((job.end - job.start) / 60) * popcount(job.days);
-const popcount = (m: number): number => { let n = 0; for (let x = m; x; x &= x - 1) n++; return n; };
 
 /** Monthly net pay of a position (part-time pro rata, overtime capped). Owners draw from profit instead (`ownerOf`). */
 export function payOf(job: Job): number {
@@ -232,12 +232,15 @@ export function newEconomy(places: number): Economy {
 }
 
 /** The calendar month of a game day, counted from year 0 (paydays and the books follow the real months). */
-const monthOf = (world: World, day: number): number => { const d = dateOf(world, day * MINUTES_PER_DAY); return d.year * 12 + d.month - 1; };
+const monthOf = (world: World, day: number): number => monthKey(world, day * MINUTES_PER_DAY);
 const DAYS_PER_MONTH = DAYS_PER_YEAR / 12;
 const today = (world: World): number => Math.floor(world.clock / MINUTES_PER_DAY);
 
 /** Is this position still there (its business has not closed)? Life events hire only into open jobs. */
 export const jobOpen = (world: World, job: Job): boolean => !world.economy.closedJobs.has(job.id);
+
+/** A position someone can be hired into: vacant, open, and not elected (the mayor comes from src/sim/politics.ts). */
+export const hireable = (world: World, job: Job): boolean => job.holder < 0 && jobOpen(world, job) && job.role !== 'mayor';
 
 // ---- settling a new world ----------------------------------------------------------------------------------
 
@@ -868,8 +871,8 @@ export function openBusiness(world: World, place: PlaceId, kind: PlaceKind, rng:
   const surname = owner >= 0 ? world.people.last[a.row[owner]] : p.street.split(' ')[0];
   const name = `${surname}${owner >= 0 ? "'s" : ''} ${LABEL[kind] ?? kind}`;
   const capacity = Math.round(KINDS[kind].capacity);
-  setPlaceKind(world, place, kind, { name, hours: defaultHours(kind), staff: defaultStaff(kind), capacity });
-  for (const s of p.staff) for (let i = 0; i < s.count; i++) world.jobs.push({ id: world.jobs.length, place, role: s.role, days: s.days, start: s.start, end: s.end, minAge: s.minAge, holder: -1 });
+  setPlaceKind(world, place, kind, { name, hours: businessHours(kind, defaultHours(kind), rng), staff: defaultStaff(kind), capacity });
+  for (const s of world.graph.places[place].staff) for (let i = 0; i < s.count; i++) world.jobs.push({ id: world.jobs.length, place, role: s.role, days: s.days, start: s.start, end: s.end, minAge: s.minAge, holder: -1 });
   b.status[place] = BIZ_OPEN;
   b.since[place] = day;
   b.red[place] = 0;

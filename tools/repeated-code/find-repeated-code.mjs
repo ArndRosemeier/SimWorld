@@ -301,18 +301,36 @@ export function findIdioms(sources, opts = {}) {
   const N = Math.max(1, docs.length);
   const idf = (n) => Math.log2(N / (df.get(n) ?? 1));
 
-  // Hash every window; remember occurrences (first one per file).
-  const occ = new Map();
+  // Hash every window. A first pass counts windows per hash bucket, so the occurrence map only holds windows that
+  // can recur (most windows are unique; keeping them all made this finder slow).
+  const BUCKETS = 1 << 22;
+  const bucketCount = new Uint8Array(BUCKETS);
+  const keysOf = [];
   for (let d = 0; d < docs.length; d += 1) {
     const ids = docs[d].ids;
-    for (let i = 0; i + W <= ids.length; i += 1) {
+    const n = Math.max(0, ids.length - W + 1);
+    const keys = new Float64Array(n);
+    for (let i = 0; i < n; i += 1) {
       let h1 = 0x811c9dc5, h2 = 0x2545f491;
       for (let k = 0; k < W; k += 1) {
         h1 = Math.imul(h1 ^ ids[i + k], 0x01000193);
         h2 = Math.imul(h2 ^ ids[i + k], 0x5bd1e995) ^ (h2 >>> 15);
       }
       const key = (h1 >>> 0) * 2097152 + ((h2 >>> 0) & 0x1fffff);
-      stats.windows += 1;
+      keys[i] = key;
+      const b = (h1 >>> 0) & (BUCKETS - 1);
+      if (bucketCount[b] < 255) bucketCount[b] += 1;
+    }
+    keysOf.push(keys);
+    stats.windows += n;
+  }
+  // Remember occurrences (first one per file) of the windows that may recur.
+  const occ = new Map();
+  for (let d = 0; d < docs.length; d += 1) {
+    const keys = keysOf[d];
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      if (bucketCount[Math.floor(key / 2097152) & (BUCKETS - 1)] < minFiles) continue;
       let list = occ.get(key);
       if (!list) { list = []; occ.set(key, list); }
       const last = list[list.length - 1];
