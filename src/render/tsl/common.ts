@@ -51,8 +51,8 @@ export const LIGHT = {
 
 /**
  * The season as the vegetation shows it (src/render/tsl/vegetation.ts), set by the season clock.
- * `leaf` is Scale's autumn turn of the leaves and far canopies; `bare` and `blossom` are not read
- * yet (Scale has neither).
+ * `leaf` is Scale's autumn turn of the leaves and far canopies; `bare` and `blossom` drop and flower
+ * the deciduous trees; `litter` is the fallen leaves on the ground (src/render/tsl/ground.ts).
  */
 export const SEASON = {
   /** 0 green … 1 full autumn. */
@@ -61,6 +61,8 @@ export const SEASON = {
   bare: uniform(0),
   /** 0 none … 1 in full blossom. */
   blossom: uniform(0),
+  /** Fallen leaves on the town's ground, 0 none … 1 the most (late autumn); snow lies over them. */
+  litter: uniform(0),
   /**
    * Each crop's look today (world/landuse `Crop` order, `cropLook`): linear colour and cover (under 0.08 a
    * ploughed field), read by the ground's fields.

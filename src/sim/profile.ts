@@ -119,8 +119,8 @@ export function whenSaid(world: World, day: number): string {
 const NUM = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
 const count = (n: number, one: string, many: string): string => `${NUM[n] ?? n} ${n === 1 ? one : many}`;
 
-/** Where they work or study, or what they do instead. */
-function occupationOf(world: World, id: ActorId, tags: { v: number }): string {
+/** Where they work or study, or what they do instead ("Baker at Elm Street Bakery", "Retired"); sets the card's TAG_* flags. */
+export function occupationOf(world: World, id: ActorId, tags: { v: number } = { v: 0 }): string {
   const age = ageOf(world, id), places = world.graph.places;
   const job = jobOf(world, id);
   if (job) {
@@ -144,8 +144,8 @@ function occupationOf(world: World, id: ActorId, tags: { v: number }): string {
 /** "Baker" from "baker". */
 export const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** Who they live with, and where. */
-function householdText(world: World, id: ActorId, tags: { v: number }): string {
+/** Who they live with, and where ("Lives with his wife Anna and their two children on Mill Street, and a dog called Rex"). */
+export function householdText(world: World, id: ActorId, tags: { v: number } = { v: 0 }): string {
   const hh = householdOf(world, id);
   const street = hh ? world.graph.places[hh.home].street : '';
   const on = street ? ` on ${street}` : '';

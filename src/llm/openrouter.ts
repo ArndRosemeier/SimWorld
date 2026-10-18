@@ -8,6 +8,10 @@ import type { DecisionRequest, DecisionResponse } from './decide';
 import { sseData, type WireChunk, type WireRequest } from './wire';
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
+/** Where a player makes a key (the settings screen links it). */
+export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
+/** A model's page on OpenRouter (prices, providers). */
+export const openRouterModelUrl = (id: string): string => `https://openrouter.ai/${id.replace(/^~/, '')}`;
 
 export interface Transport {
   stream(req: WireRequest, signal?: AbortSignal): AsyncIterable<WireChunk>;

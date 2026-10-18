@@ -1,6 +1,6 @@
 /**
  * Local politics (plan R7, town-realism §4, track F): the mayor, the council and the issues the town argues about.
- * Politics is local only: whether to close the pool, build a bypass, let a housing estate onto the farmland.
+ * Politics is local only: whether to close the pool, build a bypass, let a housing development onto the farmland.
  *
  * An issue comes up now and then and is talked about (news); the council votes on it at a monthly meeting a few
  * months later, each councillor by their own stance, and the vote is news that pleases some and angers others.
@@ -62,8 +62,8 @@ const ISSUES: IssueSpec[] = [
     enacted: 'the open-air pool has closed for good', flag: 'poolClosed' },
   { key: 'bypass', what: 'building a bypass round the town', drivers: { base: 0, car: 0.5, centre: 0.6, open: -0.5, loyal: 0.1 },
     enacted: 'work has started on the bypass round the town', build: { start: 180, takes: 540, done: 'the bypass round the town is open' } },
-  { key: 'estate', what: 'a new housing estate on the farmland', drivers: { base: -0.1, ambition: 0.5, age: -0.15, open: 0.3, loyal: -0.5 },
-    enacted: 'building has started on the new housing estate on the farmland', build: { start: 240, takes: 720, done: 'the new housing estate on the farmland is finished' } },
+  { key: 'estate', what: 'a new housing development on the farmland', drivers: { base: -0.1, ambition: 0.5, age: -0.15, open: 0.3, loyal: -0.5 },
+    enacted: 'building has started on the new housing development on the farmland', build: { start: 240, takes: 720, done: 'the new housing development on the farmland is finished' } },
   { key: 'turbines', what: 'wind turbines on the ridge', drivers: { base: 0, open: 0.7, age: -0.12, loyal: -0.4 },
     enacted: 'the wind turbines are going up on the ridge', build: { start: 300, takes: 240, done: 'the wind turbines on the ridge are turning' } },
   { key: 'speed', what: 'a 30 km/h limit through the centre', drivers: { base: 0, kids: 0.6, car: -0.5, centre: 0.5, neuro: 0.3 },
@@ -76,8 +76,8 @@ const ISSUES: IssueSpec[] = [
     enacted: 'the library now opens only three days a week', flag: 'libraryCut' },
   { key: 'lights', what: 'switching the street lights off after midnight', drivers: { base: 0, consc: 0.4, neuro: -0.7, age: -0.05 },
     enacted: 'the street lights now go off at midnight', flag: 'lightsOffAtMidnight' },
-  { key: 'rates', what: 'raising the local rates to mend the roads', drivers: { base: -0.3, car: 0.4, ambition: -0.3, consc: 0.3 },
-    enacted: 'the local rates have gone up, and the roads are being mended', flag: 'ratesUp' },
+  { key: 'tax', what: 'raising the local property tax to mend the roads', drivers: { base: -0.3, car: 0.4, ambition: -0.3, consc: 0.3 },
+    enacted: 'the local property tax has gone up, and the roads are being mended', flag: 'taxUp' },
   { key: 'sunday', what: 'letting the shops open on Sundays', drivers: { base: 0, faith: -1, age: -0.1, ambition: 0.4, loyal: -0.2 },
     enacted: 'the bigger shops in town now open on Sunday afternoons', flag: 'sundayShops' },
 ];
@@ -87,7 +87,7 @@ const TAKES_EFFECT = 28;
 
 /**
  * What the council's decisions have changed in town: the rules in force and the building works. The sim acts on
- * them (library and Sunday hours, rates and parking in the household budgets); the views get them through `viewOf`
+ * them (library and Sunday hours, property tax and parking in the household budgets); the views get them through `viewOf`
  * (lamps that go dark at midnight, 30 signs, parking meters, a fenced-off pool, building sites).
  */
 export interface TownRules {
@@ -97,7 +97,7 @@ export interface TownRules {
   speed30: boolean;
   parkingCharges: boolean;
   sundayShops: boolean;
-  ratesUp: boolean;
+  taxUp: boolean;
   works: Work[];
 }
 type Flag = Exclude<keyof TownRules, 'works'>;
@@ -106,7 +106,7 @@ type Flag = Exclude<keyof TownRules, 'works'>;
 export interface Work { key: string; what: string; start: number; done: number }
 
 export const newRules = (): TownRules => ({
-  poolClosed: false, libraryCut: false, lightsOffAtMidnight: false, speed30: false, parkingCharges: false, sundayShops: false, ratesUp: false, works: [],
+  poolClosed: false, libraryCut: false, lightsOffAtMidnight: false, speed30: false, parkingCharges: false, sundayShops: false, taxUp: false, works: [],
 });
 
 export interface Issue {

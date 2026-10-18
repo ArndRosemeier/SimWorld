@@ -24,6 +24,8 @@ export interface Figure {
   /** Velocity, m/s (real seconds). */
   readonly vx: number;
   readonly vz: number;
+  /** Where they face when standing still (yaw, radians; 0 looks to -z), e.g. toward someone they talk to. */
+  readonly face?: number;
   /** Their body (changes only with their age) and today's clothes, made on demand. */
   look(): Look;
 }
@@ -147,6 +149,7 @@ export class PeopleView {
     h.object.visible = true;
     const speed = Math.hypot(f.vx, f.vz);
     if (speed > 0.15) s.yaw = Math.atan2(-f.vx, -f.vz);
+    else if (f.face !== undefined) s.yaw = f.face;
     const near = d < NEAR;
     if (near !== s.near) {
       s.near = near;

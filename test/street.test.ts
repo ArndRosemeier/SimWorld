@@ -10,6 +10,8 @@ import { ACTOR_PERSON } from '../src/sim/actors';
 import { StreetMap, OUTDOOR } from '../src/street/streetMap';
 import { trackOf, sample, type Track } from '../src/street/tracks';
 import { outfitOf, bodyKey, type LookInfo } from '../src/street/looks';
+import { TrafficFeed } from '../src/traffic/feed';
+import type { Footprints } from '../src/plan/footprints';
 
 // The smallest planned town (the street layer needs real streets), its people on a Monday morning.
 const town = planTown({ seed: 1, size: 0 });
@@ -17,6 +19,10 @@ const graph = placeGraphOf(town);
 const world = createWorld(graph, 1);
 const map = new StreetMap(town, world.graph);
 tick(world, 120); // 08:00
+// The household cars at the kerb, as in the sim worker.
+const feed = new TrafficFeed(town, world, 60);
+feed.message();
+map.fp.also = feed.standing;
 const a = world.actors.cols;
 const tracks = new Map<number, Track>();
 for (let id = 0; id < world.actors.count; id++) {
@@ -114,28 +120,33 @@ test('view: the snapshot carries every trip and everyone\'s whereabouts, in buff
   assert.deepEqual(v.occasions.map((o) => [o.kind, o.start, o.x]), today.map((o) => [o.kind, o.start, world.graph.places[o.place].x]), 'today\'s agenda, placed');
 });
 
-test('street: walks keep clear of trees, furniture, parked cars and walls', () => {
+test('street: walks keep clear of trees, furniture, parked cars (in car parks and at the kerb) and walls', () => {
   // Sampled every 0.3 m of walking: how many people ever step into a thing (their middle inside its outline).
-  const fp = map.fp, C = fp.circles, near: number[] = [], p: [number, number, number] = [0, 0, 0];
-  let people = 0, inThing = 0, inWall = 0;
+  const near: number[] = [], p: [number, number, number] = [0, 0, 0];
+  const inside = (f: Footprints, x: number, z: number) => f.circlesNear(x, z, 0, near).some((c) => Math.hypot(f.circles[c * 3] - x, f.circles[c * 3 + 1] - z) < f.circles[c * 3 + 2]);
+  assert.ok(feed.standing.circles.length > 0, 'cars stand at the kerb');
+  let people = 0, inThing = 0, inCar = 0, inWall = 0;
   for (const t of tracks.values()) {
-    if (a.kind[t.id] !== ACTOR_PERSON || a.with[t.id] >= 0) continue;
+    if (a.kind[t.id] !== ACTOR_PERSON) continue;
     people++;
     const k = t.keys, t1 = Math.min(k[k.length - 4], k[0] + 20);
-    let thing = false, wall = false;
+    let thing = false, car = false, wall = false;
     for (let i = 4; i < k.length && k[i - 4] < t1; i += 4) {
       const steps = Math.ceil(Math.hypot(k[i + 1] - k[i - 3], k[i + 3] - k[i - 1]) / 0.3);
       for (let j = 0; j < steps; j++) {
         sample(k, k[i - 4] + ((k[i] - k[i - 4]) * j) / steps, p);
-        for (const c of fp.circlesNear(p[0], p[2], 0, near)) if (Math.hypot(C[c * 3] - p[0], C[c * 3 + 1] - p[2]) < C[c * 3 + 2]) { thing = true; }
+        if (inside(map.fp, p[0], p[2])) thing = true;
+        if (inside(feed.standing, p[0], p[2])) car = true;
         // The first and last steps are the doorway.
-        if (fp.insideBuilding(p[0], p[2]) && i > 4 && i < k.length - 4) wall = true;
+        if (map.fp.insideBuilding(p[0], p[2]) && i > 4 && i < k.length - 4) wall = true;
       }
     }
     if (thing) inThing++;
+    if (car) inCar++;
     if (wall) inWall++;
   }
   assert.ok(people > 30, `${people} people out`);
-  assert.ok(inThing / people < 0.1, `${inThing} of ${people} walk into a thing`);
-  assert.ok(inWall / people < 0.1, `${inWall} of ${people} walk through a wall`);
+  assert.ok(inThing / people < 0.02, `${inThing} of ${people} walk into a thing`);
+  assert.ok(inCar / people < 0.02, `${inCar} of ${people} walk into a car at the kerb`);
+  assert.ok(inWall / people < 0.02, `${inWall} of ${people} walk through a wall`);
 });

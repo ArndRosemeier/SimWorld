@@ -20,6 +20,7 @@ import type { BizEvent } from './economy';
 import { regularsOf } from './economy';
 import { addFact, broadcast, factText, type FactTopic } from './knowledge';
 import { partnerOf, type LifeEvent } from './life';
+import { capitalize } from './profile';
 import type { PlaceId, PlaceKind } from './places';
 import { HABIT_COUNT } from './people';
 import { SPECIES } from './species';
@@ -104,7 +105,6 @@ const TOWN_WIDE: readonly OccasionKind[] = ['festival', 'christmasMarket', 'newY
 /** Fact topics the paper picks up from anywhere in the sim (a council vote, a public event). */
 const PICKED_UP: readonly FactTopic[] = ['politics', 'event'];
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** The paper's name: "The Ashford Courier". */
 export function paperName(world: World): string {
@@ -226,7 +226,7 @@ function postOccasions(world: World, day: number): void {
       for (const b of nearestBoards(world, Math.max(0, o.place), 2)) at.add(b);
       if (o.kind === 'meeting') for (const t of placesOf(world, ['townhall'])) at.add(t);
     }
-    postNotice(world, { kind: 'event', title: cap(o.name.replace(/^the /, '')), lines: [when, venue?.name ?? 'in every street'], fact, at: [...at], from: day, until: dayOf(o.start), about: -1 });
+    postNotice(world, { kind: 'event', title: capitalize(o.name.replace(/^the /, '')), lines: [when, venue?.name ?? 'in every street'], fact, at: [...at], from: day, until: dayOf(o.start), about: -1 });
   }
 }
 
@@ -322,14 +322,14 @@ function publish(world: World, day: number, from = day, read = true): void {
     const f = facts[i];
     if (f.parent >= 0 || f.secret || !f.truth || f.originator >= 0 || f.magnitude < 0.5 || ours.has(f.id) || standing.has(f.id) || !PICKED_UP.includes(f.topic)) continue;
     if (f.place >= 0 && places[f.place].kind === 'away') continue;
-    take({ section: 'town', headline: cap(factText(world, f)), text: f.topic === 'politics' ? councilLine(world, day) : '', fact: f.id, place: f.place, weight: f.magnitude });
+    take({ section: 'town', headline: capitalize(factText(world, f)), text: f.topic === 'politics' ? councilLine(world, day) : '', fact: f.id, place: f.place, weight: f.magnitude });
   }
   m.seen.fact = facts.length;
   stories.sort((a, b) => b.weight - a.weight || a.fact - b.fact);
   const news = stories.slice(0, MAX_STORIES);
   if (news.length) news[0] = { ...news[0], section: 'front' };
   const listing = coming(world, from, 7, LISTED).map((o): Story => ({
-    section: 'whatson', headline: `${weekdayName(weekdayOf(o.start)).slice(0, 3)} ${hhmm(o.start)}: ${cap(o.name.replace(/^the /, ''))}`,
+    section: 'whatson', headline: `${weekdayName(weekdayOf(o.start)).slice(0, 3)} ${hhmm(o.start)}: ${capitalize(o.name.replace(/^the /, ''))}`,
     text: o.place >= 0 ? world.graph.places[o.place].name : 'all over town', fact: occasionFact(world, o), place: o.place, weight: 0,
   }));
   const edition: Edition = { no: (m.editions.at(-1)?.no ?? 0) + 1, day, dated: formatDate(dateOf(world, day * MINUTES_PER_DAY)), stories: [...news, ...listing] };

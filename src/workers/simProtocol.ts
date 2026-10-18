@@ -5,6 +5,7 @@
  * each new game minute it also sends the sim's view snapshot (`SimView`), which every view reads, and with every
  * update the town's traffic (run here, beside the world it is driven by).
  */
+import type { ChatRequest, ChatResponse } from '../chat/ops';
 import type { CivilDate } from '../sim/calendar';
 import type { DigestItem } from '../sim/chronicle';
 import type { PlayerAction, PlayerStatus } from '../sim/player';
@@ -32,6 +33,9 @@ export type ToSim =
    * the main thread drops everyone it has.
    */
   | { type: 'skip'; days: number }
+  /** A step of a conversation with an inhabitant (src/chat/ops.ts), against the world as it is now. */
+  | { type: 'chat'; req: ChatRequest }
+
   /** Who the player is and what they do (src/sim/player.ts); answered with `player`. */
   | { type: 'player'; op: PlayerOp };
 
@@ -104,4 +108,5 @@ export type FromSim =
   | PlayerReply
   | { type: 'saved'; clock: number; bytes: Uint8Array; ms: number }
   | { type: 'skipped'; clock: number; view: SimView; ms: number }
+  | { type: 'chat'; res: ChatResponse }
   | { type: 'error'; message: string };

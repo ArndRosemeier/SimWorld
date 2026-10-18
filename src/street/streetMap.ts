@@ -25,6 +25,10 @@ const PATCH: Partial<Record<PlaceKind, number>> = { sports: 30, woods: 60, field
 
 /** How far (m) out of the door the doorstep is. */
 const DOOR_STEP = 1.2;
+/** Room (m) round a stroll's spot: in the open, not wedged between the cars of a car park. */
+const SPOT_ROOM = 1.2;
+/** Where to try the doorstep: [out from the facade, along it] in m, the plain step first. */
+const DOOR_SHIFTS: [number, number][] = [[DOOR_STEP, 0], [DOOR_STEP, 0.8], [DOOR_STEP, -0.8], [2, 0], [2, 1.2], [2, -1.2], [DOOR_STEP, 1.6], [DOOR_STEP, -1.6]];
 
 /** Default walking-line offset (m) for a road without one (a footpath the graph added). */
 const SIDE = 0;
@@ -38,7 +42,7 @@ export class StreetMap {
   private readonly deck: (x: number, z: number) => number | null;
   /** Everything standing on the ground (props, parked cars, buildings), to keep clear of. */
   readonly fp: Footprints;
-  private readonly steps = new Map<PlaceId, [number, number]>();
+  private readonly entrances = new Map<PlaceId, { door: [number, number]; step: [number, number] }>();
 
   constructor(readonly town: Town, readonly graph: PlaceGraph) {
     const n = graph.nodes.length;
@@ -94,14 +98,27 @@ export class StreetMap {
   }
 
   /**
+   * The door of a place: where it is in its building's facade (the place's own point when that is on the facade,
+   * else the facade point nearest it), so walks start and end at the wall and not in the middle of the house.
+   * The place's point for places without a town building.
+   */
+  door(place: PlaceId): [number, number] {
+    return this.entrance(place).door;
+  }
+
+  /**
    * The doorstep of a place: a step out of its door, square to the facade the door is in (so a walk leaves
-   * by the front and not through the wall beside it). The door itself for places without a town building.
+   * by the front and not through the wall beside it), beside whatever stands right outside.
    */
   doorStep(place: PlaceId): [number, number] {
-    let st = this.steps.get(place);
-    if (st) return st;
+    return this.entrance(place).step;
+  }
+
+  private entrance(place: PlaceId): { door: [number, number]; step: [number, number] } {
+    let en = this.entrances.get(place);
+    if (en) return en;
     const pl = this.graph.places[place], ref = buildingRef(pl.building);
-    st = [pl.x, pl.z];
+    en = { door: [pl.x, pl.z], step: [pl.x, pl.z] };
     const poly = ref && 'cell' in ref ? this.town.cells[ref.cell]?.buildings[ref.index]?.poly : undefined;
     if (poly) {
       let best = Infinity, ux = 0, uz = 0, fx = 0, fz = 0;
@@ -116,10 +133,17 @@ export class StreetMap {
       // The normal pointing out of the building (from the facade point nearest the door).
       let nx = -uz, nz = ux;
       if (pointInPoly(poly, fx + nx * 0.3, fz + nz * 0.3)) { nx = -nx; nz = -nz; }
-      if (best < 2) st = [pl.x + nx * DOOR_STEP, pl.z + nz * DOOR_STEP];
+      const [dx, dz] = best < 2 ? [pl.x, pl.z] : [fx, fz];
+      en.door = [dx, dz];
+      en.step = [dx + nx * DOOR_STEP, dz + nz * DOOR_STEP];
+      // A mailbox or hydrant right outside: step out a little further, or to one side along the facade.
+      for (const [out, side] of DOOR_SHIFTS) {
+        const x = dx + nx * out + ux * side, z = dz + nz * out + uz * side;
+        if (this.standable(x, z)) { en.step = [x, z]; break; }
+      }
     }
-    this.steps.set(place, st);
-    return st;
+    this.entrances.set(place, en);
+    return en;
   }
 
   /** The outline of an outdoor place, if it has one. */
@@ -138,7 +162,7 @@ export class StreetMap {
       const [x0, z0, x1, z1] = polyBounds(shape.outer);
       for (let i = 0; i < 24; i++) {
         const x = x0 + (x1 - x0) * hash3f(place, who, k, i * 2), z = z0 + (z1 - z0) * hash3f(place, who, k, i * 2 + 1);
-        if (inShape(shape, x, z) && !T.isWater(x, z, 1) && this.standable(x, z)) return [x, z];
+        if (inShape(shape, x, z) && !T.isWater(x, z, 1) && this.standable(x, z, SPOT_ROOM)) return [x, z];
       }
       return [pl.x, pl.z];
     }
@@ -146,14 +170,14 @@ export class StreetMap {
     for (let i = 0; i < 12; i++) {
       const a = hash3f(place, who, k, i * 2) * Math.PI * 2, d = Math.sqrt(hash3f(place, who, k, i * 2 + 1)) * r;
       const x = pl.x + Math.cos(a) * d, z = pl.z + Math.sin(a) * d;
-      if (!T.isWater(x, z, 1) && this.standable(x, z)) return [x, z];
+      if (!T.isWater(x, z, 1) && this.standable(x, z, SPOT_ROOM)) return [x, z];
     }
     return [pl.x, pl.z];
   }
 
-  /** Can someone stand at (x, z): clear of every prop, parked car and building? */
-  standable(x: number, z: number): boolean {
-    return this.fp.overlap(x, z, 0.4) === 0 && !this.fp.insideBuilding(x, z);
+  /** Can someone stand at (x, z): clear of every prop, parked car and building by `room` m? */
+  standable(x: number, z: number, room = 0.4): boolean {
+    return this.fp.overlap(x, z, room) === 0 && !this.fp.insideBuilding(x, z, room);
   }
 }
 

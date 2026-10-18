@@ -20,6 +20,7 @@ import { StreetMap } from '../street/streetMap';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
+import { chatOp } from '../chat/ops';
 import { TrafficFeed, trafficTransfers } from '../traffic/feed';
 
 let world: World | null = null;
@@ -72,10 +73,13 @@ function simJob(m: ToSim): FromSim {
     return { type: 'skipped', clock: world.clock, view: viewOf(world, true), ms: took() };
   }
   if (m.type === 'player') return playerJob(world, m.op, took);
+  if (m.type === 'chat') return { type: 'chat', res: chatOp(world, m.req) };
   runTo(m.clock);
   traffic.run(m.clock);
   const view = world.clock !== sentAt ? viewOf(world, dayOf(world.clock) !== dayOf(sentAt)) : null;
   sentAt = world.clock;
+  // Walks keep clear of the cars standing at the kerb as well as of what the plan put on the street.
+  map.fp.also = traffic.standing;
   return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), player: playerOut(world, map, m.clock), traffic: traffic.message(), ms: took() };
 }
 

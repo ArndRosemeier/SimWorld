@@ -10,7 +10,7 @@
  *  - talk.judge      scores generated background chatter for coherence and naturalness (authoring and slow tests only)
  */
 import { APPRAISAL_SCHEMA, appraisalMessages, parseAppraisal, stripFence, type AppraisalInput, type AppraisalResult } from './appraisal';
-import { backgroundBlock, escapeRe, refsFor, RefTable, speechMessages, transcript, type Memory, type Message, type NpcCard, type NpcPromptInput, type PersonRef, type PlaceRef } from './prompt';
+import { backgroundBlock, escapeRe, refsFor, RefTable, SETTING_RULE, speechMessages, transcript, type Memory, type Message, type NpcCard, type NpcPromptInput, type PersonRef, type PlaceRef } from './prompt';
 import type { Effort } from './roster';
 import type { Routing } from './router';
 import type { JsonSchema } from './wire';
@@ -280,7 +280,7 @@ export const TASKS: { [K in TaskName]: TaskSpec<TaskIO[K]['input'], TaskIO[K]['o
         npc: input.pov.id,
         refs,
         messages: [
-          { role: 'system', content: `Time passed in a town while the player was away. The player is ${input.pov.name}. Tell them what ${input.pov.name} lived through, in the second person: "you" is ${input.pov.name} ("Tom asked you to the dance"), never "I". Lead with what matters most to this person. Only what is in the list: invent no events, words or feelings beyond it. Sum up routine things in a sentence. A few short paragraphs, plain and warm, no headings.` },
+          { role: 'system', content: `Time passed in a town while the player was away. The player is ${input.pov.name}. Tell them what ${input.pov.name} lived through, in the second person: "you" is ${input.pov.name} ("Tom asked you to the dance"), never "I". Lead with what matters most to this person. Only what is in the list: invent no events, words or feelings beyond it. Sum up routine things in a sentence. A few short paragraphs, plain and warm, no headings. ${SETTING_RULE}` },
           { role: 'user', content: `From ${input.from} to ${input.to}:\n${events.map((e) => `- ${e.when}: ${e.text}`).join('\n')}` },
         ],
       };
