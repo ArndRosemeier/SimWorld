@@ -1,7 +1,8 @@
 /**
  * Where cars stand when nobody drives them: the planner's kerbside bays along the town's streets
- * (clear of the junctions, crossings and driveways; else one every car length along both kerbs)
- * and the yards at the ends of the farm tracks.
+ * (clear of the junctions, crossings and driveways; else one every car length along both kerbs),
+ * the yards at the ends of the farm tracks, and the houses' own driveways (private: only the car
+ * of the household living there parks in one, and it does whenever it comes home).
  * Every car has at most one spot; a journey reserves its spot when it starts, so two cars never
  * head for the same bay. A car with no spot near its goal stands off the street (a garage, a
  * private drive) and is not drawn until it drives again.
@@ -24,7 +25,15 @@ export interface Spot {
   yaw: number;
   /** Car key standing here, or reserved for, or -1. */
   car: number;
+  /**
+   * A house's driveway (private): the car that may stand here (-1 until a household is given it),
+   * and where its mouth meets the kerb lane (arc length on `edge`; `s` is where the car stops before turning in).
+   */
+  drive?: { owner: number; mouth: number };
 }
+
+/** A house's driveway for the parking: its car spot, its mouth, the house's `Place.building` code. */
+export interface DriveSpot { x: number; z: number; mx: number; mz: number; code: number }
 
 /** Bay length along the kerb (m). */
 const BAY = 6.2;
@@ -32,6 +41,10 @@ const BAY = 6.2;
 const KERB_FIT = 1.5;
 /** How far from its goal a driver looks for a free bay (m). */
 const SEARCH = 260;
+/** A car parks in its own driveway when its goal is this near (m); it stops this far before the mouth to turn in. */
+const HOME_REACH = 40, TURN_IN = 5;
+/** A driveway's height above the street (the kerb and a little: src/build/ground.ts lays it at CURB_H + 0.01). */
+const DRIVE_UP = 0.16;
 const G = 48;
 
 export class Parking {
@@ -42,12 +55,15 @@ export class Parking {
   readonly offStreet = new Map<number, { x: number; z: number }>();
   /** Spot ids by edge. */
   private readonly byEdge = new Map<number, number[]>();
+  /** Driveway spot ids by house (`Place.building` code), and by the car that owns them. */
+  private readonly driveOf = new Map<number, number>();
+  private readonly ownSpot = new Map<number, number>();
 
   /**
    * `bays`: the planner's kerbside bays (`CellPlan.parking`, clear of junctions, crossings and driveways); without
-   * them a bay every BAY m along both kerbs of every street with parking.
+   * them a bay every BAY m along both kerbs of every street with parking. `drives`: the houses' driveways.
    */
-  constructor(net: RoadNet, bays?: readonly { x: number; z: number }[]) {
+  constructor(net: RoadNet, bays?: readonly { x: number; z: number }[], drives: readonly DriveSpot[] = []) {
     const tmp = { x: 0, z: 0, dx: 0, dz: 0 };
     net.edges.forEach((e, ei) => {
       const at: [number, number][] = [];
@@ -84,6 +100,28 @@ export class Parking {
       const dx = ne.side > 0 ? tmp.dx : -tmp.dx, dz = ne.side > 0 ? tmp.dz : -tmp.dz;
       this.addSpot(ne.e, ne.s, ne.side, b.x, net.heightAt(e, ne.s), b.z, Math.atan2(-dx, -dz));
     }
+    // The driveways: the car comes along the kerb on the mouth's side, stops just short of it and turns in.
+    for (const d of drives) {
+      const ne = net.nearestEdge(d.mx, d.mz, 12);
+      if (!ne || ne.d > 10) continue;
+      const e = net.edges[ne.e], s = ne.s - ne.side * TURN_IN;
+      if (s < 3 || s > e.len - 3) continue;
+      this.driveOf.set(d.code, this.spots.length);
+      // Nose to the house, as it drove in.
+      this.addSpot(ne.e, s, ne.side, d.x, net.heightAt(e, ne.s) + DRIVE_UP, d.z, Math.atan2(d.mx - d.x, d.mz - d.z));
+      this.spots[this.spots.length - 1].drive = { owner: -1, mouth: ne.s };
+    }
+  }
+
+  /** Give the driveway of house `code` (a `Place.building` code) to a car; false when the house has none. */
+  own(code: number, car: number): boolean {
+    const id = this.driveOf.get(code);
+    if (id === undefined) return false;
+    const d = this.spots[id].drive!;
+    if (d.owner >= 0) this.ownSpot.delete(d.owner);
+    d.owner = car;
+    this.ownSpot.set(car, id);
+    return true;
   }
 
   private addSpot(edge: number, s: number, side: number, x: number, y: number, z: number, yaw: number): void {
@@ -115,15 +153,20 @@ export class Parking {
     return s ?? this.offStreet.get(car) ?? null;
   }
 
-  /** The free spot nearest (x, z) within `max` m, or null. */
-  nearestFree(x: number, z: number, max = SEARCH): Spot | null {
+  /** The free spot nearest (x, z) within `max` m for car `car`: its own driveway when that is near, never another's; or null. */
+  nearestFree(x: number, z: number, max = SEARCH, car = -1): Spot | null {
+    const mine = this.ownSpot.get(car);
+    if (mine !== undefined) {
+      const s = this.spots[mine];
+      if ((s.car < 0 || s.car === car) && Math.hypot(s.x - x, s.z - z) < HOME_REACH) return s;
+    }
     let best: Spot | null = null, bd = max;
     const r = Math.ceil(max / G);
     const i0 = Math.floor(x / G), j0 = Math.floor(z / G);
     for (let i = i0 - r; i <= i0 + r; i++) for (let j = j0 - r; j <= j0 + r; j++) {
       for (const id of this.grid.get(gkey(i, j)) ?? []) {
         const s = this.spots[id];
-        if (s.car >= 0) continue;
+        if (s.car >= 0 || s.drive) continue;
         const d = Math.hypot(s.x - x, s.z - z);
         if (d < bd) { bd = d; best = s; }
       }
@@ -137,14 +180,14 @@ export class Parking {
    */
   parkNear(car: number, x: number, z: number): Spot | null {
     this.release(car);
-    const s = this.nearestFree(x, z);
+    const s = this.nearestFree(x, z, SEARCH, car);
     this.arrive(car, s, x, z);
     return s;
   }
 
   /** Reserve the free spot nearest (x, z) for a car on its way (null: it will stand off the street). */
   reserve(car: number, x: number, z: number): Spot | null {
-    const s = this.nearestFree(x, z);
+    const s = this.nearestFree(x, z, SEARCH, car);
     if (s) s.car = car;
     return s;
   }

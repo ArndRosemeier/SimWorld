@@ -94,6 +94,33 @@ test('a car pulls out, drives across town and parks in the bay it reserved; its 
   assert.equal(parking.spotOf(1), to);
 });
 
+test('a house\'s driveway is its household\'s: the car backs out of it, drives off, and turns into it again coming home', () => {
+  const tt = new TownTraffic(town, graph.places, 1), P = tt.parking, tr = tt.traffic;
+  tt.placeCars(world.households, (h) => world.households[h].home);
+  const drives = P.spots.filter((s) => s.drive && s.drive.owner >= 0);
+  assert.ok(drives.length > 20, `${drives.length} driveways with a car`);
+  // At home, each car stands in its own driveway.
+  assert.ok(drives.filter((s) => s.car === s.drive!.owner).length > drives.length * 0.9);
+  const home = drives[0], key = home.drive!.owner, away = P.spots.find((s) => !s.drive && s.car < 0 && Math.hypot(s.x - home.x, s.z - home.z) > 150)!;
+  // Nobody else parks in it, even right beside it.
+  P.release(key);
+  assert.notEqual(P.reserve(999_999, home.x, home.z), home);
+  P.parkNear(key, home.x, home.z);
+  assert.equal(P.spotOf(key), home);
+  const car: Car = { key, kind: 'sedan', variant: 0 };
+  const out = tr.depart(car, { park: true, x: away.x, z: away.z });
+  assert.ok(out?.drive?.out, 'backing out');
+  assert.ok(Math.hypot(out.x - home.x, out.z - home.z) < 0.5, 'from the spot');
+  run(tr, 300, () => undefined);
+  assert.equal(P.spotOf(key), away);
+  const back = tr.depart(car, { park: true, x: home.x, z: home.z })!;
+  assert.equal(back.spot, home, 'its own driveway is reserved for it');
+  let turnedIn = false;
+  run(tr, 300, () => { if (back.alive && back.drive && !back.drive.out) turnedIn = true; });
+  assert.ok(turnedIn, 'turned in from the street');
+  assert.equal(P.spotOf(key), home);
+});
+
 test('busy streets: nobody drives through anybody, every car arrives', () => {
   const parking = new Parking(net), tr = new Traffic(net, parking);
   let parked = 0, stuck = 0;

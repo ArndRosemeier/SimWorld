@@ -7,6 +7,7 @@
  * Fed with the sim's car trips (`CarTrip`, src/traffic/trips.ts) once per game minute and run per
  * frame. New in SimWorld. Pure (no three.js).
  */
+import { buildingCode } from '../plan/placeGraph';
 import { Rng, deriveSeed, hash32 } from '@futuremagic/core';
 import type { Town } from '../plan/town';
 import type { Place, PlaceId } from '../sim/places';
@@ -73,7 +74,9 @@ export class TownTraffic {
     this.world = world ?? null;
     this.net = new RoadNet(town);
     // The kerbside bays are the planner's (src/plan/cell.ts): the same ones the plan's kerb cars stood in.
-    this.parking = new Parking(this.net, town.cells.flatMap((c) => c.parking));
+    // The houses' driveways are private: each is given to the car of the household living there (`placeCars`).
+    const drives = town.cells.flatMap((c, ci) => c.driveways.map((d) => ({ x: d.x, z: d.z, mx: d.mx, mz: d.mz, code: buildingCode(ci, d.building) })));
+    this.parking = new Parking(this.net, town.cells.flatMap((c) => c.parking), drives);
     this.traffic = new Traffic(this.net, this.parking);
     this.traffic.onPark = () => this.stats.parked++;
     this.traffic.onHalt = () => this.stats.stops++;
@@ -85,10 +88,15 @@ export class TownTraffic {
     return (t + this.clockOffset) / 60;
   }
 
-  /** Put every household car at rest: at `at(household)`'s place (home, or where its driver is). */
-  placeCars(households: readonly { id: number; car: boolean }[], at: (household: number) => PlaceId): void {
+  /**
+   * Put every household car at rest: at `at(household)`'s place (home, or where its driver is). A household whose
+   * house has a driveway gets it: its car parks there whenever it comes home.
+   */
+  placeCars(households: readonly { id: number; car: boolean; home: PlaceId }[], at: (household: number) => PlaceId): void {
     for (const h of households) {
       if (!h.car) continue;
+      const home = this.places[h.home];
+      if (home && home.homes === 1 && home.building >= 0) this.parking.own(home.building, householdCar(this.seed, h.id).key);
       const p = this.places[at(h.id)];
       if (p) this.parking.parkNear(h.id, p.x, p.z);
     }
