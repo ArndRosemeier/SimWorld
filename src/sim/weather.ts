@@ -407,3 +407,20 @@ export function forceWeather(w: Weather, kind: WeatherKind): Weather {
   const p = STATES[kind], sf = snowFraction(w.tempC);
   return { ...w, ...p, kind, rain: p.precip * (1 - sf), snow: p.precip * sf, wet: p.precip > 0 ? Math.max(w.wet, 0.35 + p.precip * 0.6) : w.wet };
 }
+
+/** A lightning strike: `at` seconds into the minute, `distance` (m) and direction (radians, from +x towards +z) from the town. */
+export interface Strike { at: number; distance: number; angle: number }
+
+/**
+ * The lightning strikes of game minute `m` at a lightning level 0 … 1 (a storm: about one strike a
+ * minute), from the town's `seed`. Pure: the sky's flashes (src/render/sky.ts) and the thunder
+ * (src/audio/soundscape.ts) are the same strikes.
+ */
+export function strikesIn(seed: number, m: number, lightning: number): Strike[] {
+  if (lightning <= 0.05) return [];
+  const r = new Rng(deriveSeed(seed, 'lightning', m));
+  const out: Strike[] = [];
+  const n = r.chance(lightning * 0.9) ? (r.chance(0.3) ? 2 : 1) : 0;
+  for (let i = 0; i < n; i++) out.push({ at: r.float() * 55, distance: 400 + r.float() * r.float() * 6000, angle: r.float() * Math.PI * 2 });
+  return out;
+}

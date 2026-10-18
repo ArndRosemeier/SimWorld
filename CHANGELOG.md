@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.049 — Lightning and thunder together
+
+- Each lightning flash in the sky now has its thunder: the sky and the sound draw the same strikes, and the thunder follows the flash after the time sound takes to travel.
+
 ## v0.048 — Day and night, sun and moon, clouds and storms
 
 - The sky follows the real date and time: the sun rises and sets where and when it really would, with sunsets, twilight and a starry night.
