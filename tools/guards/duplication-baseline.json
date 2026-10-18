@@ -1,0 +1,10 @@
+[
+  {
+    "key": "clone: core/noise.ts#cellular2 + core/noise.ts#cellular3",
+    "reason": "2D and 3D variants of the same noise in one file; merging them would cost the hot path a dimension branch."
+  },
+  {
+    "key": "clone: core/noise.ts#fbm2 + core/noise.ts#fbm3",
+    "reason": "2D and 3D variants of the same noise in one file; merging them would cost the hot path a dimension branch."
+  }
+]

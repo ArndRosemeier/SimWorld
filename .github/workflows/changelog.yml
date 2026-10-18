@@ -1,0 +1,40 @@
+name: Changelog
+# After a merge, fold the change notes (changes/*.md) into CHANGELOG.md as the next versions, 
+on:
+  push:
+    branches: [main]
+    paths: ['changes/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: changelog
+  cancel-in-progress: false
+
+jobs:
+  fold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fold the notes
+        id: fold
+        run: |
+          node tools/changelog.mjs
+          if git diff --quiet -- CHANGELOG.md; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Commit and push
+        if: steps.fold.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A CHANGELOG.md changes
+          git commit -m "changelog: $(grep -m1 -oE '^## v0\.[0-9]+' CHANGELOG.md | cut -c4-)"
+          for i in 1 2 3 4; do git push origin HEAD:main && exit 0; sleep $((i * 3)); git pull --rebase origin main; done
+          exit 1
