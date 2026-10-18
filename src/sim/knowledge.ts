@@ -131,6 +131,9 @@ export function factText(world: World, fact: Fact): string {
 }
 
 
+/** Is the story about `id` (they did it or it was done to them)? */
+export const isAbout = (fact: Fact, id: ActorId): boolean => fact.subject === id || fact.object === id;
+
 /** How much a story matters to `holder`: newsworthiness, size, and whether it is about someone they know. */
 function salienceFor(world: World, holder: ActorId, fact: Fact): number {
   let relevance = 0.35;
@@ -330,7 +333,7 @@ export function forget(world: World, days = 1): void {
     const holder = c.holder[r];
     if (holder < 0) continue;
     const f = k.facts[c.fact[r]];
-    const personal = f.subject === holder || f.object === holder || c.source[r] === SOURCE_WITNESSED;
+    const personal = isAbout(f, holder) || c.source[r] === SOURCE_WITNESSED;
     c.salience[r] *= personal ? keep : fade;
     if (c.salience[r] < FORGET_BELOW && f.subject !== holder) dropBelief(world, r);
   }

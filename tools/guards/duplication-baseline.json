@@ -380,28 +380,8 @@
     "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
   },
   {
-    "key": "idiom: [.filter .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/politics.ts",
-    "reason": "Picking household members by a condition (adults, children, earners) in the systems that need different conditions; each filter is one line with its own predicate."
-  },
-  {
     "key": "idiom: [.members .some] in simworld/sim/groups.ts + simworld/sim/politics.ts + simworld/sim/schedule.ts",
     "reason": "Different questions about a list of members (a household's grown-up at home, a club member who holds an office, a councillor who agrees with an issue): each is one Array.some with its own predicate; the shared part is Array.some itself."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/actions.ts + simworld/sim/life.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts + simworld/sim/world.ts + simworld/street/tracks.ts + simworld/workers/sim.worker.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/needs.ts + simworld/sim/schedule.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/economy.ts + simworld/sim/encounters.ts + simworld/street/tracks.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
-  },
-  {
-    "key": "idiom: [.actors .cols] in simworld/sim/phone.ts + simworld/sim/schedule.ts + simworld/street/tracks.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
     "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
@@ -434,5 +414,21 @@
   {
     "key": "idiom: [.mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/vegetation.ts",
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.filter .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/politics.ts + simworld/talk/chatter.ts",
+    "reason": "Picking household members by a condition (adults, children, earners) in the systems that need different conditions; each filter is one line with its own predicate."
+  },
+  {
+    "key": "idiom: [.actors .cols .home] in simworld/sim/life.ts + simworld/sim/synth.ts + simworld/talk/refer.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops. The chatter engine (src/talk) reads the same columns as a consumer of the sim."
+  },
+  {
+    "key": "idiom: [.actors .cols .kind] in simworld/sim/world.ts + simworld/talk/chatter.ts + simworld/workers/sim.worker.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops. The chatter engine (src/talk) reads the same columns as a consumer of the sim."
+  },
+  {
+    "key": "idiom: [.beliefs .cols .knowledge] in simworld/sim/knowledge.ts + simworld/talk/chatter.ts + simworld/talk/realise.ts",
+    "reason": "Reading belief columns (world.knowledge.beliefs.cols) for a row found by beliefAbout: the chatter engine reads the confidence, source and heard-at of the one belief it voices, like the knowledge system does; the columns are the seam."
   }
 ]

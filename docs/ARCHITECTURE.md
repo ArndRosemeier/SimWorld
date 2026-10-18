@@ -234,7 +234,13 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Turn an NPC reply into state changes | the `npc.appraisal` task: `APPRAISAL_SCHEMA` → `parseAppraisal` → `Proposal` for `applyProposal` | `src/llm/appraisal.ts` |
 | Test anything that calls an LLM | `replayTransport(recordings)` (never the network); real recordings from `test/slow/openrouter.slow.test.ts` with `LLM_RECORD=1` | `src/llm/recorded.ts` |
 | Which models are good at a task? (live, by hand) | `test/slow/llm-models.slow.test.ts` on the scenes in `test/fixtures/llm/scenes.ts`: every candidate, same inputs, scored checks, latency, cost | `test/slow/llm-models.slow.test.ts` |
-| Background chatter, a fallback answer, any generated sentence | the procedural text engine | `src/talk/` |
+| What two people say when they meet (overheard lines, speech bubbles, the chat panel's "Nearby" channel) | `overhear(world, encounter, memory)` / `overheard(world, memory, keep?)` → `Exchange { place, a, b, kind, time, lines: { speaker, text, fact }[] }`; a line with `fact >= 0` is the story passing (what the player can learn by listening). `TalkMemory` (anti-repetition) lives with the caller, never in the World | `src/talk/chatter.ts` |
+| Put a story into one person's words for another | `say(world, fact, speaker, listener, opts)` (opener, hedge by confidence and source, referring expressions, the speaker's voice); `clause(...)` for the bare story | `src/talk/realise.ts` |
+| Name a person or place as a speaker would to a listener ("my sister", "your dad", "the baker at …", "he") | `refer(world, who, discourse, case)`, `placeName`; grammar slots `{S}`, `{S:has}`, `{S&O}`, `{P}` via `realiseSlots` | `src/talk/refer.ts` |
+| How a person talks (formality, verbosity, fillers, pet phrase, swearing, dialect) | `voiceOf(world, id)`; `voiced(text, voice, ctx)` puts any line in it | `src/talk/voice.ts`, `src/talk/realise.ts` |
+| Words for a kind of news, phrase banks per speech act | `phrasings(fact)` (keyed by the sim's fact templates; unknown ones fall back to `slotted(template)`); `ACTS` banks by register | `src/talk/facts.ts`, `src/talk/acts.ts` |
+| Pick a phrase without repeating, fill slots, polish a sentence | `pick`, `expand` (`[a\|b]`), `fillSlots`, `finish`, `contract` | `src/talk/grammar.ts` |
+| Background chatter, a fallback answer, any generated sentence | the procedural text engine (rows above) | `src/talk/` |
 
 ### Sound
 
