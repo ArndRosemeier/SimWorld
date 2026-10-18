@@ -19,7 +19,7 @@ export const enum DriveSurface { Asphalt = 0, Paving = 1, Gravel = 2 }
 export interface Driveway {
   shape: Shape;
   surface: DriveSurface;
-  /** Middle of the car spot, and the yaw of a car parked nose to the house. */
+  /** Middle of the car spot, and `atan2` of the lot's inward normal (a model whose front is −Z, turned by it, faces the street). */
   x: number;
   z: number;
   yaw: number;

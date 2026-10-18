@@ -16,7 +16,7 @@ import {
   type Poly, polyArea, polyCentroid, minAreaRect, splitPolyByLine, ensureCCW, cleanPoly, pointInPoly,
   distSqPointSeg, polyBounds, resample, polylineLength, simplifyClosed, segIntersect, rectangularity,
 } from '../geom/geom2';
-import { cleanShapes, difference, intersection, largest, offset, strokePolylines, union, shapesToPolys, type Shape, shapeArea } from '../geom/clip';
+import { cleanShapes, difference, inShape, intersection, largest, offset, strokePolylines, union, shapesToPolys, type Shape, shapeArea } from '../geom/clip';
 import type { Terrain } from '../world/terrain';
 import { RoadClass, type CellInfo, type District, type MacroPlan } from './types';
 import { ROAD_SPEC } from './macro';
@@ -480,7 +480,7 @@ function shapeTouchesSite(blk: Shape, lm: Landmark): boolean {
     const [u, v] = worldToSite(lm, blk.outer[i], blk.outer[i + 1]);
     if (Math.abs(u) < lm.hu && Math.abs(v) < lm.hv) return true;
   }
-  for (let i = 0; i < lm.site.length; i += 2) if (pointInPoly(blk.outer, lm.site[i], lm.site[i + 1]) && !blk.holes.some((h) => pointInPoly(h, lm.site[i], lm.site[i + 1]))) return true;
+  for (let i = 0; i < lm.site.length; i += 2) if (inShape(blk, lm.site[i], lm.site[i + 1])) return true;
   return lineHits([...lm.site, lm.site[0], lm.site[1]], [blk.outer]);
 }
 
@@ -1026,7 +1026,7 @@ function nearOtherStreet(plan: CellPlan, si: number, x: number, z: number, clear
 
 function parkingCheck(plan: CellPlan): (si: number, x: number, z: number, dx: number, dz: number, nx: number, nz: number) => boolean {
   const cross = crossingsOf(plan);
-  const onRoad = (x: number, z: number) => plan.carriageway.some((c) => pointInPoly(c.outer, x, z) && !c.holes.some((h) => pointInPoly(h, x, z)));
+  const onRoad = (x: number, z: number) => plan.carriageway.some((c) => inShape(c, x, z));
   const hl = BAY_LENGTH / 2, hw = BAY_DEPTH / 2;
   return (si, x, z, dx, dz, nx, nz) => {
     for (const [a, b] of [[hl, hw], [hl, -hw], [-hl, hw], [-hl, -hw]]) if (!onRoad(x + dx * a + nx * b, z + dz * a + nz * b)) return false;

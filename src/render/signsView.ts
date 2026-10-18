@@ -27,6 +27,7 @@ import { FURNITURE } from './materials';
 import { CURB_H } from '../world/ground';
 import type { StopBoard } from '../street/stops';
 import { instancedFromData, showInstances } from './meshes';
+import { propModels } from './propsView';
 import { lettering, type Painter } from './textAtlas';
 import * as paint from './signPaint';
 import type { SignFacts } from './signFacts';
@@ -75,10 +76,9 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
   let facts: SignFacts = r.facts;
   const group = new Group();
   group.name = 'signs';
+  const meshes = await propModels(pool, signs.groups, priority + 1);
   /** One model's signs as an instanced mesh in `group` (`I`: SIGN_STRIDE floats per instance). */
-  const modelSigns = async (model: string, I: ArrayLike<number>, at: number): Promise<ModelSigns> => {
-    const m = await pool.run({ type: 'propModel', model }, at);
-    if (m.type !== 'propModel') throw new Error(`town worker: propModel answered ${m.type}`);
+  const modelSigns = (model: string, I: ArrayLike<number>, data: Parameters<typeof instancedFromData>[0]): ModelSigns => {
     const n = I.length / SIGN_STRIDE;
     const pose = new Float32Array(n * 4), size = new Float32Array(n * 2), tint = new Float32Array(n * 4), what = new Int32Array(n);
     for (let k = 0, o = 0; k < n; k++, o += SIGN_STRIDE) {
@@ -88,13 +88,13 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
       what[k] = I[o + 6];
       tint.set([I[o + 7], I[o + 8], I[o + 9], (k * 7.31) % 50], k * 4);
     }
-    const mesh = instancedFromData(m.mesh, FURNITURE, 0, n);
+    const mesh = instancedFromData(data, FURNITURE, 0, n);
     mesh.name = model;
     group.add(mesh);
     const s = mesh.geometry.boundingSphere!;
     return { mesh, n, pose, size, tint, sign: new Float32Array(n * 4), what, range: model.startsWith('f:signBoard') ? RANGE : POST_RANGE, radius: s.center.length() + s.radius };
   };
-  const models = await Promise.all(signs.groups.map((g, i) => modelSigns(g.model, g.inst, priority + 1 + i * 0.01)));
+  const models = signs.groups.map((g, i) => modelSigns(g.model, g.inst, meshes[i].mesh));
   /** The bus stops (`addStops`). */
   let stops: readonly StopBoard[] = [];
 
@@ -256,8 +256,9 @@ export async function showSigns(stage: Stage, pool: WorkerPool<ToTown, FromTown>
         const table = signs.what.push({ t: 'timetable', stop: k, slot: 'sheet' }) - 1;
         tables.push(st.x + nx * 0.07, y + 1.45, st.z + nz * 0.07, st.yaw, 0.4 * SHEET, 0.4, table, 0.96, 0.96, 0.94);
       });
-      const more = await Promise.all([['f:signPost:0', posts], ['f:signBoard:1', flags], ['f:signBoard:0', tables]].map(([model, I], i) => modelSigns(model as string, I as number[], priority + 2 + i * 0.01)));
-      models.push(...more);
+      const groups = [{ model: 'f:signPost:0', inst: posts }, { model: 'f:signBoard:1', inst: flags }, { model: 'f:signBoard:0', inst: tables }];
+      const data = await propModels(pool, groups, priority + 2);
+      models.push(...groups.map((g, i) => modelSigns(g.model, g.inst, data[i].mesh)));
       // (FURNITURE's shader is built: this only checks.)
       await stage.prepare(group);
       readFacts();
