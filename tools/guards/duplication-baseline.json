@@ -220,6 +220,18 @@
     "reason": "Each texture calls the one ridged-noise helper for its own pattern; used, not copied."
   },
   {
+    "key": "idiom: [.Taillight .box .set] in simworld/build/bicycle.ts + simworld/build/crossing.ts + simworld/build/train.ts",
+    "reason": "Each model sets the lamp part and adds its own lamp box (MeshBuilder.set + box): the builder's API used, not copied."
+  },
+  {
+    "key": "idiom: [.from Array] in simworld/interior/building.ts + simworld/render/railView.ts + simworld/render/textures.ts",
+    "reason": "Array.from building index lists for three different things; the language's own call, tipped over the threshold by new files."
+  },
+  {
+    "key": "idiom: [.members .some] in simworld/sim/groups.ts + simworld/sim/politics.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
+    "reason": "Different questions about a list of members (a household's grown-up at home, a club member who holds an office, a councillor who agrees with an issue): each is one Array.some with its own predicate; the shared part is Array.some itself."
+  },
+  {
     "key": "idiom: [.profile .seed] in simworld/plan/cell.ts + simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/rail.ts + simworld/world/terrain.ts",
     "reason": "Each derives its own named stream from the terrain profile's seed (deriveSeed(profile.seed, name)); the one way is deriveSeed, used, not copied."
   },

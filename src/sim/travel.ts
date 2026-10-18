@@ -38,6 +38,9 @@ export const PARK_MIN = 3;
 export const DRIVE_IF_WALK_OVER = 12;
 /** Out of town (a place's `beyond`): driving on the open road, metres per minute (60 km/h). */
 export const ROAD_M_PER_MIN = 1000;
+/** Cycling in town including junctions, metres per minute (15 km/h); a minute more to get the bike out and lock it up. */
+export const BIKE_M_PER_MIN = 250;
+export const BIKE_LOCK_MIN = 1;
 /** Out of town by train or bus, metres per minute, plus the wait at the stop. */
 export const TRANSIT_M_PER_MIN = 700;
 export const TRANSIT_WAIT_MIN = 8;
@@ -157,6 +160,11 @@ export class Travel {
     if (a === b) return 'foot';
     if (this.far(a, b) > 0) return car ? 'car' : this.station ? 'train' : 'bus';
     return car && this.metres(a, b) / WALK_M_PER_MIN > walkUpTo ? 'car' : 'foot';
+  }
+
+  /** Whole game minutes from a to b by bike (in town). */
+  bikeMinutes(a: PlaceId, b: PlaceId): number {
+    return a === b ? 0 : Math.max(1, Math.round(this.metres(a, b) / BIKE_M_PER_MIN + BIKE_LOCK_MIN));
   }
 
   /**

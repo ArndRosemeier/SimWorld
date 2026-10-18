@@ -10,6 +10,10 @@ import type { Figure, Look, PeopleView, Rest } from '../render/people/peopleView
 import { restAt } from '../street/tracks';
 import { yawToward } from '../geom/geom2';
 import type { SimClient, Walker } from './SimClient';
+import { bikeSaddle } from '../build/bicycle';
+import { CAR_STRIDE, vehiclePose } from '../traffic/feed';
+import { BIKE_KEY, isBikeKey } from '../traffic/townTraffic';
+import { SEAT_REACH } from '../street/seats';
 
 /** Game minutes ahead a walker's velocity is measured over. */
 const DT = 0.02;
@@ -54,6 +58,11 @@ export class Street {
   private readonly pins = new Map<number, Held>();
   /** People inside the building the player is in (src/game/inside.ts), at their spots. */
   private readonly indoors = new Map<number, Held>();
+
+  /** The cyclists on their bikes this frame (by actor id). */
+  private readonly riding = new Set<number>();
+  private readonly q0 = new Float32Array(4);
+  private readonly q1 = new Float32Array(4);
 
   /** Your own person while you walk them yourself: drawn where the body you steer is (src/game/avatar.ts). */
   private self: { fig: WalkerFigure; at: SelfPose } | null = null;
@@ -100,8 +109,43 @@ export class Street {
       f.rest = r >= 0 ? { kind: 'sit', seat: w.rests[r + 3] } : undefined;
       out.push(f);
     }
-    for (const id of this.figures.keys()) if (!this.sim.walkers.has(id) && !this.pins.has(id) && !this.indoors.has(id)) this.figures.delete(id);
+    this.riders(clock, secPerMin, out);
+    for (const id of this.figures.keys()) if (!this.sim.walkers.has(id) && !this.pins.has(id) && !this.indoors.has(id) && !this.riding.has(id)) this.figures.delete(id);
     return out;
+  }
+
+  /**
+   * The cyclists in the traffic (src/traffic: bicycles keyed BIKE_KEY + the rider), each sitting on their bike's
+   * saddle (`bikeSaddle`): placed SEAT_REACH ahead of it, facing the way the bike goes.
+   */
+  private riders(clock: number, secPerMin: number, out: Figure[]): void {
+    this.riding.clear();
+    const m = this.sim.traffic;
+    if (!m) return;
+    const n = m.cars.length / CAR_STRIDE, p = this.q0, q = this.q1;
+    for (let i = 0; i < n; i++) {
+      const key = m.cars[i * CAR_STRIDE];
+      if (!isBikeKey(key)) continue;
+      const id = key - BIKE_KEY;
+      if (this.pins.has(id) || this.indoors.has(id) || id === this.self?.fig.id) continue;
+      let f = this.figures.get(id);
+      if (!f) {
+        const info = this.sim.infoOf(id);
+        if (!info) continue;
+        this.figures.set(id, (f = new WalkerFigure({ id, info }, this)));
+      }
+      this.riding.add(id);
+      vehiclePose(m, i, clock, p);
+      vehiclePose(m, i, clock + DT, q);
+      const sad = bikeSaddle(m.cars[i * CAR_STRIDE + 2]), fx = -Math.sin(p[3]), fz = -Math.cos(p[3]);
+      const ahead = SEAT_REACH - sad.z;
+      f.x = p[0] + fx * ahead; f.y = p[1]; f.z = p[2] + fz * ahead;
+      f.vx = (q[0] - p[0]) / (DT * secPerMin);
+      f.vz = (q[2] - p[2]) / (DT * secPerMin);
+      f.face = p[3];
+      f.rest = { kind: 'sit', seat: sad.y - 0.02 };
+      out.push(f);
+    }
   }
 
   /** The people inside the building shown, where they are and which way they face (empty: out of doors). */

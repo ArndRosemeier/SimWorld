@@ -35,6 +35,8 @@ export function propModel(key: string): MeshData {
 /** A vehicle model's far stand-in (`farVehicle` filling the model's bounds); null for furniture. */
 export function propFar(key: string): MeshData | null {
   if (!isVehicleModel(key)) return null;
+  // (A bicycle is too thin for a box: itself at every distance.)
+  if (key.startsWith('v:bicycle:')) return propModel(key);
   const P = propModel(key).attrs.position.array;
   const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < P.length; i++) { const k = i % 3; min[k] = Math.min(min[k], P[i]); max[k] = Math.max(max[k], P[i]); }
