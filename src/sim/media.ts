@@ -15,7 +15,7 @@
 import { clamp, hash3i, hashCombine, hashToFloat } from '@futuremagic/core';
 import { ACTOR_PERSON, FEMALE, type ActorId } from './actors';
 import { agendaOn, type Occasion, type OccasionKind } from './agenda';
-import { dateOf, dayAndMonth, weekdayName } from './calendar';
+import { dateOf, dayAndMonth, formatDate, weekdayName } from './calendar';
 import type { BizEvent } from './economy';
 import { regularsOf } from './economy';
 import { addFact, broadcast, factText, type FactTopic } from './knowledge';
@@ -49,6 +49,8 @@ export interface Edition {
   no: number;
   /** Game day it came out. */
   day: number;
+  /** "Thursday 22 October 2026", as on the masthead. */
+  dated: string;
   /** The front-page story first, then the rest by section. */
   stories: Story[];
 }
@@ -120,6 +122,11 @@ export const latestEdition = (world: World): Edition | null => world.media.editi
 /** The notices up at a place today (a board, a street's lamp posts, a shop window). */
 export const noticesAt = (world: World, place: PlaceId): Notice[] => world.media.notices.filter((n) => n.at.includes(place));
 
+/** What the main thread gets of the media (in `SimView`): the paper's name, the newest edition, the notices up. */
+export interface MediaView { paper: string; edition: Edition | null; notices: Notice[] }
+
+export const mediaView = (world: World): MediaView => ({ paper: paperName(world), edition: latestEdition(world), notices: world.media.notices });
+
 /** The town's notice boards. */
 export const boardsOf = (world: World): PlaceId[] => placesOf(world, BOARD_KINDS);
 
@@ -141,6 +148,16 @@ export function mediaDay(world: World, days: number): void {
   for (let d = day - Math.min(days, 7) + 1; d <= day; d++) {
     if (weekdayOf(d * MINUTES_PER_DAY) === pd) { publish(world, day); break; }
   }
+}
+
+/**
+ * A new world's paper: the issue that came out on the last paper day before play (What's on from today), so there is
+ * one to read from the first minute. `createWorld` calls it when no history printed one. Nobody learns from it: the
+ * town read it before play began (its news already lives in what people know).
+ */
+export function lastEdition(world: World): void {
+  const today = dayOf(world.clock);
+  publish(world, today - ((weekdayOf(world.clock) - paperDay(world) + 7) % 7), today, false);
 }
 
 /** Pin up a notice (lost pets come through here too). Returns it. */
@@ -288,7 +305,7 @@ export function paperReaders(world: World): ActorId[] {
   return [...out];
 }
 
-function publish(world: World, day: number): void {
+function publish(world: World, day: number, from = day, read = true): void {
   const m = world.media, stories: Story[] = [], used = new Set<number>();
   const take = (s: Story | null) => { if (s && s.fact >= 0 && !used.has(s.fact)) { used.add(s.fact); stories.push(s); } };
   const ev = world.life.events;
@@ -305,20 +322,21 @@ function publish(world: World, day: number): void {
     const f = facts[i];
     if (f.parent >= 0 || f.secret || !f.truth || f.originator >= 0 || f.magnitude < 0.5 || ours.has(f.id) || standing.has(f.id) || !PICKED_UP.includes(f.topic)) continue;
     if (f.place >= 0 && places[f.place].kind === 'away') continue;
-    take({ section: 'town', headline: cap(factText(world, f)), text: '', fact: f.id, place: f.place, weight: f.magnitude });
+    take({ section: 'town', headline: cap(factText(world, f)), text: f.topic === 'politics' ? councilLine(world, day) : '', fact: f.id, place: f.place, weight: f.magnitude });
   }
   m.seen.fact = facts.length;
   stories.sort((a, b) => b.weight - a.weight || a.fact - b.fact);
   const news = stories.slice(0, MAX_STORIES);
   if (news.length) news[0] = { ...news[0], section: 'front' };
-  const listing = coming(world, day, 7, LISTED).map((o): Story => ({
+  const listing = coming(world, from, 7, LISTED).map((o): Story => ({
     section: 'whatson', headline: `${weekdayName(weekdayOf(o.start)).slice(0, 3)} ${hhmm(o.start)}: ${cap(o.name.replace(/^the /, ''))}`,
     text: o.place >= 0 ? world.graph.places[o.place].name : 'all over town', fact: occasionFact(world, o), place: o.place, weight: 0,
   }));
-  const edition: Edition = { no: (m.editions.at(-1)?.no ?? 0) + 1, day, stories: [...news, ...listing] };
+  const edition: Edition = { no: (m.editions.at(-1)?.no ?? 0) + 1, day, dated: formatDate(dateOf(world, day * MINUTES_PER_DAY)), stories: [...news, ...listing] };
   m.editions.push(edition);
   if (m.editions.length > KEEP_EDITIONS) m.editions.splice(0, m.editions.length - KEEP_EDITIONS);
   // Readers come to know what they read: the front page nearly always, the rest by chance.
+  if (!read) return;
   const readers = paperReaders(world);
   for (const s of edition.stories) {
     const rng = tickRng(world, 'paper', s.fact);
@@ -326,6 +344,13 @@ function publish(world: World, day: number): void {
     const who = readers.filter(() => rng.chance(p));
     if (who.length) broadcast(world, s.fact, who);
   }
+}
+
+/** "The council meets next on Tuesday 3 November at 19:00 at the Town Hall." ('' when no meeting is on the agenda.) */
+function councilLine(world: World, day: number): string {
+  const halls = placesOf(world, ['townhall']);
+  const next = coming(world, day, 35, ['meeting']).find((o) => halls.includes(o.place));
+  return next ? `The council meets next on ${dayText(world, next.start)} at ${hhmm(next.start)} at ${world.graph.places[next.place].name}.` : '';
 }
 
 function streetName(world: World, place: PlaceId): string {

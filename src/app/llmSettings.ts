@@ -9,7 +9,7 @@ import {
   type Capability, type ModelEntry, type TaskName,
 } from '../llm';
 import type { LlmSetup } from '../game/llmSetup';
-import { button, checkbox, el, onEscape } from './dom';
+import { button, checkbox, el, openDialog } from './dom';
 import { money } from './chatPanel';
 
 const CSS = `
@@ -48,27 +48,24 @@ let styled = false;
 export function openLlmSettings(setup: LlmSetup): void {
   if (document.querySelector('.llm-panel')) return;
   if (!styled) { const s = el('style', ''); s.textContent = CSS; document.head.append(s); styled = true; }
-  const backdrop = el('div', 'wn-backdrop');
-  const panel = el('div', 'wn-panel llm-panel');
-  panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-modal', 'true');
-  panel.setAttribute('aria-label', 'Language models');
-  const close = button('wn-close', 'Close', () => dismiss());
+  const close = el('button', 'wn-close', 'Close');
+  // The What's new dialog's frame and look (prefix "wn"), widened by .llm-panel.
+  const panel = openDialog('wn', 'Language models', close);
+  if (!panel) return;
+  panel.classList.add('llm-panel');
   const head = el('div', 'wn-head');
   head.append(el('h2', '', 'Language models'), close);
   const list = el('div', 'wn-list');
   const msg = el('div', 'llm-msg');
   panel.append(head, list);
-  backdrop.append(panel);
-  const dismiss = (): void => { backdrop.remove(); stopKeys(); stopChange(); };
-  const stopKeys = onEscape(dismiss);
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) dismiss(); });
-  backdrop.addEventListener('keydown', (e) => e.stopPropagation());
+  // Keys typed into the dialog are not the game's (WASD, T).
+  panel.addEventListener('keydown', (e) => e.stopPropagation());
   const render = (): void => { const top = list.scrollTop; list.replaceChildren(keySection(setup, msg), tasksSection(setup), rosterSection(setup, msg), usageSection(setup)); list.scrollTop = top; };
-  const stopChange = setup.onChange(() => { if (!backdrop.contains(document.activeElement) || document.activeElement === close) render(); });
+  const stopChange = setup.onChange(() => {
+    if (!panel.isConnected) { stopChange(); return; }
+    if (!panel.contains(document.activeElement) || document.activeElement === close) render();
+  });
   render();
-  document.body.append(backdrop);
-  close.focus();
 }
 
 function keySection(setup: LlmSetup, msg: HTMLElement): HTMLElement {

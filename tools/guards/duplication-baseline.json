@@ -404,12 +404,16 @@
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
-    "key": "idiom: [.actors .cols .graph .places] in simworld/chat/card.ts + simworld/chat/context.ts + simworld/sim/media.ts + simworld/workers/sim.worker.ts",
-    "reason": "Reading an actor's columns and the place graph at the top of a function that describes someone in words; each describes a different thing (card, prompt, paper, street label)."
+    "key": "idiom: [.beginPath .lineTo .lineWidth .moveTo] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
   },
   {
-    "key": "idiom: [.addEventListener .target] in simworld/app/llmSettings.ts + simworld/app/whatsNew.ts + simworld/game/camera.ts",
-    "reason": "A click outside a dialog closes it, and the camera ignores keys typed into inputs: one-line DOM event checks with different targets and actions."
+    "key": "idiom: [.save .translate] in simworld/app/mapPanel.ts + simworld/build/vegetationTex.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D drawing calls (path building, save/translate/restore) in three unrelated drawings: the town map, leaf textures and the sign atlas. The shared part is the CanvasRenderingContext2D API itself."
+  },
+  {
+    "key": "idiom: [.actors .cols .graph .places] in simworld/chat/card.ts + simworld/chat/context.ts + simworld/sim/media.ts + simworld/workers/sim.worker.ts",
+    "reason": "Reading an actor's columns and the place graph at the top of a function that describes someone in words; each describes a different thing (card, prompt, paper, street label)."
   },
   {
     "key": "idiom: [.cornerGap] in simworld/interior/fill/home.ts + simworld/interior/fill/place.ts + simworld/interior/fill/work.ts",
@@ -426,9 +430,5 @@
   {
     "key": "idiom: [.home .place] in simworld/chat/context.ts + simworld/sim/actions.ts + simworld/sim/schedule.ts",
     "reason": "Where someone is, else their home (`place >= 0 ? place : home`): the sim's own fallback, one line each where a place is needed."
-  },
-  {
-    "key": "idiom: [.atan2 .x .z Math] in simworld/build/streetProps.ts + simworld/game/street.ts + simworld/plan/terrace.ts",
-    "reason": "A heading from one point to another (atan2 of the x/z difference) in three unrelated places: prop rotation, a person turning to face you, a terrace's orientation."
   }
 ]

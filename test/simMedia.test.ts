@@ -57,6 +57,9 @@ test('media: a lost pet gets posters, stays out where it strayed, and comes home
 
 test('media: the festival goes up on every board ahead of the day and people who pass read it', () => {
   const world = createWorld(testTown(33, 300), 33);
+  // A new world has last week's paper to read, with what is on from today.
+  const first = world.media.editions[0];
+  assert.ok(first && first.day <= Math.floor(world.clock / 1440) && first.stories.some((s) => s.section === 'whatson'));
   const square = placesOf(world, ['square'])[0];
   const at = (Math.floor(world.clock / 1440) + 10) * 1440 + 14 * 60;
   addOccasion(world, { kind: 'festival', name: 'the summer festival', place: square, start: at, end: at + 360, pull: 1, appeal: 'all', guests: null, activity: A.socialize, about: [] });
