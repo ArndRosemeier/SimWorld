@@ -12,7 +12,7 @@
 import { InstancedBufferGeometry, Vector3, type InstancedBufferAttribute, type Mesh } from 'three/webgpu';
 import { MeshBuilder, type MeshData } from '../build/meshBuilder';
 import { FF } from '../build/massing';
-import { buildVehicle, paintColor, VEHICLE_KINDS } from '../build/vehicles';
+import { buildVehicle, paintColor, standingVehicle, VEHICLE_KINDS } from '../build/vehicles';
 import { VEG_MODELS } from '../build/vegetation';
 import { isVehicleModel, PROP_STRIDE } from '../build/streetProps';
 import type { WorkerPool } from '../workers/pool';
@@ -197,6 +197,8 @@ export async function collectSwatches(pool: Pool, town: TownSummary): Promise<Sw
   }
   // Every vehicle kind (the traffic's), in its usual paint, lights off.
   for (const [i, k] of VEHICLE_KINDS.entries()) {
+    // (A bicycle has no car body: the whole bike.)
+    if (k === 'bicycle') { out.push(...swatchesOf(VEHICLE, k, standingVehicle(k), { iPaint: paintColor(k, 1) })); continue; }
     const v = buildVehicle(k);
     out.push(...swatchesOf(VEHICLE, k, v.body, { iPaint: paintColor(k, 1) }));
     if (!i) out.push(...swatchesOf(VEHICLE, `${k} wheel`, v.wheel, { iPaint: paintColor(k, 1) }));

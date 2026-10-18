@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { MeshData } from '../src/build/meshBuilder';
+import { bikeSaddle } from '../src/build/bicycle';
 import { VEHICLE_KINDS, VEHICLE_SPECS, buildVehicle, paintColor, standingVehicle, vehicleModel } from '../src/build/vehicles';
 
 function assertSound(d: MeshData, what: string): void {
@@ -15,7 +16,7 @@ function assertSound(d: MeshData, what: string): void {
 
 // (Two halves: about 35 ms a model.)
 for (const half of [0, 1]) test(`every vehicle kind builds a sound body and wheel of plausible size (${half ? 'second' : 'first'} half)`, () => {
-  for (const kind of VEHICLE_KINDS.filter((_, i) => (i < VEHICLE_KINDS.length / 2 ? 0 : 1) === half)) {
+  for (const kind of VEHICLE_KINDS.filter((k, i) => k !== 'bicycle' && (i < VEHICLE_KINDS.length / 2 ? 0 : 1) === half)) {
     const m = vehicleModel(kind, 0);
     assertSound(m.body, `${kind} body`);
     assertSound(m.wheel, `${kind} wheel`);
@@ -37,5 +38,16 @@ test('a standing vehicle has its wheels on the road, under the body; models and 
     const c = paintColor(kind, seed);
     assert.deepEqual(c, paintColor(kind, seed));
     assert.ok(c.every((x) => x >= 0 && x <= 1), `${kind} ${seed}: ${c}`);
+  }
+});
+
+test('a bicycle: sound, bike-sized, on the road, its saddle where the rider sits', () => {
+  for (let v = 0; v < 4; v++) {
+    const b = standingVehicle('bicycle', v), [x0, y0, z0, x1, y1, z1] = b.bounds;
+    assertSound(b, `bicycle ${v}`);
+    const k = v === 2 ? 0.78 : 1;
+    assert.ok(Math.abs(y0) < 0.01 && z1 - z0 > 1.5 * k && z1 - z0 < 1.95 && x1 - x0 < 0.7 && y1 < 1.25 * k, `bicycle ${v}: ${b.bounds.map((n) => n.toFixed(2))}`);
+    const s = bikeSaddle(v);
+    assert.ok(s.y > 0.6 && s.y < y1 && s.y > y1 - 0.4, `saddle ${s.y} under the bars' top ${y1}`);
   }
 });

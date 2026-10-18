@@ -24,6 +24,7 @@
 import { Rng, clamp, hsl2rgb, lerp, v3, v3sub as sub, v3cross as cross, v3dot as dot, v3norm as norm, v3madd as addS } from '@futuremagic/core';
 import { MeshBuilder, type AttrSpec, type MeshData } from './meshBuilder';
 import { trainCar } from './train';
+import { bicycle } from './bicycle';
 
 // ---------------------------------------------------------------- public API
 
@@ -31,11 +32,13 @@ export type VehicleKind =
   | 'sedan' | 'hatch' | 'wagon' | 'suv' | 'van' | 'pickup' | 'taxi' | 'police' | 'sports' | 'bus' | 'truck' | 'delivery' | 'shuttle'
   | 'ambulance' | 'firetruck' | 'flatbed'
   /** A railcar (src/build/train.ts): variant 0 a cab car (cab at the front), 1 a middle car. */
-  | 'train';
+  | 'train'
+  /** A bicycle (src/build/bicycle.ts): its rider is drawn by the people view. */
+  | 'bicycle';
 
 export const VEHICLE_KINDS: VehicleKind[] = [
   'sedan', 'hatch', 'wagon', 'suv', 'van', 'pickup', 'taxi', 'police', 'sports', 'bus', 'truck', 'delivery', 'shuttle',
-  'ambulance', 'firetruck', 'flatbed', 'train',
+  'ambulance', 'firetruck', 'flatbed', 'train', 'bicycle',
 ];
 
 /** Variants per kind (`vehicleModel(kind, variant)`, 0 … 3). */
@@ -1812,6 +1815,7 @@ export function buildVehicle(kind: VehicleKind, variant = 0): VehicleModel {
  */
 export function standingVehicle(kind: VehicleKind, variant = 0): MeshData {
   if (kind === 'train') return trainCar(variant);
+  if (kind === 'bicycle') return bicycle(variant);
   const { built: b } = entry(kind, variant);
   const mb = new MeshBuilder(VEHICLE_SPECS);
   addSoup(mb, b.body, 0, 0, 0, 1);
@@ -1867,6 +1871,8 @@ export function paintColor(kind: VehicleKind, seed: number): [number, number, nu
   if (kind === 'ambulance') return [0.94, 0.94, 0.92];
   // Trains: an invented operator's few liveries (off-white, slate, deep red, bottle green; the band below the windows from the paint).
   if (kind === 'train') return r.pick([[0.9, 0.9, 0.87], [0.9, 0.9, 0.87], hsl(0.6, 0.18, 0.3), hsl(0.99, 0.6, 0.33), hsl(0.38, 0.45, 0.24)] as [number, number, number][]);
+  // Bicycles: bright frames as often as dark ones.
+  if (kind === 'bicycle') return r.chance(0.5) ? hsl(r.float(), 0.7, 0.42) : r.pick([[0.05, 0.05, 0.055], [0.9, 0.9, 0.88], [0.5, 0.52, 0.55], hsl(0.6, 0.5, 0.25)] as [number, number, number][]);
   if (kind === 'firetruck') return hsl(0.0, 0.8, 0.38 + v(0.02));
   if (kind === 'flatbed') return hsl(0.07, 0.85, 0.48 + v(0.02));
   if (kind === 'shuttle') {

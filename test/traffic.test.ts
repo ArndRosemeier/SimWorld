@@ -4,13 +4,13 @@ import { planTown } from '../src/plan/town';
 import { placeGraphOf } from '../src/plan/placeGraph';
 import { LineSource } from '../src/plan/roads';
 import { createWorld } from '../src/sim/synth';
-import { tick } from '../src/sim/world';
 import { LIMITS, Rule, RoadNet } from '../src/traffic/roadNet';
 import { Parking } from '../src/traffic/parking';
 import { Traffic, type Car, type Vehicle } from '../src/traffic/traffic';
-import { TownTraffic } from '../src/traffic/townTraffic';
+import { BIKE_KEY, TownTraffic } from '../src/traffic/townTraffic';
 import { newRules } from '../src/sim/politics';
-import { carPlace, carTripsSince } from '../src/traffic/trips';
+import { bikeTripsSince, carPlace, carTripsSince } from '../src/traffic/trips';
+import { ageOf, tick } from '../src/sim/world';
 
 // One small town shared by the file (planning it is the expensive part).
 const town = planTown({ seed: 1, size: 0 });
@@ -221,7 +221,7 @@ test('a closed level crossing: cars heading for the railway stop at its barrier,
 test('the sim drives the traffic: car trips take the household car, which parks near the destination', () => {
   const tt = new TownTraffic(town, graph.places, 1);
   tt.placeCars(world.households, (h) => carPlace(world, h));
-  let trips = 0;
+  let trips = 0, bikes = 0;
   for (let m = 0; m < 60; m++) {
     const since = world.clock;
     tick(world, 1);
@@ -229,11 +229,40 @@ test('the sim drives the traffic: car trips take the household car, which parks 
     trips += t.length;
     for (const trip of t) assert.ok(world.households[trip.household].car && trip.from !== trip.to);
     tt.trips(t, world.clock);
+    const b = bikeTripsSince(world, since);
+    bikes += b.length;
+    for (const r of b) assert.ok(ageOf(world, r.rider) >= 9 && world.travel.mode(r.from, r.to) === 'foot' && world.travel.metres(r.from, r.to) <= 6000, 'a ride in town by someone old enough');
+    tt.bikes(b);
     for (let k = 0; k < 20; k++) tt.update(0.5);
   }
+  assert.ok(bikes > 0 && tt.stats.bikes === bikes, `some cycle to school and work (${bikes})`);
   assert.ok(trips > 0, 'some people drive in the morning');
   assert.ok(tt.stats.trips > 0 && tt.stats.parked > 0, JSON.stringify(tt.stats));
   // Every parked household car stands in its own bay.
   const keys = [...tt.parking.occupied()].map((s) => s.car);
   assert.equal(new Set(keys).size, keys.length);
+});
+
+test('a cyclist rides near the kerb at their own pace, gets off at the door; a car behind overtakes', () => {
+  const parking = new Parking(net), tr = new Traffic(net, parking);
+  const e = net.edges.find((x) => x.lanes === 1 && x.len > 150 && x.len < 400)!;
+  const ei = net.edges.indexOf(e);
+  const end = { x: 0, z: 0, dx: 0, dz: 0 };
+  net.lanePoint(e, e.len - 8, net.laneOffset(e, true, 0), end);
+  const goal = { ride: true as const, x: end.x, z: end.z };
+  const bike = tr.place({ key: BIKE_KEY + 1, kind: 'bicycle', variant: 0 }, ei, true, 30, goal)!;
+  const car = tr.place(sedan(2), ei, true, 5, goal)!;
+  assert.ok(bike && car);
+  let gone = '', closest = Infinity, passed = false, top = 0;
+  tr.onGone = (v, why) => { if (v === bike) gone = why; };
+  run(tr, 120, () => {
+    if (!bike.alive) return;
+    top = Math.max(top, bike.speed);
+    if (car.alive && car.edge === bike.edge && !car.turn && !bike.turn && Math.abs(car.s - bike.s) < 2) closest = Math.min(closest, Math.hypot(car.x - bike.x, car.z - bike.z));
+    if (car.alive && car.edge === bike.edge && car.s > bike.s + 6) passed = true;
+  });
+  assert.ok(passed, 'the car got past');
+  assert.ok(closest > 1.2, `it kept ${closest.toFixed(2)} m from the cyclist`);
+  assert.ok(top > 3 && top < 7, `the cyclist's speed ${top.toFixed(1)} m/s`);
+  assert.equal(gone, 'there', 'the cyclist got off at the door');
 });
