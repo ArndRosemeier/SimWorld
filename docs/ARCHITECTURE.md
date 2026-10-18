@@ -10,6 +10,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 |---|---|---|
 | `src/sim` | The society: actors, places, schedules, needs, encounters, knowledge, minds, intentions, life events. Pure data, runs in a worker and in headless tests. **The single source of truth for every inhabitant.** | core only (guarded) |
 | `src/geom` | 2D polygon geometry and polygon booleans (ported from Scale's core). Pure. | core only (guarded) |
+| `src/lang` | The town's vocabulary: every player-visible place and business word, region-neutral, in one table. Pure leaf. | nothing (guarded) |
 | `src/plan`, `src/world` | The town planner and terrain (ported from Scale). Pure data. | core; from `src/sim` only `import type` (the place graph contract) and the per-kind defaults in `src/sim/placeKinds.ts` |
 | `src/interior` | Building interiors (ported from Scale's interior designer): storeys cut into rooms by a theme, doors, stairs and lifts, furniture, and the spots where people sleep, sit and work. Pure data from the building. | core, `src/geom`, `src/plan`, `src/build/massing` (tiers); from `src/sim` only types and `src/sim/placeKinds.ts` (guarded) |
 | `src/build` | Mesh data from the plan: terrain tiles, water, the town's ground, building shells with facade attributes, landmarks, country roads, the procedural material textures (ported from Scale). Typed arrays, runs in workers. | core, `src/geom`, `src/plan`, `src/world` (no three.js, guarded) |
@@ -96,7 +97,8 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | The parts (massing) of a public building | `landmarkParts(lm, terrain)` on the `Kit` | `src/plan/landmarkParts.ts`, `src/plan/civicParts.ts`, `src/plan/kit.ts` |
 | The railway and the station spot | `planRail(plan, terrain)` → `macro.rail` (`Railway`) | `src/plan/rail.ts` |
 | Farms, country roads, level crossings | `RuralPlan` (`farms`, `roads`, `crossings`, `layout(farm)`, `roadEdge`) | `src/world/rural.ts` |
-| Which ground-floor uses does a town have, which sim place kind is each? | `AmenityKind`, `amenityCounts(pop, warm)`, `PLACE_KIND_OF`, `EATERY_OF`, `AMENITY_LABEL` (hours, staff and capacity are the sim's `placeKinds`) | `src/plan/amenities.ts` |
+| Which ground-floor uses does a town have, which sim place kind is each? | `AmenityKind`, `amenityCounts(pop, warm)`, `PLACE_KIND_OF`, `EATERY_OF` (sign labels: `signWord`, src/lang/words.ts; hours, staff and capacity are the sim's `placeKinds`) | `src/plan/amenities.ts` |
+| What is a business or a landmark called (sign labels, owner-opened shops, landmark name patterns)? | `signWord`, `ownedWord`, `landmarkPatterns` + `fillName`. Region-neutral words (an invented, western-adjacent world), one spelling. Every player-visible place or business word comes from here | `src/lang/words.ts` |
 | How many general shops, offices, workshops and empty units are behind the shop fronts? | `frontQuotas(pop)` (a shop per 85 inhabitants, an office front per 110, a workshop per 350) and `VACANT_SHARE`; the planner turns the fronts beyond them into ground-floor homes, small offices or lock-ups before it counts the households | `src/plan/town.ts` |
 | What is this shop front / workplace? | `b.amenity` (set by `planTown`), `b.eatery` for the terrace kind | `src/plan/town.ts`, `src/plan/eatery.ts` |
 | The country around the town (big city, larger town, villages, river, roads), as lore | `regionOf(town)` → `Region` (sim contract in `src/sim/region.ts`); `planRegion(hints)` without planning a town | `src/plan/region.ts` |

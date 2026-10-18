@@ -31,6 +31,7 @@ import { monthKey } from './calendar';
 import { businessHours } from './hours';
 import { fitRoutine, pickHabits, settle } from './synth';
 import { ageOf, householdOf, isPerson, jobOf, placesOf, setPlaceKind, tickRng, traitOf, valueOf, type World } from './world';
+import { ownedWord } from '../lang/words';
 
 // ---- prices and trades -----------------------------------------------------------------------------------
 
@@ -99,13 +100,7 @@ const OPENABLE: readonly PlaceKind[] = [
   'florist', 'newsagent', 'charity', 'physio', 'gym', 'hardware',
 ];
 
-/** What a new business of a kind is called after its owner ("Keller's Bakery"). */
-const LABEL: Partial<Record<PlaceKind, string>> = {
-  bakery: 'Bakery', butcher: 'Butcher', grocer: 'Corner Shop', cafe: 'Café', pub: 'Arms', restaurant: 'Kitchen',
-  takeaway: 'Takeaway', hairdresser: 'Hair Studio', beauty: 'Beauty', shop: 'Gift Shop', clothes: 'Boutique',
-  florist: 'Flowers', newsagent: 'News', charity: 'Charity Shop', physio: 'Physiotherapy', gym: 'Fitness',
-  estateagent: 'Estates', hardware: 'Hardware',
-};
+/** What a new business of a kind is called after its owner ("Keller's Bakery"): src/lang/words.ts `ownedWord`. */
 
 /** Roles that own the business they work in (they draw from its profit instead of a wage). */
 const OWNER_ROLES = new Set(['owner', 'landlord', 'shopkeeper', 'newsagent', 'florist', 'funeral director', 'estate agent']);
@@ -871,7 +866,7 @@ export function openBusiness(world: World, place: PlaceId, kind: PlaceKind, rng:
     if (score > best && score > 0.25) { best = score; owner = id; }
   }
   const surname = owner >= 0 ? world.people.last[a.row[owner]] : p.street.split(' ')[0];
-  const name = `${surname}${owner >= 0 ? "'s" : ''} ${LABEL[kind] ?? kind}`;
+  const name = `${surname}${owner >= 0 ? "'s" : ''} ${ownedWord(kind) ?? kind}`;
   const capacity = Math.round(KINDS[kind].capacity);
   setPlaceKind(world, place, kind, { name, hours: businessHours(kind, defaultHours(kind), rng), staff: defaultStaff(kind), capacity });
   for (const s of world.graph.places[place].staff) addJobs(world, place, s);
@@ -892,7 +887,7 @@ export function openBusiness(world: World, place: PlaceId, kind: PlaceKind, rng:
     settle(world, owner, rng.fork('settle'));
   }
   const passers = neighboursOf(world, place);
-  const fact = addFact(world, { topic: 'business', text: `a new ${(LABEL[kind] ?? kind).toLowerCase()} is opening on ${p.street}: ${name}`, subject: owner, place, magnitude: 0.7 });
+  const fact = addFact(world, { topic: 'business', text: `a new ${(ownedWord(kind) ?? kind).toLowerCase()} is opening on ${p.street}: ${name}`, subject: owner, place, magnitude: 0.7 });
   witness(world, fact, [...new Set([...(owner >= 0 ? closeTo(world, owner) : []), ...passers])]);
   if (owner >= 0) remember(world, owner, { who: [], summary: `I opened ${name} on ${p.street}`, importance: 1, emotion: 'joy', fact });
   ec.events.push({ day, kind: 'opened', place, who: owner, what: kind, name, fact });
