@@ -17,7 +17,8 @@ import type { SoundEnv } from './soundscape';
 export interface SoundWorld extends Dated {
   readonly latitude: number;
   clock: number;
-  region?: { coastal?: boolean } | null;
+  /** As on a `World`: the region as the town knows it (the weather is milder on the coast). */
+  region?: { region: { coastal?: boolean } } | null;
 }
 
 /** Overrides for listening tests (from the URL): a fixed weather. */
@@ -49,7 +50,7 @@ export class LiveClock implements SoundWorld {
   readonly epoch: number;
   readonly latitude = DEFAULT_LATITUDE;
   clock = 0;
-  region: { coastal: boolean } = { coastal: false };
+  region: { region: { coastal: boolean } } = { region: { coastal: false } };
   readonly overrides: EnvOverrides = {};
   private readonly startMinute: number;
   private readonly startMs = performance.now();

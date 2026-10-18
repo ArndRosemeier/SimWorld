@@ -90,7 +90,7 @@ async function start(audio: TownAudio, live: LiveClock): Promise<void> {
   if (inside) return showInside(inside, pool, stage, lights, renderer, camera, scene);
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   // What the town sounds like where: one worker works it out alongside the meshes.
-  void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { live.region.coastal = r.map.coastal; audio.setTown(r.map); });
+  void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { live.region.region.coastal = r.map.coastal; audio.setTown(r.map); });
   const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total));
 
   // The drone drift: a slow circle around the town, high enough to see it whole.
