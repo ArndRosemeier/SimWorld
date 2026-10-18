@@ -15,6 +15,7 @@ import { DEFAULT_LATITUDE, daysOf, epochFor, weekdayOfDays, type CivilDate } fro
 import type { SimView, TownFace } from '../sim/view';
 import type { TrafficMsg } from '../traffic/feed';
 import type { WindowSlots } from '../street/windows';
+import type { StopBoard } from '../street/stops';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
 import { dropSave, readSave, storeSave } from '../persist/saves';
@@ -86,7 +87,7 @@ export class SimClient {
   private last = 0;
   private readonly infos = new Map<number, ActorInfo>();
 
-  private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView, private readonly key: string, readonly windows: WindowSlots) {
+  private constructor(private readonly pool: WorkerPool<ToSim, FromSim>, readonly rate: number, readonly ground: HeightGrid, readonly people: number, view: SimView, private readonly key: string, readonly windows: WindowSlots, /** The bus stops and their timetables (src/street/stops.ts). */ readonly stops: StopBoard[]) {
     this.view = view;
     this.town = view.town!;
   }
@@ -115,7 +116,7 @@ export class SimClient {
     const pool = new WorkerPool<ToSim, FromSim>(simWorkerUrl, 1);
     const [ready] = await pool.start(() => ({ type: 'init', settings, start, startDay, clock, save: save?.bytes ?? null }));
     if (ready.type !== 'ready') throw new Error(ready.type === 'error' ? ready.message : 'the sim worker did not start');
-    const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view, key, ready.windows);
+    const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view, key, ready.windows, ready.stops);
     c.restart(ready.clock);
     if (save && !ready.resumed) void dropSave(key); // it no longer fits this build or town
     return c;

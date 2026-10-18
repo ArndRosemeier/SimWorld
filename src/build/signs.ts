@@ -30,7 +30,8 @@ export const SIGN_STRIDE = 10;
  *    free-standing one, else the one on a wall); notice: pin `k` of the notices up at `place` (a
  *    board place's board, a shop's window, a street's lamp posts; `every`: the street's posts show
  *    its notices in turn, so post k shows notice k mod n); clock: a public clock's dial (the time
- *    of day, all clocks alike).
+ *    of day, all clocks alike); timetable, busFlag: bus stop `stop`'s timetable and its flag (the stops
+ *    come from the sim worker, src/street/stops.ts, and join the signs later: `SignsShown.addStops`).
  */
 export type SignWhat =
   | { t: 'front'; place: number; style: FrontSign['style']; slot: SlotSize }
@@ -42,7 +43,9 @@ export type SignWhat =
   | { t: 'post'; slot: null }
   | { t: 'cork'; stand: boolean; slot: SlotSize }
   | { t: 'notice'; place: number; k: number; every: boolean; slot: SlotSize }
-  | { t: 'clock'; slot: SlotSize };
+  | { t: 'clock'; slot: SlotSize }
+  | { t: 'timetable'; stop: number; slot: SlotSize }
+  | { t: 'busFlag'; stop: number; slot: SlotSize };
 
 /** One model's instances (`model`: 'f:<FurnitureKind>:<variant>', as street props). */
 export type SignGroup = ModelInstances;
@@ -62,7 +65,7 @@ export type SignPlaces = readonly { id: number; kind: string; name: string; buil
 /** Notice boards: the wall one and the free-standing one (width, height m; pins across, in two rows under a header). */
 const WALL_BOARD = { w: 1.0, h: 0.75, cols: 3 }, STAND_BOARD = { w: 1.4, h: 0.8, cols: 4 };
 /** A notice's width to its height (the `sheet` slot's). */
-const SHEET = 256 / 352;
+export const SHEET = 256 / 352;
 /** A board's face stands this far out from its origin (the signBoard model's depth); pinned notices just in front of it. */
 const PIN_OUT = 0.022;
 

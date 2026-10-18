@@ -15,6 +15,7 @@ import { trackOf, sample, type Track } from '../src/street/tracks';
 import { costumeOf, dressUpDay, outfitOf, bodyKey, type LookInfo } from '../src/street/looks';
 import { buildingLooksOf, litShares, windowSlots } from '../src/street/windows';
 import { spotsFor, whoIsInside } from '../src/street/inside';
+import { stopBoards } from '../src/street/stops';
 import { planInterior } from '../src/interior/building';
 import { buildingRef } from '../src/plan/placeGraph';
 import { A } from '../src/sim/actors';
@@ -288,4 +289,23 @@ test('street: on Halloween evening children go round the decorated homes, the sm
   const everyday = outfitOf(1, child, w.clock, 0.4);
   assert.ok(costumeOf(1, child, w.clock, everyday)?.head || costumeOf(1, child, w.clock, everyday)?.back);
   assert.equal(costumeOf(1, adult, w.clock, everyday), null);
+});
+
+test('bus stops: a post by the kerb near each stop, its timetable facing the pavement, clear of the buildings', () => {
+  const stops = stopBoards(town, map.roads, world);
+  assert.ok(stops.length >= 2, `${stops.length} bus stops`);
+  for (const st of stops) {
+    const pl = world.graph.places[st.place];
+    assert.ok(Math.hypot(st.x - pl.x, st.z - pl.z) < 120, `${st.name}: near its place`);
+    assert.ok(st.rows.length > 0 && st.rows.every((r) => r.mode === 'bus'), `${st.name}: bus times`);
+    assert.ok(Math.abs(st.y - town.terrain.height(st.x, st.z)) < 1e-6);
+    assert.ok(!map.fp.insideBuilding(st.x, st.z, 0.1), `${st.name}: on the pavement`);
+    for (const c of town.cells) for (let o = 0; o < c.props.length; o += 6) {
+      if (c.props[o] === PropType.Tree && Math.hypot(c.props[o + 1] - st.x, c.props[o + 2] - st.z) < 1.2) assert.fail(`${st.name}: post in a tree`);
+    }
+    // On the pavement, not the carriageway: the road's centre is behind the post (its front faces away from it).
+    const hit = map.roads.nearest(st.x, st.z, 30)!, L = map.roads.lines[hit.li];
+    assert.ok(Math.hypot(hit.px - st.x, hit.pz - st.z) > L.width / 2 - 0.05, `${st.name}: off the carriageway`);
+    assert.ok(-Math.sin(st.yaw) * (st.x - hit.px) - Math.cos(st.yaw) * (st.z - hit.pz) > 0, `${st.name}: faces the pavement`);
+  }
 });

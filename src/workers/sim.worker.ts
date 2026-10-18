@@ -18,6 +18,7 @@ import { ACTOR_PERSON } from '../sim/actors';
 import { viewOf, viewTransfers } from '../sim/view';
 import { OUTDOOR, StreetMap } from '../street/streetMap';
 import { windowSlots } from '../street/windows';
+import { stopBoards } from '../street/stops';
 import { whoIsInside } from '../street/inside';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim, TrackMsg } from './simProtocol';
@@ -62,7 +63,10 @@ function simJob(m: ToSim): FromSim {
     if (!resumed) runTo(Math.max(m.clock + historyDays(HISTORY_YEARS) * MINUTES_PER_DAY, world.clock));
     traffic = new TrafficFeed((roads = town), world);
     sentAt = world.clock;
-    return { type: 'ready', resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world, true), windows: windowSlots(town, graph), ms: took() };
+    // The bus stops' posts, with their timetables; people walk round the posts.
+    const stops = stopBoards(town, map.roads, world);
+    for (const st of stops) map.fp.circle(st.x, st.z, 0.1);
+    return { type: 'ready', stops, resumed: resumed !== null, clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world, true), windows: windowSlots(town, graph), ms: took() };
   }
   if (!world || !map || !traffic) throw new Error('sim worker: not initialised');
   if (m.type === 'save') return { type: 'saved', clock: world.clock, bytes: saveWorld(world), ms: took() };

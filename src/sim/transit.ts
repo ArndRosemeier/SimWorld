@@ -200,6 +200,38 @@ export function departures(world: World, stop: number, clock: number, n = 6): De
   return out.sort((a, b) => a.clock - b.clock).slice(0, n);
 }
 
+/** What a stop's timetable says: per line, way and kind of day, the minutes of day it leaves there. */
+export interface StopTimetable {
+  /** The stop's place in town. */
+  place: PlaceId;
+  name: string;
+  rows: { code: string; mode: TransitMode; /** Where it goes (its last stop). */ to: string; days: RunDays; times: number[] }[];
+}
+
+const DAYS_ORDER: readonly RunDays[] = ['weekday', 'school', 'saturday', 'sunday'];
+
+/** The printed timetable of every stop in town (what its post or board shows; the same every day). */
+export function stopTimetables(world: World): StopTimetable[] {
+  const t = transitOf(world), out: StopTimetable[] = [];
+  for (const st of t.stops) {
+    if (st.place < 0) continue;
+    const rows = new Map<string, StopTimetable['rows'][number]>();
+    for (const run of t.runs) {
+      const at = run.stops.indexOf(st.id);
+      if (at < 0 || at === run.stops.length - 1) continue;
+      const line = t.lines[run.line], to = t.stops[run.stops[run.stops.length - 1]].name, key = `${line.id}|${to}|${run.days}`;
+      let row = rows.get(key);
+      if (!row) rows.set(key, (row = { code: line.code, mode: line.mode, to, days: run.days, times: [] }));
+      row.times.push(run.times[at] % MINUTES_PER_DAY);
+    }
+    const list = [...rows.values()];
+    for (const r of list) r.times.sort((a, b) => a - b);
+    list.sort((a, b) => a.code.localeCompare(b.code) || a.to.localeCompare(b.to) || DAYS_ORDER.indexOf(a.days) - DAYS_ORDER.indexOf(b.days));
+    if (list.length) out.push({ place: st.place, name: st.name, rows: list });
+  }
+  return out;
+}
+
 /** A ride: walk to `board`, ride from `depart` to `arrive`, get off at `alight`. */
 export interface Ride { run: Run; board: number; alight: number; depart: number; arrive: number; walk: number }
 

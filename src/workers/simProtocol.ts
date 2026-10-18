@@ -13,6 +13,7 @@ import type { PlayerAction, PlayerStatus } from '../sim/player';
 import type { InhabitantCard } from '../sim/profile';
 import type { SimView } from '../sim/view';
 import type { WindowSlots } from '../street/windows';
+import type { StopBoard } from '../street/stops';
 import type { NearSolids } from '../street/streetMap';
 import type { TownSettings } from '../world/settings';
 import type { TrafficMsg } from '../traffic/feed';
@@ -114,7 +115,7 @@ export interface HeightGrid {
 
 export type FromSim =
   /** `windows`: the town's buildings for the lit windows (src/street/windows.ts), once. `resumed`: the world is the save sent with init (false when there was none or it no longer fits). */
-  | { type: 'ready'; resumed: boolean; clock: number; people: number; ground: HeightGrid; view: SimView; windows: WindowSlots; ms: number }
+  | { type: 'ready'; /** The bus stops with their timetables (src/street/stops.ts), once. */ stops: StopBoard[]; resumed: boolean; clock: number; people: number; ground: HeightGrid; view: SimView; windows: WindowSlots; ms: number }
   /**
    * `view`: the snapshot, when the game minute has moved on since the last one sent (else null). `traffic`: the
    * vehicles on the roads and in the kerbside bays (src/traffic/feed.ts), the town's traffic running in this worker.
