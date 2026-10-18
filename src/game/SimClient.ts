@@ -12,6 +12,7 @@ import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim } fro
 import type { PlayerStatus } from '../sim/player';
 import { DEFAULT_LATITUDE, daysOf, epochFor, weekdayOfDays, type CivilDate } from '../sim/calendar';
 import type { SimView, TownFace } from '../sim/view';
+import type { TrafficMsg } from '../traffic/feed';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
 import { dropSave, readSave, storeSave } from '../persist/saves';
@@ -85,6 +86,11 @@ export class SimClient {
     this.view = view;
     this.town = view.town!;
   }
+
+  /** The vehicles from the latest street update (src/traffic/feed.ts): the moving ones, and the parked ones as last sent. */
+  traffic: TrafficMsg | null = null;
+  /** The parked cars as last sent (they come only when they changed; poses PARKED_STRIDE each). */
+  parked: { poses: Float32Array; cars: Int32Array } | null = null;
 
   /** The sim's latest view snapshot (src/sim/view.ts): every view reads the sim from here. */
   view: SimView;
@@ -183,6 +189,8 @@ export class SimClient {
     this.inflight = this.pool.run<Extract<FromSim, { type: 'street' }>>({ type: 'update', clock: this.clock, x, z, r: STREET_RADIUS }, 0).then((m) => {
       if (m.view) { this.view = m.view; if (m.view.town) this.town = m.view.town; }
       this.player = m.player;
+      this.traffic = m.traffic;
+      if (m.traffic.parked) this.parked = { poses: m.traffic.parked, cars: m.traffic.parkedCars! };
       for (const i of m.info) this.infos.set(i.id, i);
       for (const id of m.gone) this.walkers.delete(id);
       for (const t of m.tracks) {

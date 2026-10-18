@@ -2,7 +2,8 @@
  * Messages between the main thread (src/game/SimClient.ts) and the sim worker (src/workers/sim.worker.ts).
  * The worker owns the society (L0) and the street layer (L1); the main thread asks it, a few times a second,
  * to run up to a clock and to say who is out of doors near the camera, and where they walk (tracks). With
- * each new game minute it also sends the sim's view snapshot (`SimView`), which every view reads.
+ * each new game minute it also sends the sim's view snapshot (`SimView`), which every view reads, and with every
+ * update the town's traffic (run here, beside the world it is driven by).
  */
 import type { CivilDate } from '../sim/calendar';
 import type { DigestItem } from '../sim/chronicle';
@@ -10,6 +11,7 @@ import type { PlayerAction, PlayerStatus } from '../sim/player';
 import type { InhabitantCard } from '../sim/profile';
 import type { SimView } from '../sim/view';
 import type { TownSettings } from '../world/settings';
+import type { TrafficMsg } from '../traffic/feed';
 
 export type ToSim =
   /**
@@ -94,8 +96,11 @@ export interface HeightGrid {
 export type FromSim =
   /** `resumed`: the world is the save sent with init (false when there was none or it no longer fits). */
   | { type: 'ready'; resumed: boolean; clock: number; people: number; ground: HeightGrid; view: SimView; ms: number }
-  /** `view`: the snapshot, when the game minute has moved on since the last one sent (else null). */
-  | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; player: PlayerStatus | null; ms: number }
+  /**
+   * `view`: the snapshot, when the game minute has moved on since the last one sent (else null). `traffic`: the
+   * vehicles on the roads and in the kerbside bays (src/traffic/feed.ts), the town's traffic running in this worker.
+   */
+  | { type: 'street'; clock: number; view: SimView | null; tracks: TrackMsg[]; gone: number[]; info: ActorInfo[]; player: PlayerStatus | null; traffic: TrafficMsg; ms: number }
   | PlayerReply
   | { type: 'saved'; clock: number; bytes: Uint8Array; ms: number }
   | { type: 'skipped'; clock: number; view: SimView; ms: number }

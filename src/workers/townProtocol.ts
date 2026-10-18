@@ -26,8 +26,8 @@ export type ToTown =
   | { type: 'country' }
   /** The town's river bridges: deck (ground) and structure (massing). */
   | { type: 'bridges' }
-  /** Every street prop (furniture, parked cars) as instance lists per model (src/build/streetProps.ts). */
-  | { type: 'props' }
+  /** Every street prop (furniture, parked cars) as instance lists per model (src/build/streetProps.ts); `kerbCars` false leaves out the cars at the kerbs (the traffic draws its own there). */
+  | { type: 'props'; kerbCars?: boolean }
   /** One prop model's mesh data, by its `PropGroup.model` key. */
   | { type: 'propModel'; model: string }
   /** The town's trees, shrubs and yews as tree records (src/build/forest.ts `townTrees`). */
