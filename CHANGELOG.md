@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.005 — NPCs can lie to you
+
+- When a character tells you something they know is false, it becomes a rumour that traces back to them and can travel through town.
+- When they only guess out loud, they remember having said it, but it never turns into "news".
+
 ## v0.004 — The town comes alive (headless)
 
 - Every inhabitant now lives a day: they sleep, wash, eat with their household, go to work or school, shop, visit friends, go to the pub, church on Sunday, and walk the dog.
