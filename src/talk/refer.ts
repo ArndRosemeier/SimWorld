@@ -17,6 +17,7 @@ import { SPECIES } from '../sim/species';
 import { regionPlaces } from '../sim/region';
 import { ageOf, firstName, householdOf, jobOf, lastName, nameOf, type World } from '../sim/world';
 import { dwellingWord } from '../lang/words';
+import { dateOf, daysOf, monthName, weekdayName } from '../sim/calendar';
 import { expand } from './grammar';
 import type { Voice } from './voice';
 
@@ -310,9 +311,27 @@ function pair(world: World, s: ActorId, o: ActorId, d: Discourse, c: Case, voice
   return c === 'poss' ? possessive(np) : np;
 }
 
+const WEEKDAY_NAMES = [0, 1, 2, 3, 4, 5, 6].map(weekdayName);
+const MONTH_NAMES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(monthName);
+const ON_DATE = new RegExp(`\\bon (${WEEKDAY_NAMES.join('|')}) (\\d{1,2}) (${MONTH_NAMES.join('|')})\\b`, 'g');
+const ordinal = (n: number): string => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+
+/** A date as people say it, from today: "tomorrow", "on Saturday", "next Saturday", "on Saturday the 7th". */
+function spokenDate(world: World, weekday: string, day: number, month: number): string {
+  const today = dateOf(world, world.clock);
+  let at = daysOf(today.year, month, day);
+  if (at < today.days - 7) at = daysOf(today.year + 1, month, day);
+  const diff = at - today.days;
+  return diff === 0 ? 'today' : diff === 1 ? 'tomorrow' : diff < 0 ? `last ${weekday}` : diff < 7 ? `on ${weekday}` : diff < 14 ? `next ${weekday}` : `on ${weekday} the ${ordinal(day)}`;
+}
+
 /** Values for the grammar slots of a fact phrase (see the header). Names are resolved in reading order. */
 export function realiseSlots(world: World, text: string, s: ActorId, o: ActorId, place: PlaceId, d: Discourse, voice: Voice | null): string {
   const pers = (who: ActorId) => (who < 0 ? 'third' : personOf(who, d));
+  // "On Saturday 7 November" is a notice; people say "next Saturday".
+  text = text.replace(ON_DATE, (_, wd: string, day: string, mon: string) => spokenDate(world, wd, Number(day), MONTH_NAMES.indexOf(mon) + 1));
+  // A dog bite at someone's home is told without the address ("her dog bit him", not "… at 18 Elm Street").
+  if (place >= 0 && isDwelling(world, place)) text = text.replace(/((?:bit|bitten by|went for) .*?) at \{P\}/g, '$1');
   // One's own new home is not "our place" in the story of moving there: "a house on Elm Street".
   if (place >= 0 && (world.actors.cols.home[d.speaker] === place || world.actors.cols.home[d.listener] === place) && /\b(into|at|to) \{P\}/.test(text)) {
     const p = world.graph.places[place];
@@ -326,6 +345,8 @@ export function realiseSlots(world: World, text: string, s: ActorId, o: ActorId,
     if (who === 'P') return placeName(world, place, d);
     if (who === 'S&O') {
       if (form && AGREE[form]) return AGREE[form].plural;
+      // "Theo and I have gone our separate ways", "you and Theo … your".
+      if (form === 'their') return [s, o].includes(d.speaker) ? 'our' : [s, o].includes(d.listener) ? 'your' : 'their';
       return pair(world, s, o, d, (form as Case) ?? 'subj', voice);
     }
     const id = who === 'S' ? s : o;
