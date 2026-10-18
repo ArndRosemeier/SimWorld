@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, listFiles, codeOnly, checkBanned, checkLayers, checkDuplication, duplicationFindings, readBaseline } from './guards.mjs';
+import { REPO, listFiles, codeOnly, checkBanned, checkTypedFns, checkLayers, checkDuplication, duplicationFindings, readBaseline } from './guards.mjs';
 
 function fixture(files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'guards-fx-'));
@@ -40,6 +40,23 @@ test('shader rules: materials, onBeforeCompile and compile calls outside their o
   });
   const p = checkBanned(root, listFiles(root, 'src'));
   assert.deepEqual(p.map((x) => x.split('  ')[0]), ['src/lab/a.ts:1', 'src/lab/a.ts:2', 'src/lab/a.ts:3']);
+});
+
+test('typed Fns: one that closes over a uniform bag or shader input is reported, one reading its parameters is not', () => {
+  const root = fixture({
+    'src/render/a.ts': [
+      "const P = { rot: uniform(new Vector4()) };",
+      "const tint = uniform(new Color());",
+      "const bad = Fn(([p]) => p.mul(P.rot.x), { p: 'vec2', return: 'vec2' });",
+      "const bad2 = Fn(([c]) => c.mul(tint), { c: 'vec3', return: 'vec3' });",
+      "const good = Fn(([p, rot]) => { const N = p.mul(rot.x); return N.xy; }, { p: 'vec2', rot: 'vec4', return: 'vec2' });",
+      "const untyped = Fn(() => P.rot.x);",
+    ].join('\n'),
+  });
+  const p = checkTypedFns(root, listFiles(root, 'src'));
+  assert.equal(p.length, 2);
+  assert.match(p[0], /^src\/render\/a\.ts:3 {2}typed Fn reads P\./);
+  assert.match(p[1], /^src\/render\/a\.ts:4 {2}typed Fn reads tint/);
 });
 
 test('layers: a denied import (relative or package) is reported, an allowed one is not', () => {
