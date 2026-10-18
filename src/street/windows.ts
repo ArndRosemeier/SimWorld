@@ -16,6 +16,7 @@ import { eachBuilding } from '../plan/placeGraph';
 import { PEOPLE_PER_HOME, type Town } from '../plan/town';
 import type { PlaceGraph } from '../sim/places';
 import type { SimView } from '../sim/view';
+import type { TownLooks } from '../sim/economy';
 import type { HomeDecor } from '../sim/decor';
 
 /** The town's buildings as slots, and the grid that finds a building's slot from a point. */
@@ -93,6 +94,25 @@ export function litShares(view: SimView, slots: WindowSlots, sleep: number, out:
     if (slot < 0 || !awake[p]) continue;
     const share = Math.round(Math.min(1, awake[p] / slots.placeFull[p]) * 255);
     if (share > out[slot]) out[slot] = share;
+  }
+}
+
+/**
+ * How each building looks (2 bytes per slot into `out`, at least `slots.count * 2` long): the mean upkeep and the
+ * mean wealth (0 … 1 as 1 … 255; 0 is left for "not known yet") of its places, from the sim's town face
+ * (`TownFace.looks`, once a game day). A building with no places reads as middling.
+ */
+export function buildingLooksOf(looks: Pick<TownLooks, 'upkeep' | 'wealth'>, slots: WindowSlots, out: Uint8Array): void {
+  const n = slots.count, up = new Float32Array(n), rich = new Float32Array(n), count = new Uint16Array(n);
+  for (let p = 0; p < slots.placeSlot.length && p < looks.upkeep.length; p++) {
+    const slot = slots.placeSlot[p];
+    if (slot < 0) continue;
+    up[slot] += looks.upkeep[p]; rich[slot] += looks.wealth[p]; count[slot]++;
+  }
+  const byte = (v: number) => Math.max(1, Math.min(255, Math.round(v * 255)));
+  for (let s = 0; s < n; s++) {
+    out[s * 2] = byte(count[s] ? up[s] / count[s] : 0.6);
+    out[s * 2 + 1] = byte(count[s] ? rich[s] / count[s] : 0.5);
   }
 }
 
