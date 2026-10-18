@@ -28,12 +28,16 @@
     "reason": "One designer per public building (the Designer contract from Scale): the same closure shape, each with its own sizes and parameters for its parts; a table would hide the drawing rules."
   },
   {
-    "key": "idiom: [.actors .cols .people .row] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
+    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/mind/apply.ts + simworld/sim/schedule.ts",
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
   },
   {
     "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/synth.ts",
     "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.filter .households .length .members] in simworld/sim/economy.ts + simworld/sim/life.ts + simworld/sim/synth.ts",
+    "reason": "Different questions over the household list (who lives alone, which care-home rooms are taken, which households still have members; emptied households stay as records): each is a one-line Array.filter with its own predicate, and the shared part is Array.filter itself."
   },
   {
     "key": "idiom: [.angle .cos .sin Math] in simworld/geom/geom2.ts + simworld/plan/cell.ts + simworld/world/rural.ts + simworld/world/terrain.ts",

@@ -14,6 +14,7 @@ import { newMemories } from './memory';
 import { settleRegion, type Region } from './region';
 import { newMindLedger } from './mind/apply';
 import { newLife } from './life';
+import { newEconomy, settleEconomy } from './economy';
 import { history } from './chronicle';
 import { FEMALE_NAMES, MALE_NAMES, PET_NAMES, SURNAMES } from './names';
 import { HABIT_COUNT, PersonTable, T_CONSC, T_EXTRA, T_OPEN, V_FAITH, type Habit, HABITS, type Household } from './people';
@@ -54,7 +55,7 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
-    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(), region: null,
+    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(), region: null, economy: newEconomy(graph.places.length),
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);
@@ -142,6 +143,8 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     const age = yearsOf(id), p = a.row[id];
     pc.money[p] = age < 16 ? r.range(5, 40) : pc.job[p] >= 0 ? r.range(800, 6000) : r.range(100, 2500);
   }
+  // Budgets, savings and business ledgers; the frailest old people living alone move into the care home.
+  settleEconomy(world, rng.fork('economy'));
 
   // ---- relationships beyond the household -----------------------------------------------------------------
   const byPlace = (pick: (id: ActorId) => PlaceId) => {

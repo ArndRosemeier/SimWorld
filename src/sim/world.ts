@@ -10,11 +10,12 @@ import type { ActorId, ActorTable } from './actors';
 import type { AnimalTable } from './animals';
 import type { Intention } from './intentions';
 import type { Knowledge } from './knowledge';
+import type { Economy } from './economy';
 import type { Life } from './life';
 import type { Memories } from './memory';
 import type { MindLedger } from './mind/apply';
 import type { Household, Job, PersonTable } from './people';
-import type { PlaceGraph, PlaceId } from './places';
+import type { Place, PlaceGraph, PlaceId } from './places';
 import { PLACE_KINDS, type PlaceKind } from './places';
 import { KINDS, type Service } from './placeKinds';
 import { ACTOR_PERSON } from './actors';
@@ -28,6 +29,7 @@ import { runEncounters, type Encounter } from './encounters';
 import { forget } from './knowledge';
 import { fadeRelations } from './relations';
 import { lifeDay } from './life';
+import { economyDay } from './economy';
 
 export interface World {
   readonly seed: number;
@@ -57,6 +59,8 @@ export interface World {
   readonly life: Life;
   /** The country around the town and people's ties to it; null when the world was made without one. */
   region: RegionKnowledge | null;
+  /** Household budgets, business ledgers, openings and closures (src/sim/economy.ts). */
+  readonly economy: Economy;
 }
 
 /** The fixed parts of a world for a place graph (the population comes from `synthesize`, src/sim/synth.ts). */
@@ -97,6 +101,7 @@ export function tick(world: World, minutes = 1): void {
  */
 export function passDays(world: World, days: number): void {
   lifeDay(world, days);
+  economyDay(world, days);
   forget(world, days);
   fadeRelations(world.relations, world.clock, days);
   const day = world.clock / MINUTES_PER_DAY;
@@ -166,3 +171,15 @@ export const placesWith = (world: World, service: Service): PlaceId[] => cachedP
 
 /** Places of these kinds (cached). */
 export const placesOf = (world: World, kinds: readonly PlaceKind[]): PlaceId[] => cachedPlaces(world, 'k:' + kinds.join(','), (k) => kinds.includes(k));
+
+/**
+ * Change what a place is: a closed shop becomes a vacant unit, a vacant unit a florist (src/sim/economy.ts). The one
+ * way to change a place's kind, so the per-kind lookups stay right.
+ */
+export function setPlaceKind(world: World, place: PlaceId, kind: PlaceKind, patch: Partial<Pick<Place, 'name' | 'hours' | 'staff' | 'capacity'>>): void {
+  const p = world.graph.places[place];
+  p.kind = kind;
+  Object.assign(p, patch);
+  world.kindOf[place] = PLACE_KINDS.indexOf(kind);
+  placeCache.delete(world);
+}
