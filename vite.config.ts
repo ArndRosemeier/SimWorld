@@ -41,6 +41,7 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 2000,
     // three.js in a chunk of its own: it changes only on an upgrade, so a new deploy of the game
     // leaves it in the browser's cache, and the entry stays under the warning limit.
-    rolldownOptions: { output: { codeSplitting: { groups: [{ name: 'three', test: /[\\/]node_modules[\\/]three[\\/]/ }] } } },
+    // Two pages: the game, and the looks check's contact sheet of every material (src/looks.ts, docs/CI.md).
+    rolldownOptions: { input: { main: path.resolve('index.html'), looks: path.resolve('looks.html') }, output: { codeSplitting: { groups: [{ name: 'three', test: /[\\/]node_modules[\\/]three[\\/]/ }] } } },
   },
 }));

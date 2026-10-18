@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.121 — A nightly check that every surface still draws
+
+- Every night the build draws each kind of surface in the town (walls, roofs, roads, street furniture, cars, trees, rooms, sky, rain, smoke) in each of its variants, and flags any that come out black, glaring white, broken or missing, so a shader bug like the black street furniture is caught the next morning instead of hours later.
+- It also photographs the town from four fixed cameras (noon, a street view, night, snow) and flags when their colours shift.
+
 ## v0.120 — Council works boards, sale cards and "now open" banners
 
 - While the council builds something (the bypass, a housing estate, wind turbines, the skatepark), a striped council board stands by the road into town or by the sports ground, saying what is being built and how long it has left.

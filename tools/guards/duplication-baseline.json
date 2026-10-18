@@ -592,7 +592,7 @@
     "reason": "The three prop views (street props, signs, decorations) each ask the town workers for their own instance lists (pool.run, a Promise of the view) and unpack each group's floats in their own stride; the model loading itself is one seam (propsView.ts propModels)."
   },
   {
-    "key": "idiom: [.from Array] in simworld/interior/building.ts + simworld/render/railView.ts + simworld/render/textures.ts",
-    "reason": "Array.from({ length }) is the language's way to fill a list of n; the three lists (storeys, rail lamps, bark strips) share nothing else."
+    "key": "idiom: [.profile .seed] in simworld/plan/cell.ts + simworld/plan/landmarks.ts + simworld/plan/macro.ts + simworld/plan/rail.ts + simworld/world/terrain.ts",
+    "reason": "Each planner stage reads the town profile (terrain.profile and its seed) for its own numbers; field reads, no copied logic. It crossed the idiom finder's information floor only because new files (the looks check) raised the file count it weighs names by."
   }
 ]
