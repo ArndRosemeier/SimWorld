@@ -21,7 +21,7 @@ Arnd's PC is the reference machine for timings.
 | Cap | `src/render/shaders/cap.ts` | Hands out build slots: one in flight, ≥ 200 ms after the previous build's end, ≤ 5 per second, one per frame. Off during warm-up. |
 | Renderer hooks | `src/render/shaders/patches.ts` | Async node builds queue one at a time behind the cap; a draw pipeline nobody compiled is created async and the object skipped until ready; compile and link costs are timed. |
 | Monitor | `src/render/shaders/monitor.ts` | Records every build. `shaders.report()` in the console lists violations (over 100 ms, gaps under 200 ms) and warnings (over 10 ms); the HUD shows a summary. |
-| Guards | `tools/guards/rules.json` | `npm test` fails on `new *Material` outside the registry, `new *Light` outside lights.ts, `onBeforeCompile`, or `renderer.compile*` outside the Stage. |
+| Guards | `tools/guards/rules.json`, `tools/guards/guards.mjs` | `npm test` fails on `new *Material` outside the registry, `new *Light` outside lights.ts, `onBeforeCompile`, `renderer.compile*` outside the Stage, or a typed `Fn` that reads more than its parameters (`checkTypedFns`: an uppercase bag's member, a shader input made in the body or at the file's top). |
 
 ## What you must do
 
