@@ -22,6 +22,7 @@ import type { PlaceGraph, PlaceId, PlaceKind } from './places';
 import { bond, bondBit, FAMILY_MASK, Relations, type Bond } from './relations';
 import { HUMAN, SPECIES, speciesId } from './species';
 import { DAYS_PER_YEAR } from './time';
+import { DEFAULT_EPOCH } from './calendar';
 import { ageOf, jobOf, placeIndex, placesOf, type World } from './world';
 
 const CHILD = bondBit('child');
@@ -45,13 +46,18 @@ export interface WorldOptions {
    * Default 0: the synthesised town as is, with a few current stories.
    */
   history?: number;
+  /**
+   * The civil day of game day 0, a Monday (src/sim/calendar.ts `epochFor`): the date, season and weather follow the
+   * real calendar from it. Default `DEFAULT_EPOCH`.
+   */
+  epoch?: number;
 }
 
 /** Make a world for a place graph: places indexed, population synthesised, relationships seeded (and optionally a history lived), clock at 06:00. */
 export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions = {}): World {
   const idx = placeIndex(graph);
   const world: World = {
-    seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
+    seed, clock: (opts.startDay ?? 0) * 1440 + 360, epoch: opts.epoch ?? DEFAULT_EPOCH, graph, ...idx,
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
     intentions: [], encounters: [], mind: newMindLedger(), life: newLife(), region: null,

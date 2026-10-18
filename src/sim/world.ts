@@ -33,6 +33,8 @@ export interface World {
   readonly seed: number;
   /** Game minutes since day 0 (a Monday) 00:00. */
   clock: number;
+  /** The civil day (days since 1970-01-01, a Monday) of game day 0: the real calendar (src/sim/calendar.ts). */
+  readonly epoch: number;
   readonly graph: PlaceGraph;
   readonly travel: Travel;
   /** Place → index into PLACE_KINDS, for hot loops. */
