@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.116 — Cars park in their own driveways
+
+- A household living in a house with a driveway parks its car there: it comes home, turns in from the street and stands nose to the house.
+- Setting off, it backs out into the street first, then drives away.
+- Nobody else parks in someone's driveway; visitors and other cars use the kerbside bays.
+
 ## v0.115 — Play your person inside their house
 
 - Becoming someone who is at home (even asleep) puts you inside their home: they get up by their bed or chair, and the camera stays behind them in the room.
