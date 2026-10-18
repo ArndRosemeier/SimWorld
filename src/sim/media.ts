@@ -21,14 +21,15 @@ import { regularsOf } from './economy';
 import { addFact, broadcast, factText, type FactTopic } from './knowledge';
 import { partnerOf, type LifeEvent } from './life';
 import { capitalize } from './profile';
-import type { PlaceId, PlaceKind } from './places';
+import type { PlaceId } from './places';
 import { HABIT_COUNT } from './people';
+import { BOARD_KINDS } from './placeKinds';
 import { SPECIES } from './species';
 import { dayOf, hhmm, MINUTES_PER_DAY, weekdayOf } from './time';
 import { ageOf, firstName, isPerson, nameOf, placesOf, tickRng, type World } from './world';
 
 /** Where the town's notice boards stand: inside or by the door of these places, and one on the square. */
-export const BOARD_KINDS: readonly PlaceKind[] = ['townhall', 'library', 'church', 'supermarket', 'post', 'newsagent', 'square'];
+export { BOARD_KINDS };
 
 export type Section = 'front' | 'town' | 'business' | 'police' | 'family' | 'whatson';
 

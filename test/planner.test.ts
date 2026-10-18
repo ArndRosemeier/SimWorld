@@ -101,3 +101,23 @@ test('every street door opens outdoors, never into its own or a neighbouring bui
   });
   assert.ok(doors > 500, `${doors} doors`);
 });
+
+test('houses: a driveway beside most, on their lot, its car spot clear of buildings and its mouth clear of parked cars', () => {
+  const t = towns[0];
+  const houses = t.cells.flatMap((c) => c.buildings.filter((b) => b.style === 'house'));
+  const drives = t.cells.flatMap((c) => c.driveways);
+  assert.ok(drives.length >= houses.length * 0.4, `${drives.length} driveways for ${houses.length} houses`);
+  for (const c of t.cells) {
+    for (const d of c.driveways) {
+      const b = c.buildings[d.building];
+      assert.equal(b.style, 'house');
+      assert.ok(pointInPoly(c.lots[b.id].poly, d.x, d.z), 'the car spot is on the lot');
+      assert.ok(!c.buildings.some((o) => pointInPoly(o.poly, d.x, d.z)), 'and in no building');
+      const s = c.streets[d.street];
+      assert.ok(closestOnPolyline(s.pts, d.mx, d.mz).d < s.width / 2 + s.sidewalk + 2.5, 'the mouth is behind a sidewalk');
+      const at = closestOnPolyline(s.pts, d.mx, d.mz).s;
+      for (const p of c.parking) if (p.street === d.street) assert.ok(Math.abs(closestOnPolyline(s.pts, p.x, p.z).s - at) > 3.5, 'no parking bay across a driveway');
+    }
+    assert.ok(c.paths.every((p) => Math.abs(polyArea(p.outer)) > 2));
+  }
+});

@@ -55,7 +55,9 @@ import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
 import { A, FEMALE, MALE } from './sim/actors';
 import { litShares } from './street/windows';
 import { setLitShares, setWindowMap } from './render/windowLight';
-import { hhmm, minuteOfDay } from './sim/time';
+import { hhmm, minuteOfDay, MINUTES_PER_DAY } from './sim/time';
+import type { MediaView } from './sim/media';
+import type { TownFace } from './sim/view';
 import { formatDate } from './sim/calendar';
 import { TownAudio } from './audio/townAudio';
 import { soundEnvFromSim, soundEnvOf, soundOverrides } from './audio/env';
@@ -204,6 +206,9 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   shell.add({ label: 'Choose who to be', group: 'Play', open: () => void playing.choose() });
   const hud = document.getElementById('hud');
   let shown = false, lastT = 0, shadowMode = '';
+  /** The media the signs last got (the sim's view brings a new one each game minute). */
+  let shownMedia: MediaView | undefined;
+  let shownFace: TownFace | undefined;
   const fwd = { x: 0, y: 0, z: 0 };
   shell.add({ label: 'Map', group: 'Town', open: mapOpener(
     async () => (await pool.run<Extract<FromTown, { type: 'map' }>>({ type: 'map' }, 0)).map,
@@ -230,6 +235,16 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     shadowMode = cam.mode;
     view.vegetation?.update(camera);
     view.props?.update(camera);
+    if (view.signs && sim.view.media !== shownMedia) {
+      // The notices up in town: boards, lamp posts, shop windows (a new view each game minute; the signs redraw only what changed).
+      shownMedia = sim.view.media;
+      view.signs.setNotices(shownMedia?.notices ?? [], Math.floor(sim.view.clock / MINUTES_PER_DAY));
+    }
+    if (view.signs && sim.town && sim.town !== shownFace) {
+      // The town's face (once a game day, and after a time skip): shop names, hours, to-let and for-sale boards.
+      shownFace = sim.town;
+      view.signs.setFacts({ kind: shownFace.kind, name: shownFace.name, flags: shownFace.looks.flags, hours: shownFace.hours });
+    }
     view.signs?.update(camera);
     sky.update(dt, time, time.clock, w, camera, rate);
     if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.night);
