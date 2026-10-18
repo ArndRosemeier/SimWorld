@@ -36,6 +36,8 @@ export class DaySky {
   flash = 0;
   /** Daylight now, 0 night … 1 day. */
   day = 0;
+  /** Night now, 0 day … 1 full night (as `LIGHT.night`). */
+  night = 0;
   private pulses: { t: number; amp: number; angle: number; up: number }[] = [];
   private now = 0;
   private lastMinute = -1;
@@ -131,7 +133,7 @@ export class DaySky {
     if (this.scene.background instanceof Color) this.scene.background.copy(fog.color);
 
     // The light state every look reads.
-    LIGHT.night.value = night;
+    LIGHT.night.value = this.night = night;
     LIGHT.dayLight.value = day;
     LIGHT.wet.value = w.wet;
     LIGHT.snow.value = smoothstep(0.3, 5, w.snowCm);

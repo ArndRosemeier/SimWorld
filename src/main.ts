@@ -18,7 +18,7 @@ import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
 import { createRenderer, GraphicsUnavailable } from './render/renderer';
 import { Stage } from './render/stage';
-import { fitSunShadow, makeLights } from './render/lights';
+import { fitSunShadow, makeLights, placeLamps } from './render/lights';
 import { DaySky } from './render/sky';
 import { Precipitation } from './render/precip';
 import { WEATHER_KINDS, describeWeather, forceWeather, weatherAt, type Weather, type WeatherKind } from './sim/weather';
@@ -175,6 +175,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     view.vegetation?.update(camera);
     view.props?.update(camera);
     sky.update(dt, time, time.clock, w, camera, rate);
+    if (cam.mode !== 'drone') placeLamps(lights, view.props?.lamps, camera.position.x, camera.position.z, sky.night);
+    else placeLamps(lights, undefined, 0, 0, 0);
     precip.fall(dt, camera, w, w.windDir, sky.day, sky.flash);
     renderer.render(scene, camera);
     const e = camera.matrixWorld.elements;
