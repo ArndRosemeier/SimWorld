@@ -18,6 +18,7 @@
 import { Picker } from '../app/picker';
 import { PlayPanel } from '../app/playPanel';
 import type { InhabitantCard } from '../sim/profile';
+import { minutesUntil } from '../sim/time';
 import type { NearSolids } from '../workers/simProtocol';
 import type { Physics } from '../physics/physics';
 import { rampBox, wallBoxes, type SolidBox, type SolidPost } from '../physics/solids';
@@ -105,16 +106,16 @@ export class Playing {
       actions: async () => (await this.sim.ask({ op: 'actions' })).actions,
       // Sent somewhere: the sim walks them there (a walking key takes over again on the way).
       go: (a) => { this.dropAvatar(); void this.sim.ask({ op: 'go', place: a.place, activity: a.activity }); },
-      skipDays: async (days) => {
+      skipTime: async (s) => {
         const since = Math.floor(this.sim.clock), steering = this.avatar !== null;
         // Your life goes on without you watching: their routine runs the skipped days.
         this.dropAvatar();
         this.goOut();
         await this.sim.ask({ op: 'autopilot', on: true });
-        await this.sim.skip(days);
+        await this.sim.skip('until' in s ? minutesUntil(this.sim.clock, s.until) : s.minutes);
         if (steering) void this.takeWheel();
         const r = await this.sim.ask({ op: 'digest', since });
-        if (this.panel === panel) panel.showDigest(days, r.digest);
+        if (this.panel === panel) panel.showDigest(s.title, r.digest);
       },
       switchPerson: () => void this.choose(),
     });

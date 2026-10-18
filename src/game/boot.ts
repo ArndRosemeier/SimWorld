@@ -186,7 +186,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   sim.onView = (v) => { litShares(v, sim.windows, A.sleep, lit); setLitShares(lit); if (v.town) decorate(v.town); else outdoors?.set(decor, v.occasions); };
   sim.onView(sim.view);
   decorate();
-  if (q0.has('skip')) await sim.skip(Number(q0.get('skip')) || 1);
+  if (q0.has('skip')) await sim.skip((Number(q0.get('skip')) || 1) * MINUTES_PER_DAY);
   sim.keepSaved();
   shell.add({ label: 'Paper', group: 'Town', open: () => openPaper(sim.view) });
   shell.add({ label: 'Save now', group: 'Game', open: () => void sim.saveNow().then((ok) => shell.say(ok ? 'Saved' : 'Could not save here')) });

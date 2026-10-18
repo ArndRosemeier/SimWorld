@@ -9,18 +9,34 @@ import type { DigestItem } from '../sim/chronicle';
 import type { PlayerAction, PlayerStatus } from '../sim/player';
 import { capitalize, type InhabitantCard } from '../sim/profile';
 import { NEEDS } from '../sim/species';
+import { MINUTES_PER_DAY, MINUTES_PER_HOUR, TIMES_OF_DAY } from '../sim/time';
 import { button, el, onEscape } from './dom';
 
 export interface PlayHandlers {
   autopilot: (on: boolean) => void;
   actions: () => Promise<PlayerAction[]>;
   go: (a: PlayerAction) => void;
-  skipDays: (days: number) => Promise<void>;
+  skipTime: (s: SkipChoice) => Promise<void>;
   switchPerson: () => void;
 }
 
-/** Time skip lengths offered, in days. */
-const SKIPS: [string, number][] = [['A day', 1], ['Three days', 3], ['A week', 7], ['Two weeks', 14], ['A month', 30], ['Three months', 91], ['Half a year', 182], ['A year', 365]];
+/** A time skip: so many minutes on, or until a time of day (TIMES_OF_DAY); `title` heads what you hear afterwards. */
+export type SkipChoice = { label: string; title: string } & ({ minutes: number } | { until: number });
+
+const hours = (label: string, title: string, h: number): SkipChoice => ({ label, title, minutes: h * MINUTES_PER_HOUR });
+const days = (label: string, title: string, d: number): SkipChoice => ({ label, title, minutes: d * MINUTES_PER_DAY });
+/** Time skips offered: a few hours or to a time of day (to see the town at another hour), then days up to a year. */
+const SKIPS: SkipChoice[][] = [
+  [hours('An hour', 'An hour later', 1), hours('Three hours', 'Three hours later', 3), hours('Six hours', 'Six hours later', 6)],
+  [
+    { label: 'Until morning', title: 'Morning', until: TIMES_OF_DAY.morning },
+    { label: 'Until noon', title: 'Noon', until: TIMES_OF_DAY.noon },
+    { label: 'Until evening', title: 'Evening', until: TIMES_OF_DAY.evening },
+    { label: 'Until night', title: 'Night', until: TIMES_OF_DAY.night },
+  ],
+  [days('A day', 'A day later', 1), days('Three days', 'Three days later', 3), days('A week', 'A week later', 7), days('Two weeks', 'Two weeks later', 14)],
+  [days('A month', 'A month later', 30), days('Three months', 'Three months later', 91), days('Half a year', 'Half a year later', 182), days('A year', 'A year later', 365)],
+];
 
 const NEED_LABEL: Record<string, string> = { food: 'Fed', rest: 'Rested', social: 'Company', hygiene: 'Clean', fun: 'Fun' };
 
@@ -122,19 +138,23 @@ export class PlayPanel {
     const m = this.popup('Skip time');
     const body = el('div', 'pl-menu-body');
     body.append(el('p', 'pl-note', 'Your life goes on without you watching. Afterwards you hear what you would know of it.'));
-    for (const [label, days] of SKIPS) {
-      body.append(button('', label, async () => {
-        body.replaceChildren(el('p', 'pl-note', 'Time passes…'));
-        await this.h.skipDays(days);
-        if (this.menu === m) this.closeMenu();
-      }));
+    for (const row of SKIPS) {
+      const r = el('div', 'pl-skips');
+      for (const s of row) {
+        r.append(button('', s.label, async () => {
+          body.replaceChildren(el('p', 'pl-note', 'Time passes…'));
+          await this.h.skipTime(s);
+          if (this.menu === m) this.closeMenu();
+        }));
+      }
+      body.append(r);
     }
     m.append(body);
   }
 
   /** What the person knows of the skipped days: lived first, then heard, most important first. */
-  showDigest(days: number, items: DigestItem[]): void {
-    const m = this.popup(days === 1 ? 'A day later' : `${days} days later`);
+  showDigest(title: string, items: DigestItem[]): void {
+    const m = this.popup(title);
     const body = el('div', 'pl-menu-body');
     if (!items.length) body.append(el('p', 'pl-note', 'Nothing much happened that you know of.'));
     const ul = el('ul', 'pl-digest');

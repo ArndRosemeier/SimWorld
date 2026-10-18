@@ -142,12 +142,15 @@ export class SimClient {
   /** False stops `keepSaved` (e.g. while the page reloads to play on from the save: leaving must not replace it). */
   autosave = true;
 
-  /** The time skip: `days` whole days on, the same time of day. Everyone out of doors is drawn afresh. */
-  async skip(days: number): Promise<void> {
+  /**
+   * The time skip, `minutes` on: hours as lived, a day or more as whole days to the same time of day (the sim
+   * worker's skip). Everyone out of doors is drawn afresh.
+   */
+  async skip(minutes: number): Promise<void> {
     await this.inflight;
     this.busy = true;
     try {
-      const m = await this.pool.run<Extract<FromSim, { type: 'skipped' }>>({ type: 'skip', days }, 0);
+      const m = await this.pool.run<Extract<FromSim, { type: 'skipped' }>>({ type: 'skip', to: this.clock + minutes }, 0);
       this.view = m.view; this.onView?.(m.view);
       if (m.view.town) this.town = m.view.town;
       this.walkers.clear();
