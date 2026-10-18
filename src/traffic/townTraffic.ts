@@ -59,7 +59,8 @@ export class TownTraffic {
   constructor(town: Town, private readonly places: readonly Place[], private readonly seed: number, world?: World) {
     this.world = world ?? null;
     this.net = new RoadNet(town);
-    this.parking = new Parking(this.net);
+    // The kerbside bays are the planner's (src/plan/cell.ts): the same ones the plan's kerb cars stood in.
+    this.parking = new Parking(this.net, town.cells.flatMap((c) => c.parking));
     this.traffic = new Traffic(this.net, this.parking);
     this.traffic.onPark = () => this.stats.parked++;
     this.traffic.onHalt = () => this.stats.stops++;

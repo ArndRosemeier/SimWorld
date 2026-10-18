@@ -1,6 +1,7 @@
 /**
- * Where cars stand when nobody drives them: kerbside bays along the town's streets (both sides,
- * one car length apart, clear of the junctions) and the yards at the ends of the farm tracks.
+ * Where cars stand when nobody drives them: the planner's kerbside bays along the town's streets
+ * (clear of the junctions, crossings and driveways; else one every car length along both kerbs)
+ * and the yards at the ends of the farm tracks.
  * Every car has at most one spot; a journey reserves its spot when it starts, so two cars never
  * head for the same bay. A car with no spot near its goal stands off the street (a garage, a
  * private drive) and is not drawn until it drives again.
@@ -27,6 +28,8 @@ export interface Spot {
 
 /** Bay length along the kerb (m). */
 const BAY = 6.2;
+/** A planner's bay farther than this (m) from the traffic's kerb lane is not used. */
+const KERB_FIT = 1.5;
 /** How far from its goal a driver looks for a free bay (m). */
 const SEARCH = 260;
 const G = 48;
@@ -40,39 +43,59 @@ export class Parking {
   /** Spot ids by edge. */
   private readonly byEdge = new Map<number, number[]>();
 
-  constructor(net: RoadNet) {
+  /**
+   * `bays`: the planner's kerbside bays (`CellPlan.parking`, clear of junctions, crossings and driveways); without
+   * them a bay every BAY m along both kerbs of every street with parking.
+   */
+  constructor(net: RoadNet, bays?: readonly { x: number; z: number }[]) {
     const tmp = { x: 0, z: 0, dx: 0, dz: 0 };
     net.edges.forEach((e, ei) => {
-      const bays: [number, number][] = [];
+      const at: [number, number][] = [];
       if (e.park > 0) {
+        if (bays) return;
         const back = Math.min(e.len * 0.3, e.width * 0.55 + 2.5) + 3;
-        for (let s = back + BAY / 2; s <= e.len - back - BAY / 2; s += BAY) bays.push([s, e.width / 2 - e.park / 2 - 0.05], [s, -(e.width / 2 - e.park / 2 - 0.05)]);
+        for (let s = back + BAY / 2; s <= e.len - back - BAY / 2; s += BAY) at.push([s, e.width / 2 - e.park / 2 - 0.05], [s, -(e.width / 2 - e.park / 2 - 0.05)]);
       } else if (e.source === LineSource.Track) {
         // A farm track's dead end is the yard: room for a few cars beside the track.
         for (const [end, s0] of [[e.a, 0], [e.b, e.len]] as const) {
           if (net.nodes[end].edges.length !== 1 || e.len < 20) continue;
           for (let k = 0; k < 3; k++) {
             const s = s0 === 0 ? 3 + k * BAY : e.len - 3 - k * BAY;
-            bays.push([s, e.width / 2 + 1.6], [s, -(e.width / 2 + 1.6)]);
+            at.push([s, e.width / 2 + 1.6], [s, -(e.width / 2 + 1.6)]);
           }
         }
       }
-      for (const [s, off] of bays) {
+      for (const [s, off] of at) {
         net.lanePoint(e, s, off, tmp);
         const side = Math.sign(off);
         // Parked with the traffic on its side: facing a → b on the right, b → a on the left.
         const dx = side > 0 ? tmp.dx : -tmp.dx, dz = side > 0 ? tmp.dz : -tmp.dz;
-        const id = this.spots.length;
-        this.spots.push({ id, edge: ei, s, side, x: tmp.x, y: net.heightAt(e, s), z: tmp.z, yaw: Math.atan2(-dx, -dz), car: -1 });
-        const k = gkey(Math.floor(tmp.x / G), Math.floor(tmp.z / G));
-        let l = this.grid.get(k);
-        if (!l) this.grid.set(k, (l = []));
-        l.push(id);
-        let le = this.byEdge.get(ei);
-        if (!le) this.byEdge.set(ei, (le = []));
-        le.push(id);
+        this.addSpot(ei, s, side, tmp.x, net.heightAt(e, s), tmp.z, Math.atan2(-dx, -dz));
       }
     });
+    // The planner's bays, on the streets the traffic parks on (a bay on a road without parking lanes, or off the
+    // kerb lane the traffic knows, stays empty). The car faces with the traffic on its side.
+    for (const b of bays ?? []) {
+      const ne = net.nearestEdge(b.x, b.z, 12, (e) => e.park > 0);
+      if (!ne) continue;
+      const e = net.edges[ne.e];
+      net.lanePoint(e, ne.s, ne.side * (e.width / 2 - e.park / 2), tmp);
+      if (Math.hypot(tmp.x - b.x, tmp.z - b.z) > KERB_FIT) continue;
+      const dx = ne.side > 0 ? tmp.dx : -tmp.dx, dz = ne.side > 0 ? tmp.dz : -tmp.dz;
+      this.addSpot(ne.e, ne.s, ne.side, b.x, net.heightAt(e, ne.s), b.z, Math.atan2(-dx, -dz));
+    }
+  }
+
+  private addSpot(edge: number, s: number, side: number, x: number, y: number, z: number, yaw: number): void {
+    const id = this.spots.length;
+    this.spots.push({ id, edge, s, side, x, y, z, yaw, car: -1 });
+    const k = gkey(Math.floor(x / G), Math.floor(z / G));
+    let l = this.grid.get(k);
+    if (!l) this.grid.set(k, (l = []));
+    l.push(id);
+    let le = this.byEdge.get(edge);
+    if (!le) this.byEdge.set(edge, (le = []));
+    le.push(id);
   }
 
   /** The spot a car stands in (or is heading for), null when it stands off the street or is unknown. */
