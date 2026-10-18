@@ -99,13 +99,12 @@ function pointAt(pts: number[], s: number): { x: number; z: number; dx: number; 
   return { x: pts[0], z: pts[1], dx: 1, dz: 0 };
 }
 
-/** Door point (0.8 m out of the front facade, at the door bay) — as the people use it. */
-export function frontDoor(b: BuildingDesc): { x: number; z: number } {
+/** Door point (0.8 m out of the front facade, at the door bay, or at `d`, another door on the front) — as the people use it. */
+export function frontDoor(b: BuildingDesc, d: { x: number; z: number } = streetDoor(b)): { x: number; z: number } {
   const p = b.poly, n = p.length >> 1;
   const i = b.front % n, j = (i + 1) % n;
   const ax = p[i * 2], az = p[i * 2 + 1], bx = p[j * 2], bz = p[j * 2 + 1];
   const L = Math.hypot(bx - ax, bz - az) || 1;
-  const d = streetDoor(b);
   return { x: d.x + ((bz - az) / L) * 0.8, z: d.z - ((bx - ax) / L) * 0.8 };
 }
 

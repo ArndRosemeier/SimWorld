@@ -39,11 +39,12 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Question | The one way | Where |
 |---|---|---|
 | Make the renderer | `createRenderer` (WebGL 2 backend of WebGPURenderer; guarded) | `src/render/renderer.ts` |
-| I need a material | Add or reuse a *kind* (`VERTEX_COLOR_SOLID`, `TERRAIN`, `GROUND`, `WATER`, `FACADE`; `kind.make()`). Textured kinds need `useTextures({ facade })` before the warm-up. Never `new ...Material` elsewhere (guarded). | `src/render/materials.ts` |
+| I need a material | Add or reuse a *kind* (`VERTEX_COLOR_SOLID`, `TERRAIN`, `GROUND`, `WATER`, `FACADE`, `INTERIOR`; `kind.make()`). Textured kinds need `useTextures({ facade, interior })` before the warm-up. Never `new ...Material` elsewhere (guarded). | `src/render/materials.ts` |
 | A kind's look as a TSL node graph (terrain land use, ground layers, water) | `terrainLook`, `groundLook`, `waterLook` (applied by the kind in materials.ts); the seed's field patchwork `setParcels(parcelParams(seed))`; noise from `h_noise2`/`h_fbm2` (`@futuremagic/humanoid/three/nodes/peopleNoise`) | `src/render/tsl/ground.ts` |
+| A room's look: textured floors, walls and furniture tinted per vertex, lamps that glow | `interiorLook(mat, arrays)` (the `INTERIOR` kind); `INTERIOR_LIGHT.lamps` (0 … 1) dims every lamp | `src/render/tsl/interior.ts` |
 | A building's look: textured walls and roofs, procedural windows, doors, shop fronts, rooms behind the glass | `facadeLook(mat, arrays)` (the `FACADE` kind) reading `facadeSpecs()` | `src/render/tsl/facade.ts` |
 | Shared TSL pieces: hashes, normal maps without tangents, the scene's light state | `h11`, `h21`, `perturbNormalUV`, `LIGHT` (night, dayLight, litFrac, shopLit, eatLit, wet; season and snow to come). Written only by the sky view (`src/render/sky.ts`, *planned*, track B), which reads the sim's date and weather | `src/render/tsl/common.ts` |
-| The facade (and ground) texture arrays for the shaders | `loadTextures(pool, family, onProgress?, size?)` → `MaterialArrays` | `src/render/textures.ts` |
+| The facade, ground and interior texture arrays for the shaders | `loadTextures(pool, family, onProgress?, size?)` → `MaterialArrays` | `src/render/textures.ts` |
 | I need a light | The fixed set from `makeLights` (a pool of real lights for the street lamps nearest the camera, *planned*, track B). Never `new ...Light` elsewhere (guarded). | `src/render/lights.ts` |
 | Put something into the visible scene | `stage.add(obj)`: compiles first, then adds | `src/render/stage.ts` |
 | Compile something added to your own group later | `stage.prepare(obj)` | `src/render/stage.ts` |
@@ -64,6 +65,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | How big is the town, how many households? | `townRadius(size)` (`src/world/settings.ts`), `dwellingTarget(size)`, `PEOPLE_PER_HOME`; `town.dwellings` | `src/plan/town.ts` |
 | How many households live in a building? | `dwellingsOf(b)` (a block too small for a flat beside its stairs, under `MIN_FLAT_FLOOR`, is one home) | `src/plan/building.ts` |
 | Where is a building's street door? | `streetDoor(b)` (edge, span, centre): the one door the facade, the terraces and the interior agree on | `src/plan/building.ts` |
+| Where do the people living over a shop go in? | `flatsDoor(b)` (null when none) and `flatsDoorBay(b, bays)`: their own door in bay 0 or 1 of the front; the facade (`FF.FlatsDoor`), the interior (its hall to the stairs) and the place graph (`frontDoor(b, flatsDoor(b))`) agree on it | `src/plan/building.ts` |
 | Ground height, water, rivers, lakes, the coast | `Terrain` (`height`, `isWater`, `water`, `lakeAt`, `coastDistance`) | `src/world/terrain.ts` |
 | Where does a road or the railway bridge a river? | `riverSpans(terrain, pts, margin)` | `src/world/terrain.ts` |
 | Forest, fields, meadow at a point | `LandUse.sample`; the town's outline `LandUse.edge` | `src/world/landuse.ts` |
@@ -79,7 +81,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | The town's roads as one network of lines (arterials, streets, footpaths, country roads, tracks) cut at their junctions, with street names | `townRoads(town)` → `TownRoads` (`lines`, `nodes`, `streets`, `nearest`); `alongLine`, `slicePolyline`. The place graph and the traffic network are both built from it | `src/plan/roads.ts` |
 | The town as the sim sees it (places, addresses, road network) | `placeGraphOf(town)` → `PlaceGraph`; `buildingRef(place.building)` back to the cell building, site or farm | `src/plan/placeGraph.ts` |
 | Build mesh data (any kind) | `MeshBuilder(specs)` → `build(): MeshData`; the specs are the material kind's `attributes` | `src/build/meshBuilder.ts` |
-| A procedural material texture layer (facade, roof, ground; tileable RGBA8 albedo+roughness, normal+height+AO) | `generateFacadeLayer(i, size)`, `generateGroundLayer(i, size)`, `FACADE_TILE_METERS`, `GROUND_TILE_METERS`, `TEX_SIZE`; building blocks `TNoise`, `worley`, `Tex`, `Layout`, `brickWall`, `stoneBlocks` | `src/build/texgen/` |
+| A procedural material texture layer (facade, roof, ground, interior floors and walls; tileable RGBA8 albedo+roughness, normal+height+AO) | `generateFacadeLayer(i, size)`, `generateGroundLayer(i, size)`, `generateInteriorLayer(i, size)` (`InteriorMat`), `FACADE_TILE_METERS`, `GROUND_TILE_METERS`, `INTERIOR_TILE_METERS`, `TEX_SIZE`; building blocks `TNoise`, `worley`, `Tex`, `Layout`, `brickWall`, `stoneBlocks` | `src/build/texgen/` |
 | Terrain tiles and water of the world | `terrainTiles(terrain)`, `buildTerrainTile(…, land)`; `waterSources(terrain)`, `buildWaterTile` | `src/build/terrainMesh.ts` |
 | The town's ground (streets, sidewalks, plazas, lawns, markings) | `buildGround(plan, terrain, origin)`; drape any shape: `drapeShape`, `ringWall`; the one ground format `groundSpecs()`, `GroundLayer` | `src/build/ground.ts` |
 | Country roads, farmyards, the railway, level crossings, their bridges | `buildCountryRoads(rural, rail, terrain, tile?)` | `src/build/rural.ts` |
@@ -87,8 +89,8 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | What is inside a building: rooms, homes, furniture, stairs; where its people sleep, sit and work | `planInterior(b, place?)` → `Interior` (`storeys: FloorPlan[]`, `units` with `sleeps`, `spots: Spot[]`); `place` (the sim's staff and capacity) sizes a workplace; outlines `storeyPoly`, `storeyFacade`; `workOf(b)`; `peakStaff(slots)` | `src/interior/building.ts` |
 | Cut a storey into rooms, walls and doors by a program | `splitStorey(storey, program, rng)` (`Program`: reservations, rooms, corridors, flats `units`, `musts`, `rank`) | `src/interior/fill/split.ts` |
 | Furnish a room | `new Filler(roomArea(...), rng, cell, accept).fill(items)` (`Item`: wall or free pieces, kids, clearances, score, `or` fallbacks); what a room holds: `homeItems`, `workItems` | `src/interior/fill/place.ts`, `src/interior/fill/home.ts`, `src/interior/fill/work.ts` |
-| Stairs and lifts through a building | `planCores(b, groundPoly, maxH, door)` → stair core and lift shaft; `stairsOf` (flights, landings, the hole above) | `src/interior/cores.ts` |
-| Interior meshes: a storey, or the cutaway of one | `buildStorey(mb, plan, opts)`, `buildCutaway(mb, interior, floor, base, facades)` with `INTERIOR_SPECS` (the `VERTEX_COLOR_SOLID` kind) | `src/build/interior.ts` |
+| Stairs and lifts through a building | `planCores(b, groundPoly, maxH, door, flatsDoor?)` → stair core, lift shaft and, for homes over a shop, `entry` (the hall from their door to the stairs, closed to the shop); `stairHall`; `stairsOf` (flights, landings, the hole above) | `src/interior/cores.ts` |
+| Interior meshes: a storey, or the cutaway of one | `buildStorey(mb, plan, opts)`, `buildCutaway(mb, interior, floor, base, facades)` with `INTERIOR_SPECS` (the `INTERIOR` kind: uv in metres, `aLayer` an `InteriorMat` or `LAMP`, `aTint`) | `src/build/interior.ts` |
 | Look at interiors without the game | `?inside=<cell>/<building>&floor=<n>` in the browser; floor plans as SVG: `npx tsx tools/interior/plans.ts` | `src/main.ts`, `tools/interior/plans.ts` |
 | 2D polygons: area, centroid, point in polygon, closest point on a polyline, resample | `src/geom/geom2.ts` | `src/geom/geom2.ts` |
 | Polygon union, difference, intersection, offset | `src/geom/clip.ts` (clipper) | `src/geom/clip.ts` |
@@ -103,6 +105,7 @@ Rows marked *planned* name the seam we will build; do not invent a different one
 | Make a car drive somewhere, park, leave the map; may a person cross here? | `Traffic`: `depart(car, goal)` (a parked car), `enter(car, exit, goal)` (from the region), `place(car, edge, fwd, s, goal)` (scripted: buses, rounds); `update(dt)`; `vehicles`, `onPark`, `onGone`; `obstacles` (people on the road), `safeToCross(x, z)`; `weatherK`, `daylight` | `src/traffic/traffic.ts` |
 | Which inhabitants set off by car just now? Where does a household's car stand at load? | `carTripsSince(world, clock)` → `CarTrip[]` (the drivers of `world.trips`, companions ride along); `carPlace(world, household)` | `src/traffic/trips.ts` |
 | The town's traffic from the sim (household cars, through traffic) | `TownTraffic(town, places, seed)`: `placeCars`, `trips(trips, clock)` once per game minute, `update(dt)` per frame; a household's car model `householdCar(seed, household)` | `src/traffic/townTraffic.ts` |
+| Buses on the road as the timetable says (in from the region, a lay-by at every town stop until departure, out again) | `Buses(world, net)`: `due(since, clock)`, `Buses.goal(trip, …)`; driven by `TownTraffic.transit(world, since, clock)` once per game minute. A stop is a `halt` goal of `Traffic` (also for service rounds) | `src/traffic/buses.ts` |
 | Draw the cars | the vehicle view *planned* (instanced `VEHICLE` kind, per-instance lights) | `src/render/vehiclesView.ts` *planned* |
 
 ### The app (`src/app`)

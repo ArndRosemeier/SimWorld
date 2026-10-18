@@ -225,12 +225,38 @@ export function doorBayOf(seed: number, bays: number): number {
  * facade. Scale: build/buildingLayout doorOf; the one door the facade, the interior and the
  * place graph agree on.
  */
-export function streetDoor(b: BuildingDesc): { edge: number; s0: number; s1: number; x: number; z: number } {
+export function streetDoor(b: BuildingDesc): FrontDoor {
+  return frontBayDoor(b, (bays) => doorBayOf(b.seed, bays))!;
+}
+
+/** A door on the front edge: the edge, its span along it from the edge's first corner, its middle on the facade. */
+export type FrontDoor = { edge: number; s0: number; s1: number; x: number; z: number };
+
+/** The door in the front bay `bayOf(bays)` picks (null for a negative bay), at most 1.3 m wide. */
+function frontBayDoor(b: BuildingDesc, bayOf: (bays: number) => number): FrontDoor | null {
   const P = b.poly, n = P.length >> 1, i = b.front % n, j = (i + 1) % n;
   const L = Math.hypot(P[j * 2] - P[i * 2], P[j * 2 + 1] - P[i * 2 + 1]);
-  const bays = Math.max(1, Math.round(L / b.bay)), bayW = L / bays;
-  const dw = Math.min(1.3, bayW * 0.62), dc = (doorBayOf(b.seed, bays) + 0.5) * bayW, t = dc / Math.max(1e-6, L);
+  const bays = Math.max(1, Math.round(L / b.bay)), bayW = L / bays, bay = bayOf(bays);
+  if (bay < 0) return null;
+  const dw = Math.min(1.3, bayW * 0.62), dc = (bay + 0.5) * bayW, t = dc / Math.max(1e-6, L);
   return { edge: i, s0: dc - dw / 2, s1: dc + dw / 2, x: P[i * 2] + (P[j * 2] - P[i * 2]) * t, z: P[i * 2 + 1] + (P[j * 2 + 1] - P[i * 2 + 1]) * t };
+}
+
+/**
+ * The flats' own street door, when homes sit over a ground-floor workplace (a shop, a café, a
+ * salon): a second door on the front, in bay 1 when the workplace's door is in bay 0, else in
+ * bay 0, so the people living upstairs never walk through the shop. Null when the building has
+ * no such homes or its front is a single bay (then the stairs open off the workplace). SimWorld;
+ * the facade, the interior (its hall to the stairs) and the place graph agree on it.
+ */
+export function flatsDoor(b: BuildingDesc): FrontDoor | null {
+  return frontBayDoor(b, (bays) => flatsDoorBay(b, bays));
+}
+
+/** The bay of a front facade of `bays` bays that `flatsDoor` is in (0 or 1), or -1 for none. */
+export function flatsDoorBay(b: BuildingDesc, bays: number): number {
+  if (bays < 2 || b.floors < 2 || !(b.shopfront || b.amenity) || dwellingsOf(b) === 0) return -1;
+  return doorBayOf(b.seed, bays) === 0 ? 1 : 0;
 }
 
 /**
