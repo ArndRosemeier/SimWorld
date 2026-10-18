@@ -66,7 +66,7 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     latitude: opts.latitude ?? DEFAULT_LATITUDE,
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
-    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(), region: null,
+    intentions: [], encounters: [], trips: [], mind: newMindLedger(), life: newLife(), region: null,
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);
