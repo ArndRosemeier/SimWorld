@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.120 — Council works boards, sale cards and "now open" banners
+
+- While the council builds something (the bypass, a housing estate, wind turbines, the skatepark), a striped council board stands by the road into town or by the sports ground, saying what is being built and how long it has left.
+- A shop that is struggling puts a "SALE" card in its window.
+- A newly opened shop hangs a "NOW OPEN" banner under its sign.
+
 ## v0.119 — Out on the street means outside your own door
 
 - People who step out onto their own street now stay near their house. Before, on a long country road, they walked or even drove kilometres to the middle of the road, and could show up far from home.
