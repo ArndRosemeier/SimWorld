@@ -1,16 +1,15 @@
 /**
- * Building massing: the first town render. Every building of a cell (or a farm) and every
- * public building as plain solids coloured per vertex: plinths on slopes, walls per setback
- * tier, a cornice and a string course on classical styles, and the roofs (flat with parapet and
- * rooftop equipment, gable, hip, shed, sawtooth, mansard). Windows are not drawn yet (that is
- * the facade shader's job, later): a wall with windows is darkened by the share of glass it would
- * have, so the town reads as it does with them from a distance.
+ * Building shells in the facade format: every building of a cell (or a farm) and every public
+ * building, with the attributes the facade shader reads to draw windows, doors, shop fronts,
+ * curtain walls, shutters, balconies and the roof and wall textures (`facadeSpecs`). Plinths on
+ * slopes, walls per setback tier, a cornice and a string course on classical styles, and the
+ * roofs (flat with parapet and rooftop equipment, gable, hip, shed, sawtooth, mansard).
  *
  * Ported from Scale (src/build/buildingShell.ts, src/build/buildingLayout.ts buildingBase and
- * buildingTiers, src/build/landmarks.ts), massing only: no facade shader attributes, window
- * bays, elements / destruction, slabs, interiors, stoops, LODs, clear glass or dicing. The
- * colours are the mean linear albedo of the layers Scale's texture generator paints
- * (src/render/texgen, averaged at 128 px) times Scale's per-building tint.
+ * buildingTiers, src/build/landmarks.ts) without slabs, element ids / destruction (aElem),
+ * interiors, stoops, LOD1, clear glass, inner parts, dicing and the close-range detail of
+ * buildingDetail.ts. The walls are one quad per edge and tier (Scale: one per bay group and
+ * storey, for destruction): the shader finds the storey from uv.y and the bay from uv.x.
  *
  * Pure: runs in workers. Positions are world coordinates (`mb.setOrigin` for a local origin).
  */
@@ -20,59 +19,59 @@ import { type Poly, frameToWorld, minAreaRect, polyArea, ensureCCW, polyCentroid
 import { offset, shapesToPolys } from '../geom/clip';
 import type { Terrain } from '../world/terrain';
 import { CURB_H } from '../world/ground';
-import type { BuildingDesc } from '../plan/building';
+import { doorBayOf, type BuildingDesc } from '../plan/building';
 import type { Landmark } from '../plan/landmarks';
-import { landmarkParts, latheClosed, helixFloorAt, HELIX_SLAB, PK, ROOF, WIN, CURTAIN, ARCH, GLOW, type LmPart, type PartMat } from '../plan/landmarkParts';
+import { landmarkParts, latheClosed, helixFloorAt, HELIX_SLAB, PK, type LmPart, type PartMat } from '../plan/landmarkParts';
 import type { MeshBuilder, AttrSpec } from './meshBuilder';
 
-/** The massing mesh's attributes besides position and normal: a linear RGB colour per vertex. */
-export const MASSING_SPECS = [{ name: 'color', size: 3, type: 'u8n' }] as const satisfies readonly AttrSpec[];
+/**
+ * Facade flags (bit field in aFacade.w; the landmark kit's WIN, CURTAIN, ARCH, ROOF and GLOW in
+ * src/plan/kit.ts are the same bits).
+ */
+export const enum FF {
+  Windows = 1,
+  Shop = 2,
+  Curtain = 4,
+  Arched = 8,
+  Balcony = 16,
+  Shutters = 32,
+  Blind = 64,      // attached side wall, no openings
+  Roof = 128,      // roof surface (no windows; roof material)
+  Front = 256,     // main street facade (entrance door)
+  // 512, 1024: door bay index (0..3) on the front facade
+  DoorBay = 512,
+  Eatery = 2048,   // café / restaurant shop front: warm light while open, no generic sign band
+  Glow = 4096,     // stained glass (landmarks): the day shines through it
+}
+
+/**
+ * The facade mesh's attributes besides position and normal (Scale's facadeSpecs without aElem):
+ * uv in metres (walls: u along the edge from its start, v = height above the ground floor level;
+ * flat surfaces: world x, z), aLayer the facade texture layer (walls 0–15 as WallMat, roofs 16–23
+ * as 16 + RoofMat), aTint the colour the layer is multiplied by, aFacade (bay width, storey
+ * height, ground floor height, flags FF), aSeed the building's variation in [0, 1).
+ */
+export function facadeSpecs(): AttrSpec[] {
+  return [
+    { name: 'uv', size: 2 },
+    { name: 'aLayer', size: 1 },
+    { name: 'aTint', size: 3, type: 'u8n' },
+    { name: 'aFacade', size: 4 },
+    { name: 'aSeed', size: 1 },
+  ];
+}
 
 type RGB = [number, number, number];
 type V3 = [number, number, number];
 
-// ------------------------------------------------------------------------------- colours
+/** Set the current surface: layer, tint and facade parameters (bay width, storey and ground floor heights, flags). */
+export function paint(mb: MeshBuilder, layer: number, tint: readonly number[], flags = 0, bay = 1, fh = 1, gh = 1): void {
+  mb.set('aLayer', layer).set('aTint', tint[0], tint[1], tint[2]).set('aFacade', bay, fh, gh, flags);
+}
 
-/**
- * Mean linear albedo per facade layer (walls 0–15 as WallMat, roofs 16–23 as 16 + RoofMat), from
- * Scale's texgen. Glass (10) is a dark blue-grey here: Scale's is near black but reflects the sky.
- */
-const LAYER_RGB: readonly RGB[] = [
-  [0.225, 0.075, 0.051], // 0 brick red
-  [0.110, 0.057, 0.049], // 1 brick brown
-  [0.318, 0.226, 0.129], // 2 brick yellow
-  [0.132, 0.060, 0.040], // 3 brownstone
-  [0.619, 0.549, 0.419], // 4 limestone
-  [0.447, 0.274, 0.131], // 5 sandstone
-  [0.777, 0.757, 0.709], // 6 plaster (tinted)
-  [0.757, 0.737, 0.690], // 7 stucco (tinted)
-  [0.308, 0.302, 0.286], // 8 concrete
-  [0.383, 0.355, 0.311], // 9 concrete panel
-  [0.110, 0.135, 0.170], // 10 glass curtain
-  [0.427, 0.441, 0.462], // 11 metal panel
-  [0.469, 0.434, 0.375], // 12 timber
-  [0.335, 0.252, 0.237], // 13 granite
-  [0.721, 0.702, 0.648], // 14 wood siding (tinted)
-  [0.597, 0.584, 0.551], // 15 brick white
-  [0.045, 0.044, 0.042], // 16 tar
-  [0.316, 0.086, 0.042], // 17 clay tile
-  [0.064, 0.069, 0.081], // 18 slate
-  [0.293, 0.334, 0.371], // 19 zinc
-  [0.144, 0.130, 0.116], // 20 asphalt shingle
-  [0.316, 0.325, 0.312], // 21 corrugated metal
-  [0.260, 0.233, 0.197], // 22 gravel
-  [0.139, 0.129, 0.039], // 23 green roof
-];
-/** Window glass seen from outside by day (dark, a little blue). */
-const WINDOW_RGB: RGB = [0.035, 0.042, 0.052];
-/** Share of a facade that is window glass: ordinary storeys, a shop front's ground floor. */
-const GLAZE_WALL = 0.22, GLAZE_SHOP = 0.5, GLAZE_ARCHED = 0.14;
-
-/** Set the current colour: the layer's albedo × tint × k, mixed with window glass by `glaze`. */
-export function paint(mb: MeshBuilder, layer: number, tint: RGB, k = 1, glaze = 0): void {
-  const c = LAYER_RGB[layer] ?? LAYER_RGB[8];
-  const g = glaze, w = (1 - g) * k;
-  mb.set('color', c[0] * tint[0] * w + WINDOW_RGB[0] * g, c[1] * tint[1] * w + WINDOW_RGB[1] * g, c[2] * tint[2] * w + WINDOW_RGB[2] * g);
+/** A seed's variation attribute (Scale: seed mod 10007). */
+function seedVar(seed: number): number {
+  return (seed % 10007) / 10007;
 }
 
 /** Palettes for tintable walls (plaster, stucco, siding). */
@@ -150,7 +149,7 @@ export function buildingTiers(b: BuildingDesc): { fromFloor: number; poly: Poly 
 
 /** Every building of a cell (or a farm's buildings). */
 export function buildBuildings(mb: MeshBuilder, buildings: readonly BuildingDesc[], terrain: Terrain): void {
-  for (const b of buildings) buildMassing(mb, b, terrain);
+  for (const b of buildings) buildShell(mb, b, terrain);
 }
 
 /** The building's tint (Scale's: a pastel or siding colour for tintable walls, else a slight grey variation). */
@@ -161,38 +160,45 @@ function buildingTint(b: BuildingDesc, r: Rng): RGB {
   return [v * (0.97 + r.float() * 0.06), v, v * (0.97 + r.float() * 0.06)];
 }
 
-/** Share of glass of a building's ordinary walls. */
-function buildingGlaze(b: BuildingDesc): number {
-  if (b.style === 'garage' || b.style === 'glass') return 0;
-  if (b.style === 'church') return GLAZE_ARCHED;
-  return GLAZE_WALL;
+/** Facade flags of a style (Scale's draws, in Scale's order). */
+function styleFlags(b: BuildingDesc, r: Rng): number {
+  let flags: number = FF.Windows;
+  if (b.style === 'glass') flags |= FF.Curtain;
+  if (b.style === 'church') flags |= FF.Arched;
+  if (b.style === 'haussmann') flags |= FF.Balcony;
+  if ((b.style === 'oldstone' || b.style === 'mediterranean') && r.chance(0.6)) flags |= FF.Shutters;
+  if (b.style === 'oldstone' && r.chance(0.25)) flags |= FF.Arched;
+  if (b.style === 'modern' && r.chance(0.6)) flags |= FF.Balcony;
+  if (b.style === 'garage') flags &= ~FF.Windows;
+  return flags;
 }
 
-function buildMassing(mb: MeshBuilder, b: BuildingDesc, terrain: Terrain): void {
+function buildShell(mb: MeshBuilder, b: BuildingDesc, terrain: Terrain): void {
   if (b.floors <= 0) return;
   const r = new Rng(b.seed);
   const { base, low } = buildingBase(b, terrain);
   const H = buildingHeight(b);
   const tint = buildingTint(b, r);
   const trimTint: RGB = b.style === 'haussmann' || b.style === 'artdeco' ? [tint[0] * 1.02, tint[1] * 1.02, tint[2] * 1.02] : [0.92, 0.9, 0.86];
-  const glaze = buildingGlaze(b);
+  const flags = styleFlags(b, r);
+  mb.set('aSeed', seedVar(b.seed));
 
   // ---- plinth (foundation on slopes)
   if (base - low > 0.25) {
-    paint(mb, 13, tint, 0.8);
-    wallLoop(mb, b.poly, low, base);
+    paint(mb, 13, [tint[0] * 0.8, tint[1] * 0.8, tint[2] * 0.8], 0, 2, 3, 3);
+    wallLoop(mb, b.poly, low, base, low);
   }
 
   // ---- walls per tier
   const tiers = buildingTiers(b);
   for (let t = 0; t < tiers.length; t++) {
     const f0 = tiers[t].fromFloor, f1 = t + 1 < tiers.length ? tiers[t + 1].fromFloor : b.floors;
-    tierWalls(mb, b, tiers[t].poly, t === 0, base + storeyBottom(b, f0), base + storeyBottom(b, f1), tint, glaze);
+    tierWalls(mb, b, tiers[t].poly, t === 0, base + storeyBottom(b, f0), base + storeyBottom(b, f1), base, tint, flags);
   }
   // Terrace caps and parapets where a tier steps in.
   for (let t = 0; t + 1 < tiers.length; t++) {
     const y = base + storeyBottom(b, tiers[t + 1].fromFloor);
-    paint(mb, 16, tint);
+    paint(mb, 16, tint, FF.Roof);
     capHoled(mb, tiers[t].poly, tiers[t + 1].poly, y);
     paint(mb, b.wall, tint);
     parapetRing(mb, tiers[t].poly, y, 1.1);
@@ -211,56 +217,61 @@ function buildMassing(mb: MeshBuilder, b: BuildingDesc, terrain: Terrain): void 
   roofOf(mb, b, top, topY, r, tint);
 }
 
+/** Facade flags for one edge of a tier polygon (the footprint's: party walls, shop front, front door). */
+function edgeFlags(flags: number, b: BuildingDesc, footprint: boolean, poly: Poly, i: number, bays: number): number {
+  let f = flags;
+  if (!footprint) return f;
+  if (b.attached && i !== b.front && isSideEdge(poly, i, b.front)) f = (f & ~(FF.Windows | FF.Shop | FF.Balcony)) | FF.Blind;
+  if (i === b.front) {
+    if (b.shopfront) f |= FF.Shop;
+    if (b.eatery) f |= FF.Eatery;
+    f |= FF.Front + doorBayOf(b.seed, bays) * FF.DoorBay;
+  }
+  return f;
+}
+
 /**
- * The walls of one tier between y0 and y1: party walls of attached buildings blind (and set in
- * slightly so neighbours never share a plane), a shop front's ground floor darker with its glass.
+ * The walls of one tier between y0 and y1, one quad per edge with that edge's exact bay width
+ * (the bays fit the edge). Party walls of attached buildings are blind and set in slightly, so
+ * neighbours never share a plane.
  */
-function tierWalls(mb: MeshBuilder, b: BuildingDesc, poly: Poly, ground: boolean, y0: number, y1: number, tint: RGB, glaze: number): void {
+function tierWalls(mb: MeshBuilder, b: BuildingDesc, poly: Poly, footprint: boolean, y0: number, y1: number, base: number, tint: RGB, flags: number): void {
   const n = poly.length >> 1;
-  const shopY = ground && b.shopfront && b.floors > 0 ? Math.min(y1, y0 + b.groundH) : y0;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     let ax = poly[i * 2], az = poly[i * 2 + 1], bx = poly[j * 2], bz = poly[j * 2 + 1];
     const L = Math.hypot(bx - ax, bz - az);
     if (L < 0.05) continue;
     const nx = (bz - az) / L, nz = -(bx - ax) / L;
-    const party = ground && b.attached && i !== b.front && isSideEdge(poly, i, b.front);
-    if (party) {
+    if (footprint && b.attached && i !== b.front && isSideEdge(poly, i, b.front)) {
       ax -= nx * 0.12; az -= nz * 0.12; bx -= nx * 0.12; bz -= nz * 0.12;
-      paint(mb, b.wall, tint);
-      wallQuad(mb, ax, az, bx, bz, y0, y1, nx, nz);
-      continue;
     }
-    let ya = y0;
-    if (i === b.front && shopY > y0) {
-      paint(mb, b.wall, tint, 0.85, GLAZE_SHOP);
-      wallQuad(mb, ax, az, bx, bz, y0, shopY, nx, nz);
-      ya = shopY;
-    }
-    paint(mb, b.wall, tint, 1, glaze);
-    wallQuad(mb, ax, az, bx, bz, ya, y1, nx, nz);
+    const bays = Math.max(1, Math.round(L / b.bay));
+    paint(mb, b.wall, tint, edgeFlags(flags, b, footprint, poly, i, bays), L / bays, b.floorH, b.groundH);
+    wallQuad(mb, ax, az, bx, bz, y0, y1, nx, nz, L, base);
   }
 }
 
-/** One vertical wall quad from (ax, az) to (bx, bz), outward normal (nx, 0, nz). */
-function wallQuad(mb: MeshBuilder, ax: number, az: number, bx: number, bz: number, y0: number, y1: number, nx: number, nz: number): void {
+/** One vertical wall quad from (ax, az) to (bx, bz), outward normal (nx, 0, nz); uv: u 0..L along it, v = y - vBase. */
+function wallQuad(mb: MeshBuilder, ax: number, az: number, bx: number, bz: number, y0: number, y1: number, nx: number, nz: number, L: number, vBase: number): void {
   if (y1 - y0 < 1e-3) return;
-  const i0 = mb.v(ax, y0, az, nx, 0, nz);
-  mb.v(bx, y0, bz, nx, 0, nz);
-  mb.v(bx, y1, bz, nx, 0, nz);
-  mb.v(ax, y1, az, nx, 0, nz);
+  const v0 = y0 - vBase, v1 = y1 - vBase;
+  const i0 = mb.v(ax, y0, az, nx, 0, nz, 0, v0);
+  mb.v(bx, y0, bz, nx, 0, nz, L, v0);
+  mb.v(bx, y1, bz, nx, 0, nz, L, v1);
+  mb.v(ax, y1, az, nx, 0, nz, 0, v1);
   mb.quad(i0, i0 + 3, i0 + 2, i0 + 1);
 }
 
-/** Walls of a CCW polygon between y0 and y1 (outward normals). */
-function wallLoop(mb: MeshBuilder, poly: Poly, y0: number, y1: number): void {
+/** Walls of a CCW polygon between y0 and y1 (outward normals; v from vBase, default y0). */
+function wallLoop(mb: MeshBuilder, poly: Poly, y0: number, y1: number, vBase = y0): void {
   const n = poly.length >> 1;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     const ax = poly[i * 2], az = poly[i * 2 + 1], bx = poly[j * 2], bz = poly[j * 2 + 1];
     const L = Math.hypot(bx - ax, bz - az);
     if (L < 0.05) continue;
-    wallQuad(mb, ax, az, bx, bz, y0, y1, (bz - az) / L, -(bx - ax) / L);
+    wallQuad(mb, ax, az, bx, bz, y0, y1, (bz - az) / L, -(bx - ax) / L, L, vBase);
   }
 }
 
@@ -300,10 +311,11 @@ function capFlat(mb: MeshBuilder, poly: Poly, y: number, down = false): void {
   flatTris(mb, poly, earcut(poly, undefined, 2), y, down);
 }
 
+/** Horizontal triangles, uv = world x, z. */
 function flatTris(mb: MeshBuilder, flat: number[], tris: number[], y: number, down: boolean): void {
   const base = mb.vcount;
   const ny = down ? -1 : 1;
-  for (let i = 0; i < flat.length; i += 2) mb.v(flat[i], y, flat[i + 1], 0, ny, 0);
+  for (let i = 0; i < flat.length; i += 2) mb.v(flat[i], y, flat[i + 1], 0, ny, 0, flat[i], flat[i + 1]);
   for (let i = 0; i < tris.length; i += 3) {
     const a = tris[i], b = tris[i + 1], c = tris[i + 2];
     const cr = (flat[b * 2] - flat[a * 2]) * (flat[c * 2 + 1] - flat[a * 2 + 1]) - (flat[b * 2 + 1] - flat[a * 2 + 1]) * (flat[c * 2] - flat[a * 2]);
@@ -312,11 +324,12 @@ function flatTris(mb: MeshBuilder, flat: number[], tris: number[], y: number, do
   }
 }
 
-/** A parapet on a polygon's edge: outer and inner faces and the coping (current colour). */
+/** A parapet on a polygon's edge: outer and inner faces and the coping (current layer and tint, no openings). */
 function parapetRing(mb: MeshBuilder, poly: Poly, y: number, h: number): void {
   // A narrow neck can split the inset outline into several pieces.
   const inner = offset([poly], -0.3, 'miter').map((s) => ensureCCW(s.outer));
   if (!inner.length) return;
+  mb.set('aFacade', 1, 1, 1, 0);
   wallLoop(mb, poly, y, y + h);
   // Inner faces (reversed rings so the normals face inward).
   for (const ip of inner) {
@@ -335,7 +348,7 @@ function roofOf(mb: MeshBuilder, b: BuildingDesc, top: Poly, y: number, r: Rng, 
   const F = roofFrameOf(b, top, y);
   const { kind, obb } = F;
   if (kind === 'flat') {
-    paint(mb, roofLayer, tint);
+    paint(mb, roofLayer, tint, FF.Roof);
     // Inset under the parapet; a narrow neck can split it into several pieces.
     const inner = offset([top], -0.3, 'miter').map((s) => ensureCCW(s.outer));
     for (const p of inner.length ? inner : [top]) capFlat(mb, p, y + 0.05);
@@ -347,12 +360,14 @@ function roofOf(mb: MeshBuilder, b: BuildingDesc, top: Poly, y: number, r: Rng, 
     return;
   }
   if (kind === 'mansard') {
-    // Steep lower slope then a flat top. The inset ring keeps one vertex per outline vertex, so
-    // every wall edge gets its own slope; outlines too tight for that inset try a smaller one, else stay flat.
+    // Steep lower slope (with dormers drawn by the shader) then a flat top. The inset ring keeps
+    // one vertex per outline vertex, so every wall edge gets its own slope; outlines too tight for
+    // that inset try a smaller one, else stay flat.
     const ring = mansardInset(top, obb);
-    paint(mb, roofLayer, tint);
-    if (!ring) { capFlat(mb, top, y + 0.05); roofGear(mb, b, top, y); return; }
+    if (!ring) { paint(mb, roofLayer, tint, FF.Roof); capFlat(mb, top, y + 0.05); roofGear(mb, b, top, y); return; }
+    paint(mb, roofLayer, tint, FF.Roof | FF.Windows, b.bay, ring.mh, ring.mh);
     mansardSlope(mb, top, ring.inner, y, y + ring.mh);
+    paint(mb, roofLayer, tint, FF.Roof);
     capFlat(mb, ring.inner, y + ring.mh);
     roofGear(mb, b, ring.inner, y + ring.mh);
     return;
@@ -371,10 +386,10 @@ function roofOf(mb: MeshBuilder, b: BuildingDesc, top: Poly, y: number, r: Rng, 
   const facets = F.facets;
   if (kind === 'sawtooth') {
     const { teeth, tw, th } = F;
-    paint(mb, roofLayer, tint);
+    paint(mb, roofLayer, tint, FF.Roof);
     for (const f of facets) facetMesh(mb, eaves, f);
     // Glazing (vertical) where one tooth ends high and the next starts low, cut to the outline.
-    paint(mb, 10, tint);
+    paint(mb, 10, tint, FF.Windows | FF.Curtain, 1.5, th, th);
     for (let k = 1; k < teeth; k++) {
       const o = framePoint(F, -hu + k * tw, 0);
       for (const ch of splitPolyByLine(top, o[0], o[1], vx, vz).chords) {
@@ -382,14 +397,17 @@ function roofOf(mb: MeshBuilder, b: BuildingDesc, top: Poly, y: number, r: Rng, 
         const sx = ch[2] - ch[0], sz = ch[3] - ch[1];
         const fw = sz * ux - sx * uz > 0;
         const [ax, az, bx, bz] = fw ? ch : [ch[2], ch[3], ch[0], ch[1]];
-        wallQuad(mb, ax, az, bx, bz, y, y + th, ux, uz);
+        wallQuad(mb, ax, az, bx, bz, y, y + th, ux, uz, Math.hypot(bx - ax, bz - az), y);
       }
     }
     // End walls under the teeth; outline edges facing +u close the last tooth with glazing.
-    gableWalls(mb, top, y, facets, (nx, nz) => paint(mb, nx * ux + nz * uz > 0.7 ? 10 : b.wall, tint));
+    gableWalls(mb, top, y, facets, (nx, nz) => {
+      if (nx * ux + nz * uz > 0.7) paint(mb, 10, tint, FF.Windows | FF.Curtain, 1.5, th, th);
+      else paint(mb, b.wall, tint);
+    });
     return;
   }
-  paint(mb, roofLayer, tint);
+  paint(mb, roofLayer, tint, FF.Roof);
   for (const f of facets) facetMesh(mb, eaves, f);
   // Gable walls wherever the roof stands above the wall top (gable ends, notches, slanted edges).
   gableWalls(mb, top, y, facets, () => paint(mb, b.wall, tint));
@@ -567,16 +585,18 @@ function facetClip(poly: Poly, cuts: number[][]): Poly[] {
   return pieces;
 }
 
-/** Roof surface of one facet over the roof outline, triangulated. */
+/** Roof surface of one facet over the roof outline: triangulated, uv in metres (v up the slope). */
 function facetMesh(mb: MeshBuilder, outline: Poly, f: Facet): void {
+  const g = Math.hypot(f.gx, f.gz);
   const l = Math.hypot(f.gx, f.gz, 1);
   const nx = -f.gx / l, ny = 1 / l, nz = -f.gz / l;
+  const sx = g > 1e-6 ? f.gx / g : 1, sz = g > 1e-6 ? f.gz / g : 0, sl = Math.sqrt(1 + g * g);
   for (const piece of facetClip(outline, f.cuts)) {
     const tris = earcut(piece, undefined, 2);
     const base = mb.vcount;
     for (let i = 0; i < piece.length; i += 2) {
       const x = piece[i], z = piece[i + 1];
-      mb.v(x, f.h0 + f.gx * x + f.gz * z, z, nx, ny, nz);
+      mb.v(x, f.h0 + f.gx * x + f.gz * z, z, nx, ny, nz, -x * sz + z * sx, (x * sx + z * sz) * sl);
     }
     for (let i = 0; i < tris.length; i += 3) {
       const a = tris[i], b = tris[i + 1], c = tris[i + 2];
@@ -590,9 +610,9 @@ function facetMesh(mb: MeshBuilder, outline: Poly, f: Facet): void {
 /**
  * Vertical walls on the edges of the wall-top polygon (at y) up to the roof surface where it
  * stands above them: gable ends, sawtooth ends, notches and slanted edges under a pitched roof.
- * `colour` sets the colour per edge from its outward normal.
+ * `surface` sets the material per edge from its outward normal.
  */
-function gableWalls(mb: MeshBuilder, poly: Poly, y: number, facets: Facet[], colour: (nx: number, nz: number) => void): void {
+function gableWalls(mb: MeshBuilder, poly: Poly, y: number, facets: Facet[], surface: (nx: number, nz: number) => void): void {
   const n = poly.length >> 1;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
@@ -609,7 +629,7 @@ function gableWalls(mb: MeshBuilder, poly: Poly, y: number, facets: Facet[], col
       if (t > 1e-6 && t < 1 - 1e-6) ts.push(t);
     }
     ts.sort((p, q) => p - q);
-    let coloured = false;
+    let surfaced = false;
     for (let k = 0; k + 1 < ts.length; k++) {
       const t0 = ts[k], t1 = ts[k + 1];
       if (t1 - t0 < 1e-6) continue;
@@ -619,11 +639,11 @@ function gableWalls(mb: MeshBuilder, poly: Poly, y: number, facets: Facet[], col
       const x0 = ax + dx * t0, z0 = az + dz * t0, x1 = ax + dx * t1, z1 = az + dz * t1;
       const h0 = Math.max(0, f.h0 + f.gx * x0 + f.gz * z0 - y), h1 = Math.max(0, f.h0 + f.gx * x1 + f.gz * z1 - y);
       if (h0 < 0.01 && h1 < 0.01) continue;
-      if (!coloured) { colour(nx, nz); coloured = true; }
-      const i0 = mb.v(x0, y, z0, nx, 0, nz);
-      mb.v(x1, y, z1, nx, 0, nz);
-      mb.v(x1, y + h1, z1, nx, 0, nz);
-      mb.v(x0, y + h0, z0, nx, 0, nz);
+      if (!surfaced) { surface(nx, nz); surfaced = true; }
+      const i0 = mb.v(x0, y, z0, nx, 0, nz, t0 * L, 0);
+      mb.v(x1, y, z1, nx, 0, nz, t1 * L, 0);
+      mb.v(x1, y + h1, z1, nx, 0, nz, t1 * L, h1);
+      mb.v(x0, y + h0, z0, nx, 0, nz, t0 * L, h0);
       mb.quad(i0, i0 + 3, i0 + 2, i0 + 1);
     }
   }
@@ -675,7 +695,10 @@ function ringSimple(src: Poly, p: Poly): boolean {
   return true;
 }
 
-/** Sloped ring from an outer polygon at y0 to an inset polygon at y1 (mansard). Vertex k of inner belongs to vertex k of outer. */
+/**
+ * Sloped ring from an outer polygon at y0 to an inset polygon at y1 (mansard). Vertex k of inner
+ * belongs to vertex k of outer. uv: u along the edge, v up the slope (the shader's dormers).
+ */
 function mansardSlope(mb: MeshBuilder, outer: Poly, inner: Poly, y0: number, y1: number): void {
   const n = outer.length >> 1;
   for (let i = 0; i < n; i++) {
@@ -684,15 +707,18 @@ function mansardSlope(mb: MeshBuilder, outer: Poly, inner: Poly, y0: number, y1:
     const cx = inner[j * 2], cz = inner[j * 2 + 1], dx = inner[i * 2], dz = inner[i * 2 + 1];
     const L = Math.hypot(bx - ax, bz - az);
     if (L < 0.01) continue;
+    const ex = bx - ax, ez = bz - az;
     // Normal: outward edge normal tilted up by the slope.
-    const ox = (bz - az) / L, oz = -(bx - ax) / L;
+    const ox = ez / L, oz = -ex / L;
     const run = Math.max(1e-3, ((ax + bx - cx - dx) * ox + (az + bz - cz - dz) * oz) / 2);
     const nl = Math.hypot(y1 - y0, run);
     const nx = (ox * (y1 - y0)) / nl, ny = run / nl, nz = (oz * (y1 - y0)) / nl;
-    const i0 = mb.v(ax, y0, az, nx, ny, nz);
-    mb.v(bx, y0, bz, nx, ny, nz);
-    mb.v(cx, y1, cz, nx, ny, nz);
-    mb.v(dx, y1, dz, nx, ny, nz);
+    // u of the inner corners: their position along the edge, so the shader's bays stay vertical.
+    const uc = ((cx - ax) * ex + (cz - az) * ez) / L, ud = ((dx - ax) * ex + (dz - az) * ez) / L;
+    const i0 = mb.v(ax, y0, az, nx, ny, nz, 0, 0);
+    mb.v(bx, y0, bz, nx, ny, nz, L, 0);
+    mb.v(cx, y1, cz, nx, ny, nz, uc, y1 - y0);
+    mb.v(dx, y1, dz, nx, ny, nz, ud, y1 - y0);
     // Outward/up-facing winding (same as the walls: a, d, c, b).
     mb.quad(i0, i0 + 3, i0 + 2, i0 + 1);
   }
@@ -785,15 +811,16 @@ function roofGear(mb: MeshBuilder, b: BuildingDesc, top: Poly, y: number): void 
   }
 }
 
-/** An open vertical cylinder (a tank's staves). */
+/** An open vertical cylinder (a tank's staves); u around in metres, v up. */
 function tankBody(mb: MeshBuilder, x: number, y: number, z: number, rad: number, h: number, seg: number): void {
   for (let i = 0; i < seg; i++) {
     const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
     const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
-    const i0 = mb.v(x + c0 * rad, y, z + s0 * rad, c0, 0, s0);
-    mb.v(x + c1 * rad, y, z + s1 * rad, c1, 0, s1);
-    mb.v(x + c1 * rad, y + h, z + s1 * rad, c1, 0, s1);
-    mb.v(x + c0 * rad, y + h, z + s0 * rad, c0, 0, s0);
+    const u0 = (i / seg) * rad * Math.PI * 2, u1 = ((i + 1) / seg) * rad * Math.PI * 2;
+    const i0 = mb.v(x + c0 * rad, y, z + s0 * rad, c0, 0, s0, u0, 0);
+    mb.v(x + c1 * rad, y, z + s1 * rad, c1, 0, s1, u1, 0);
+    mb.v(x + c1 * rad, y + h, z + s1 * rad, c1, 0, s1, u1, h);
+    mb.v(x + c0 * rad, y + h, z + s0 * rad, c0, 0, s0, u0, h);
     mb.quad(i0, i0 + 3, i0 + 2, i0 + 1);
   }
 }
@@ -804,9 +831,9 @@ function tankCap(mb: MeshBuilder, x: number, y: number, z: number, rad: number, 
   for (let i = 0; i < seg; i++) {
     const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2, am = (a0 + a1) / 2;
     const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
-    const i0 = mb.v(x + c0 * rad, y, z + s0 * rad, c0 * nr, ny, s0 * nr);
-    mb.v(x + c1 * rad, y, z + s1 * rad, c1 * nr, ny, s1 * nr);
-    mb.v(x, y + h, z, Math.cos(am) * nr, ny, Math.sin(am) * nr);
+    const i0 = mb.v(x + c0 * rad, y, z + s0 * rad, c0 * nr, ny, s0 * nr, 0, 0);
+    mb.v(x + c1 * rad, y, z + s1 * rad, c1 * nr, ny, s1 * nr, 1, 0);
+    mb.v(x, y + h, z, Math.cos(am) * nr, ny, Math.sin(am) * nr, 0.5, 1);
     mb.tri(i0, i0 + 2, i0 + 1);
   }
 }
@@ -815,43 +842,41 @@ function tankCap(mb: MeshBuilder, x: number, y: number, z: number, rad: number, 
 
 /** A public building from its kit parts (clear glass, inside and collision-only parts left out). */
 export function buildLandmark(mb: MeshBuilder, lm: Landmark, terrain: Terrain): void {
-  const E = new PartMassing(mb);
+  mb.set('aSeed', seedVar(lm.seed));
+  const E = new PartShell(mb);
   for (const p of landmarkParts(lm, terrain)) {
     if (p.hidden || p.clear || p.inner) continue;
     E.part(p);
   }
 }
 
-/** Glass share of a part material's surface (windows, arched windows; none on roofs and glass). */
-function partGlaze(m: PartMat): number {
-  if (m.flags & (ROOF | CURTAIN | GLOW) || m.layer === 10 || !(m.flags & WIN)) return 0;
-  return m.flags & ARCH ? GLAZE_ARCHED : GLAZE_WALL;
-}
+type UV = [number, number];
 
-/** Emits landmark parts (Scale's build/landmarks Emitter, LOD0, without uv, dicing and panes). */
-class PartMassing {
+/** Emits landmark parts in the facade format (Scale's build/landmarks Emitter, LOD0, without dicing and panes). */
+class PartShell {
   constructor(readonly mb: MeshBuilder) {}
 
   private use(m: PartMat): void {
-    paint(this.mb, m.layer, m.tint, 1, partGlaze(m));
+    paint(this.mb, m.layer, m.tint, m.flags, m.bay, m.fh, m.gh);
   }
 
   /** Top surfaces: the part's top material, else its own without openings. */
   private useTop(p: LmPart): void {
     if (p.top) this.use(p.top);
-    else paint(this.mb, p.m.layer, p.m.tint);
+    else this.use({ ...p.m, flags: p.m.flags & FF.Roof });
   }
 
   /** Plain foundation material (no windows), a little darker. */
   private usePlinth(p: LmPart): void {
-    paint(this.mb, p.m.layer === 10 ? 13 : p.m.layer, p.m.tint, 0.8);
+    const t = p.m.tint;
+    paint(this.mb, p.m.layer === 10 ? 13 : p.m.layer, [t[0] * 0.8, t[1] * 0.8, t[2] * 0.8], 0, 3, 4, 4);
   }
 
   /**
-   * Convex polygon with normals (one for all, or one each). The winding is made
-   * counter-clockwise around the normal, so the front face is the outside.
+   * Convex polygon with per-vertex uv and normals (one normal for all, or one each). The winding
+   * is made counter-clockwise around the normal, so the front face is the outside.
    */
-  poly(P: V3[], n: V3 | V3[]): void {
+  poly(P: V3[], uv: UV[], n: V3 | V3[]): void {
     const mb = this.mb, k = P.length;
     let gx = 0, gy = 0, gz = 0;
     for (let i = 0; i < k; i++) {
@@ -869,7 +894,7 @@ class PartMassing {
     const i0 = mb.vcount;
     for (let i = 0; i < k; i++) {
       const q = one ? (n as V3) : (n as V3[])[i];
-      mb.v(P[i][0], P[i][1], P[i][2], q[0], q[1], q[2]);
+      mb.v(P[i][0], P[i][1], P[i][2], q[0], q[1], q[2], uv[i][0], uv[i][1]);
     }
     for (let i = 1; i + 1 < k; i++) {
       if (flip) mb.tri(i0, i0 + i + 1, i0 + i);
@@ -877,15 +902,16 @@ class PartMassing {
     }
   }
 
-  /** Vertical wall quad from (ax, az) to (bx, bz) between y0 and y1. */
-  private wallAt(ax: number, az: number, bx: number, bz: number, y0: number, y1: number, nx: number, nz: number): void {
+  /** Vertical wall quad from (ax, az) to (bx, bz) between y0 and y1; u from u0 along it, v from vBase. */
+  private wallAt(ax: number, az: number, bx: number, bz: number, y0: number, y1: number, nx: number, nz: number, u0 = 0, vBase = y0): void {
     if (y1 - y0 < 1e-3) return;
-    this.poly([[ax, y0, az], [bx, y0, bz], [bx, y1, bz], [ax, y1, az]], [nx, 0, nz]);
+    const L = Math.hypot(bx - ax, bz - az);
+    this.poly([[ax, y0, az], [bx, y0, bz], [bx, y1, bz], [ax, y1, az]], [[u0, y0 - vBase], [u0 + L, y0 - vBase], [u0 + L, y1 - vBase], [u0, y1 - vBase]], [nx, 0, nz]);
   }
 
-  /** Horizontal polygon. */
+  /** Horizontal polygon (world xz as uv). */
   private flatAt(pts: [number, number][], y: number, up: boolean): void {
-    this.poly(pts.map(([x, z]) => [x, y, z] as V3), [0, up ? 1 : -1, 0]);
+    this.poly(pts.map(([x, z]) => [x, y, z] as V3), pts.map(([x, z]) => [x, z] as UV), [0, up ? 1 : -1, 0]);
   }
 
   part(p: LmPart): void {
@@ -913,7 +939,7 @@ class PartMassing {
   private partStrut(p: LmPart): void {
     const n = p.seg ?? 10, rad = p.w ?? 0.3;
     const a: V3 = [p.x, p.y0, p.z], b: V3 = [p.bx!, p.by!, p.bz!];
-    const d = v3norm([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
+    const d = v3norm([b[0] - a[0], b[1] - a[1], b[2] - a[2]]), L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
     // Two axes across the strut.
     const h: V3 = Math.abs(d[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
     const e1 = v3norm(v3cross(d, h));
@@ -922,16 +948,16 @@ class PartMassing {
     const rim = (q: V3, e: V3): V3 => [e[0] + q[0] * rad, e[1] + q[1] * rad, e[2] + q[2] * rad];
     this.use(p.m);
     for (let i = 0; i < n; i++) {
-      const q0 = strutDir((i / n) * Math.PI * 2), q1 = strutDir(((i + 1) / n) * Math.PI * 2);
-      this.poly([rim(q0, a), rim(q1, a), rim(q1, b), rim(q0, b)], [q0, q1, q1, q0]);
+      const t0 = (i / n) * Math.PI * 2, t1 = ((i + 1) / n) * Math.PI * 2, q0 = strutDir(t0), q1 = strutDir(t1);
+      this.poly([rim(q0, a), rim(q1, a), rim(q1, b), rim(q0, b)], [[t0 * rad, 0], [t1 * rad, 0], [t1 * rad, L], [t0 * rad, L]], [q0, q1, q1, q0]);
     }
   }
 
   /** Triangles (index triples into P) with their winding turned to face the normal. */
-  private trisFacing(P: V3[], n: V3, idx: ArrayLike<number>): void {
+  private trisFacing(P: V3[], uv: UV[], n: V3, idx: ArrayLike<number>): void {
     const mb = this.mb;
     const i0 = mb.vcount;
-    for (let i = 0; i < P.length; i++) mb.v(P[i][0], P[i][1], P[i][2], n[0], n[1], n[2]);
+    for (let i = 0; i < P.length; i++) mb.v(P[i][0], P[i][1], P[i][2], n[0], n[1], n[2], uv[i][0], uv[i][1]);
     for (let t = 0; t + 2 < idx.length; t += 3) {
       const a = idx[t], b = idx[t + 1], c = idx[t + 2];
       const A = P[a], B = P[b], C = P[c];
@@ -971,18 +997,23 @@ class PartMassing {
       return v3norm([u * c - v * s, q[1], u * s + v * c]);
     };
     this.use(p.m);
+    let len = 0;
+    const rs = (sx + sz) / 2;
     for (let i = 0; i + 1 < K; i++) {
       const r0 = P[i * 2], y0 = P[i * 2 + 1], r1 = P[i * 2 + 2], y1 = P[i * 2 + 3];
-      if (Math.hypot(r1 - r0, y1 - y0) < 1e-4) continue;
+      const L = Math.hypot(r1 - r0, y1 - y0);
+      if (L < 1e-4) continue;
       const q0 = ringN(i, 0), q1 = ringN(i + 1, 1);
       for (let j = 0; j < n; j++) {
         const t0 = (j / n) * Math.PI * 2, t1 = ((j + 1) / n) * Math.PI * 2;
         const pts: V3[] = [latheAt(t0, r0, y0), latheAt(t1, r0, y0), latheAt(t1, r1, y1), latheAt(t0, r1, y1)];
+        const uv: UV[] = [[t0 * r0 * rs, len], [t1 * r0 * rs, len], [t1 * r1 * rs, len + L], [t0 * r1 * rs, len + L]];
         const nn: V3[] = [latheN(t0, q0), latheN(t1, q0), latheN(t1, q1), latheN(t0, q1)];
-        if (r0 < 1e-3) this.poly([pts[0], pts[2], pts[3]], [nn[0], nn[2], nn[3]]);
-        else if (r1 < 1e-3) this.poly([pts[0], pts[1], pts[2]], [nn[0], nn[1], nn[2]]);
-        else this.poly(pts, nn);
+        if (r0 < 1e-3) this.poly([pts[0], pts[2], pts[3]], [uv[0], uv[2], uv[3]], [nn[0], nn[2], nn[3]]);
+        else if (r1 < 1e-3) this.poly([pts[0], pts[1], pts[2]], [uv[0], uv[1], uv[2]], [nn[0], nn[1], nn[2]]);
+        else this.poly(pts, uv, nn);
       }
+      len += L;
     }
     if (closed || p.noSides) return;
     const latheCap = (r: number, y: number, up: boolean) => {
@@ -1010,20 +1041,23 @@ class PartMassing {
     const idx = earcut(flat);
     this.use(p.m);
     for (const sv of [-1, 1]) {
-      const pts: V3[] = [];
-      for (let i = 0; i < k; i++) pts.push(this.partPoint(p, P[i * 2], sv * p.hz, P[i * 2 + 1]));
-      this.trisFacing(pts, [-s * sv, 0, c * sv], idx);
+      const pts: V3[] = [], uv: UV[] = [];
+      for (let i = 0; i < k; i++) { pts.push(this.partPoint(p, P[i * 2], sv * p.hz, P[i * 2 + 1])); uv.push([sv * P[i * 2], P[i * 2 + 1] - p.y0]); }
+      this.trisFacing(pts, uv, [-s * sv, 0, c * sv], idx);
     }
     // Edges: outward in the plane is (dy, -du) for a CCW outline (u right, y up).
     let area = 0;
     for (let i = 0; i < k; i++) { const j = (i + 1) % k; area += P[i * 2] * P[j * 2 + 1] - P[j * 2] * P[i * 2 + 1]; }
     const sg = area >= 0 ? 1 : -1;
+    let run = 0;
     for (let i = 0; i < k; i++) {
       const j = (i + 1) % k, du = P[j * 2] - P[i * 2], dy = P[j * 2 + 1] - P[i * 2 + 1], L = Math.hypot(du, dy);
       if (L < 1e-4) continue;
       const nu = (sg * dy) / L, ny = (-sg * du) / L;
       if (ny > 0.5) this.useTop(p); else this.use(p.m);
-      this.poly([this.partPoint(p, P[i * 2], -p.hz, P[i * 2 + 1]), this.partPoint(p, P[j * 2], -p.hz, P[j * 2 + 1]), this.partPoint(p, P[j * 2], p.hz, P[j * 2 + 1]), this.partPoint(p, P[i * 2], p.hz, P[i * 2 + 1])], [nu * c, ny, nu * s]);
+      this.poly([this.partPoint(p, P[i * 2], -p.hz, P[i * 2 + 1]), this.partPoint(p, P[j * 2], -p.hz, P[j * 2 + 1]), this.partPoint(p, P[j * 2], p.hz, P[j * 2 + 1]), this.partPoint(p, P[i * 2], p.hz, P[i * 2 + 1])],
+        [[run, 0], [run + L, 0], [run + L, 2 * p.hz], [run, 2 * p.hz]], [nu * c, ny, nu * s]);
+      run += L;
     }
   }
 
@@ -1042,24 +1076,25 @@ class PartMassing {
     const idx = earcut(flat, holes);
     this.use(p.m);
     for (const sv of [-1, 1]) {
-      const pts: V3[] = [];
-      for (let i = 0; i < flat.length; i += 2) pts.push(this.partPoint(p, flat[i], sv * p.hz, flat[i + 1]));
-      this.trisFacing(pts, [-s * sv, 0, c * sv], idx);
+      const pts: V3[] = [], uv: UV[] = [];
+      for (let i = 0; i < flat.length; i += 2) { pts.push(this.partPoint(p, flat[i], sv * p.hz, flat[i + 1])); uv.push([sv * flat[i] + p.hx, flat[i + 1] - p.y0]); }
+      this.trisFacing(pts, uv, [-s * sv, 0, c * sv], idx);
     }
     // Ends (u = ±hx), roof, underside.
-    for (const su of [-1, 1]) this.poly([this.partPoint(p, su * p.hx, -p.hz, p.y0), this.partPoint(p, su * p.hx, p.hz, p.y0), this.partPoint(p, su * p.hx, p.hz, p.y1), this.partPoint(p, su * p.hx, -p.hz, p.y1)], [su * c, 0, su * s]);
+    for (const su of [-1, 1]) this.poly([this.partPoint(p, su * p.hx, -p.hz, p.y0), this.partPoint(p, su * p.hx, p.hz, p.y0), this.partPoint(p, su * p.hx, p.hz, p.y1), this.partPoint(p, su * p.hx, -p.hz, p.y1)],
+      [[0, 0], [2 * p.hz, 0], [2 * p.hz, p.y1 - p.y0], [0, p.y1 - p.y0]], [su * c, 0, su * s]);
     this.useTop(p);
     this.flatAt(R, p.y1, true);
     if (p.foot === undefined) { this.use(p.m); this.flatAt(R, p.y0, false); }
     // Hole linings (facing the hole's axis), in the lining material.
-    if (p.back) this.use(p.back); else paint(this.mb, p.m.layer, p.m.tint);
+    this.use(p.back ?? { ...p.m, flags: 0 });
     for (let i = 0; i < H.length; i += 3) {
       const hu = H[i], hy = H[i + 1], hr = H[i + 2];
       const holeAt = (t: number, v: number) => this.partPoint(p, hu + Math.cos(t) * hr, v, hy + Math.sin(t) * hr);
       const holeN = (t: number): V3 => v3norm([-Math.cos(t) * c, -Math.sin(t), -Math.cos(t) * s]);
       for (let j = 0; j < n; j++) {
         const t0 = (j / n) * Math.PI * 2, t1 = ((j + 1) / n) * Math.PI * 2;
-        this.poly([holeAt(t0, -p.hz), holeAt(t1, -p.hz), holeAt(t1, p.hz), holeAt(t0, p.hz)], [holeN(t0), holeN(t1), holeN(t1), holeN(t0)]);
+        this.poly([holeAt(t0, -p.hz), holeAt(t1, -p.hz), holeAt(t1, p.hz), holeAt(t0, p.hz)], [[t0 * hr, 0], [t1 * hr, 0], [t1 * hr, 2 * p.hz], [t0 * hr, 2 * p.hz]], [holeN(t0), holeN(t1), holeN(t1), holeN(t0)]);
       }
     }
   }
@@ -1070,17 +1105,20 @@ class PartMassing {
     const N = Math.max(4, Math.ceil(turns * (p.seg ?? 48))), full = turns * Math.PI * 2;
     const helixAt = (phi: number, r: number, y: number): V3 => { const t = p.a + sg * phi; return [p.x + Math.cos(t) * r, y, p.z + Math.sin(t) * r]; };
     const helixOut = (phi: number): V3 => { const t = p.a + sg * phi; return [Math.cos(t), 0, Math.sin(t)]; };
+    const w = r1 - r0;
     for (let i = 0; i < N; i++) {
       const fa = (i / N) * full, fb = ((i + 1) / N) * full;
       const ya = helixFloorAt(p, fa), yb = helixFloorAt(p, fb);
       const na = helixOut(fa), nb = helixOut(fb);
-      // Floor (walking surface), underside, outer edge and the roof rim.
+      // Floor (walking surface), underside, outer edge and the roof rim (a band of the frame along the top of the glass).
+      const flatUV: UV[] = [[0, fa * r0], [w, fa * r0], [w, fb * r0], [0, fb * r0]];
+      const edgeUV = (h: number): UV[] => [[fa * r1, 0], [fb * r1, 0], [fb * r1, h], [fa * r1, h]];
       this.useTop(p);
-      this.poly([helixAt(fa, r0, ya), helixAt(fa, r1, ya), helixAt(fb, r1, yb), helixAt(fb, r0, yb)], [0, 1, 0]);
+      this.poly([helixAt(fa, r0, ya), helixAt(fa, r1, ya), helixAt(fb, r1, yb), helixAt(fb, r0, yb)], flatUV, [0, 1, 0]);
       this.use(p.m);
-      this.poly([helixAt(fa, r0, ya - HELIX_SLAB), helixAt(fa, r1, ya - HELIX_SLAB), helixAt(fb, r1, yb - HELIX_SLAB), helixAt(fb, r0, yb - HELIX_SLAB)], [0, -1, 0]);
-      this.poly([helixAt(fa, r1, ya - HELIX_SLAB), helixAt(fb, r1, yb - HELIX_SLAB), helixAt(fb, r1, yb), helixAt(fa, r1, ya)], [na, nb, nb, na]);
-      this.poly([helixAt(fa, r1 + 0.05, ya + hh - 0.35), helixAt(fb, r1 + 0.05, yb + hh - 0.35), helixAt(fb, r1 + 0.05, yb + hh), helixAt(fa, r1 + 0.05, ya + hh)], [na, nb, nb, na]);
+      this.poly([helixAt(fa, r0, ya - HELIX_SLAB), helixAt(fa, r1, ya - HELIX_SLAB), helixAt(fb, r1, yb - HELIX_SLAB), helixAt(fb, r0, yb - HELIX_SLAB)], flatUV, [0, -1, 0]);
+      this.poly([helixAt(fa, r1, ya - HELIX_SLAB), helixAt(fb, r1, yb - HELIX_SLAB), helixAt(fb, r1, yb), helixAt(fa, r1, ya)], edgeUV(HELIX_SLAB), [na, nb, nb, na]);
+      this.poly([helixAt(fa, r1 + 0.05, ya + hh - 0.35), helixAt(fb, r1 + 0.05, yb + hh - 0.35), helixAt(fb, r1 + 0.05, yb + hh), helixAt(fa, r1 + 0.05, ya + hh)], edgeUV(0.35), [na, nb, nb, na]);
     }
     // Mullions every few metres along the outside.
     const step = Math.max(1, Math.round(N / Math.max(1, (full * r1) / 3.2)));
@@ -1095,13 +1133,13 @@ class PartMassing {
     return [[-a, -b], [a, -b], [a, b], [-a, b]].map(([u, v]) => { const q = this.partPoint(p, u, v, 0); return [q[0], q[2]] as [number, number]; });
   }
 
-  /** Walls around a CCW ring of points between y0 and y1. */
-  private ringWallsAt(R: [number, number][], y0: number, y1: number): void {
+  /** Walls around a CCW ring of points between y0 and y1 (each wall's u from 0 at its start). */
+  private ringWallsAt(R: [number, number][], y0: number, y1: number, vBase = y0): void {
     for (let i = 0; i < R.length; i++) {
       const [ax, az] = R[i], [bx, bz] = R[(i + 1) % R.length];
       const L = Math.hypot(bx - ax, bz - az);
       if (L < 1e-4) continue;
-      this.wallAt(ax, az, bx, bz, y0, y1, (bz - az) / L, -(bx - ax) / L);
+      this.wallAt(ax, az, bx, bz, y0, y1, (bz - az) / L, -(bx - ax) / L, 0, vBase);
     }
   }
 
@@ -1137,8 +1175,9 @@ class PartMassing {
       const j = half ? i + 1 : (i + 1) % m;
       const a0 = a0f + i * step, a1 = a0f + (i + 1) * step;
       const n0: V3 = v3norm([Math.cos(a0) * h * sg, ny * sg, Math.sin(a0) * h * sg]), n1: V3 = v3norm([Math.cos(a1) * h * sg, ny * sg, Math.sin(a1) * h * sg]);
-      if (r1 > 1e-3) this.poly([[R0[i][0], p.y0, R0[i][1]], [R0[j][0], p.y0, R0[j][1]], [R1[j][0], p.y1, R1[j][1]], [R1[i][0], p.y1, R1[i][1]]], [n0, n1, n1, n0]);
-      else this.poly([[R0[i][0], p.y0, R0[i][1]], [R0[j][0], p.y0, R0[j][1]], [p.x, p.y1, p.z]], [n0, n1, v3norm([n0[0] + n1[0], n0[1] + n1[1], n0[2] + n1[2]])]);
+      const u0 = a0 * r0, u1 = a1 * r0;
+      if (r1 > 1e-3) this.poly([[R0[i][0], p.y0, R0[i][1]], [R0[j][0], p.y0, R0[j][1]], [R1[j][0], p.y1, R1[j][1]], [R1[i][0], p.y1, R1[i][1]]], [[u0, 0], [u1, 0], [u1, h], [u0, h]], [n0, n1, n1, n0]);
+      else this.poly([[R0[i][0], p.y0, R0[i][1]], [R0[j][0], p.y0, R0[j][1]], [p.x, p.y1, p.z]], [[u0, 0], [u1, 0], [(u0 + u1) / 2, h]], [n0, n1, v3norm([n0[0] + n1[0], n0[1] + n1[1], n0[2] + n1[2]])]);
     }
     if (half || p.inward) return;
     if (r1 > 1e-3) { this.useTop(p); this.flatAt(R1, p.y1, true); }
@@ -1156,13 +1195,14 @@ class PartMassing {
       const u = Math.cos(t) * Math.cos(f) / p.hx, v = Math.sin(t) * Math.cos(f) / p.hz;
       return v3norm([(u * c - v * s) * sg, (Math.sin(f) / h) * sg, (u * s + v * c) * sg]);
     };
+    const domeUV = (t: number, f: number): UV => [t * p.hx, f * Math.abs(h)];
     this.use(p.m);
     for (let k = 0; k < K; k++) {
       const f0 = (k / K) * Math.PI / 2, f1 = ((k + 1) / K) * Math.PI / 2;
       for (let i = 0; i < m; i++) {
         const t0 = (i / m) * sweep, t1 = ((i + 1) / m) * sweep;
-        if (k === K - 1) this.poly([domePt(t0, f0), domePt(t1, f0), domePt(t0, f1)], [domeN(t0, f0), domeN(t1, f0), domeN(t0, f1)]);
-        else this.poly([domePt(t0, f0), domePt(t1, f0), domePt(t1, f1), domePt(t0, f1)], [domeN(t0, f0), domeN(t1, f0), domeN(t1, f1), domeN(t0, f1)]);
+        if (k === K - 1) this.poly([domePt(t0, f0), domePt(t1, f0), domePt(t0, f1)], [domeUV(t0, f0), domeUV(t1, f0), domeUV(t0, f1)], [domeN(t0, f0), domeN(t1, f0), domeN(t0, f1)]);
+        else this.poly([domePt(t0, f0), domePt(t1, f0), domePt(t1, f1), domePt(t0, f1)], [domeUV(t0, f0), domeUV(t1, f0), domeUV(t1, f1), domeUV(t0, f1)], [domeN(t0, f0), domeN(t1, f0), domeN(t1, f1), domeN(t0, f1)]);
       }
     }
   }
@@ -1172,13 +1212,14 @@ class PartMassing {
     const a = p.hx, b = p.hz, r = p.r!, Rd = Math.hypot(a, b), c = Math.cos(p.a), s = Math.sin(p.a);
     const q = (p.y1 - p.y0) / Math.sqrt(Math.max(1e-6, Rd * Rd - r * r));
     const n = 32, K = 5;
-    const pendAt = (t: number, f: number): { p: V3; n: V3 } => {
+    const pendAt = (t: number, f: number): { p: V3; n: V3; uv: UV } => {
       const ct = Math.cos(t), st = Math.sin(t);
       const ds = Math.min(a / Math.max(1e-6, Math.abs(ct)), b / Math.max(1e-6, Math.abs(st)));
       const d = ds + (r - ds) * f, u = ct * d, v = st * d, h = q * Math.sqrt(Math.max(0, Rd * Rd - d * d));
       return {
         p: [p.x + u * c - v * s, p.y0 + h, p.z + u * s + v * c],
         n: v3norm([-(u * c - v * s), -h / (q * q), -(u * s + v * c)]),
+        uv: [t * r, d],
       };
     };
     this.use(p.m);
@@ -1186,7 +1227,7 @@ class PartMassing {
       for (let i = 0; i < n; i++) {
         const t0 = (i / n) * Math.PI * 2, t1 = ((i + 1) / n) * Math.PI * 2;
         const P = [pendAt(t0, k / K), pendAt(t1, k / K), pendAt(t1, (k + 1) / K), pendAt(t0, (k + 1) / K)];
-        this.poly(P.map((e) => e.p), P.map((e) => e.n));
+        this.poly(P.map((e) => e.p), P.map((e) => e.uv), P.map((e) => e.n));
       }
     }
   }
@@ -1199,10 +1240,11 @@ class PartMassing {
     for (const sv of [-1, 1]) {
       // Slope y = y1 - sv·slope·v: normal (0, sv·slope, 1) in (u, v, y), v = (-sin, cos) in world.
       const wn = v3norm([-s * sv * slope, 1, c * sv * slope]);
-      this.poly([this.partPoint(p, -hu, sv * (p.hz + o), ye), this.partPoint(p, hu, sv * (p.hz + o), ye), this.partPoint(p, hu, 0, p.y1), this.partPoint(p, -hu, 0, p.y1)], wn);
+      const L = Math.hypot(p.hz + o, rise + o * slope);
+      this.poly([this.partPoint(p, -hu, sv * (p.hz + o), ye), this.partPoint(p, hu, sv * (p.hz + o), ye), this.partPoint(p, hu, 0, p.y1), this.partPoint(p, -hu, 0, p.y1)], [[0, 0], [hu * 2, 0], [hu * 2, L], [0, L]], wn);
     }
-    paint(this.mb, p.m.layer, p.m.tint);
-    for (const su of [-1, 1]) this.poly([this.partPoint(p, su * p.hx, -p.hz, p.y0), this.partPoint(p, su * p.hx, p.hz, p.y0), this.partPoint(p, su * p.hx, 0, p.y1)], [su * c, 0, su * s]);
+    this.use({ ...p.m, flags: 0 });
+    for (const su of [-1, 1]) this.poly([this.partPoint(p, su * p.hx, -p.hz, p.y0), this.partPoint(p, su * p.hx, p.hz, p.y0), this.partPoint(p, su * p.hx, 0, p.y1)], [[0, 0], [p.hz * 2, 0], [p.hz, rise]], [su * c, 0, su * s]);
   }
 
   private partPyramid(p: LmPart): void {
@@ -1215,8 +1257,9 @@ class PartMassing {
       const ex = B[j][0] - B[i][0], ez = B[j][1] - B[i][1], L = Math.hypot(ex, ez);
       const inset = (i % 2 === 0 ? p.hz : p.hx) * (1 - t);
       const n = v3norm([(ez / L) * h, inset, -(ex / L) * h]);
-      if (t > 1e-3) this.poly([[B[i][0], p.y0, B[i][1]], [B[j][0], p.y0, B[j][1]], [T[j][0], p.y1, T[j][1]], [T[i][0], p.y1, T[i][1]]], n);
-      else this.poly([[B[i][0], p.y0, B[i][1]], [B[j][0], p.y0, B[j][1]], [p.x, p.y1, p.z]], n);
+      const sl = Math.hypot(h, inset);
+      if (t > 1e-3) this.poly([[B[i][0], p.y0, B[i][1]], [B[j][0], p.y0, B[j][1]], [T[j][0], p.y1, T[j][1]], [T[i][0], p.y1, T[i][1]]], [[0, 0], [L, 0], [L * (0.5 + t / 2), sl], [L * (0.5 - t / 2), sl]], n);
+      else this.poly([[B[i][0], p.y0, B[i][1]], [B[j][0], p.y0, B[j][1]], [p.x, p.y1, p.z]], [[0, 0], [L, 0], [L / 2, sl]], n);
     }
     if (t > 1e-3) { this.useTop(p); this.flatAt(T, p.y1, true); }
   }
@@ -1238,46 +1281,49 @@ class PartMassing {
     const fm = [(F0[0] + F1[0]) / 2, (F0[1] + F1[1]) / 2], km = [(K0[0] + K1[0]) / 2, (K0[1] + K1[1]) / 2];
     const dl = Math.hypot(km[0] - fm[0], km[1] - fm[1]) || 1;
     const nf: V3 = [(fm[0] - km[0]) / dl, 0, (fm[1] - km[1]) / dl], nb: V3 = [-nf[0], 0, -nf[2]];
-    const wF = Math.hypot(F1[0] - F0[0], F1[1] - F0[1]);
+    const wF = Math.hypot(F1[0] - F0[0], F1[1] - F0[1]), wK = Math.hypot(K1[0] - K0[0], K1[1] - K0[1]);
     const footed = p.foot !== undefined && p.foot < p.y0 - 0.05;
+    const fy = p.foot ?? p.y0;
     if (footed) {
       this.usePlinth(p);
-      this.poly([rampAt(0, 0, p.foot!), rampAt(1, 0, p.foot!), rampAt(1, 0, p.y0), rampAt(0, 0, p.y0)], nf);
-      this.poly([rampAt(0, 1, p.foot!), rampAt(1, 1, p.foot!), rampAt(1, 1, p.y0), rampAt(0, 1, p.y0)], nb);
+      this.poly([rampAt(0, 0, fy), rampAt(1, 0, fy), rampAt(1, 0, p.y0), rampAt(0, 0, p.y0)], [[0, 0], [wF, 0], [wF, p.y0 - fy], [0, p.y0 - fy]], nf);
+      this.poly([rampAt(0, 1, fy), rampAt(1, 1, fy), rampAt(1, 1, p.y0), rampAt(0, 1, p.y0)], [[0, 0], [wK, 0], [wK, p.y0 - fy], [0, p.y0 - fy]], nb);
     }
     this.use(p.m);
-    if (yLo > p.y0 + 0.01) this.poly([rampAt(0, 0, p.y0), rampAt(1, 0, p.y0), rampAt(1, 0, yLo), rampAt(0, 0, yLo)], nf);
+    if (yLo > p.y0 + 0.01) this.poly([rampAt(0, 0, p.y0), rampAt(1, 0, p.y0), rampAt(1, 0, yLo), rampAt(0, 0, yLo)], [[0, 0], [wF, 0], [wF, yLo - p.y0], [0, yLo - p.y0]], nf);
     this.use(p.back ?? p.m);
-    this.poly([rampAt(0, 1, p.y0), rampAt(1, 1, p.y0), rampAt(1, 1, p.y1), rampAt(0, 1, p.y1)], nb);
+    this.poly([rampAt(0, 1, p.y0), rampAt(1, 1, p.y0), rampAt(1, 1, p.y1), rampAt(0, 1, p.y1)], [[0, 0], [wK, 0], [wK, p.y1 - p.y0], [0, p.y1 - p.y0]], nb);
     const rows = p.rows ?? 0;
     if (!p.noSides) {
       for (const s of [0, 1]) {
         const ex = (s ? F1[0] - F0[0] : F0[0] - F1[0]) / (wF || 1), ez = (s ? F1[1] - F0[1] : F0[1] - F1[1]) / (wF || 1);
         if (footed) {
           this.usePlinth(p);
-          this.poly([rampAt(s, 0, p.foot!), rampAt(s, 1, p.foot!), rampAt(s, 1, p.y0), rampAt(s, 0, p.y0)], [ex, 0, ez]);
+          this.poly([rampAt(s, 0, fy), rampAt(s, 1, fy), rampAt(s, 1, p.y0), rampAt(s, 0, p.y0)], [[0, 0], [dl, 0], [dl, p.y0 - fy], [0, p.y0 - fy]], [ex, 0, ez]);
         }
         this.use(p.m);
-        this.poly([rampAt(s, 0, p.y0), rampAt(s, 1, p.y0), rampAt(s, 1, p.y1), rampAt(s, 0, yLo)], [ex, 0, ez]);
+        this.poly([rampAt(s, 0, p.y0), rampAt(s, 1, p.y0), rampAt(s, 1, p.y1), rampAt(s, 0, yLo)], [[0, 0], [dl, 0], [dl, p.y1 - p.y0], [0, yLo - p.y0]], [ex, 0, ez]);
         // The seat rows' steps over the slope.
         for (let i = 0; i < (rows < 2 ? 0 : rows); i++) {
           const t0 = i / rows, t1 = (i + 1) / rows, y = yLo + ((p.y1 - yLo) * i) / rows, y2 = yLo + ((p.y1 - yLo) * (i + 1)) / rows;
-          this.poly([rampAt(s, t0, y), rampAt(s, t1, y2), rampAt(s, t0, y2)], [ex, 0, ez]);
+          this.poly([rampAt(s, t0, y), rampAt(s, t1, y2), rampAt(s, t0, y2)], [[dl * t0, y - p.y0], [dl * t1, y2 - p.y0], [dl * t0, y2 - p.y0]], [ex, 0, ez]);
         }
       }
     }
-    if (p.foot === undefined) { this.use(p.m); this.poly([rampAt(0, 0, p.y0), rampAt(1, 0, p.y0), rampAt(1, 1, p.y0), rampAt(0, 1, p.y0)], [0, -1, 0]); }
+    if (p.foot === undefined) { this.use(p.m); this.poly([rampAt(0, 0, p.y0), rampAt(1, 0, p.y0), rampAt(1, 1, p.y0), rampAt(0, 1, p.y0)], [[0, 0], [1, 0], [1, 1], [0, 1]], [0, -1, 0]); }
     this.useTop(p);
     if (rows < 2) {
-      this.poly([rampAt(0, 0, yLo), rampAt(1, 0, yLo), rampAt(1, 1, p.y1), rampAt(0, 1, p.y1)], v3norm([nf[0] * (p.y1 - yLo), dl, nf[2] * (p.y1 - yLo)]));
+      const L = Math.hypot(dl, p.y1 - yLo);
+      this.poly([rampAt(0, 0, yLo), rampAt(1, 0, yLo), rampAt(1, 1, p.y1), rampAt(0, 1, p.y1)], [[0, 0], [wF, 0], [wK, L], [0, L]], v3norm([nf[0] * (p.y1 - yLo), dl, nf[2] * (p.y1 - yLo)]));
       return;
     }
     // Seat rows: a riser and a tread per row.
     const dy = (p.y1 - yLo) / rows;
     for (let i = 0; i < rows; i++) {
       const t0 = i / rows, t1 = (i + 1) / rows, y = yLo + i * dy, y2 = y + dy;
-      this.poly([rampAt(0, t0, y), rampAt(1, t0, y), rampAt(1, t0, y2), rampAt(0, t0, y2)], nf);
-      this.poly([rampAt(0, t0, y2), rampAt(1, t0, y2), rampAt(1, t1, y2), rampAt(0, t1, y2)], [0, 1, 0]);
+      const w0 = wF + (wK - wF) * t0, w1 = wF + (wK - wF) * t1;
+      this.poly([rampAt(0, t0, y), rampAt(1, t0, y), rampAt(1, t0, y2), rampAt(0, t0, y2)], [[0, 0], [w0, 0], [w0, dy], [0, dy]], nf);
+      this.poly([rampAt(0, t0, y2), rampAt(1, t0, y2), rampAt(1, t1, y2), rampAt(0, t1, y2)], [[0, 0], [w0, 0], [w1, dl / rows], [0, dl / rows]], [0, 1, 0]);
     }
   }
 
@@ -1294,15 +1340,16 @@ class PartMassing {
     const tubeAt = (u: number, t: number, r: number): V3 => this.partPoint(p, u, Math.cos(t) * r, yc + Math.sin(t) * r);
     const tubeN = (t: number): V3 => v3norm([-Math.cos(t) * s, Math.sin(t), Math.cos(t) * c]);
     this.use(p.m);
+    const L = 2 * p.hx;
     for (let i = 0; i < n; i++) {
       const t0 = (i / n) * Math.PI * 2, t1 = ((i + 1) / n) * Math.PI * 2;
-      this.poly([tubeAt(-p.hx, t0, r0), tubeAt(-p.hx, t1, r0), tubeAt(p.hx, t1, r1), tubeAt(p.hx, t0, r1)], [tubeN(t0), tubeN(t1), tubeN(t1), tubeN(t0)]);
+      this.poly([tubeAt(-p.hx, t0, r0), tubeAt(-p.hx, t1, r0), tubeAt(p.hx, t1, r1), tubeAt(p.hx, t0, r1)], [[t0 * r0, 0], [t1 * r0, 0], [t1 * r0, L], [t0 * r0, L]], [tubeN(t0), tubeN(t1), tubeN(t1), tubeN(t0)]);
     }
     for (const [u, r, sg] of [[-p.hx, r0, -1], [p.hx, r1, 1]] as const) {
       if (r < 1e-3) continue;
-      const pts: V3[] = [];
-      for (let i = 0; i < n; i++) pts.push(tubeAt(u, (i / n) * Math.PI * 2, r));
-      this.poly(pts, [sg * c, 0, sg * s]);
+      const pts: V3[] = [], uv: UV[] = [];
+      for (let i = 0; i < n; i++) { const t = (i / n) * Math.PI * 2; pts.push(tubeAt(u, t, r)); uv.push([Math.cos(t) * r, Math.sin(t) * r]); }
+      this.poly(pts, uv, [sg * c, 0, sg * s]);
     }
   }
 
@@ -1312,16 +1359,17 @@ class PartMassing {
     const vaultAt = (u: number, f: number): V3 => this.partPoint(p, u, -Math.cos(f) * p.hz, p.y0 + Math.sin(f) * h);
     const sg = p.inward ? -1 : 1;
     const vaultN = (f: number): V3 => { const v = -Math.cos(f) / p.hz; return v3norm([-v * s * sg, (Math.sin(f) / h) * sg, v * c * sg]); };
+    const arc = (f: number) => f * (p.hz + h) / 2;
     this.use(p.m);
     for (let i = 0; i < n; i++) {
       const f0 = (i / n) * Math.PI, f1 = ((i + 1) / n) * Math.PI;
-      this.poly([vaultAt(-p.hx, f0), vaultAt(p.hx, f0), vaultAt(p.hx, f1), vaultAt(-p.hx, f1)], [vaultN(f0), vaultN(f0), vaultN(f1), vaultN(f1)]);
+      this.poly([vaultAt(-p.hx, f0), vaultAt(p.hx, f0), vaultAt(p.hx, f1), vaultAt(-p.hx, f1)], [[0, arc(f0)], [2 * p.hx, arc(f0)], [2 * p.hx, arc(f1)], [0, arc(f1)]], [vaultN(f0), vaultN(f0), vaultN(f1), vaultN(f1)]);
     }
     if (p.inward) return;
     for (const su of [-1, 1]) {
-      const pts: V3[] = [];
-      for (let i = 0; i <= n; i++) pts.push(vaultAt(su * p.hx, (i / n) * Math.PI));
-      this.poly(pts, [su * c, 0, su * s]);
+      const pts: V3[] = [], uv: UV[] = [];
+      for (let i = 0; i <= n; i++) { const f = (i / n) * Math.PI; pts.push(vaultAt(su * p.hx, f)); uv.push([-Math.cos(f) * p.hz + p.hz, Math.sin(f) * h]); }
+      this.poly(pts, uv, [su * c, 0, su * s]);
     }
   }
 
@@ -1335,6 +1383,7 @@ class PartMassing {
   private partQuad(p: LmPart): void {
     const q = p.q!;
     this.use(p.m);
-    this.poly([[q[0], q[1], q[2]], [q[3], q[4], q[5]], [q[6], q[7], q[8]], [q[9], q[10], q[11]]], [0, 1, 0]);
+    const pts: V3[] = [[q[0], q[1], q[2]], [q[3], q[4], q[5]], [q[6], q[7], q[8]], [q[9], q[10], q[11]]];
+    this.poly(pts, pts.map((v) => [v[0], v[2]] as UV), [0, 1, 0]);
   }
 }

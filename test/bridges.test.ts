@@ -23,7 +23,11 @@ test('the town bridges: a deck from bank to bank over the water, and a sound str
     for (const i of m.index) if (i >= nv) assert.fail(`${name}: index out of range`);
   }
   for (const l of d.attrs.aLayer.array) assert.ok(Number.isInteger(l) && l >= 0 && l < GROUND_LAYER_COUNT, `layer ${l}`);
-  assert.equal(s.attrs.color.size, 3);
+  // The structure is in the facade format: plain surfaces (no openings) on wall layers.
+  assert.deepEqual(['uv', 'aLayer', 'aTint', 'aFacade', 'aSeed'].map((k) => s.attrs[k].size), [2, 1, 3, 4, 1]);
+  for (const l of s.attrs.aLayer.array) assert.ok(Number.isInteger(l) && l >= 0 && l < 24, `structure layer ${l}`);
+  const FA = s.attrs.aFacade.array;
+  for (let i = 3; i < FA.length; i += 4) if (FA[i] !== 0) assert.fail(`structure flags ${FA[i]}`);
 
   // The deck meets the ground at both nodes and stands clear of the water in the middle.
   const br = macro.bridges[0], P = br.pts, n = P.length;
