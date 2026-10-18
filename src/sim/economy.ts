@@ -23,7 +23,8 @@ import { closeTo, feel, leaveTown, log, neighboursOf, vacantHomes, type LifeEven
 import { remember } from './memory';
 import { HABITS, HABIT_COUNT, T_CONSC, V_AMBITION, type Household, type Job } from './people';
 import { defaultHours, defaultStaff, isHome, KINDS } from './placeKinds';
-import { PLACE_KINDS, popcount, type PlaceId, type PlaceKind } from './places';
+import { PLACE_KINDS, popcount, type PlaceId, type PlaceKind, type StaffSlot } from './places';
+import { rulesOf } from './politics';
 import { Columns, f32, f64, i32, u8 } from './table';
 import { DAYS_PER_YEAR, MINUTES_PER_DAY } from './time';
 import { monthKey } from './calendar';
@@ -680,10 +681,12 @@ function household(world: World, id: number): number {
  * everyday spending on groceries, fuel and the rest, much of which it spends in town (`spent`).
  */
 function livingCosts(world: World, hh: Household, income: number): { fixed: number; everyday: number } {
+  const rules = rulesOf(world);
   let adults = 0, kids = 0;
   for (const m of hh.members) (ageOf(world, m) >= 18 ? adults++ : kids++);
   return {
-    fixed: 170 + 40 * hh.members.length + (hh.car ? 130 : 0),
+    // (The council's decisions: higher local rates, and parking charges for those who drive into the centre.)
+    fixed: 170 + 40 * hh.members.length + (hh.car ? 130 : 0) + (rules.ratesUp ? 12 + 4 * hh.members.length : 0) + (rules.parkingCharges && hh.car ? 18 : 0),
     everyday: 380 * adults + 200 * kids + (hh.car ? 180 : 0) + Math.max(0, income - 2500) * 0.12,
   };
 }
@@ -871,7 +874,8 @@ export function openBusiness(world: World, place: PlaceId, kind: PlaceKind, rng:
   const name = `${surname}${owner >= 0 ? "'s" : ''} ${LABEL[kind] ?? kind}`;
   const capacity = Math.round(KINDS[kind].capacity);
   setPlaceKind(world, place, kind, { name, hours: businessHours(kind, defaultHours(kind), rng), staff: defaultStaff(kind), capacity });
-  for (const s of world.graph.places[place].staff) for (let i = 0; i < s.count; i++) world.jobs.push({ id: world.jobs.length, place, role: s.role, days: s.days, start: s.start, end: s.end, minAge: s.minAge, holder: -1 });
+  for (const s of world.graph.places[place].staff) addJobs(world, place, s);
+  if (rulesOf(world).sundayShops) openOnSundays(world, place);
   b.status[place] = BIZ_OPEN;
   b.since[place] = day;
   b.red[place] = 0;
@@ -892,6 +896,28 @@ export function openBusiness(world: World, place: PlaceId, kind: PlaceKind, rng:
   witness(world, fact, [...new Set([...(owner >= 0 ? closeTo(world, owner) : []), ...passers])]);
   if (owner >= 0) remember(world, owner, { who: [], summary: `I opened ${name} on ${p.street}`, importance: 1, emotion: 'joy', fact });
   ec.events.push({ day, kind: 'opened', place, who: owner, what: kind, name, fact });
+}
+
+const addJobs = (world: World, place: PlaceId, s: StaffSlot): void => {
+  for (let i = 0; i < s.count; i++) world.jobs.push({ id: world.jobs.length, place, role: s.role, days: s.days, start: s.start, end: s.end, minAge: s.minAge, holder: -1 });
+};
+
+/** Kinds that open on Sundays once the council allows it: the bigger shops (small independents keep their Sunday). */
+const SUNDAY_TRADE = new Set<PlaceKind>(['supermarket', 'shop', 'clothes', 'hardware']);
+const SUNDAY = 1 << 6;
+
+/**
+ * Sunday trading (a council decision, src/sim/politics.ts): a bigger shop opens 11:00 to 17:00 on Sundays, with a
+ * Sunday shift of its own that is filled like any vacancy. Nothing for other kinds, or a shop already open then.
+ */
+export function openOnSundays(world: World, place: PlaceId): void {
+  const p = world.graph.places[place];
+  if (!SUNDAY_TRADE.has(p.kind) || p.hours.some((h) => h.days & SUNDAY)) return;
+  const crew = p.staff.filter((s) => s.minAge <= 17);
+  const role = (crew[0] ?? p.staff[p.staff.length - 1])?.role ?? 'sales assistant';
+  const slot: StaffSlot = { role, count: p.kind === 'supermarket' ? 3 : 1, days: SUNDAY, start: 10 * 60 + 45, end: 17 * 60 + 15, minAge: 16 };
+  setPlaceKind(world, place, p.kind, { hours: [...p.hours, { days: SUNDAY, open: 11 * 60, close: 17 * 60 }], staff: [...p.staff, slot] });
+  addJobs(world, place, slot);
 }
 
 // ---- the care home -----------------------------------------------------------------------------------------
