@@ -10,7 +10,7 @@
  */
 import { Rng, deriveSeed } from '@futuremagic/core';
 import { runsLike, schoolDay } from './calendar';
-import type { PlaceId } from './places';
+import { homesRadius, streetHomes, type PlaceId } from './places';
 import { dayOf, MINUTES_PER_DAY, minuteOfDay } from './time';
 import { WALK_M_PER_MIN } from './travel';
 import type { World } from './world';
@@ -120,10 +120,10 @@ function buildTransit(world: World): Transit {
   }
 
   // ---- the school bus: three pick-ups spread over the town, then the centre, to the secondary school in the nearby town
-  // Streets people live on (a stop on a farm road 5 km out would take the bus half the morning).
-  const homesOn = new Map<string, number>();
-  for (const p of places) if (p.homes > 0) homesOn.set(p.street, (homesOn.get(p.street) ?? 0) + p.homes);
-  const streets = places.filter((p) => p.kind === 'street' && (homesOn.get(p.name) ?? 0) >= 6);
+  // Streets people live on, each where its homes are, within the built-up town (a stop on a farm road 5 km out
+  // would take the bus half the morning; the farm children are driven to the nearest stop).
+  const reach = centre ? homesRadius(graph, centre.x, centre.z) : 0;
+  const streets = centre ? streetHomes(graph).filter((s) => s.homes >= 6 && Math.hypot(s.at.x - centre.x, s.at.z - centre.z) <= reach).map((s) => ({ ...s.at, name: s.street })) : [];
   if (streets.length && centre) {
     const picks: typeof streets = [];
     // Farthest-point picks: the first farthest from the centre, then each farthest from those chosen.

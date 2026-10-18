@@ -23,6 +23,8 @@ import type { World } from '../sim/world';
 
 /** Keys of train cars start here (eight per run). */
 export const TRAIN_KEY = 1 << 28;
+/** Is this vehicle key a train car's? */
+export const isTrainKey = (key: number): boolean => key >= TRAIN_KEY && key < TRAIN_KEY + (1 << 23);
 /** Length of a train car over its couplings (m), and its bogie centres from its middle. */
 export const TRAIN_CAR = 20.5, BOGIE = 7;
 /** Line speed (m/s, 120 km/h), and how fast a train speeds up and slows down (m/s²). */
