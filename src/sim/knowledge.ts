@@ -13,7 +13,7 @@ import type { ActorId } from './actors';
 import { T_AGREE, T_CONSC, T_EXTRA, T_OPEN } from './people';
 import type { PlaceId } from './places';
 import { Columns, f32, i32, u8, u16 } from './table';
-import { tickRng, nameOf, type World } from './world';
+import { isPerson, nameOf, tickRng, traitOf, type World } from './world';
 
 /** Fact topics (closed set) and how newsworthy each is by default. */
 export const FACT_TOPICS = ['job', 'romance', 'family', 'health', 'crime', 'politics', 'business', 'place', 'opinion', 'event', 'other'] as const;
@@ -112,8 +112,6 @@ export function factText(world: World, fact: Fact): string {
     .replace(/\{place\}/g, fact.place >= 0 ? world.graph.places[fact.place].name : 'somewhere');
 }
 
-const traitOf = (world: World, id: ActorId, t: number) => world.people.cols.traits[world.actors.cols.row[id] * 5 + t];
-const isPerson = (world: World, id: ActorId) => world.actors.cols.kind[id] === 0;
 
 /** How much a story matters to `holder`: newsworthiness, size, and whether it is about someone they know. */
 function salienceFor(world: World, holder: ActorId, fact: Fact): number {

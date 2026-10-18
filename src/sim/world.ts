@@ -10,11 +10,14 @@ import type { ActorId, ActorTable } from './actors';
 import type { AnimalTable } from './animals';
 import type { Intention } from './intentions';
 import type { Knowledge } from './knowledge';
+import type { Life } from './life';
 import type { Memories } from './memory';
 import type { MindLedger } from './mind/apply';
 import type { Household, Job, PersonTable } from './people';
 import type { PlaceGraph, PlaceId } from './places';
-import { PLACE_KINDS } from './places';
+import { PLACE_KINDS, type PlaceKind } from './places';
+import { KINDS, type Service } from './placeKinds';
+import { ACTOR_PERSON } from './actors';
 import type { Relations } from './relations';
 import { Travel } from './travel';
 import { MINUTES_PER_DAY } from './time';
@@ -23,6 +26,7 @@ import { decideAll, arrive } from './schedule';
 import { runEncounters, type Encounter } from './encounters';
 import { forget } from './knowledge';
 import { fadeRelations } from './relations';
+import { lifeDay } from './life';
 
 export interface World {
   readonly seed: number;
@@ -48,6 +52,8 @@ export interface World {
   readonly encounters: Encounter[];
   /** Per-conversation clamps and the decision log of `applyProposal`. */
   readonly mind: MindLedger;
+  /** Life events so far, pregnancies, couples (src/sim/life.ts). */
+  readonly life: Life;
 }
 
 /** The fixed parts of a world for a place graph (the population comes from `synthesize`, src/sim/synth.ts). */
@@ -82,8 +88,9 @@ export function tick(world: World, minutes = 1): void {
   }
 }
 
-/** Once per game day at midnight: forgetting, relationship drift; weekly, forgotten faces. */
+/** Once per game day at midnight: life events, forgetting, relationship drift; weekly, forgotten faces. */
 function daily(world: World): void {
+  lifeDay(world);
   forget(world);
   fadeRelations(world.relations, world.clock);
   if ((world.clock / MINUTES_PER_DAY) % 7 === 0) world.relations.prune(world.clock);
@@ -100,3 +107,55 @@ export function nameOf(world: World, id: ActorId): string {
   const r = a.row[id];
   return a.kind[id] === 0 ? `${world.people.first[r]} ${world.people.last[r]}` : world.animals.name[r];
 }
+
+// ---- lookups shared by the sim systems ---------------------------------------------------------------------
+
+/** A living person (not an animal, not dead or moved away). */
+export const isPerson = (world: World, id: ActorId): boolean =>
+  id >= 0 && id < world.actors.count && world.actors.cols.kind[id] === ACTOR_PERSON && world.actors.cols.alive[id] === 1;
+
+/** Big Five trait `t` (T_*) of a person. */
+export const traitOf = (world: World, id: ActorId, t: number): number => world.people.cols.traits[world.actors.cols.row[id] * 5 + t];
+
+/** Value `v` (V_*) of a person. */
+export const valueOf = (world: World, id: ActorId, v: number): number => world.people.cols.values[world.actors.cols.row[id] * 4 + v];
+
+/** The household a person or animal belongs to, or null (wildlife). */
+export function householdOf(world: World, id: ActorId): Household | null {
+  const a = world.actors.cols;
+  const hh = a.kind[id] === ACTOR_PERSON ? world.people.cols.household[a.row[id]] : world.animals.cols.household[a.row[id]];
+  return hh >= 0 ? world.households[hh] : null;
+}
+
+/** A person's job, or null. */
+export function jobOf(world: World, id: ActorId): Job | null {
+  const j = world.people.cols.job[world.actors.cols.row[id]];
+  return j >= 0 ? world.jobs[j] : null;
+}
+
+/** Can this person drive (household car, licence age)? */
+export function hasCar(world: World, id: ActorId): boolean {
+  const a = world.actors.cols;
+  if (a.kind[id] !== ACTOR_PERSON) return false;
+  const hh = world.people.cols.household[a.row[id]];
+  const age = ageOf(world, id);
+  return hh >= 0 && world.households[hh].car && age >= 18 && age < 85;
+}
+
+/** Minutes from home to `place`, by car if the person has one. */
+export const commute = (world: World, id: ActorId, place: PlaceId): number => world.travel.minutes(world.actors.cols.home[id], place, hasCar(world, id));
+
+const placeCache = new WeakMap<World, Map<string, PlaceId[]>>();
+function cachedPlaces(world: World, key: string, pick: (kind: PlaceKind) => boolean): PlaceId[] {
+  let m = placeCache.get(world);
+  if (!m) { m = new Map(); placeCache.set(world, m); }
+  let l = m.get(key);
+  if (!l) { l = world.graph.places.filter((p) => pick(p.kind)).map((p) => p.id); m.set(key, l); }
+  return l;
+}
+
+/** Places offering `service` (cached; the place graph is fixed). */
+export const placesWith = (world: World, service: Service): PlaceId[] => cachedPlaces(world, 's:' + service, (k) => KINDS[k].services.includes(service));
+
+/** Places of these kinds (cached). */
+export const placesOf = (world: World, kinds: readonly PlaceKind[]): PlaceId[] => cachedPlaces(world, 'k:' + kinds.join(','), (k) => kinds.includes(k));

@@ -12,6 +12,7 @@ import { AnimalTable, TRAINED_LEASH, TRAINED_RECALL } from './animals';
 import { newKnowledge, addFact, witness } from './knowledge';
 import { newMemories } from './memory';
 import { newMindLedger } from './mind/apply';
+import { newLife } from './life';
 import { FEMALE_NAMES, MALE_NAMES, PET_NAMES, SURNAMES } from './names';
 import { HABIT_COUNT, PersonTable, T_CONSC, T_EXTRA, T_OPEN, V_FAITH, type Habit, HABITS, type Household } from './people';
 import { KINDS, isHome } from './placeKinds';
@@ -19,11 +20,11 @@ import type { PlaceGraph, PlaceId, PlaceKind } from './places';
 import { bond, bondBit, FAMILY_MASK, Relations, type Bond } from './relations';
 import { HUMAN, SPECIES, speciesId } from './species';
 import { DAYS_PER_YEAR } from './time';
-import { ageOf, placeIndex, type World } from './world';
+import { ageOf, jobOf, placeIndex, placesOf, type World } from './world';
 
 const CHILD = bondBit('child');
 
-type HouseholdType = 'singleYoung' | 'singleMid' | 'singleOld' | 'coupleYoung' | 'coupleMid' | 'coupleOld' | 'family' | 'singleParent' | 'multiGen' | 'flatshare';
+export type HouseholdType = 'singleYoung' | 'singleMid' | 'singleOld' | 'coupleYoung' | 'coupleMid' | 'coupleOld' | 'family' | 'singleParent' | 'multiGen' | 'flatshare';
 const TYPES: [HouseholdType, number][] = [
   ['singleYoung', 0.12], ['singleMid', 0.08], ['singleOld', 0.12], ['coupleYoung', 0.1], ['coupleMid', 0.14],
   ['coupleOld', 0.08], ['family', 0.25], ['singleParent', 0.06], ['multiGen', 0.03], ['flatshare', 0.02],
@@ -43,95 +44,18 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
     seed, clock: (opts.startDay ?? 0) * 1440 + 360, graph, ...idx,
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
-    intentions: [], encounters: [], mind: newMindLedger(),
+    intentions: [], encounters: [], mind: newMindLedger(), life: newLife(),
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);
 
   // ---- people and households ------------------------------------------------------------------------------
   const usedNames = new Set<string>();
-  const firstName = (sex: number, r: Rng) => {
-    const pool = sex === FEMALE ? FEMALE_NAMES : MALE_NAMES;
-    return pool[r.int(0, pool.length - 1)];
-  };
-  const makePerson = (age: number, sex: number, last: string, home: PlaceId, hh: number): ActorId => {
-    const r = rng.fork('person', world.actors.count);
-    let first = firstName(sex, r);
-    for (let k = 0; k < 4 && usedNames.has(first + last); k++) first = firstName(sex, r);
-    usedNames.add(first + last);
-    const id = world.actors.add();
-    const a = world.actors.cols;
-    a.kind[id] = ACTOR_PERSON; a.species[id] = HUMAN; a.sex[id] = sex;
-    a.birth[id] = today - Math.round(age * DAYS_PER_YEAR) - r.int(0, 364);
-    a.home[id] = home; a.place[id] = home; a.perception[id] = SPECIES[HUMAN].perception;
-    const p = world.people.addPerson(id, first, last);
-    a.row[id] = p;
-    const pc = world.people.cols;
-    for (let t = 0; t < 5; t++) pc.traits[p * 5 + t] = clamp(r.gaussian(0.5, 0.17), 0, 1);
-    for (let v = 0; v < 4; v++) pc.values[p * 4 + v] = clamp(r.gaussian(0.5, 0.18), 0, 1);
-    pc.values[p * 4 + V_FAITH] = clamp(pc.values[p * 4 + V_FAITH] + (age - 45) * 0.006, 0, 1);
-    pc.household[p] = hh;
-    for (let n = 0; n < 5; n++) a.needs[id * 5 + n] = r.range(0.6, 1);
-    return id;
-  };
-
-  const ageIn = (lo: number, hi: number) => rng.int(lo, hi);
-  const specsFor = (t: HouseholdType): Spec[] => {
-    const sx = () => (rng.chance(0.5) ? FEMALE : MALE);
-    const couple = (lo: number, hi: number): Spec[] => {
-      const a = ageIn(lo, hi);
-      const s1 = sx();
-      const s2 = rng.chance(0.05) ? s1 : 1 - s1;
-      return [{ age: a, sex: s1, role: 'head' }, { age: clamp(a + rng.int(-5, 5), 18, 99), sex: s2, role: 'partner' }];
-    };
-    const kids = (parentAge: number, n: number): Spec[] => {
-      const out: Spec[] = [];
-      for (let i = 0; i < n; i++) out.push({ age: clamp(parentAge - ageIn(20, 40), 0, 24), sex: sx(), role: 'child' });
-      return out.filter((k) => k.age <= Math.min(24, parentAge - 17));
-    };
-    switch (t) {
-      case 'singleYoung': return [{ age: ageIn(19, 35), sex: sx(), role: 'head' }];
-      case 'singleMid': return [{ age: ageIn(36, 64), sex: sx(), role: 'head' }];
-      case 'singleOld': return [{ age: ageIn(65, 92), sex: rng.chance(0.65) ? FEMALE : MALE, role: 'head' }];
-      case 'coupleYoung': return couple(22, 40);
-      case 'coupleMid': return couple(45, 70);
-      case 'coupleOld': return couple(68, 90);
-      case 'family': { const c = couple(26, 54); return [...c, ...kids(c[0].age, rng.weighted([1, 2, 3, 4], (n) => [3, 5, 2, 0.5][n - 1]))]; }
-      case 'singleParent': { const p: Spec = { age: ageIn(24, 52), sex: rng.chance(0.8) ? FEMALE : MALE, role: 'head' }; return [p, ...kids(p.age, rng.int(1, 2))]; }
-      case 'multiGen': { const c = couple(30, 50); return [...c, ...kids(c[0].age, rng.int(1, 3)), { age: clamp(c[0].age + ageIn(24, 35), 60, 95), sex: rng.chance(0.65) ? FEMALE : MALE, role: 'grandparent' }]; }
-      case 'flatshare': { const n = rng.int(2, 3); const out: Spec[] = []; for (let i = 0; i < n; i++) out.push({ age: ageIn(19, 30), sex: sx(), role: i === 0 ? 'head' : 'mate' }); return out; }
-    }
-  };
 
   const rel = world.relations;
-  const family = { familiarity: 1, affection: 0.6, trust: 0.85 };
   for (const place of graph.places) {
     if (!isHome(place.kind)) continue;
-    for (let h = 0; h < place.homes; h++) {
-      const type: HouseholdType = place.kind === 'farmhouse' ? 'family' : rng.weighted(TYPES, (t) => t[1])[0];
-      const specs = specsFor(type);
-      const surname = SURNAMES[rng.int(0, SURNAMES.length - 1)];
-      const hh: Household = { id: world.households.length, home: place.id, surname, members: [], animals: [], car: false };
-      world.households.push(hh);
-      const ids: ActorId[] = [];
-      for (const s of specs) {
-        const last = s.role === 'mate' || (s.role === 'partner' && rng.chance(0.3)) ? SURNAMES[rng.int(0, SURNAMES.length - 1)] : surname;
-        ids.push(makePerson(s.age, s.sex, last, place.id, hh.id));
-      }
-      hh.members = ids;
-      hh.car = specs.some((s) => s.age >= 18 && s.age < 85) && rng.chance(place.kind === 'apartments' ? 0.6 : 0.85);
-      // Household bonds.
-      for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
-        const a = specs[i].role, b = specs[j].role;
-        let bd: Bond = 'housemate';
-        if (a === 'head' && b === 'partner') bd = specs[i].age > 28 && rng.chance(0.7) ? 'spouse' : 'partner';
-        else if ((a === 'head' || a === 'partner') && b === 'child') bd = 'child';
-        else if (a === 'child' && b === 'child') bd = 'sibling';
-        else if (a === 'grandparent' && b === 'child') bd = 'grandchild';
-        else if ((a === 'head' || a === 'partner') && b === 'grandparent') bd = a === 'head' ? 'parent' : 'relative';
-        bond(rel, ids[i], ids[j], bd, bd === 'housemate' ? { familiarity: 0.8, affection: 0.3, trust: 0.5 } : { ...family, affection: rng.range(0.3, 0.9) });
-      }
-    }
+    for (let h = 0; h < place.homes; h++) addHousehold(world, place.id, rng, place.kind === 'farmhouse' ? 'family' : undefined, usedNames, today);
   }
 
   // ---- kin across households: grown-up children living elsewhere ------------------------------------------
@@ -202,61 +126,11 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
   }
 
   // ---- school, chronotype, money, habits ------------------------------------------------------------------
-  const ofKind = (k: PlaceKind) => graph.places.filter((p) => p.kind === k).map((p) => p.id);
-  const schools = ofKind('school'), kgs = ofKind('kindergarten');
-  const habitPlaces: Record<Habit, PlaceId[]> = {
-    cafe: [...ofKind('cafe'), ...ofKind('bakery')], pub: ofKind('pub'), park: [...ofKind('park'), ...ofKind('woods'), ...ofKind('square')],
-    sports: ofKind('sports'), church: ofKind('church'), library: ofKind('library'), shop: [...ofKind('supermarket'), ...ofKind('grocer')],
-  };
   for (let id = 0; id < world.actors.count; id++) {
-    const p = a.row[id];
-    const age = yearsOf(id);
     const r = rng.fork('habits', id);
-    const home = a.home[id];
-    if (age >= 6 && age <= 17 && pc.job[p] < 0) pc.school[p] = world.travel.nearest(home, schools);
-    else if (age >= 3 && age <= 5 && r.chance(0.85)) pc.school[p] = world.travel.nearest(home, kgs);
-    // Chronotype.
-    let wake = Math.round(r.gaussian(400, 35)), sleep = Math.round(r.gaussian(1365, 40));
-    if (age < 6) { wake = r.int(390, 450); sleep = r.int(1140, 1200); }
-    else if (age < 13) { wake = r.int(400, 420); sleep = r.int(1230, 1260); }
-    else if (age < 18) { wake = r.int(400, 425); sleep = r.int(1320, 1380); }
-    else if (age >= 67) { wake = r.int(420, 500); sleep = r.int(1290, 1380); }
-    const job = pc.job[p] >= 0 ? world.jobs[pc.job[p]] : null;
-    if (job) {
-      const commute = world.travel.minutes(home, job.place, world.households[pc.household[p]].car);
-      if (job.end > 1440 + 120 || job.start >= 1320) {
-        // Night shift: sleep after the shift.
-        sleep = (job.end + commute + 30) % 1440;
-        wake = (sleep + 450) % 1440;
-      } else {
-        wake = Math.min(wake, job.start - commute - 45);
-        // Late shifts: bed after getting home, and a correspondingly late morning.
-        const home2bed = job.end + commute + 45;
-        if (home2bed > sleep) { sleep = home2bed; if (sleep >= 1440) wake = Math.max(wake, sleep - 1440 + 480); }
-      }
-    }
-    pc.wake[p] = ((wake % 1440) + 1440) % 1440;
-    pc.sleep[p] = ((sleep % 1440) + 1440) % 1440;
-    pc.money[p] = age < 16 ? r.range(5, 40) : job ? r.range(800, 6000) : r.range(100, 2500);
-    // Habits: a favourite of each kind, nearer ones likelier; whether the person has the habit at all
-    // depends on personality and age.
-    const traits = (t: number) => pc.traits[p * 5 + t];
-    const want: Record<Habit, boolean> = {
-      cafe: age >= 14 && r.chance(0.3 + traits(T_EXTRA) * 0.5),
-      pub: age >= 18 && r.chance(0.15 + traits(T_EXTRA) * 0.5),
-      park: r.chance(0.6),
-      sports: age >= 8 && age < 70 && r.chance(0.15 + traits(T_CONSC) * 0.35),
-      church: r.chance(pc.values[p * 4 + V_FAITH] * 0.8),
-      library: age >= 8 && r.chance(traits(T_OPEN) * 0.4),
-      shop: age >= 16,
-    };
-    for (let hb = 0; hb < HABIT_COUNT; hb++) {
-      const h = HABITS[hb];
-      const list = habitPlaces[h];
-      if (!want[h] || list.length === 0) continue;
-      pc.habits[p * HABIT_COUNT + hb] = r.weighted(list, (pl) => 1 / (1 + world.travel.minutes(home, pl) / 6));
-    }
-    a.until[id] = world.clock; // everybody decides on the first tick
+    settle(world, id, r);
+    const age = yearsOf(id), p = a.row[id];
+    pc.money[p] = age < 16 ? r.range(5, 40) : pc.job[p] >= 0 ? r.range(800, 6000) : r.range(100, 2500);
   }
 
   // ---- relationships beyond the household -----------------------------------------------------------------
@@ -313,54 +187,33 @@ export function createWorld(graph: PlaceGraph, seed: number, opts: WorldOptions 
   }
 
   // ---- animals --------------------------------------------------------------------------------------------
-  const makeAnimal = (species: string, home: PlaceId, hh: number, name: string): ActorId => {
-    const sp = speciesId(species);
-    const r = rng.fork('animal', world.actors.count);
-    const id = world.actors.add();
-    a.kind[id] = ACTOR_ANIMAL; a.species[id] = sp; a.sex[id] = r.chance(0.5) ? FEMALE : MALE;
-    a.birth[id] = today - r.int(60, Math.round(SPECIES[sp].lifespan * 0.7 * DAYS_PER_YEAR));
-    a.home[id] = home; a.place[id] = home; a.perception[id] = SPECIES[sp].perception; a.until[id] = world.clock;
-    const row = world.animals.addAnimal(id, name);
-    a.row[id] = row;
-    const ac = world.animals.cols;
-    ac.household[row] = hh;
-    ac.temperament[row] = clamp(r.gaussian(0.45, 0.2), 0, 1);
-    if (sp === speciesId('dog')) ac.trained[row] = (r.chance(0.8) ? TRAINED_LEASH : 0) | (r.chance(0.5) ? TRAINED_RECALL : 0);
-    return id;
-  };
+  const makeAnimal = (species: string, home: PlaceId, hh: number, name: string): ActorId =>
+    newAnimal(world, { species, home, household: hh, name }, rng.fork('animal', world.actors.count));
   const petName = () => PET_NAMES[rng.int(0, PET_NAMES.length - 1)];
   for (const hh of world.households) {
     const flat = graph.places[hh.home].kind === 'apartments';
     const pets: string[] = [];
     if (rng.chance(flat ? 0.1 : 0.3)) pets.push('dog');
     if (rng.chance(flat ? 0.15 : 0.25)) pets.push('cat');
-    for (const sp of pets) {
-      const id = makeAnimal(sp, hh.home, hh.id, petName());
-      hh.animals.push(id);
-      const carers = hh.members.filter((m) => yearsOf(m) >= 12);
-      if (carers.length > 0) world.animals.cols.keeper[a.row[id]] = carers[rng.int(0, carers.length - 1)];
-      for (const m of hh.members) bond(rel, m, id, 'pet', { familiarity: 1, affection: rng.range(0.4, 0.9), trust: 0.9 });
-    }
+    for (const sp of pets) adoptPet(world, hh, sp, rng.fork('pet', world.actors.count));
   }
-  for (const farm of graph.places.filter((p) => p.kind === 'farm')) {
+  for (const farm of placesOf(world, ['farm']).map((id) => graph.places[id])) {
     const farmhouse = graph.places.find((p) => p.kind === 'farmhouse' && p.node === farm.node) ?? farm;
     const hh = world.households.find((h) => h.home === farmhouse.id);
     const herd: [string, number, number][] = [['cow', 4, 8], ['chicken', 5, 10], ['horse', 0, 2], ['sheep', 0, 6]];
     for (const [sp, lo, hi] of herd) {
       const n = rng.int(lo, hi);
       for (let i = 0; i < n; i++) {
-        const id = makeAnimal(sp, farm.id, hh?.id ?? -1, sp === 'chicken' ? `hen ${i + 1}` : petName());
+        const farmer = hh?.members.find((m) => yearsOf(m) >= 18) ?? -1;
+        const id = newAnimal(world, { species: sp, home: farm.id, household: hh?.id ?? -1, keeper: farmer, name: sp === 'chicken' ? `hen ${i + 1}` : petName() }, rng.fork('animal', world.actors.count));
         hh?.animals.push(id);
-        if (hh) {
-          const farmer = hh.members.find((m) => yearsOf(m) >= 18);
-          if (farmer !== undefined) { world.animals.cols.keeper[a.row[id]] = farmer; bond(rel, farmer, id, 'pet', { familiarity: 0.9, affection: 0.5, trust: 0.8 }); }
-        }
+        if (farmer >= 0) bond(rel, farmer, id, 'pet', { familiarity: 0.9, affection: 0.5, trust: 0.8 });
       }
     }
   }
   const people = world.people.count;
   const wildHome = (prefer: PlaceKind[]) => {
-    for (const k of prefer) { const l = ofKind(k); if (l.length) return l[rng.int(0, l.length - 1)]; }
+    for (const k of prefer) { const l = placesOf(world, [k]); if (l.length) return l[rng.int(0, l.length - 1)]; }
     return -1;
   };
   const wild: [string, number, PlaceKind[]][] = [['fox', people / 500, ['woods', 'park']], ['deer', people / 400, ['woods', 'field']], ['hedgehog', people / 300, ['park', 'woods']], ['owl', people / 1000, ['church', 'woods']]];
@@ -400,4 +253,214 @@ function seedNews(world: World, rng: Rng): void {
     for (let k = rng.int(1, 3); k > 0; k--) eye.push(adults[rng.int(0, adults.length - 1)]);
     witness(world, f, eye);
   }
+}
+
+// ---- one person: creation, schooling, routine, habits (also used by life events) ---------------------------
+
+export interface NewPerson {
+  /** Game day of birth. */
+  birth: number;
+  sex: number;
+  last: string;
+  home: PlaceId;
+  household: number;
+  /** Personality inherited partly from these parents (births). */
+  parents?: ActorId[];
+}
+
+/** Add a person actor with a name, personality and values. Does not settle school, routine or habits. */
+export function newPerson(world: World, spec: NewPerson, r: Rng, usedNames?: Set<string>): ActorId {
+  const pool = spec.sex === FEMALE ? FEMALE_NAMES : MALE_NAMES;
+  let first: string = pool[r.int(0, pool.length - 1)];
+  for (let k = 0; k < 4 && usedNames?.has(first + spec.last); k++) first = pool[r.int(0, pool.length - 1)];
+  usedNames?.add(first + spec.last);
+  const id = world.actors.add();
+  const a = world.actors.cols;
+  a.kind[id] = ACTOR_PERSON; a.species[id] = HUMAN; a.sex[id] = spec.sex;
+  a.birth[id] = spec.birth;
+  a.home[id] = spec.home; a.place[id] = spec.home; a.perception[id] = SPECIES[HUMAN].perception;
+  a.until[id] = world.clock;
+  const p = world.people.addPerson(id, first, spec.last);
+  a.row[id] = p;
+  const pc = world.people.cols;
+  const parents = (spec.parents ?? []).filter((x) => x >= 0 && a.kind[x] === ACTOR_PERSON).map((x) => a.row[x]);
+  // Children take after their parents a little (heritability of the Big Five is about 0.4).
+  const inherit = (col: Float32Array, width: number, k: number, fresh: number) =>
+    parents.length ? clamp(0.4 * parents.reduce((s, q) => s + col[q * width + k], 0) / parents.length + 0.6 * fresh, 0, 1) : fresh;
+  for (let t = 0; t < 5; t++) pc.traits[p * 5 + t] = inherit(pc.traits, 5, t, clamp(r.gaussian(0.5, 0.17), 0, 1));
+  for (let v = 0; v < 4; v++) pc.values[p * 4 + v] = inherit(pc.values, 4, v, clamp(r.gaussian(0.5, 0.18), 0, 1));
+  const age = (world.clock / 1440 - spec.birth) / DAYS_PER_YEAR;
+  pc.values[p * 4 + V_FAITH] = clamp(pc.values[p * 4 + V_FAITH] + (age - 45) * 0.006, 0, 1);
+  pc.household[p] = spec.household;
+  for (let n = 0; n < 5; n++) a.needs[id * 5 + n] = r.range(0.6, 1);
+  return id;
+}
+
+/** School or kindergarten by age (the nearest one), none for adults and babies. Keeps a job holder out of school. */
+export function enrol(world: World, id: ActorId, r: Rng): void {
+  const pc = world.people.cols, p = world.actors.cols.row[id], home = world.actors.cols.home[id];
+  const age = ageOf(world, id);
+  pc.school[p] = -1;
+  if (age >= 6 && age <= 17 && pc.job[p] < 0) pc.school[p] = world.travel.nearest(home, placesOf(world, ['school']));
+  else if (age >= 3 && age <= 5 && r.chance(0.85)) pc.school[p] = world.travel.nearest(home, placesOf(world, ['kindergarten']));
+}
+
+/** Wake and sleep times from age and job shift (night and late shifts sleep late). */
+export function fitRoutine(world: World, id: ActorId, r: Rng): void {
+  const pc = world.people.cols, p = world.actors.cols.row[id], home = world.actors.cols.home[id];
+  const age = ageOf(world, id);
+  let wake = Math.round(r.gaussian(400, 35)), sleep = Math.round(r.gaussian(1365, 40));
+  if (age < 6) { wake = r.int(390, 450); sleep = r.int(1140, 1200); }
+  else if (age < 13) { wake = r.int(400, 420); sleep = r.int(1230, 1260); }
+  else if (age < 18) { wake = r.int(400, 425); sleep = r.int(1320, 1380); }
+  else if (age >= 67) { wake = r.int(420, 500); sleep = r.int(1290, 1380); }
+  const job = jobOf(world, id);
+  if (job) {
+    const hh = pc.household[p];
+    const commute = world.travel.minutes(home, job.place, hh >= 0 && world.households[hh].car);
+    if (job.end > 1440 + 120 || job.start >= 1320) {
+      // Night shift: sleep after the shift.
+      sleep = (job.end + commute + 30) % 1440;
+      wake = (sleep + 450) % 1440;
+    } else {
+      wake = Math.min(wake, job.start - commute - 45);
+      // Late shifts: bed after getting home, and a correspondingly late morning.
+      const home2bed = job.end + commute + 45;
+      if (home2bed > sleep) { sleep = home2bed; if (sleep >= 1440) wake = Math.max(wake, sleep - 1440 + 480); }
+    }
+  }
+  pc.wake[p] = ((wake % 1440) + 1440) % 1440;
+  pc.sleep[p] = ((sleep % 1440) + 1440) % 1440;
+}
+
+/** Favourite places: whether a person has a habit depends on personality and age; nearer places are likelier. */
+export function pickHabits(world: World, id: ActorId, r: Rng): void {
+  const pc = world.people.cols, p = world.actors.cols.row[id], home = world.actors.cols.home[id];
+  const age = ageOf(world, id);
+  const traits = (t: number) => pc.traits[p * 5 + t];
+  const lists: Record<Habit, PlaceId[]> = {
+    cafe: placesOf(world, ['cafe', 'bakery']), pub: placesOf(world, ['pub']), park: placesOf(world, ['park', 'woods', 'square']),
+    sports: placesOf(world, ['sports']), church: placesOf(world, ['church']), library: placesOf(world, ['library']), shop: placesOf(world, ['supermarket', 'grocer']),
+  };
+  const want: Record<Habit, boolean> = {
+    cafe: age >= 14 && r.chance(0.3 + traits(T_EXTRA) * 0.5),
+    pub: age >= 18 && r.chance(0.15 + traits(T_EXTRA) * 0.5),
+    park: r.chance(0.6),
+    sports: age >= 8 && age < 70 && r.chance(0.15 + traits(T_CONSC) * 0.35),
+    church: r.chance(pc.values[p * 4 + V_FAITH] * 0.8),
+    library: age >= 8 && r.chance(traits(T_OPEN) * 0.4),
+    shop: age >= 16,
+  };
+  for (let hb = 0; hb < HABIT_COUNT; hb++) {
+    const list = lists[HABITS[hb]];
+    pc.habits[p * HABIT_COUNT + hb] = want[HABITS[hb]] && list.length ? r.weighted(list, (pl) => 1 / (1 + world.travel.minutes(home, pl) / 6)) : -1;
+  }
+}
+
+/** School, routine and habits for a person (at synthesis, on moving, on growing up). */
+export function settle(world: World, id: ActorId, r: Rng): void {
+  enrol(world, id, r);
+  fitRoutine(world, id, r);
+  pickHabits(world, id, r);
+  world.actors.cols.until[id] = world.clock;
+}
+
+/** Ages, sexes and roles for a household of type `t`. */
+function specsFor(t: HouseholdType, rng: Rng): Spec[] {
+  const ageIn = (lo: number, hi: number) => rng.int(lo, hi);
+  const sx = () => (rng.chance(0.5) ? FEMALE : MALE);
+  const couple = (lo: number, hi: number): Spec[] => {
+    const a = ageIn(lo, hi);
+    const s1 = sx();
+    const s2 = rng.chance(0.05) ? s1 : 1 - s1;
+    return [{ age: a, sex: s1, role: 'head' }, { age: clamp(a + rng.int(-5, 5), 18, 99), sex: s2, role: 'partner' }];
+  };
+  const kids = (parentAge: number, n: number): Spec[] => {
+    const out: Spec[] = [];
+    for (let i = 0; i < n; i++) out.push({ age: clamp(parentAge - ageIn(20, 40), 0, 24), sex: sx(), role: 'child' });
+    return out.filter((k) => k.age <= Math.min(24, parentAge - 17));
+  };
+  switch (t) {
+    case 'singleYoung': return [{ age: ageIn(19, 35), sex: sx(), role: 'head' }];
+    case 'singleMid': return [{ age: ageIn(36, 64), sex: sx(), role: 'head' }];
+    case 'singleOld': return [{ age: ageIn(65, 92), sex: rng.chance(0.65) ? FEMALE : MALE, role: 'head' }];
+    case 'coupleYoung': return couple(22, 40);
+    case 'coupleMid': return couple(45, 70);
+    case 'coupleOld': return couple(68, 90);
+    case 'family': { const c = couple(26, 54); return [...c, ...kids(c[0].age, rng.weighted([1, 2, 3, 4], (n) => [3, 5, 2, 0.5][n - 1]))]; }
+    case 'singleParent': { const p: Spec = { age: ageIn(24, 52), sex: rng.chance(0.8) ? FEMALE : MALE, role: 'head' }; return [p, ...kids(p.age, rng.int(1, 2))]; }
+    case 'multiGen': { const c = couple(30, 50); return [...c, ...kids(c[0].age, rng.int(1, 3)), { age: clamp(c[0].age + ageIn(24, 35), 60, 95), sex: rng.chance(0.65) ? FEMALE : MALE, role: 'grandparent' }]; }
+    case 'flatshare': { const n = rng.int(2, 3); const out: Spec[] = []; for (let i = 0; i < n; i++) out.push({ age: ageIn(19, 30), sex: sx(), role: i === 0 ? 'head' : 'mate' }); return out; }
+  }
+}
+
+/**
+ * A new household at `home`: members by household type (random if not given), with family bonds and a car or not.
+ * Used at synthesis and for newcomers moving into town.
+ */
+export function addHousehold(world: World, home: PlaceId, rng: Rng, type?: HouseholdType, usedNames?: Set<string>, today = Math.floor(world.clock / 1440)): Household {
+  const place = world.graph.places[home];
+  const specs = specsFor(type ?? rng.weighted(TYPES, (t) => t[1])[0], rng);
+  const surname = SURNAMES[rng.int(0, SURNAMES.length - 1)];
+  const hh: Household = { id: world.households.length, home, surname, members: [], animals: [], car: false };
+  world.households.push(hh);
+  const ids: ActorId[] = [];
+  for (const s of specs) {
+    const last = s.role === 'mate' || (s.role === 'partner' && rng.chance(0.3)) ? SURNAMES[rng.int(0, SURNAMES.length - 1)] : surname;
+    const birth = today - Math.round(s.age * DAYS_PER_YEAR) - rng.int(0, 364);
+    ids.push(newPerson(world, { birth, sex: s.sex, last, home, household: hh.id }, rng.fork('person', world.actors.count), usedNames));
+  }
+  hh.members = ids;
+  hh.car = specs.some((s) => s.age >= 18 && s.age < 85) && rng.chance(place.kind === 'apartments' ? 0.6 : 0.85);
+  const family = { familiarity: 1, affection: 0.6, trust: 0.85 };
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const a = specs[i].role, b = specs[j].role;
+    let bd: Bond = 'housemate';
+    if (a === 'head' && b === 'partner') bd = specs[i].age > 28 && rng.chance(0.7) ? 'spouse' : 'partner';
+    else if ((a === 'head' || a === 'partner') && b === 'child') bd = 'child';
+    else if (a === 'child' && b === 'child') bd = 'sibling';
+    else if (a === 'grandparent' && b === 'child') bd = 'grandchild';
+    else if ((a === 'head' || a === 'partner') && b === 'grandparent') bd = a === 'head' ? 'parent' : 'relative';
+    bond(world.relations, ids[i], ids[j], bd, bd === 'housemate' ? { familiarity: 0.8, affection: 0.3, trust: 0.5 } : { ...family, affection: rng.range(0.3, 0.9) });
+  }
+  return hh;
+}
+
+export interface NewAnimal {
+  species: string;
+  home: PlaceId;
+  household: number;
+  name: string;
+  /** Game day of birth (default: a random age up to 70% of the species' lifespan). */
+  birth?: number;
+  /** The person who looks after it (walks the dog, milks the cow), -1 or absent for none. */
+  keeper?: ActorId;
+}
+
+/** Add an animal actor: a pet, farm animal or wild animal. */
+export function newAnimal(world: World, spec: NewAnimal, r: Rng): ActorId {
+  const a = world.actors.cols;
+  const sp = speciesId(spec.species);
+  const id = world.actors.add();
+  a.kind[id] = ACTOR_ANIMAL; a.species[id] = sp; a.sex[id] = r.chance(0.5) ? FEMALE : MALE;
+  a.birth[id] = spec.birth ?? Math.floor(world.clock / 1440) - r.int(60, Math.round(SPECIES[sp].lifespan * 0.7 * DAYS_PER_YEAR));
+  a.home[id] = spec.home; a.place[id] = spec.home; a.perception[id] = SPECIES[sp].perception; a.until[id] = world.clock;
+  const row = world.animals.addAnimal(id, spec.name);
+  a.row[id] = row;
+  const ac = world.animals.cols;
+  ac.household[row] = spec.household;
+  ac.keeper[row] = spec.keeper ?? -1;
+  ac.temperament[row] = clamp(r.gaussian(0.45, 0.2), 0, 1);
+  if (sp === speciesId('dog')) ac.trained[row] = (r.chance(0.8) ? TRAINED_LEASH : 0) | (r.chance(0.5) ? TRAINED_RECALL : 0);
+  return id;
+}
+
+/** A household takes in a dog or cat: one of the older members keeps it, everyone at home is fond of it. */
+export function adoptPet(world: World, hh: Household, species: string, r: Rng, birth?: number): ActorId {
+  const carers = hh.members.filter((m) => ageOf(world, m) >= 12);
+  const keeper = carers.length > 0 ? carers[r.int(0, carers.length - 1)] : -1;
+  const pet = newAnimal(world, { species, home: hh.home, household: hh.id, keeper, birth, name: PET_NAMES[r.int(0, PET_NAMES.length - 1)] }, r);
+  hh.animals.push(pet);
+  for (const m of hh.members) bond(world.relations, m, pet, 'pet', { familiarity: 1, affection: r.range(0.4, 0.9), trust: 0.9 });
+  return pet;
 }

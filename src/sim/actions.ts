@@ -11,7 +11,7 @@ import { remember } from './memory';
 import type { PlaceId } from './places';
 import { go, nearestWith } from './schedule';
 import { atMinute, minuteOfDay } from './time';
-import { nameOf, type World } from './world';
+import { jobOf, nameOf, type World } from './world';
 
 const first = (world: World, id: ActorId) => (world.actors.cols.kind[id] === 0 ? world.people.first[world.actors.cols.row[id]] : nameOf(world, id));
 
@@ -82,9 +82,8 @@ export function performIntention(world: World, id: ActorId, i: Intention): boole
       dropIntention(world, id, i);
       return false;
     case 'quitJob': {
-      const j = pc.job[p];
-      if (j >= 0) {
-        const job = world.jobs[j];
+      const job = jobOf(world, id);
+      if (job) {
         job.holder = -1;
         pc.job[p] = -1;
         const f = addFact(world, { topic: 'job', subject: id, place: job.place, magnitude: 0.6, text: '{subject} quit their job at {place}' });
