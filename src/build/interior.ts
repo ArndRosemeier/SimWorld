@@ -22,6 +22,7 @@ import { INTERIOR_LAYER_COUNT } from './texgen';
 import { InteriorMat } from './texgen/interior';
 import type { AttrSpec, MeshBuilder } from './meshBuilder';
 import type { Interior } from '../interior/building';
+import { landingBox, type Indoors } from '../interior/indoors';
 import type { FloorMat, FloorPlan, Furn, IWall, Room } from '../interior/types';
 
 /** The attributes of the `INTERIOR` material kind (src/render/materials.ts): uv in metres, texture layer, tint. */
@@ -186,6 +187,25 @@ export function buildCutaway(mb: MeshBuilder, I: Interior, floor: number, base: 
   buildStorey(mb, s, { base, floorHoles: below ? [below] : [], ceiling: false, facade: facades[f], outerH: SILL, cut: CUT });
 }
 
+/**
+ * The whole building to walk around in: every storey furnished, with its ceiling and lamps, the
+ * stairwells open, and the outer walls of `ind` (street doors cut in) on the inside of the facade.
+ */
+export function buildIndoors(mb: MeshBuilder, I: Interior, ind: Indoors): void {
+  const g = new Geo(mb);
+  I.storeys.forEach((s, f) => {
+    const below = f > 0 ? I.storeys[f - 1].stairHole : null;
+    buildStorey(mb, s, { base: ind.base, floorHoles: below ? [below] : [], ceiling: true });
+    for (const w of ind.outer) {
+      if (w.floor !== f) continue;
+      const L = Math.hypot(w.bx - w.ax, w.bz - w.az), mx = (w.ax + w.bx) / 2, mz = (w.az + w.bz) / 2;
+      const room = roomAt(s, mx - w.nx * 0.3, mz - w.nz * 0.3);
+      g.col(room?.wallColor ?? [0.9, 0.89, 0.86], wallLayer(room)).mb.box(mx + w.nx * 0.1, (w.y0 + w.y1) / 2, mz + w.nz * 0.1, 0.1, (w.y1 - w.y0) / 2, L / 2, Math.atan2(w.bx - w.ax, w.bz - w.az));
+    }
+  });
+  g.free();
+}
+
 /** The ring between the facade and the storey's inside outline, y0 to y1: inner and outer faces and its top. */
 function outerWalls(g: Geo, facade: Poly, inner: Poly, y0: number, y1: number): void {
   const side = (p: Poly, out: boolean, c: C3) => {
@@ -308,11 +328,8 @@ function stairs(g: Geo, plan: FloorPlan, base: number): void {
     }
   }
   for (const l of plan.landings) {
-    const P = l.poly;
-    let cx = 0, cz = 0;
-    for (let i = 0; i < 8; i += 2) { cx += P[i] / 4; cz += P[i + 1] / 4; }
-    const ex = P[2] - P[0], ez = P[3] - P[1], hl = Math.hypot(ex, ez) / 2, hw = Math.hypot(P[6] - P[0], P[7] - P[1]) / 2;
-    g.col(stepC, InteriorMat.StoneFloor).mb.box(cx, base + l.y - 0.11, cz, hw, 0.11, hl, Math.atan2(ex, ez) + Math.PI / 2);
+    const b = landingBox(l, base);
+    g.col(stepC, InteriorMat.StoneFloor).mb.box(b.x, b.y, b.z, b.hx, b.hy, b.hz, b.yaw);
   }
 }
 

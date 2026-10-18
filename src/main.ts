@@ -6,7 +6,7 @@
  *
  * `?seed=…&size=…` (0 … 1) pick the town; `?tex=…` the texture size in texels (256 default, 512 sharper and slower); `?at=x,z&r=…&h=…&a=…` fix the drone's centre, distance,
  * height and angle (radians) instead of circling, for screenshots. `?inside=<cell>/<building>&floor=…`
- * shows one storey of a building as a cutaway instead (showInside). `?wx=rain` (any weather state) overrides the sky;
+ * shows one storey of a building as a cutaway instead (showInside), `?indoors=<cell>/<index>` stands you inside it (showIndoors). `?wx=rain` (any weather state) overrides the sky;
  * `?rain=0…1`, `?wind=0…1` what the soundscape hears (src/audio/env.ts); `?mute` keeps it silent.
  *
  * The society runs in the sim worker from the start; Enter takes the camera down to the street, where the
@@ -37,6 +37,7 @@ import texWorkerUrl from './workers/tex.worker.ts?worker&url';
 import type { FromTex, ToTex } from './workers/texProtocol';
 import { loadTextures, loadVegetationTextures } from './render/textures';
 import { INTERIOR, useTextures } from './render/materials';
+import { InteriorView } from './render/interiorView';
 import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
@@ -151,6 +152,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   setParcels(town.parcels);
   const inside = new URLSearchParams(location.search).get('inside');
   if (inside) return showInside(inside, pool, stage, lights, renderer, camera, scene);
+  const indoors = new URLSearchParams(location.search).get('indoors');
+  if (indoors) return showIndoors(indoors, pool, stage, renderer, camera, scene);
   fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
   // What the town sounds like where: one worker works it out alongside the meshes.
   void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { time.region = { region: { coastal: r.map.coastal } }; audio.setTown(r.map); });
@@ -260,6 +263,36 @@ async function showInside(arg: string, pool: WorkerPool<ToTown, FromTown>, stage
     camera.lookAt(x, y, z);
     renderer.render(scene, camera);
     if (hud) hud.textContent = `${r.about} · ${stage.hudLine()}`;
+  });
+}
+
+/**
+ * `?indoors=<cell>/<index>` (`index` in the cell's buildings, as `buildingRef` decodes `Place.building`): the whole
+ * building as the game shows it when you are inside (src/render/interiorView.ts), seen at eye height from a step in
+ * through its street door, turning slowly (or fixed with `a=`, radians from looking straight in). `spot=<k>` stands
+ * at the k-th spot instead (a bed, a seat, a desk); `room=0…1` the room light (default 1).
+ */
+async function showIndoors(arg: string, pool: WorkerPool<ToTown, FromTown>, stage: Stage, renderer: Awaited<ReturnType<typeof createRenderer>>['renderer'], camera: PerspectiveCamera, scene: Scene): Promise<void> {
+  const q = new URLSearchParams(location.search);
+  const [cell, index] = arg.split('/').map(Number);
+  step('Planning the rooms', 0.5);
+  const view = new InteriorView(pool, stage);
+  const r = await view.enter({ cell, index });
+  if (!r) throw new Error('no interior');
+  view.setRoomLight(Number(q.get('room') ?? 1));
+  // (The fog stays: it is part of every shader's key, and the game keeps it when you go in.)
+  const { indoors: ind } = r, door = ind.doors[0], spot = q.has('spot') ? ind.spots[Number(q.get('spot'))] : undefined;
+  const [x, y, z, look] = spot ? [spot.x, spot.y, spot.z, spot.yaw] : [door.x - door.nx * 1.2, door.y, door.z - door.nz * 1.2, Math.atan2(-door.nx, -door.nz)];
+  const fixed = q.has('a') ? Number(q.get('a')) : null;
+  document.getElementById('loading')?.remove();
+  const hud = document.getElementById('hud');
+  renderer.setAnimationLoop((t: number) => {
+    stage.frame();
+    const a = look + (fixed ?? Math.sin(t * 0.0002) * 1.2);
+    camera.position.set(x, y + 1.6, z);
+    camera.lookAt(x + Math.sin(a), y + 1.45, z + Math.cos(a));
+    renderer.render(scene, camera);
+    if (hud) hud.textContent = `${r.about} · ${ind.colliders.length} colliders, ${ind.ramps.length} flights, ${ind.spots.length} spots · ${stage.hudLine()}`;
   });
 }
 

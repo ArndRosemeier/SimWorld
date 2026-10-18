@@ -140,6 +140,8 @@ export interface PlayerStatus {
   /** Where they are, or where they are heading while on the way. */
   place: PlaceId;
   placeName: string;
+  /** That place's building (`Place.building`: decode with src/plan/placeGraph.ts `buildingRef`; -1 none): the interior to show while they are inside (src/render/interiorView.ts). */
+  building: number;
   /** That place's entrance (the camera looks there while they are indoors). */
   x: number;
   z: number;
@@ -160,7 +162,7 @@ export function playerStatus(world: World): PlayerStatus | null {
   const pl = world.graph.places[Math.max(0, place)];
   return {
     id, name: nameOf(world, id), alive, autopilot: p.autopilot, doing: alive ? doingOf(world, id) : 'gone',
-    place, placeName: pl.name, x: pl.x, z: pl.z, travelling: a.dest[id] >= 0, outdoors: false,
+    place, placeName: pl.name, building: pl.building, x: pl.x, z: pl.z, travelling: a.dest[id] >= 0, outdoors: false,
     needs: Array.from(a.needs.subarray(id * NEED_COUNT, id * NEED_COUNT + NEED_COUNT)), mood: a.mood[id],
   };
 }

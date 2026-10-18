@@ -12,7 +12,7 @@
 import { Rng, deriveSeed, hash32 } from '@futuremagic/core';
 import { largest, offset } from '../geom/clip';
 import { distPointPolyEdge as distPolyEdge, pointInPoly, polyArea, polyBounds, type Poly } from '../geom/geom2';
-import { dwellingsOf, flatsDoor, streetDoor, type BuildingDesc } from '../plan/building';
+import { dwellingsOf, flatsDoor, streetDoor, type BuildingDesc, type FrontDoor } from '../plan/building';
 import { PLACE_KIND_OF, type AmenityKind } from '../plan/amenities';
 import { buildingTiers } from '../build/massing';
 import { KINDS, defaultStaff } from '../sim/placeKinds';
@@ -48,7 +48,19 @@ export interface Interior {
    * The street doors on the ground floor (on the facade): the building's (`streetDoor`) and, for
    * homes over a workplace with their own hall, the flats' (`homes`; plan/building flatsDoor).
    */
-  doors: { x: number; z: number; homes: boolean }[];
+  doors: StreetDoor[];
+}
+
+/** A street door on the facade: its middle, width (m), the facade's outward normal, and whether it is the homes' way in. */
+export interface StreetDoor { x: number; z: number; w: number; nx: number; nz: number; homes: boolean }
+
+/** `d` (a door on b's front edge) as a street door. */
+function streetDoorOf(b: BuildingDesc, d: FrontDoor, homes: boolean): StreetDoor {
+  const P = b.poly, n = P.length >> 1, i = d.edge, j = (i + 1) % n;
+  const L = Math.hypot(P[j * 2] - P[i * 2], P[j * 2 + 1] - P[i * 2 + 1]) || 1;
+  let nx = (P[j * 2 + 1] - P[i * 2 + 1]) / L, nz = -(P[j * 2] - P[i * 2]) / L;
+  if (pointInPoly(P, d.x + nx * 0.3, d.z + nz * 0.3)) { nx = -nx; nz = -nz; }
+  return { x: d.x, z: d.z, w: d.s1 - d.s0, nx, nz, homes };
 }
 
 /** Storey height and level above the ground floor (Scale: buildingLayout floorBottom). */
@@ -167,8 +179,8 @@ export function planInterior(b: BuildingDesc, place?: PlaceUse): Interior {
   const spots = spotsOf(storeys);
   const kind = b.amenity ? PLACE_KIND_OF[b.amenity] : null;
   standIn(storeys, spots, kind ? peakStaff(place?.staff ?? defaultStaff(kind)) : 0);
-  const doors = [{ x: door.x, z: door.z, homes: !fd || !cores.entry ? dwellingsOf(b) > 0 : false }];
-  if (fd && cores.entry) doors.push({ x: fd.x, z: fd.z, homes: true });
+  const doors = [streetDoorOf(b, door, !fd || !cores.entry ? dwellingsOf(b) > 0 : false)];
+  if (fd && cores.entry) doors.push(streetDoorOf(b, fd, true));
   return { storeys, units: unitsOf(storeys), work: workOf(b), spots, doors };
 }
 
