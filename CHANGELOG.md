@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.150 — Hats fit the head
+
+- Caps, beanies, witch hats and cat ears are built over each person's own head shape. No skin or hair pokes through any more, on adults or children.
+- A cap's peak sits at the brow. The cap has six panels and a button. Beanies have a folded, ribbed cuff, and some have a bobble.
+- Hair shows below a hat instead of disappearing, so nobody looks bald under a cap.
+- Hair is drawn as fine strands again instead of solid ribbons.
+
 ## v0.149 — One door per doorway
 
 - A house's front door is one door now. The painted door on the outside wall no longer shows behind or above the real one, and when the real door opens you see the street, not a second door.
