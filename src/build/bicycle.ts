@@ -11,7 +11,8 @@
  *
  * New in SimWorld. Pure.
  */
-import { v3cross as cross, v3norm as norm } from '@futuremagic/core';
+import { v3cross as cross, v3lerp, v3norm as norm } from '@futuremagic/core';
+import { RIDE, pedalAt } from '@futuremagic/humanoid/seating';
 import { MeshBuilder, type MeshData } from './meshBuilder';
 import { VEHICLE_SPECS, VPart } from './vehicles';
 
@@ -20,20 +21,30 @@ type P3 = [number, number, number];
 /** Wheel radius (m, to the tyre's outside), half the wheelbase, for a grown-up's bike (a child's is SMALL of it). */
 const WHEEL = 0.34, HALF_BASE = 0.52, SMALL = 0.78;
 
-/** Where the saddle's top is (y up from the road, z along the bike), by variant: the rider's seat. */
+/**
+ * Where the saddle's top is (y up from the road, z along the bike), by variant: the rider's seat. A grown-up's is
+ * the humanoid's riding saddle (`RIDE`); a child's lower.
+ */
 export function bikeSaddle(variant: number): { y: number; z: number } {
-  const k = variant === 2 ? SMALL : 1;
-  return { y: (variant === 1 ? 0.95 : 0.92) * k, z: 0.14 * k };
+  return variant === 2 ? { y: 0.72, z: 0.11 } : { y: RIDE.saddle, z: 0.14 };
 }
 
-/** A bicycle's mesh. */
+/**
+ * A bicycle's mesh. The saddle, the bars' grips and the crank axle are where the humanoid's riding pose puts the
+ * rider's seat, hands and feet (`RIDE`, @futuremagic/humanoid); the cranks stand level (the rider's feet turn them).
+ */
 export function bicycle(variant: number): MeshData {
   const mb = new MeshBuilder(VEHICLE_SPECS);
   const k = variant === 2 ? SMALL : 1, sport = variant === 1;
-  const s = (p: P3): P3 => [p[0] * k, p[1] * k, p[2] * k];
   const R = WHEEL * k, rear: P3 = [0, R, HALF_BASE * k], front: P3 = [0, R, -HALF_BASE * k];
-  // The frame: bottom bracket, seat cluster, head tube; the stays to the back wheel, the fork to the front.
-  const bb = s([0, 0.3, 0.02]), seat = s([0, 0.78, 0.1]), headTop = s([0, sport ? 0.8 : 0.84, -0.4]), headLow = s([0, 0.66, -0.36]);
+  const sad = bikeSaddle(variant);
+  // The rider's points: crank axle, grips (forward is −z).
+  const bb: P3 = [0, RIDE.crankUp, sad.z - RIDE.crankAhead];
+  const grip: P3 = [0, sad.y + RIDE.barsUp, sad.z - RIDE.barsAhead];
+  // The frame: bottom bracket, seat cluster, head tube under the bars; the stays to the back wheel, the fork to the front.
+  const seat: P3 = v3lerp(bb, [0, sad.y, sad.z], 0.82);
+  const headTop: P3 = [0, grip[1] - (sport ? 0.08 : 0.18), Math.max(grip[2] + (sport ? 0.08 : 0.02), front[2] + 0.12)];
+  const headLow: P3 = [0, headTop[1] - 0.15, headTop[2] + 0.05];
   const tube = sport ? 0.016 : 0.019;
   mb.set('aPart', VPart.Paint);
   rod(mb, bb, seat, tube * 1.1);
@@ -46,30 +57,28 @@ export function bicycle(variant: number): MeshData {
     rod(mb, [x * 0.6 * k, headLow[1], headLow[2]], [x * k, front[1], front[2] - 0.03], tube * 0.8);
   }
   // Saddle on its post; the stem and the bars with their grips.
-  const sad = bikeSaddle(variant);
   mb.set('aPart', VPart.Chrome);
   rod(mb, seat, [0, sad.y - 0.03, sad.z], 0.012);
   mb.set('aPart', VPart.Plastic);
   mb.box(0, sad.y - 0.02, sad.z + 0.02 * k, 0.07 * k, 0.025, 0.1 * k);
   mb.box(0, sad.y - 0.02, sad.z - 0.1 * k, 0.025 * k, 0.02, 0.05 * k);
-  const bar: P3 = sport ? [0, headTop[1] + 0.06 * k, headTop[2] - 0.1 * k] : [0, headTop[1] + 0.16 * k, headTop[2] + 0.02 * k];
   mb.set('aPart', VPart.Chrome);
-  rod(mb, headTop, bar, 0.014);
-  const W = (sport ? 0.24 : 0.29) * k;
-  rod(mb, [-W, bar[1], bar[2] + (sport ? 0 : 0.06 * k)], [W, bar[1], bar[2] + (sport ? 0 : 0.06 * k)], 0.012);
+  rod(mb, headTop, [0, grip[1], grip[2]], 0.014);
+  const W = RIDE.barsHalf + 0.05;
+  rod(mb, [-W, grip[1], grip[2]], [W, grip[1], grip[2]], 0.012);
   mb.set('aPart', VPart.Rubber);
-  for (const x of [-1, 1]) rod(mb, [x * W, bar[1], bar[2] + (sport ? 0 : 0.06 * k)], [x * (W - 0.11 * k), bar[1], bar[2] + (sport ? 0 : 0.06 * k)], 0.017);
-  // Cranks and pedals (one forward, one back), the chainring.
+  for (const x of [-1, 1]) rod(mb, [x * W, grip[1], grip[2]], [x * (RIDE.barsHalf - 0.06), grip[1], grip[2]], 0.017);
+  // Cranks and pedals (level: one forward, one back), the chainring.
   mb.set('aPart', VPart.Chrome);
-  const crank = 0.17 * k;
   for (const x of [-1, 1]) {
-    const pz = bb[2] - x * crank, px = x * 0.09 * k;
-    rod(mb, [px, bb[1], bb[2]], [px, bb[1], pz], 0.011);
+    const [ahead, up] = pedalAt(x > 0 ? Math.PI / 2 : -Math.PI / 2), arm = x * (RIDE.pedalHalf - 0.04);
+    rod(mb, [arm, bb[1], bb[2]], [arm, bb[1] + up, bb[2] - ahead], 0.011);
     mb.set('aPart', VPart.Rubber);
-    mb.box(px + x * 0.05 * k, bb[1], pz, 0.045 * k, 0.012, 0.03 * k);
+    mb.box(x * RIDE.pedalHalf, bb[1] + up, bb[2] - ahead, 0.045, 0.012, 0.03);
     mb.set('aPart', VPart.Chrome);
   }
-  chainring(mb, [0.07 * k, bb[1], bb[2]], 0.1 * k, 0.008, VPart.Chrome);
+  chainring(mb, [0.06, bb[1], bb[2]], 0.1 * k, 0.008, VPart.Chrome);
+  const bar = grip;
   // The wheels.
   for (const c of [rear, front]) spokedWheel(mb, c, R, sport ? 0.012 : 0.02);
   // Town bikes: mudguards, a rack (and a basket on variant 3); every bike its lamps.

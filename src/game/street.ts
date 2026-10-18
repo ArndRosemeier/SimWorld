@@ -13,7 +13,6 @@ import type { SimClient, Walker } from './SimClient';
 import { bikeSaddle } from '../build/bicycle';
 import { CAR_STRIDE, vehiclePose } from '../traffic/feed';
 import { BIKE_KEY, isBikeKey } from '../traffic/townTraffic';
-import { SEAT_REACH } from '../street/seats';
 
 /** Game minutes ahead a walker's velocity is measured over. */
 const DT = 0.02;
@@ -115,8 +114,8 @@ export class Street {
   }
 
   /**
-   * The cyclists in the traffic (src/traffic: bicycles keyed BIKE_KEY + the rider), each sitting on their bike's
-   * saddle (`bikeSaddle`): placed SEAT_REACH ahead of it, facing the way the bike goes.
+   * The cyclists in the traffic (src/traffic: bicycles keyed BIKE_KEY + the rider), each riding their bike: placed
+   * under its saddle (`bikeSaddle`), facing the way it goes, pedalling as fast as it moves.
    */
   private riders(clock: number, secPerMin: number, out: Figure[]): void {
     this.riding.clear();
@@ -138,12 +137,11 @@ export class Street {
       vehiclePose(m, i, clock, p);
       vehiclePose(m, i, clock + DT, q);
       const sad = bikeSaddle(m.cars[i * CAR_STRIDE + 2]), fx = -Math.sin(p[3]), fz = -Math.cos(p[3]);
-      const ahead = SEAT_REACH - sad.z;
-      f.x = p[0] + fx * ahead; f.y = p[1]; f.z = p[2] + fz * ahead;
+      f.x = p[0] - fx * sad.z; f.y = p[1]; f.z = p[2] - fz * sad.z;
       f.vx = (q[0] - p[0]) / (DT * secPerMin);
       f.vz = (q[2] - p[2]) / (DT * secPerMin);
       f.face = p[3];
-      f.rest = { kind: 'sit', seat: sad.y - 0.02 };
+      f.rest = { kind: 'ride', seat: sad.y };
       out.push(f);
     }
   }
