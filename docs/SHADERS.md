@@ -26,6 +26,7 @@ Arnd's PC is the reference machine for timings.
 ## What you must do
 
 - **A new look is a new kind** in `materials.ts`, with the attributes its meshes carry. The attribute set and the index are part of the cache key.
+- **A new kind gets a swatch:** its row in `VARIANTS` (`src/render/looks.ts`, how its variants are told apart) and mesh data that `collectSwatches` reaches, or the looks check (docs/CI.md) fails with "no swatch". It draws every kind in every variant headless and fails on black, blown-out white, NaN, magenta or nothing drawn.
 - **Lights are fixed before the warm-up.** Never add or reparent a light afterwards; unused pool lights stay at intensity 0.
 - **Put things into the scene with `stage.add`**, or `stage.prepare` first when adding to your own group.
 - **Humans** (the `@futuremagic/humanoid` package) make their own node materials: build them before the warm-up and pass them to `stage.warmUp(extra)`, or compile them with `stage.warmLater`.

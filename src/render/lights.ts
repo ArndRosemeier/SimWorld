@@ -101,3 +101,16 @@ export function placeLamps(l: Lights, heads: Float32Array | undefined, x: number
     p.intensity = 60 * on;
   }
 }
+
+/**
+ * Even white light from every side and no sun (the looks check, src/looks.ts): a hemisphere light lights only
+ * diffusely, so what a surface shows is its own colour, and one whose colour came out zero shows black, however
+ * much the sun would gloss it. The sky view sets the lights back on its next update.
+ */
+export function evenLight(l: Lights): void {
+  l.sun.intensity = 0;
+  l.sky.intensity = 1;
+  l.sky.color.setRGB(1, 1, 1);
+  l.sky.groundColor.setRGB(1, 1, 1);
+  for (const p of l.lamps) p.intensity = 0;
+}

@@ -20,6 +20,7 @@ CI is a tool for the developer's loop, so its cost is measured in **minutes of w
 
 - **Fast (every PR, every push to main):** `test/*.test.ts` and the tools' own tests. Unit tests and small, property-style checks: a 200-person town for one game day, not 2,000 people for a year.
 - **Slow (by hand only):** `test/slow/*.slow.test.ts`, `npm run test:slow`, Actions → **Slow tests**. Long soaks, many-day rumour runs, balance sweeps, browser and shader checks. Never on pull requests and never on a schedule nobody reads.
+- **Looks (nightly on main, and by hand):** `npm run build && npm run looks` (`tools/looks/check.mjs`), Actions → **Looks**. Headless Chromium on software WebGL 2 draws every material kind in each of its variants and fails on black, blown-out white, NaN, magenta or nothing drawn (the street furniture's concrete, stone and shrubs once rendered black for hours unnoticed), then takes fixed-camera town shots and compares their colours with `tools/looks/baseline.json`. About 15 minutes, so never on pull requests. It is read because a failing night opens or comments on the GitHub issue labelled `looks`, with the contact sheet and shots as the run's artifact. A look changed on purpose: `npm run looks -- --update` and commit the baseline.
 
 ## What keeps the fast tier fast
 

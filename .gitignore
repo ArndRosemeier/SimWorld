@@ -3,3 +3,4 @@ dist/
 reports/
 *.log
 suite-times.json
+looks-out/
