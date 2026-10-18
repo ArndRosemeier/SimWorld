@@ -267,7 +267,7 @@ function birthdays(world: World, day: number, rng: Rng): void {
     if (!a.alive[id] || a.kind[id] !== ACTOR_PERSON || day <= a.birth[id]) continue;
     const age = Math.floor((day - a.birth[id]) / 365);
     if (age === Math.floor((day - step - a.birth[id]) / 365)) continue;
-    if (age === 3 || age === 6 || age === 18) {
+    if (age === 3 || age === 6 || age === 11 || age === 18) {
       settle(world, id, rng.fork('settle', id));
       if (age === 6) log(world, day, 'schoolStart', id, -1, world.people.cols.school[a.row[id]]);
       if (age === 18) log(world, day, 'schoolEnd', id, -1, -1);
