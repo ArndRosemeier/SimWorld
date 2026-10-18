@@ -13,7 +13,8 @@ import type { Place, PlaceGraph, PlaceKind, RoadEdge, RoadNode } from '../sim/pl
 import { CARE_ROOMS_PER_PERSON, KINDS, defaultHours, defaultStaff } from '../sim/placeKinds';
 import { dwellingsOf, flatsDoor } from './building';
 import { eateryName, type Eatery } from './eatery';
-import { AMENITY_LABEL, PLACE_KIND_OF } from './amenities';
+import { PLACE_KIND_OF } from './amenities';
+import { signWord } from '../lang/words';
 import { ROOTS, cityName, shopName } from './names';
 import { LineSource, townRoads } from './roads';
 import { careHomeRooms, siteToWorld, inSite, type LandmarkKind } from './landmarks';
@@ -179,7 +180,7 @@ export function placeGraphOf(town: Town): PlaceGraph {
       const name = b.eatery ? eateryName(seed, ci, bi, b.eatery as Eatery)
         : kind === 'shop' ? shopName(seed, ci * 65536 + bi).name
         : kind === 'police' ? `${city} Police`
-        : `${street(at.street).split(' ')[0]} ${AMENITY_LABEL[b.amenity]}`.replace(/^\d+\w* /, `${city} `);
+        : `${street(at.street).split(' ')[0]} ${signWord(b.amenity)}`.replace(/^\d+\w* /, `${city} `);
       placeOf(kind, name, at.street, door.x, door.z, at.node, code, 0, scale);
     }
     if (homes) {
