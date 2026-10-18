@@ -89,6 +89,9 @@ const BOARD = {
   stop: 'STOP', bus: 'BUS', telephone: 'TELEPHONE', news: 'NEWS', post: 'POST', sewer: 'SEWER', central: 'CENTRAL',
   townHall: 'Town Hall', market: 'MARKET', summer: 'SUMMER',
   departures: 'Departures', schoolDays: 'School days', towards: 'to {place}',
+  council: '{town} Town Council', underWay: 'Work in progress', readyIn: 'Ready in about {n}', weeks: '{n} weeks', months: '{n} months',
+  sale: 'SALE', saleLine: 'Everything must go', nowOpen: 'NOW OPEN',
+  bypass: 'The new bypass', estate: 'New homes', turbines: 'Wind turbines on the ridge', skatepark: 'The new skate park',
 } as const;
 
 export type BoardWord = keyof typeof BOARD;

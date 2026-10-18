@@ -4,6 +4,7 @@
  * so the town workers can send the first facts. New in SimWorld.
  */
 import type { Hours } from '../sim/places';
+import type { Work } from '../sim/politics';
 
 export interface SignFacts {
   /** What each place is now, an index into PLACE_KINDS. */
@@ -14,4 +15,7 @@ export interface SignFacts {
   flags: ArrayLike<number>;
   /** Its opening hours now. */
   hours: readonly (readonly Hours[])[];
+  /** The council's works under way or planned (`TownRules.works`), and today's game day; none before the sim's face. */
+  works?: readonly Pick<Work, 'key' | 'start' | 'done'>[];
+  day?: number;
 }

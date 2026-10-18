@@ -16,6 +16,8 @@
  *    pavement side of the post);
  *  - boards: a notice board for each place that has one (BOARD_KINDS): beside a public building's
  *    name board, in a shop's window (or on the wall by its door), at a square's edge by the street;
+ *  - works: a council works board by the main road into town and at the sports ground (shown
+ *    while the council builds something there);
  *  - clocks (`clockSpots`, apart: it needs the landmarks' parts): the dials on the town hall's
  *    tower, the church tower and the station.
  *
@@ -69,6 +71,13 @@ export interface CornerSign { x: number; z: number; blades: { street: number; ya
 /** A town sign facing the traffic coming in (`street`: the road's street index, -1 unnamed). */
 export interface GatewaySign { x: number; z: number; yaw: number; street: number }
 
+/**
+ * A council works board on legs (the town sign's frame): `at` 'sports' beside the sports ground's entrance (the
+ * skate park), 'gateway' by the main road into town (the works out of town: the bypass, the new estate, the
+ * turbines). Its centre's foot, facing the people passing.
+ */
+export interface WorksSpot { at: 'sports' | 'gateway'; x: number; z: number; yaw: number }
+
 /** A poster on a lamp post (`street`: the street's index, `k`: the post's number on that street, 0..). Its centre, facing the pavement. */
 export interface PosterSpot { street: number; k: number; x: number; z: number; yaw: number }
 
@@ -89,6 +98,7 @@ export interface SignSpots {
   gateways: GatewaySign[];
   posters: PosterSpot[];
   boards: BoardSpot[];
+  works: WorksSpot[];
 }
 
 /** Instance yaw whose model front (-Z) faces along (nx, nz). */
@@ -114,7 +124,8 @@ export function signSpots(town: Town, roads: TownRoads, places: BoardPlaces = []
     if (dwellingsOf(b) > 0) homes.push(homeSign(b, code, roads));
   });
   const sites = siteSigns(town);
-  return { fronts, homes, sites, corners: cornerSigns(roads), gateways: gatewaySigns(town, roads), posters: posterSpots(town, roads), boards: noticeBoards(fronts, sites, roads, places) };
+  const gateways = gatewaySigns(town, roads);
+  return { fronts, homes, sites, corners: cornerSigns(roads), gateways, posters: posterSpots(town, roads), boards: noticeBoards(fronts, sites, roads, places), works: worksSpots(town, gateways) };
 }
 
 /** A public clock's dial (the town hall's tower, the church tower, the station's gable): its centre just in front of the face, its size (m, square). */
@@ -267,6 +278,7 @@ export function signFootprints(spots: SignSpots): number[] {
   for (const s of spots.sites) legs(s.x, s.z, s.yaw, BOARD_LEGS);
   for (const b of spots.boards) if (b.stand) legs(b.x, b.z, b.yaw, BOARD_LEGS);
   for (const g of spots.gateways) legs(g.x, g.z, g.yaw, TOWN_SIGN_LEGS);
+  for (const w of spots.works) legs(w.x, w.z, w.yaw, TOWN_SIGN_LEGS);
   return out;
 }
 
@@ -318,6 +330,26 @@ function homeSign(b: BuildingDesc, code: number, roads: TownRoads): HomeSign {
   // On the wall above the door's side, over head height (flats: the first floor).
   const s = door.s1 + 0.6 < e.L ? door.s1 + 0.45 : Math.max(0.3, door.s0 - 0.45);
   return { code, x: e.ax + e.dx * s + e.nx * OFF_WALL, z: e.az + e.dz * s + e.nz * OFF_WALL, y: b.floors > 1 ? b.groundH + 0.4 : 2.1, yaw, onWall: true };
+}
+
+/** How far out of town from the town sign the works board stands (m). */
+const WORKS_OUT = 14;
+
+function worksSpots(town: Town, gateways: readonly GatewaySign[]): WorksSpot[] {
+  const out: WorksSpot[] = [];
+  const g = gateways[0];
+  if (g) {
+    // Further out along the road, on the same side: the town sign's front faces out of town.
+    const { nx, nz } = yawAxes(g.yaw);
+    out.push({ at: 'gateway', x: g.x + nx * WORKS_OUT, z: g.z + nz * WORKS_OUT, yaw: g.yaw });
+  }
+  const sports = town.macro.landmarks.find((lm) => lm.kind === 'sports');
+  if (sports) {
+    // The other side of the entrance path from the name board.
+    const [x, z] = siteToWorld(sports, -Math.min(sports.hu * 0.6, 4.5), -sports.hv + 1.4);
+    out.push({ at: 'sports', x, z, yaw: facing(Math.sin(sports.angle), -Math.cos(sports.angle)) });
+  }
+  return out;
 }
 
 function siteSigns(town: Town): SiteSign[] {
