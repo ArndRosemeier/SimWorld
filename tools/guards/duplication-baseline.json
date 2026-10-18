@@ -538,9 +538,5 @@
   {
     "key": "same name: simworld/app/chatPanel.ts#describe + simworld/game/street.ts#describe",
     "reason": "Unrelated: the chat panel's line for a change a conversation made, and the street's HUD line about the person followed."
-  },
-  {
-    "key": "idiom: [.atan2 .x .z Math] in simworld/build/streetProps.ts + simworld/game/street.ts + simworld/plan/terrace.ts",
-    "reason": "A heading from one point to another (atan2 of the x/z difference) in three unrelated places: prop rotation, a person turning to face you, a terrace's orientation."
   }
 ]
