@@ -7,7 +7,7 @@ import { FURNITURE_KINDS, FURNITURE_SPECS, buildFurniture, furnitureModel } from
 import { LAMP_STRIDE, PROP_STRIDE, lampsOf, propFar, propInstances, propModel } from '../src/build/streetProps';
 import { PICTURES, TEXT_SLOTS, pictureRect, textRects, type AtlasRect } from '../src/build/textAtlasLayout';
 import { BAY_LENGTH, SETBACK } from '../src/plan/cell';
-import { OBSTACLE_STRIDE, inObstacle, obstaclesOf } from '../src/plan/obstacles';
+import { footprintsOf } from '../src/plan/footprints';
 import { distSqPointSeg, pointInPoly } from '../src/geom/geom2';
 import { box, cylinder, lathe, sphere, torus, icosphere, tube, CatmullRom, xform, M, type Prim } from '../src/build/prims';
 
@@ -157,13 +157,12 @@ test('parked cars stand in kerbside bays, on the carriageway, clear of the cross
   assert.ok(cars > 30 && bays > cars, `${cars} cars in ${bays} bays`);
 });
 
-test('the walk along a sidewalk stays clear of the street furniture, and the obstacles say where things stand', () => {
+test('the walk along a sidewalk stays clear of the street furniture, and the footprints say where things stand', () => {
   const { cells } = planTown({ seed: 2, size: 0 });
   let probes = 0;
   for (const p of cells) {
-    const obs = obstaclesOf(p);
-    assert.equal(obs.length % OBSTACLE_STRIDE, 0);
-    for (let k = 0; k < obs.length; k++) assert.ok(Number.isFinite(obs[k]));
+    const fp = footprintsOf([p]), C = fp.circles, near: number[] = [];
+    for (const v of C) assert.ok(Number.isFinite(v));
     // Walking line: 1.5 m in from the kerb (past the furniture strip), every 2 m along both sides.
     for (const st of p.streets) {
       if (st.sidewalk < 1.6 + 1.5 || st.cls === 4) continue; // RoadClass.Path
@@ -175,10 +174,10 @@ test('the walk along a sidewalk stays clear of the street furniture, and the obs
         for (let s = 1; s < L; s += 2) for (const side of [-1, 1]) {
           if (acc + s < st.width + 4 || acc + s > total - st.width - 4) continue;
           const off = st.width / 2 + 1.5, x = ax + (dx / L) * s - (dz / L) * off * side, z = az + (dz / L) * s + (dx / L) * off * side;
-          for (let k = 0; k < obs.length / OBSTACLE_STRIDE; k++) {
-            if (!inObstacle(obs, k, x, z, 0.1)) continue;
-            const t = streetPropAt(p, obs[k * OBSTACLE_STRIDE], obs[k * OBSTACLE_STRIDE + 1]);
-            if (t >= 0 && STREET_FURNITURE.has(t)) assert.fail(`cell ${p.id}: prop type ${t} stands in the walk at ${x.toFixed(1)}, ${z.toFixed(1)}`);
+          for (const c of fp.circlesNear(x, z, 0.1, near)) {
+            if (Math.hypot(C[c * 3] - x, C[c * 3 + 1] - z) >= C[c * 3 + 2] + 0.1) continue;
+            const t = fp.kinds[c];
+            if (STREET_FURNITURE.has(t)) assert.fail(`cell ${p.id}: prop type ${t} stands in the walk at ${x.toFixed(1)}, ${z.toFixed(1)}`);
           }
           probes++;
         }
@@ -190,10 +189,6 @@ test('the walk along a sidewalk stays clear of the street furniture, and the obs
 
 /** Types the street furniture pass puts along the kerb: lamps, trees, benches, bins, hydrants, mailboxes, planters. */
 const STREET_FURNITURE = new Set([0, 1, 2, 3, 4, 13, 19]);
-function streetPropAt(p: { props: number[] }, x: number, z: number): number {
-  for (let i = 0; i < p.props.length; i += 6) if (Math.fround(p.props[i + 1]) === x && Math.fround(p.props[i + 2]) === z) return p.props[i];
-  return -1;
-}
 function onCarriageway(p: { carriageway: { outer: number[]; holes: number[][] }[] }, x: number, z: number): boolean {
   return p.carriageway.some((c) => pointInPoly(c.outer, x, z) && !c.holes.some((h) => pointInPoly(h, x, z)));
 }

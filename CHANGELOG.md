@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.061 — People walk around trees, cars and street furniture
+
+- People on the sidewalk step around street trees, lamps, benches, bins, café tables and parked cars instead of walking through them, and keep off building walls.
+- Each person stays inside the sidewalk: a narrow sidewalk has one walking line, a wide one room for several.
+- Corners no longer send walkers past the corner and back.
+- A walk to a door across the street crosses it where no parked car, lamp or tree is in the way, near the door, and not in the middle of a junction.
+- People leave and enter by the front of the building, not through the wall beside the door.
+- People strolling on squares, in parks and up and down a street keep walking most of the time, with a short pause, instead of standing about.
+- A save that no longer fits (an older save version, a changed town) no longer stops `?resume` from starting: play starts afresh and the old save is dropped.
+
+## v0.060 — The seam index names the paper and notices in the sim view
+
+- The SimView row in the architecture notes now lists the town's media (newest paper and board notices).
+
+## v0.059 — Chimney smoke
+
+- When it is cold, smoke rises from the chimneys of houses with the heating on: none on a mild day, most chimneys near freezing, more in the morning and the evening than in the small hours.
+- The smoke drifts with the wind, rises straight on a still day and is torn along low in a gale; it is pale by day, faint at night and thinner in the rain.
+
 ## v0.058 — Front doors open onto the street
 
 - No front door opens into the house next door any more: on corner plots and narrow wedges the front was sometimes put on the shared wall.
