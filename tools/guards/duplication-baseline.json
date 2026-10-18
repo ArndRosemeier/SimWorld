@@ -48,6 +48,10 @@
     "reason": "Each is the request builder of its own task kind (DecisionSpec.build makes typed decision questions, TaskSpec.build makes chat messages); the same contract shape on purpose."
   },
   {
+    "key": "same name: simworld/llm/decide.ts#parse + simworld/llm/tasks.ts#parse",
+    "reason": "Each is the answer reader of its own task kind (DecisionSpec.parse reads typed decision answers, TaskSpec.parse reads chat text); the same contract shape on purpose."
+  },
+  {
     "key": "same name: simworld/llm/llm.ts#decide + simworld/llm/openrouter.ts#decide",
     "reason": "Llm.decide (the task API: model fallback, usage ledger) and Transport.decide (one HTTP call), like run and stream."
   },

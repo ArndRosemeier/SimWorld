@@ -329,7 +329,7 @@ export class ChatPanel {
 
 const TASK_WORDS: Record<string, string> = {
   'npc.speech': 'Chat replies', 'npc.appraisal': 'Reading replies (mind changes)', 'memory.summary': 'Memories of talks',
-  'npc.reflection': 'Reflections', 'skip.digest': 'Time-skip digests',
+  'npc.reflection': 'Reflections', 'skip.digest': 'Time-skip digests', 'npc.check': 'Quick checks',
 };
 
 const fmtTokens = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));

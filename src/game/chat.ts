@@ -6,14 +6,16 @@
  *  2. their reply streams in from `npc.speech` (or, without a key or when every model fails, the procedural engine
  *     answers from the same input, src/talk/answer.ts);
  *  3. news they passed on reaches your inhabitant's beliefs (`said`);
- *  4. `npc.appraisal` reads the exchange and its proposal goes through `applyProposal` in the sim (`apply`): feelings,
+ *  4. `npc.check` (a decision model, a fraction of a cent) reads the exchange: plain small talk stops here; a hostile
+ *     line or one aimed at the AI steadies what comes next (src/llm/appraisal.ts `steadied`);
+ *  5. `npc.appraisal` reads the exchange and its proposal goes through `applyProposal` in the sim (`apply`): feelings,
  *     beliefs, lies that start rumours, plans they committed to, memories, ending the talk.
  *
  * When the talk ends, `memory.summary` gives the person their memory of it and both remember it (`end`); they go back
  * to their day. The world keeps running while you talk.
  */
 import { TALK_MIN_AGE, type ChatHeader, type ChatRequest } from '../chat/ops';
-import { LlmError, type AppraisalResult, type NpcPromptInput, type Turn } from '../llm';
+import { LlmError, needsAppraisal, steadied, type AppraisalResult, type NpcPromptInput, type Turn } from '../llm';
 import { ChatPanel, type PastChat } from '../app/chatPanel';
 import { openLlmSettings } from '../app/llmSettings';
 import type { CameraControl } from './camera';
@@ -196,14 +198,21 @@ export class Chat {
   }
 
   private async appraise(c: Conversation, input: NpcPromptInput, reply: string): Promise<void> {
+    // Not cancelled when the talk ends: what you said last still counts (`close` waits for it).
+    // First the quick check (a decision model, a fraction of a cent): plain small talk skips the appraisal, and a
+    // hostile line or one aimed at the AI steadies what the appraisal proposes. Without it, the appraisal alone.
+    const check = await this.setup.llm.decide('npc.check', { context: input, reply }).then((r) => r.output, () => null);
+    if (check && !needsAppraisal(check)) return;
     let result: AppraisalResult;
     try {
-      // Not cancelled when the talk ends: what you said last still counts (`close` waits for it).
       result = (await this.setup.llm.run('npc.appraisal', { context: input, reply })).output;
     } catch (e) {
       if (this.talk === c) this.panel.changes([], [`appraisal failed: ${why(e as LlmError)}`]);
-      return;
+      // The check alone still makes an insult count.
+      result = { proposal: { npc: input.npc.id, partner: input.partner.id, conversation: input.conversation, changes: [] }, dropped: [] };
     }
+    if (check) result = steadied(result, check);
+    if (!result.proposal.changes.length) { if (this.talk === c) this.panel.changes([], result.dropped); return; }
     const req: Extract<ChatRequest, { op: 'apply' }> = { op: 'apply', npc: c.header.npc, proposal: result.proposal };
     const { applied, end } = await this.sim.chat(req);
     if (this.talk !== c) return;
