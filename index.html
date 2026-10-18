@@ -3,18 +3,32 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>SimWorld</title>
+    <title>Total Town</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <style>
       html, body { margin: 0; height: 100%; background: #050607; color: #cfd6dc; font: 13px/1.4 'Alegreya Sans', system-ui, sans-serif; overflow: hidden; }
       canvas { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; }
-      /* The loading screen (src/app/loadingScreen.ts), drawn before any script runs: the theme's values
-         (src/app/theme.ts: fontDisplay, accent, inkFaint, line) mirrored here, as its CSS is not in yet. */
-      #loading { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; background: #050607; }
-      #loading .name { font: 400 34px/1 'IM Fell English', Georgia, serif; letter-spacing: 0.24em; text-indent: 0.24em; color: #ece3d0; text-transform: uppercase; text-shadow: 0 0 18px #e9b85c33; }
-      #loading .bar { width: min(280px, 70vw); height: 2px; margin-top: 22px; background: #4f423255; overflow: hidden; }
+      /* The title screen (src/app/title.ts), painted before any script runs: a dusk sky until its canvas draws the town.
+         The theme's values (fontDisplay, accent, inkFaint, line) mirrored here, as no other CSS is in yet. */
+      #loading { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; padding: 16px; padding-top: 17vh; box-sizing: border-box; background: linear-gradient(#060b18, #14203a 45%, #3b3550 68%, #a8674a 80%, #2a1a16); transition: opacity 1.2s ease; cursor: default; }
+      #loading.ti-out { opacity: 0; pointer-events: none; }
+      #loading .ti-scene { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
+      #loading .name { margin: 0; font: 400 clamp(40px, 9vw, 96px)/1 'IM Fell English', Georgia, serif; letter-spacing: 0.16em; text-indent: 0.16em; color: #ece3d0; text-transform: uppercase; text-align: center; text-shadow: 0 0 28px #e9b85c44, 0 2px 4px #000; }
+      #loading .ti-badge { margin-top: 14px; padding: 3px 12px 4px; border: 1px solid #e9b85c; border-radius: 3px; color: #e9b85c; background: #05060766; font: 600 12px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; transform: rotate(-3deg); box-shadow: 0 0 12px #e9b85c33; }
+      #loading .ti-go { margin-top: 9vh; min-height: 44px; display: flex; align-items: center; }
+      #loading .ti-click { color: #ece3d0; font: 18px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.14em; text-shadow: 0 1px 3px #000; animation: ti-pulse 2.4s ease-in-out infinite; }
+      @keyframes ti-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+      #loading .ti-enter { padding: 10px 28px; border: 1px solid #e9b85c; border-radius: 3px; background: #050607b3; color: #ece3d0; font: 18px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.12em; cursor: pointer; box-shadow: 0 0 18px #e9b85c44; }
+      #loading .ti-enter:hover, #loading .ti-enter:focus-visible { background: #e9b85c; color: #050607; outline: none; }
+      #loading .bar { width: min(280px, 70vw); height: 2px; margin-top: 18px; background: #4f423255; overflow: hidden; transition: opacity 1s; }
       #loading .bar i { display: block; height: 100%; width: 0; background: #e9b85c; box-shadow: 0 0 8px #e9b85c88; transition: width 0.3s; }
-      #loading .step { margin-top: 10px; min-height: 1.4em; color: #7a6f5e; font: 13px/1.4 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.06em; }
+      #loading.ti-ready .bar { opacity: 0; }
+      #loading .step { margin-top: 8px; min-height: 1.4em; color: #b9ad96; font: 13px/1.4 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.06em; text-shadow: 0 1px 2px #000; text-align: center; }
+      #loading.ti-failed .step { color: #ece3d0; }
+      /* The frame's bar and Menu wait until the title is gone (src/app/shell.ts). */
+      body.title-up .sh-bar, body.title-up .sh-tools { display: none; }
+      #loading .ti-mute { position: absolute; right: 12px; top: 10px; display: flex; padding: 6px 8px; border: 1px solid #4f4232aa; border-radius: 3px; background: #050607cc; color: #b9ad96; cursor: pointer; }
+      #loading .ti-mute:hover, #loading .ti-mute:focus-visible { color: #ece3d0; border-color: #e9b85c; outline: none; }
       /* The version and the What's new panel (src/app/whatsNew.ts), above the loading screen. */
       .wn-button { position: fixed; right: 12px; bottom: 10px; z-index: 25; padding: 5px 10px; border: 1px solid #4f4232aa; border-radius: 3px; background: #050607cc; color: #b9ad96; font: 12px/1.3 'Alegreya Sans', system-ui, sans-serif; letter-spacing: 0.06em; cursor: pointer; }
       .wn-button:hover, .wn-button:focus-visible { color: #ece3d0; border-color: #e9b85c; outline: none; }
@@ -156,8 +170,8 @@
     </style>
   </head>
   <body>
-    <div id="loading"><div class="name">SimWorld</div><div class="bar"><i></i></div><div class="step">Loading</div></div>
-    <noscript><p style="position:fixed;inset:0;z-index:30;margin:0;padding:40vh 16px 0;text-align:center;background:#050607">SimWorld needs JavaScript.</p></noscript>
+    <div id="loading"><canvas class="ti-scene" aria-hidden="true"></canvas><h1 class="name">Total Town</h1><div class="ti-badge">Alpha</div><div class="ti-go"><span class="ti-click">Click to start</span></div><div class="bar"><i></i></div><div class="step">Loading</div></div>
+    <noscript><p style="position:fixed;inset:0;z-index:30;margin:0;padding:40vh 16px 0;text-align:center;background:#050607">Total Town needs JavaScript.</p></noscript>
     <div id="hud"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
