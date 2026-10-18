@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.105 — Halloween posters
+
+- Trick-or-treating now gets posters on every notice board and along the centre's streets in the two weeks before Halloween, like the summer festival and the Christmas market.
+
+## v0.104 — Building wear and fresh paint
+
+- Walls of run-down buildings get grime and rain streaks, from the upkeep the economy keeps for each place.
+- Well-off homes look a touch brighter, as if freshly painted.
+- Both follow the sim's town face, so a building that is let go slowly greys and one that is done up cleans again.
+
 ## v0.103 — People sit down on benches
 
 - People out in parks, squares, the cemetery and at sports grounds now and then sit down on a free bench for a few minutes, then get up and stroll on. Only one person sits on each seat.

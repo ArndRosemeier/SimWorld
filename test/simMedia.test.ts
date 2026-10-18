@@ -63,10 +63,13 @@ test('media: the festival goes up on every board ahead of the day and people who
   const square = placesOf(world, ['square'])[0];
   const at = (Math.floor(world.clock / 1440) + 10) * 1440 + 14 * 60;
   addOccasion(world, { kind: 'festival', name: 'the summer festival', place: square, start: at, end: at + 360, pull: 1, appeal: 'all', guests: null, activity: A.socialize, about: [] });
+  // Trick-or-treating has no venue: its poster goes on every board too, for the whole street.
+  addOccasion(world, { kind: 'halloween', name: 'trick-or-treating', place: -1, start: at + 180, end: at + 330, pull: 2, appeal: 'children', guests: null, activity: A.leisure, about: [] });
   days(world, 1);
   const boards = boardsOf(world);
   assert.ok(boards.length >= 2);
   for (const b of boards) assert.ok(noticesAt(world, b).some((n) => n.title === 'Summer festival'), `poster at ${world.graph.places[b].name}`);
+  for (const b of boards) assert.ok(noticesAt(world, b).some((n) => n.title === 'Trick-or-treating' && n.lines[1] === 'in every street'), `Halloween poster at ${world.graph.places[b].name}`);
   const fact = noticesAt(world, square)[0].fact;
   days(world, 4);
   let knowers = 0;
