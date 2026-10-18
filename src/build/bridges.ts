@@ -62,6 +62,23 @@ function profileOf(br: Bridge, terrain: Terrain): Profile | null {
 }
 
 /**
+ * The deck heights of all bridges at a point: a function of (x, z) giving the deck surface of the bridge whose
+ * water span it lies on (within half its width plus `margin`), or null off every deck. For things placed by
+ * position (people on the street layer); traffic follows a deck by arc length (`bridgeDeckSurface`).
+ */
+export function bridgeDecksAt(bridges: readonly Bridge[], terrain: Terrain, margin = 1): (x: number, z: number) => number | null {
+  const decks = bridges.flatMap((br) => { const p = profileOf(br, terrain); return p ? [{ p, hw: br.width / 2 + margin }] : []; });
+  return (x, z) => {
+    for (const { p, hw } of decks) {
+      const s = (x - p.ax) * p.dx + (z - p.az) * p.dz;
+      if (s < p.s0 || s > p.s1) continue;
+      if (Math.abs((x - p.ax) * p.dz - (z - p.az) * p.dx) < hw) return p.y(s);
+    }
+    return null;
+  };
+}
+
+/**
  * Height of a bridged arterial's deck at arc length s along its edge, or null when the bridge has
  * no water span (then the road lies on the ground).
  */

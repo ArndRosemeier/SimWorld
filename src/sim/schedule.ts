@@ -13,7 +13,6 @@ import { activeIntention, avoids } from './intentions';
 import { urgentNeed } from './needs';
 import { HABITS, HABIT_COUNT, T_CONSC, T_EXTRA, T_OPEN, V_FAITH } from './people';
 import { KINDS, type Service } from './placeKinds';
-import type { Trip } from './travel';
 import type { DayMask, PlaceId, PlaceKind } from './places';
 import type { Job } from './people';
 import { awakeAt, NEED_COUNT, N_FOOD, N_FUN, N_HYGIENE, N_REST, N_SOCIAL, SPECIES, speciesId } from './species';
@@ -22,7 +21,7 @@ import { drawingOn } from './agenda';
 import { awayRide } from './offsite';
 import { isCold, isFoul, isNiceOut, isWetOut, weatherAt } from './weather';
 import { eve, feast, runsLike, schoolDay, sunAt } from './calendar';
-import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, type World } from './world';
+import { ageOf, commute, hasCar, householdOf, jobOf, placesOf, placesWith, tickRng, tripOf, type World } from './world';
 
 /** Does a weekday mask include weekday `wd`? */
 const onMask = (mask: DayMask, wd: number) => ((mask >> wd) & 1) === 1;
@@ -136,8 +135,7 @@ function leadFollowers(world: World, leader: ActorId): void {
   const hh = householdOf(world, leader);
   if (!hh) return;
   const outing = OUTINGS.has(a.dest[leader] >= 0 ? a.planned[leader] : a.activity[leader]);
-  let trip: Trip | undefined;
-  if (a.dest[leader] >= 0) for (let i = world.trips.length - 1; i >= 0 && !trip; i--) if (world.trips[i].who === leader) trip = world.trips[i];
+  const trip = a.dest[leader] >= 0 ? tripOf(world, leader) : undefined;
   for (const list of [hh.members, hh.animals]) for (const f of list) {
     if (a.with[f] !== leader) continue;
     if (!outing) { a.with[f] = -1; a.until[f] = world.clock; continue; }

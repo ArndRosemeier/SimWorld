@@ -12,7 +12,8 @@
  */
 import { MinHeap } from '@futuremagic/core';
 import type { Town } from '../plan/town';
-import { LineSource, slicePolyline, townRoads, type RoadLine } from '../plan/roads';
+import { LineSource, townRoads, type RoadLine } from '../plan/roads';
+import { slicePolyline } from '../geom/geom2';
 import { RoadClass } from '../plan/types';
 import { boundaryAt } from '../world/boundary';
 import { bridgeDeckSurface } from '../build/bridges';

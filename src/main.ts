@@ -9,6 +9,11 @@
  * shows one storey of a building as a cutaway instead (showInside). Sound: `?date=YYYY-MM-DD`, `?time=HH:MM`,
  * `?rain=0…1`, `?wind=0…1` set what the soundscape hears instead of the real date, time and weather
  * (LiveClock); `?mute` keeps it silent.
+ *
+ * The society runs in the sim worker from the start; Enter takes the camera down to the street, where the
+ * inhabitants out of doors walk their real errands (src/game/street.ts, keys in src/game/camera.ts).
+ * `?time=HH:MM` starts the day at that time (default: the time of day now), `?speed=…` runs game time that
+ * many times faster than real time (default 1), `?street=x,z&yaw=…` and `?follow=<id>` start on the street.
  */
 import { Color, Fog, PerspectiveCamera, Scene } from 'three/webgpu';
 import { clamp } from '@futuremagic/core';
@@ -27,6 +32,14 @@ import { INTERIOR, useTextures } from './render/materials';
 import { whatsNewButton } from './app/whatsNew';
 import type { FromTown, ToTown } from './workers/townProtocol';
 import { DEFAULT_SETTINGS, type TownSettings } from './world/settings';
+import { SimClient, playStart } from './game/SimClient';
+import { Street } from './game/street';
+import { CameraControl } from './game/camera';
+import { PeopleView } from './render/people/peopleView';
+import { appearanceOf, outfitOf, type LookInfo } from './street/looks';
+import { FEMALE, MALE } from './sim/actors';
+import { hhmm, minuteOfDay } from './sim/time';
+import { formatDate } from './sim/calendar';
 import { TownAudio } from './audio/townAudio';
 import { LiveClock } from './audio/env';
 import { soundButton } from './app/soundPanel';
@@ -47,9 +60,28 @@ function step(text: string, frac?: number): void {
   if (bar && frac !== undefined) bar.style.width = `${Math.round(frac * 100)}%`;
 }
 
+/** Two looks whose shaders the warm-up compiles (every human after them is a cache hit). */
+function sampleLooks(seed: number, clock: number) {
+  const infos: LookInfo[] = [
+    { id: 1, sex: FEMALE, birth: -30 * 365, household: -1, role: '' },
+    { id: 2, sex: MALE, birth: -50 * 365, household: -1, role: '' },
+  ];
+  return infos.map((p, i) => ({
+    bodyKey: `sample${i}`, app: appearanceOf(seed, p, clock), outfitKey: '',
+    outfit: i === 0
+      ? { chest: { defId: 'dress', visual: { shape: 'cloth', seed: 3, primary: [0.6, 0.2, 0.2] as [number, number, number], secondary: [0.2, 0.2, 0.3] as [number, number, number], accent: [0, 0, 0] as [number, number, number], material: 'checks', glow: 0 } } }
+      : outfitOf(seed, p, clock, 1),
+  }));
+}
+
 async function start(audio: TownAudio, live: LiveClock): Promise<void> {
   const settings = settingsFromUrl();
   const cores = Math.max(1, (navigator.hardwareConcurrency || 4) - 1);
+  const q0 = new URLSearchParams(location.search);
+  const rate = Math.max(0, Number(q0.get('speed') ?? 1)) || 1;
+  // The society: planned and populated in its own worker while the rest loads.
+  const play = playStart(new URLSearchParams(location.search).get('time'));
+  const simulated = SimClient.boot(settings, play.start, play.startDay, play.clock, rate);
   // The town workers start planning at once; the texture workers generate the facade textures
   // meanwhile (the shaders need them before the warm-up), then the renderer warms up.
   const pool = new WorkerPool<ToTown, FromTown>(townWorkerUrl, Math.min(4, cores));
@@ -79,8 +111,12 @@ async function start(audio: TownAudio, live: LiveClock): Promise<void> {
   stage.shadowCamera = lights.sun.shadow.camera;
   useTextures({ facade: await facade, interior: await interior, vegetation: await vegetation });
   texPool.dispose();
+  step('Making the people', 0.1);
+  const { view: people, warm } = await PeopleView.create(stage, sampleLooks(settings.seed, play.clock), Math.min(2, cores));
+  scene.add(people.root);
   step('Preparing the shaders', 0.12);
-  await stage.warmUp();
+  await stage.warmUp(warm);
+  people.warmedUp();
   step('Planning the town', 0.15);
 
   const [ready] = await planned;
@@ -94,21 +130,35 @@ async function start(audio: TownAudio, live: LiveClock): Promise<void> {
   void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { live.region.region.coastal = r.map.coastal; audio.setTown(r.map); });
   const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total));
 
-  // The drone drift: a slow circle around the town, high enough to see it whole.
+  step('Waking the town', 0.15);
+  const sim = await simulated;
+  const street = new Street(sim, people, settings.seed);
+
+  // The drone drift: a slow circle around the town, high enough to see it whole (or fixed by ?at=…).
   const q = new URLSearchParams(location.search);
   const num = (k: string, d: number) => (q.has(k) && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : d);
   const [cx, cz] = (q.get('at') ?? `${town.x},${town.z}`).split(',').map(Number);
-  const R = num('r', town.radius * 1.35), H = town.y + num('h', town.radius * 0.55), fixed = q.has('a') ? num('a', 0) : null;
+  const cam = new CameraControl(camera, { cx, cz, y: town.y, r: num('r', town.radius * 1.35), h: num('h', town.radius * 0.55), fixed: q.has('a') ? num('a', 0) : null }, (x, z) => sim.standHeight(x, z));
+  cam.pickNear = (x, z) => street.next(x, z);
+  if (q.has('street')) { const [sx, sz] = q.get('street')!.split(',').map(Number); cam.toStreet(sx, sz, num('yaw', 0)); }
+  const followId = q.has('follow') ? num('follow', -1) : -1;
   const hud = document.getElementById('hud');
-  let shown = false, lastT = 0;
+  let shown = false, lastT = 0, shadowMode = '';
   const fwd = { x: 0, y: 0, z: 0 };
   renderer.setAnimationLoop((t: number) => {
-    const dt = lastT ? Math.min(0.25, (t - lastT) / 1000) : 0;
+    const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
     lastT = t;
     stage.frame();
-    const a = fixed ?? t * 0.00002;
-    camera.position.set(cx + Math.cos(a) * R, H, cz + Math.sin(a) * R);
-    camera.lookAt(cx, town.y, cz);
+    if (followId >= 0 && cam.following < 0 && cam.mode !== 'follow' && sim.walkers.has(followId)) cam.follow(followId);
+    const target = cam.mode === 'follow' ? street.where(cam.following) : null;
+    cam.update(dt, t, target);
+    const ground = cam.mode === 'drone' ? { x: cx, z: cz } : { x: camera.position.x, z: camera.position.z };
+    sim.poll(ground.x, ground.z);
+    people.draw(cam.mode === 'drone' ? [] : street.figuresNow(), camera.position.x, camera.position.z, dt, t / 1000);
+    // The sun's shadow covers the whole town from above, the streets around you down there.
+    if (cam.mode !== 'drone') fitSunShadow(lights, camera.position.x, camera.position.y, camera.position.z, 70);
+    else if (shadowMode !== 'drone') fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
+    shadowMode = cam.mode;
     view.vegetation?.update(camera);
     view.props?.update(camera);
     renderer.render(scene, camera);
@@ -116,7 +166,11 @@ async function start(audio: TownAudio, live: LiveClock): Promise<void> {
     fwd.x = -e[8]; fwd.y = -e[9]; fwd.z = -e[10];
     audio.frame(dt, { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: fwd.x, fy: fwd.y, fz: fwd.z, ux: e[4], uy: e[5], uz: e[6] }, live.now());
     if (!shown && view.done > 0) { shown = true; document.getElementById('loading')?.remove(); audio.startTown(); }
-    if (hud) hud.textContent = `${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}`;
+    if (hud) {
+      const c = sim.clock, n = people.counts;
+      const who = cam.mode === 'follow' ? `\n${street.describe(cam.following)}` : cam.mode === 'drone' ? '\nEnter: down to the street' : '\nW A S D walk, drag to look, F follow someone, Esc up';
+      hud.textContent = `${formatDate(sim.view.date)} ${hhmm(Math.floor(minuteOfDay(c)))}, ${Math.round(sim.view.weather.tempC)} °C ${sim.view.weather.kind} · ${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${who}`;
+    }
   });
   await view.ready;
 }

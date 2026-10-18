@@ -111,6 +111,13 @@ export interface RoadEdge {
   length: number;
   /** Walking speed factor: 1 normal, < 1 slower (steep, no sidewalk). */
   walk: number;
+  /**
+   * The centreline from a to b (x, z, … including both ends), when it is not a straight line. The street layer
+   * (src/street) walks it; the sim only needs `length`.
+   */
+  pts?: number[];
+  /** Where people walk: metres from the centreline to each side's walking line (mid-sidewalk; the verge on a country road, 0 on a footpath). */
+  side?: number;
 }
 
 export interface PlaceGraph {

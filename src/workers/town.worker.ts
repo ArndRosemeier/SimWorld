@@ -20,6 +20,7 @@ import { planTown, type Town } from '../plan/town';
 import { parcelParams } from '../world/landuse';
 import { soundMapOf, soundMapTransferables } from '../audio/soundMap';
 import type { FromTown, ToTown } from './townProtocol';
+import { serve } from './serve';
 
 let town: Town | null = null;
 let water: WaterSources | null = null;
@@ -113,13 +114,4 @@ function meshesOf(r: FromTown): MeshData[] {
   }
 }
 
-self.onmessage = (ev: MessageEvent<ToTown & { job?: number }>) => {
-  const job = ev.data.job;
-  try {
-    const r = handle(ev.data);
-    const transfer = r.type === 'sound' ? soundMapTransferables(r.map) : meshesOf(r).flatMap(meshTransferables);
-    (self as unknown as Worker).postMessage({ ...r, job }, transfer);
-  } catch (err) {
-    (self as unknown as Worker).postMessage({ type: 'error', job, message: err instanceof Error ? `${err.message}\n${err.stack}` : String(err) });
-  }
-};
+serve<ToTown, FromTown>(handle, (r) => (r.type === 'sound' ? soundMapTransferables(r.map) : meshesOf(r).flatMap(meshTransferables)));
