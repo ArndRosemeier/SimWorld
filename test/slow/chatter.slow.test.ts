@@ -10,7 +10,7 @@
  *   naturalness 1-5 and a note on the worst problem, which is what to fix next;
  * - the mechanical repetition figure (sentences said more than once).
  *
- * JUDGE_MODEL picks the judge (default: the task's first default), JUDGE_N the exchanges per town for the judge
+ * CHATTER_SEEDS picks the towns (default 1,2). JUDGE_MODEL picks the judge (default: the task's first default), JUDGE_N the exchanges per town for the judge
  * (default 40), LLM_REPORT=<file> writes every score as JSON. A run costs about a cent.
  *
  *   NODE_USE_ENV_PROXY=1 npm run test:slow -- test/slow/chatter.slow.test.ts
@@ -26,6 +26,8 @@ const KEY = process.env.OPENROUTER_API_KEY ?? process.env.OPEN_ROUTER_KEY ?? '';
 const MODEL = process.env.JUDGE_MODEL ?? DEFAULT_TASK_MODELS['talk.judge'][0];
 const N = Number(process.env.JUDGE_N ?? 40);
 const BATCH = 10;
+/** Towns to sample (CHATTER_SEEDS=1,2,3,4 for a steadier figure; Jev moves ±3 points between runs of two). */
+const SEEDS = (process.env.CHATTER_SEEDS ?? '1,2').split(',').map(Number);
 
 test('chatter: a decision model and an LLM judge score a day of talk', { skip: !KEY && 'no OpenRouter key' }, async () => {
   const catalog = await fetchCatalog();
@@ -37,7 +39,7 @@ test('chatter: a decision model and an LLM judge score a day of talk', { skip: !
 
   // Exchanges with something to judge: two people and at least three lines.
   const all: Sample[] = [];
-  for (const seed of [1, 2]) all.push(...sampleDay(sampleTown(seed), 150, seed));
+  for (const seed of SEEDS) all.push(...sampleDay(sampleTown(seed), 150, seed));
   const talk = all.filter((s) => s.kind === 'talk' && s.lines.length >= 3);
   const rep = repetition(all, 30);
 
@@ -74,8 +76,8 @@ test('chatter: a decision model and an LLM judge score a day of talk', { skip: !
   // Nothing said in town marks a region's English (D27: an invented, western-adjacent world).
   const marked = all.flatMap((x) => x.lines.map((l) => [dialectMarked(l.text), l.text] as const)).filter(([m]) => m);
   assert.deepEqual(marked.slice(0, 5), [], 'dialect-marked words in the day of talk');
-  // Floors, so a regression shows. Where it stands (2026-10-18): Jev 43% natural (mean 3.85), judge coherence
-  // 3.6-3.8; the goal is 80% natural and a judge score of 4.3.
+  // Floors, so a regression shows. Where it stands (2026-10-18, four towns): Jev 57-60% natural (mean 4.0), judge
+  // coherence 3.9-4.1, naturalness ~2.5 (it caps lines that recur across the day); the goal is 80% and 4.3.
   assert.ok(coherence >= 3.4, `coherence ${coherence.toFixed(2)}`);
-  assert.ok(natural >= 0.35, `natural ${(natural * 100).toFixed(0)}%`);
+  assert.ok(natural >= 0.45, `natural ${(natural * 100).toFixed(0)}%`);
 });
