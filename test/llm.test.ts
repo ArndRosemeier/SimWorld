@@ -2,15 +2,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createLlm, openRouterTransport, replayTransport, chunksFor, requestFor, route, rosterFromCatalog, derivedTags, effortFor,
-  DEFAULT_ROSTER, UsageLedger, LlmError, type CatalogModel, type Recording, type Roster, type Timers,
+  DEFAULT_ROSTER, DEFAULT_TASK_MODELS, THINKING_ROOM, UsageLedger, LlmError, type CatalogModel, type Recording, type Roster, type Timers,
 } from '../src/llm';
 import { sseData } from '../src/llm/wire';
 import { bakeryScene, RUTH } from './fixtures/llm/town';
 
 const model = (id: string) => DEFAULT_ROSTER.models.find((m) => m.id === id)!;
-const SONNET = 'anthropic/claude-sonnet-5.5';
-const HAIKU = 'anthropic/claude-haiku-5.5';
-const LUNA = 'openai/gpt-6-luna';
+const GLM = '~z-ai/glm-latest';
+const HAIKU = '~anthropic/claude-haiku-latest';
+const LUNA = '~openai/gpt-luna-latest';
+const GEMINI = '~google/gemini-flash-latest';
+const MISTRAL = 'mistralai/mistral-large-4-0';
+const DEEPSEEK = '~deepseek/deepseek-flash-latest';
+const GLM_FLASH = '~z-ai/glm-flash-latest';
 
 const rec = (name: string, m: string, text: string, cost = 0.001): Recording => ({
   name, model: m, requestHash: 'none', synthetic: true,
@@ -63,21 +67,28 @@ test('roster: tags derived from the catalog, refresh keeps player tags and disab
   const r = rosterFromCatalog([cat]);
   const h = r.models.find((m) => m.id === HAIKU)!;
   assert.equal(h.price.prompt, 0.2);
-  assert.ok(h.tags.includes('writing'), 'player tags survive a refresh');
+  assert.ok(h.tags.includes('fast'), 'player tags survive a refresh');
+  assert.equal(h.quality, 43.4, 'an alias without a catalog score keeps the roster\'s');
   assert.deepEqual(h.reasoning?.efforts, ['none', 'low', 'high']);
-  assert.equal(r.models.find((m) => m.id === SONNET)!.enabled, false);
-  assert.equal(effortFor(model(SONNET), 'none'), 'low', 'thinking that cannot be turned off goes to its lowest effort');
+  assert.equal(r.models.find((m) => m.id === GLM)!.enabled, false);
+  assert.equal(effortFor(model(GLM), 'none'), 'low', 'thinking that cannot be turned off goes to its lowest effort');
   assert.equal(effortFor(h, 'medium'), 'high');
 });
 
-test('routing: speech goes to the best writer, appraisal to the cheapest fast structured model; pins and disabling work', () => {
+test('routing: by tags and rank, the default per-task order first, the player\'s pins replace it; disabling works', () => {
   const ids = (task: Parameters<typeof route>[1]) => route(DEFAULT_ROSTER, task).map((m) => m.id);
-  assert.deepEqual(ids({ needs: ['writing'], prefers: ['fast'], rank: 'quality' }), [HAIKU, SONNET, 'google/gemini-4-argon']);
-  assert.deepEqual(ids({ needs: ['writing'], rank: 'quality' }), [SONNET, 'google/gemini-4-argon', HAIKU]);
-  assert.deepEqual(ids({ needs: ['structured', 'fast'], rank: 'cost' }), [HAIKU, LUNA, 'deepseek/deepseek-v4.1-flash-1017']);
+  assert.deepEqual(ids({ needs: ['writing'], rank: 'quality' }), [GLM, GLM_FLASH, GEMINI]);
+  assert.deepEqual(ids({ needs: ['writing'], prefers: ['fast'], rank: 'quality' }), [GLM, GLM_FLASH, MISTRAL]);
+  assert.deepEqual(ids({ needs: ['structured', 'fast'], rank: 'cost' }), [GLM_FLASH, DEEPSEEK, HAIKU]);
   assert.equal(route(DEFAULT_ROSTER, { needs: ['structured', 'fast'], rank: 'cost' }, [LUNA])[0].id, LUNA);
-  const off: Roster = { models: DEFAULT_ROSTER.models.map((m) => (m.id === HAIKU ? { ...m, enabled: false } : m)) };
-  assert.equal(route(off, { needs: ['structured', 'fast'], rank: 'cost' })[0].id, LUNA);
+  const off: Roster = { models: DEFAULT_ROSTER.models.map((m) => (m.id === GLM_FLASH ? { ...m, enabled: false } : m)) };
+  assert.equal(route(off, { needs: ['structured', 'fast'], rank: 'cost' })[0].id, DEEPSEEK);
+
+  const plan = (overrides = {}) => createLlm({ transport: replayTransport([]), roster: () => DEFAULT_ROSTER, ledger: new UsageLedger(), session: 's', overrides: () => overrides });
+  for (const [task, order] of Object.entries(DEFAULT_TASK_MODELS)) {
+    assert.deepEqual(plan().plan(task as keyof typeof DEFAULT_TASK_MODELS).map((m) => m.id).slice(0, order.length), order, `${task} follows the default order`);
+  }
+  assert.equal(plan({ 'npc.speech': [MISTRAL] }).plan('npc.speech')[0].id, MISTRAL, 'a pin from the settings wins');
 });
 
 test('request: only parameters the model takes; schema tasks require them; reasoning effort per model', () => {
@@ -87,18 +98,20 @@ test('request: only parameters the model takes; schema tasks require them; reaso
   assert.equal(a.response_format?.json_schema.strict, true);
   assert.deepEqual(a.provider, { require_parameters: true });
   assert.deepEqual(a.reasoning, { effort: 'none', exclude: true });
-  const d = requestFor('npc.speech', model('deepseek/deepseek-v4.1-flash-1017'), msgs);
+  const d = requestFor('npc.speech', model(DEEPSEEK), msgs);
   assert.equal(d.temperature, 0.9);
   assert.equal(d.response_format, undefined);
-  assert.equal(requestFor('npc.speech', model(SONNET), msgs).reasoning?.effort, 'low');
+  assert.equal(requestFor('npc.speech', model(GLM), msgs).reasoning?.effort, 'low');
+  assert.equal(requestFor('npc.speech', model(GLM), msgs).max_tokens, 400 + THINKING_ROOM.low, 'thinking gets room on top of the reply');
+  assert.equal(a.max_tokens, 900, 'no thinking, no extra room');
 });
 
 test('run: speech streams, is cleaned, and the ledger records tokens and OpenRouter cost per task, model, NPC, session', async () => {
-  const { llm, ledger } = setup([rec('speech', SONNET, 'Ruth Keller: "Morning, love. Closing? Says who?"', 0.0004)]);
+  const { llm, ledger } = setup([rec('speech', GLM, 'Ruth Keller: "Morning, love. Closing? Says who?"', 0.0004)]);
   const seen: string[] = [];
   const r = await llm.run('npc.speech', bakeryScene(), { onText: (t) => seen.push(t) });
   assert.equal(r.output, 'Morning, love. Closing? Says who?');
-  assert.equal(r.model, SONNET);
+  assert.equal(r.model, GLM);
   assert.ok(seen.length >= 2 && seen[seen.length - 1].startsWith('Ruth Keller'));
   const t = ledger.total();
   assert.deepEqual([t.calls, t.promptTokens, t.completionTokens, t.cachedTokens, t.cost, t.estimated], [1, 1000, 50, 800, 0.0004, false]);
@@ -112,11 +125,11 @@ test('run: a rate limit or a reply that breaks the contract moves on to the next
   const { llm, ledger } = setup([
     { name: 'rate', model: HAIKU, requestHash: 'none', httpError: { status: 429, message: 'slow down' } },
     rec('broken', LUNA, 'not json at all'),
-    rec('ok', 'deepseek/deepseek-v4.1-flash-1017', '{"relations":[],"emotion":null,"beliefs":[],"utterances":[],"intentions":[],"memory":null,"end_conversation":null}'),
+    rec('ok', MISTRAL, '{"relations":[],"emotion":null,"beliefs":[],"utterances":[],"intentions":[],"memory":null,"end_conversation":null}'),
   ]);
   const texts: string[] = [];
   const r = await llm.run('npc.appraisal', appraisal, { onText: (t) => texts.push(t) });
-  assert.equal(r.model, 'deepseek/deepseek-v4.1-flash-1017');
+  assert.equal(r.model, MISTRAL);
   assert.equal(r.failures.length, 2);
   assert.match(r.failures[1], /invalid_output/);
   assert.ok(texts.includes(''), 'a restart tells the UI to clear the text');
@@ -131,8 +144,8 @@ test('run: a rate limit or a reply that breaks the contract moves on to the next
 test('run: timeout and cancel', async () => {
   let fire: (() => void) | undefined;
   const timers: Timers = { set: (fn) => { fire = fn; return () => { fire = undefined; }; } };
-  const hang: Recording = { name: 'hang', model: HAIKU, requestHash: 'none', chunks: chunksFor('Morning', { model: HAIKU }) };
-  const one: Roster = { models: [model(HAIKU)] };
+  const hang: Recording = { name: 'hang', model: GLM, requestHash: 'none', chunks: chunksFor('Morning', { model: GLM }) };
+  const one: Roster = { models: [model(GLM)] };
   const { llm } = setup([hang], one, timers);
   // The first chunk arrives, then the timer fires before the rest is read.
   const p = llm.run('npc.speech', bakeryScene(), { onText: () => fire?.() });
@@ -140,7 +153,7 @@ test('run: timeout and cancel', async () => {
 
   const ctl = new AbortController();
   ctl.abort();
-  const c = setup([rec('x', HAIKU, 'hi')], one);
+  const c = setup([rec('x', GLM, 'hi')], one);
   await assert.rejects(c.llm.run('npc.speech', bakeryScene(), { signal: ctl.signal }), (e: LlmError) => e.kind === 'aborted');
 });
 
@@ -151,7 +164,7 @@ test('run: no model can do the task', async () => {
 
 test('ledger: totals survive trimming and a save; missing cost is estimated from list price', () => {
   const l = new UsageLedger(2);
-  const e = { at: 0, task: 'npc.speech' as const, model: HAIKU, session: 's', promptTokens: 10, completionTokens: 5, cachedTokens: 0, reasoningTokens: 0, cost: 1, estimated: false, ok: true, latencyMs: 1 };
+  const e = { at: 0, task: 'npc.speech' as const, model: GLM, session: 's', promptTokens: 10, completionTokens: 5, cachedTokens: 0, reasoningTokens: 0, cost: 1, estimated: false, ok: true, latencyMs: 1 };
   for (let i = 0; i < 5; i++) l.record({ ...e, npc: i % 2 });
   assert.equal(l.recent().length, 2);
   assert.equal(l.total().cost, 5);
@@ -159,17 +172,17 @@ test('ledger: totals survive trimming and a save; missing cost is estimated from
   assert.deepEqual(back.by('npc'), l.by('npc'));
   assert.equal(back.total().calls, 5);
 
-  const { llm, ledger } = setup([{ name: 'nocost', model: HAIKU, requestHash: 'none', chunks: chunksFor('Hello there', { model: HAIKU, usage: { prompt_tokens: 1_000_000, completion_tokens: 0, prompt_tokens_details: { cached_tokens: 500_000 } } }) }], { models: [model(HAIKU)] });
+  const { llm, ledger } = setup([{ name: 'nocost', model: GLM, requestHash: 'none', chunks: chunksFor('Hello there', { model: GLM, usage: { prompt_tokens: 1_000_000, completion_tokens: 0, prompt_tokens_details: { cached_tokens: 500_000 } } }) }], { models: [model(GLM)] });
   return llm.run('npc.speech', bakeryScene()).then(() => {
     const t = ledger.total();
     assert.equal(t.estimated, true);
-    assert.ok(Math.abs(t.cost - (0.5 * 0.1 + 0.5 * 0.01)) < 1e-12);
+    assert.ok(Math.abs(t.cost - (0.5 * 0.079 + 0.5 * 0.078)) < 1e-12);
   });
 });
 
 test('replay: requests are kept and drift from the recorded request is reported', async () => {
-  const { llm, transport } = setup([rec('speech', HAIKU, 'Hello')], { models: [model(HAIKU)] });
+  const { llm, transport } = setup([rec('speech', GLM, 'Hello')], { models: [model(GLM)] });
   await llm.run('npc.speech', bakeryScene());
-  assert.equal(transport.requests[0].model, HAIKU);
+  assert.equal(transport.requests[0].model, GLM);
   assert.deepEqual(transport.drift, ['speech']);
 });

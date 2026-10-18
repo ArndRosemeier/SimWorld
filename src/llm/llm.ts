@@ -8,7 +8,7 @@
  * and the caller falls back to the procedural text engine.
  */
 import { LlmError, type Transport } from './openrouter';
-import { effortFor, type ModelEntry, type Roster } from './roster';
+import { DEFAULT_TASK_MODELS, effortFor, type Effort, type ModelEntry, type Roster } from './roster';
 import { route } from './router';
 import { TASKS, type TaskIO, type TaskName } from './tasks';
 import { estimateCost, fromWire, type UsageLedger } from './usage';
@@ -36,7 +36,7 @@ export interface LlmConfig {
   ledger: UsageLedger;
   /** Labels the ledger's per-session totals. */
   session: string;
-  /** Per-task model pins from the settings. */
+  /** Per-task model pins from the settings; a task without any uses `DEFAULT_TASK_MODELS`. */
   overrides?: () => Partial<Record<TaskName, string[]>>;
   now?: () => number;
   timers?: Timers;
@@ -50,12 +50,18 @@ export interface Llm {
 
 const realTimers: Timers = { set: (fn, ms) => { const h = setTimeout(fn, ms); return () => clearTimeout(h); } };
 
+/** Tokens of thinking allowed on top of a task's reply, per effort. */
+export const THINKING_ROOM: Record<Effort, number> = { none: 0, low: 2_000, medium: 6_000, high: 12_000 };
+
 /** The request for one attempt: only parameters the model takes, so `require_parameters` never excludes it for an extra. */
 export function requestFor(task: TaskName, m: ModelEntry, messages: WireRequest['messages']): WireRequest {
   const spec = TASKS[task];
-  const req: WireRequest = { model: m.id, messages, stream: true, max_tokens: spec.maxTokens };
-  if (spec.temperature !== undefined && m.params.includes('temperature')) req.temperature = spec.temperature;
   const effort = effortFor(m, spec.effort);
+  // OpenRouter counts thinking against max_tokens, so a thinking model gets room for it on top of the
+  // reply; without it a model that thinks long returns no text at all (seen live, 2026-10-18).
+  const room = spec.maxTokens + (effort ? THINKING_ROOM[effort] : 0);
+  const req: WireRequest = { model: m.id, messages, stream: true, max_tokens: m.maxOutput ? Math.min(room, m.maxOutput) : room };
+  if (spec.temperature !== undefined && m.params.includes('temperature')) req.temperature = spec.temperature;
   if (effort) req.reasoning = { effort, exclude: true };
   if (spec.schema) {
     req.response_format = { type: 'json_schema', json_schema: { name: spec.schema.name, strict: true, schema: spec.schema.schema } };
@@ -68,7 +74,7 @@ export function createLlm(cfg: LlmConfig): Llm {
   const now = cfg.now ?? (() => Date.now());
   const timers = cfg.timers ?? realTimers;
 
-  const plan = (task: TaskName) => route(cfg.roster(), TASKS[task].routing, cfg.overrides?.()[task] ?? []);
+  const plan = (task: TaskName) => route(cfg.roster(), TASKS[task].routing, cfg.overrides?.()[task] ?? DEFAULT_TASK_MODELS[task]);
 
   async function attempt<K extends TaskName>(task: K, m: ModelEntry, input: TaskIO[K]['input'], opts: RunOptions): Promise<TaskIO[K]['output']> {
     const spec = TASKS[task];
