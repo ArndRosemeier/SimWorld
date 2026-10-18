@@ -77,6 +77,24 @@ const OFFICES = ['Insurance', 'Tax Advisers', 'Law Office', 'Accountants', 'Arch
 /** The kinds of small office a former shop unit may hold. */
 export const officeWords = (): readonly string[] => OFFICES;
 
+/**
+ * The words on the town's boards and street furniture (src/render/signPaint.ts, the atlas pictures in
+ * src/render/textAtlas.ts): estate agents' boards, door cards, notice boards, the town sign, the fixed
+ * signage on street furniture. `{city}` is the town's name. No currency anywhere on a sign.
+ */
+const BOARD = {
+  forSale: 'FOR SALE', forRent: 'FOR RENT', callToView: 'Call to view', agent: '{city} Property',
+  openingHours: 'OPENING HOURS', closed: 'Closed', notices: 'NOTICES', found: 'FOUND',
+  welcome: 'Welcome to', driveCarefully: 'Please drive carefully', thanks: 'thanks you for your visit',
+  stop: 'STOP', bus: 'BUS', telephone: 'TELEPHONE', news: 'NEWS', post: 'POST', sewer: 'SEWER', central: 'CENTRAL',
+  townHall: 'Town Hall', market: 'MARKET', summer: 'SUMMER',
+} as const;
+
+export type BoardWord = keyof typeof BOARD;
+
+/** A word on a board or a piece of street furniture ("FOR RENT", "OPENING HOURS"). */
+export const boardWord = (w: BoardWord): string => BOARD[w];
+
 /** A business's sign label ("Pharmacy", "Mini Market"). */
 export const signWord = (kind: SignKind): string => SIGN[kind];
 
@@ -85,6 +103,15 @@ export const ownedWord = (kind: string): string | undefined => OWNED[kind];
 
 /** A landmark's name patterns (see `fillName`). */
 export const landmarkPatterns = (kind: LandmarkNameKind): readonly string[] => LANDMARK[kind];
+
+/**
+ * A home as people mention it before its street ("a house on Elm Street", "an apartment on Mill Road"). A unit in
+ * a block is "an apartment", the word both sides share (plan R7); never "flat".
+ */
+const DWELLING: Readonly<Record<string, string>> = { house: 'a house', apartments: 'an apartment', farmhouse: 'a farmhouse' };
+
+/** How people name a home of this place kind before its street ("a house", "an apartment"). */
+export const dwellingWord = (kind: string): string => DWELLING[kind] ?? 'a place';
 
 /** Fill a name pattern's `{key}` slots. */
 export const fillName = (pattern: string, slots: Readonly<Record<string, string>>): string =>

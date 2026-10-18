@@ -55,15 +55,15 @@ test('calendar: holidays, school terms, and the town keeps them', () => {
 
   // Good Friday runs like a Sunday; the school is shut in the holidays and on weekends.
   assert.equal(runsLike(world, day(world, 2027, 3, 26)), 6);
-  assert.equal(termOn(world, day(world, 2026, 8, 10)).holiday, 'the summer holidays');
-  assert.equal(termOn(world, day(world, 2026, 12, 30)).holiday, 'the Christmas holidays');
-  assert.equal(termOn(world, day(world, 2027, 1, 2)).holiday, 'the Christmas holidays');
+  assert.equal(termOn(world, day(world, 2026, 8, 10)).holiday, 'the summer break');
+  assert.equal(termOn(world, day(world, 2026, 12, 30)).holiday, 'the Christmas break');
+  assert.equal(termOn(world, day(world, 2027, 1, 2)).holiday, 'the Christmas break');
   assert.ok(schoolDay(world, day(world, 2026, 11, 4)));
   assert.ok(!schoolDay(world, day(world, 2026, 11, 7)));
 
   const pl = (k: string) => world.graph.places.find((p) => p.kind === k)!.id;
   assert.ok(isOpen(world, pl('school'), day(world, 2026, 11, 4)));
-  assert.ok(!isOpen(world, pl('school'), day(world, 2026, 10, 28)), 'open in the autumn half-term');
+  assert.ok(!isOpen(world, pl('school'), day(world, 2026, 10, 28)), 'open in the October break');
   const shop = world.graph.places.find((p) => p.kind === 'supermarket' || p.kind === 'grocer' || p.kind === 'bakery')!.id;
   assert.ok(isOpen(world, shop, day(world, 2026, 12, 23)));
   assert.ok(!isOpen(world, shop, day(world, 2026, 12, 25)), 'shop open on Christmas Day');

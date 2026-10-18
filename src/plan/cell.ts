@@ -68,6 +68,9 @@ export interface Lot {
   kind: 'perimeter' | 'free' | 'tower';
 }
 
+/** How far in from the kerb the street furniture stands (lamps, bins, sign posts), on a sidewalk `sidewalk` m wide (m). */
+export const kerbStrip = (sidewalk: number): number => Math.min(0.5, sidewalk * 0.25);
+
 export const enum PropType {
   Tree = 0,
   Lamp = 1,
@@ -1079,7 +1082,7 @@ function placeProps(plan: CellPlan, cell: CellInfo, macro: MacroPlan, g: Grammar
         const curb = s.width / 2;
         // The furniture strip along the kerb (lamps, bins, tree pits); the rest of the sidewalk stays
         // clear for walking (WALK_CLEAR at least, where people walk: mid-sidewalk).
-        const strip = Math.min(0.5, s.sidewalk * 0.25);
+        const strip = kerbStrip(s.sidewalk);
         // (Never in the roadway or the sidewalk of a cross street, round a corner.)
         const kerbOk = (x: number, z: number) => !nearOtherStreet(plan, si, x, z, (o) => o.width / 2 + o.sidewalk + 0.5);
         if (acc >= nextLamp) {

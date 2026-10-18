@@ -7,6 +7,7 @@
  * `createWorld` applies it once, seeded per place, to the world's copy of the place graph. The planner's graph keeps
  * the defaults, so signs and boards that show a shop's hours read them from the world.
  */
+import { boardWord } from '../lang/words';
 import { Rng, deriveSeed } from '@futuremagic/core';
 import type { Hours, Place, PlaceGraph, PlaceKind } from './places';
 import { weekdayName } from './calendar';
@@ -67,7 +68,7 @@ const clockText = (m: number): string => `${Math.floor(m / 60) % 24}:${String(m 
  */
 export function hoursLines(hours: readonly Hours[]): string[] {
   const day = (d: number) => hours.filter((h) => h.days & bit(d)).sort((a, b) => a.open - b.open)
-    .map((h) => `${clockText(h.open)}–${clockText(h.close)}`).join(' ') || 'Closed';
+    .map((h) => `${clockText(h.open)}–${clockText(h.close)}`).join(' ') || boardWord('closed');
   const days = SHORT_DAYS.map((_, d) => day(d));
   const out: string[] = [];
   for (let d = 0; d < 7;) {

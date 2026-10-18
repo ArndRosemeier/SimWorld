@@ -7,7 +7,8 @@ import { defaultStaff } from '../src/sim/placeKinds';
 import { pointInPoly, polyArea } from '../src/geom/geom2';
 import { planInterior, peakStaff, storeyFacade, type Interior } from '../src/interior/building';
 import { MeshBuilder } from '../src/build/meshBuilder';
-import { INTERIOR_SPECS, LAMP, buildCutaway } from '../src/build/interior';
+import { INTERIOR_SPECS, LAMP, buildCutaway, buildIndoors } from '../src/build/interior';
+import { indoorsOf, STREET_DOOR_H, type Box } from '../src/interior/indoors';
 import { buildingTiers } from '../src/build/massing';
 
 // One small town shared by the file (planning it is the expensive part); a few buildings of it.
@@ -114,5 +115,39 @@ test('the cutaway of a storey is a sound textured mesh', () => {
     for (let t = 0; t < I3.length; t++) if (I3[t] >= nv) assert.fail(`index ${t}`);
     // Round the ground-floor level given (10; the stairs' soffit reaches a little under it), below the storey's top.
     assert.ok(d.bounds[1] >= 9.5 && d.bounds[4] < 10 + I.storeys[floor].y + I.storeys[floor].height + 0.5, `${d.bounds}`);
+  }
+});
+
+/** Whether (x, y, z) lies inside box c (grown by r across). */
+function inBox(c: Box, x: number, y: number, z: number, r = 0): boolean {
+  const dx = x - c.x, dz = z - c.z, cs = Math.cos(c.yaw), sn = Math.sin(c.yaw);
+  return Math.abs(dx * cs - dz * sn) <= c.hx + r && Math.abs(dx * sn + dz * cs) <= c.hz + r && Math.abs(y - c.y) <= c.hy;
+}
+
+test('indoors: the street doors open through solid outer walls, and every room, stair and spot is there to walk to', () => {
+  for (const b of [...homes, works[0]]) {
+    const I = planInterior(b), base = 10, ind = indoorsOf(I, base);
+    const what = `${b.style} ${b.use}`;
+    assert.equal(ind.storeys.length, I.storeys.length);
+    assert.equal(ind.slabs.length, I.storeys.length + 1, `${what}: a floor per storey and the roof`);
+    assert.equal(ind.ramps.length, I.storeys.reduce((n, s) => n + s.flights.length, 0), `${what}: a ramp per flight`);
+    assert.ok(ind.spots.every((p) => p.y === base + I.storeys[p.floor].y), `${what}: spots at their floor's height`);
+    const blocked = (x: number, z: number, y = base + 1) => ind.colliders.some((c) => inBox(c, x, y, z, 0.25));
+    assert.ok(ind.doors.length >= 1, `${what}: a street door`);
+    for (const d of ind.doors) {
+      // Through the doorway: from a step outside to a step inside, nothing in the way at chest height.
+      for (const k of [0.6, 0, -0.3]) assert.ok(!blocked(d.x + d.nx * k, d.z + d.nz * k), `${what}: door at ${d.x.toFixed(1)},${d.z.toFixed(1)} open ${k} m out`);
+      assert.ok(ind.colliders.some((c) => inBox(c, d.x - d.nx * 0.1, base + STREET_DOOR_H + 0.2, d.z - d.nz * 0.1, 0.15)), `${what}: a lintel over the door`);
+      // Beside the doorway the wall is solid.
+      const sx = -d.nz, sz = d.nx, aside = d.w / 2 + 0.4;
+      assert.ok(blocked(d.x + sx * aside - d.nx * 0.1, d.z + sz * aside - d.nz * 0.1) || blocked(d.x - sx * aside - d.nx * 0.1, d.z - sz * aside - d.nz * 0.1), `${what}: wall beside the door`);
+    }
+    // Every outer wall piece is a collider; furniture you walk into is too.
+    for (const s of I.storeys) for (const f of s.furniture) if (f.kind === 'bed' || f.kind === 'sofa' || f.kind === 'counter') {
+      assert.ok(ind.colliders.some((c) => inBox(c, f.x, base + s.y + Math.min(0.3, f.h / 2), f.z)), `${what}: ${f.kind} is solid`);
+    }
+    const mb = new MeshBuilder(INTERIOR_SPECS);
+    buildIndoors(mb, I, ind);
+    assert.ok(!mb.empty, `${what}: a mesh`);
   }
 });

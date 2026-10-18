@@ -15,6 +15,7 @@
     "test:slow": "node --import tsx --test \"test/slow/**/*.slow.test.ts\""
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
     "@futuremagic/core": "file:vendor/assetgenerator/packages/core",
     "@futuremagic/humanoid": "file:vendor/assetgenerator/packages/humanoid",
     "clipper-lib": "^6.4.2",

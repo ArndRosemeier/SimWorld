@@ -111,7 +111,7 @@ export function furnitureLook(m: MeshStandardNodeMaterial, sign: Texture): void 
       }).Else(() => { // lamp: frosted diffuser
         base.assign(vec3(0.82, 0.82, 0.8));
         rough.assign(0.25);
-        fEmis.assign(paintC.mul(vec3(1.0, 0.86, 0.66)).mul(vEmit).mul(lightOn).mul(9.0));
+        fEmis.assign(paintC.mul(vec3(1.0, 0.86, 0.66)).mul(vEmit).mul(LIGHT.lamps).mul(9.0));
       });
     }).ElseIf(mid.equal(8), () => { // water
       If(sub_.equal(1), () => {

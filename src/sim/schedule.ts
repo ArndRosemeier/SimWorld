@@ -99,6 +99,12 @@ export function decideAll(world: World): void {
   }
 }
 
+/** Where someone is now: their place, or home while between places. */
+export function placeNow(world: World, id: ActorId): PlaceId {
+  const a = world.actors.cols;
+  return a.place[id] >= 0 ? a.place[id] : a.home[id];
+}
+
 /**
  * Start `activity` at `place` until `until` (travelling there first if needed), and bring followers along.
  * The single way an actor's location and activity change.
@@ -106,7 +112,7 @@ export function decideAll(world: World): void {
 export function go(world: World, id: ActorId, place: PlaceId, activity: number, until: number): void {
   const a = world.actors.cols;
   const now = world.clock;
-  const from = a.place[id] >= 0 ? a.place[id] : a.home[id];
+  const from = placeNow(world, id);
   // Reconsider when the next planned intention comes due.
   const stack = world.intentions[id];
   if (stack) for (const i of stack) if (i.kind !== 'avoid' && i.at > now && i.at < until) until = i.at;
@@ -344,7 +350,7 @@ function decidePerson(world: World, id: ActorId): void {
 /** Eat at home if it is close, else at the nearest open place that serves food. */
 function eatSomewhere(world: World, id: ActorId, rng: Rng): void {
   const a = world.actors.cols;
-  const here = a.place[id] >= 0 ? a.place[id] : a.home[id];
+  const here = placeNow(world, id);
   if (world.travel.minutes(here, a.home[id]) <= 10 || rng.chance(0.5)) { go(world, id, a.home[id], A.eat, world.clock + 30); return; }
   const place = nearestWith(world, here, 'eat', id);
   go(world, id, place >= 0 ? place : a.home[id], A.eat, world.clock + 35);

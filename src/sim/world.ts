@@ -101,6 +101,8 @@ export interface World {
 export interface Player {
   id: ActorId;
   autopilot: boolean;
+  /** Where the player is walking them out of doors with their own hands (null: in a place, or on autopilot). */
+  at?: { x: number; z: number } | null;
 }
 
 /** Is `id` the player with their own hands on the wheel (no routine deciding for them)? */
@@ -171,6 +173,9 @@ export function nameOf(world: World, id: ActorId): string {
 /** First name of a person (an animal's name). */
 export const firstName = (world: World, id: ActorId): string =>
   world.actors.cols.kind[id] === 0 ? world.people.first[world.actors.cols.row[id]] : nameOf(world, id);
+
+/** A person's surname ("Keller"); '' for an animal. */
+export const lastName = (world: World, id: ActorId): string => (world.actors.cols.kind[id] === 0 ? world.people.last[world.actors.cols.row[id]] : '');
 
 // ---- lookups shared by the sim systems ---------------------------------------------------------------------
 

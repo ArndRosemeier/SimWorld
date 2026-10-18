@@ -5,6 +5,7 @@
  * each new game minute it also sends the sim's view snapshot (`SimView`), which every view reads, and with every
  * update the town's traffic (run here, beside the world it is driven by).
  */
+import type { InsidePerson } from '../street/inside';
 import type { ChatRequest, ChatResponse } from '../chat/ops';
 import type { CivilDate } from '../sim/calendar';
 import type { DigestItem } from '../sim/chronicle';
@@ -12,6 +13,7 @@ import type { PlayerAction, PlayerStatus } from '../sim/player';
 import type { InhabitantCard } from '../sim/profile';
 import type { SimView } from '../sim/view';
 import type { WindowSlots } from '../street/windows';
+import type { NearSolids } from '../street/streetMap';
 import type { TownSettings } from '../world/settings';
 import type { TrafficMsg } from '../traffic/feed';
 
@@ -38,12 +40,15 @@ export type ToSim =
   | { type: 'chat'; req: ChatRequest }
 
   /** Who the player is and what they do (src/sim/player.ts); answered with `player`. */
-  | { type: 'player'; op: PlayerOp };
+  | { type: 'player'; op: PlayerOp }
+  /** Who is inside a building (`Place.building` code) now (src/street/inside.ts); answered with `inside`. */
+  | { type: 'inside'; building: number };
 
 /**
  * The player's requests (plan R2, R5): every inhabitant's card for the picker; become someone (autopilot on or
  * off); hand them to their routine or take over; what they could do now; send them somewhere; what they know
- * of the time since `since` (the digest after a skip).
+ * of the time since `since` (the digest after a skip); while you steer them: where they are now (`steer`, out of
+ * doors at x, z) and what stands around a point for their body to walk against (`near`).
  */
 export type PlayerOp =
   | { op: 'cards' }
@@ -51,14 +56,21 @@ export type PlayerOp =
   | { op: 'autopilot'; on: boolean }
   | { op: 'actions' }
   | { op: 'go'; place: number; activity: number }
-  | { op: 'digest'; since: number };
+  | { op: 'digest'; since: number }
+  | { op: 'steer'; x: number; z: number }
+  | { op: 'near'; x: number; z: number; r: number };
 
 /** The answer to a `PlayerOp` (empty lists where the op asks for nothing), with the player's status after it. */
+export type { NearSolids };
+
 export interface PlayerReply {
   type: 'player';
   cards: InhabitantCard[];
   actions: PlayerAction[];
   digest: DigestItem[];
+  near: NearSolids | null;
+  /** The player's person's looks and name (after `become`), for drawing them while the player walks them. */
+  info: ActorInfo | null;
   status: PlayerStatus | null;
   ms: number;
 }
@@ -85,6 +97,8 @@ export interface TrackMsg {
   keys: Float64Array;
   hideAfter: number;
   activity: number;
+  /** When they sit, and on what (Track.rests: t0, t1, yaw, seat height per sitting). */
+  rests: Float64Array;
   /** What they are up to, in words ("walking to Elm Street Bakery to shop"). */
   doing: string;
 }
@@ -110,4 +124,6 @@ export type FromSim =
   | { type: 'saved'; clock: number; bytes: Uint8Array; ms: number }
   | { type: 'skipped'; clock: number; view: SimView; ms: number }
   | { type: 'chat'; res: ChatResponse }
+  /** Everyone inside the building asked about, with their info and what they are up to. */
+  | { type: 'inside'; people: (InsidePerson & { info: ActorInfo; doing: string })[]; ms: number }
   | { type: 'error'; message: string };

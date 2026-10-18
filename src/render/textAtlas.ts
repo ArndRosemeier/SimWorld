@@ -11,6 +11,8 @@
 import { CanvasTexture, LinearMipmapLinearFilter, SRGBColorSpace } from 'three/webgpu';
 import { Rng } from '@futuremagic/core';
 import { ATLAS_H, ATLAS_W, PICTURE_PX, SlotPacker, picturePx, slotRect, type AtlasRect, type Slot, type SlotSize } from '../build/textAtlasLayout';
+import { boardWord } from '../lang/words';
+import { BLADE_GROUND, BLADE_INK } from './signPaint';
 
 let atlas: CanvasTexture | null = null;
 let lettered: Lettering | null = null;
@@ -58,7 +60,7 @@ export function textAtlas(): CanvasTexture {
     gg.fillStyle = '#ffffff'; gg.fillRect(0, 0, C, C);
     octagon(gg, 128); gg.fillStyle = '#f2f2f2'; gg.fill();
     octagon(gg, 118); gg.fillStyle = '#b5121b'; gg.fill();
-    text(gg, 'STOP', 128, 132, 78, '#ffffff', 'Arial, Helvetica, sans-serif', 'bold', 0.92);
+    text(gg, boardWord('stop'), 128, 132, 78, '#ffffff', 'Arial, Helvetica, sans-serif', 'bold', 0.92);
   });
   // 1 metro "M" disc
   cell(1, (gg) => {
@@ -76,7 +78,7 @@ export function textAtlas(): CanvasTexture {
     gg.fillStyle = '#1f7a3a';
     gg.fillRect(78, 74, 46, 34); gg.fillRect(132, 74, 46, 34);
     gg.beginPath(); gg.arc(90, 152, 12, 0, Math.PI * 2); gg.arc(166, 152, 12, 0, Math.PI * 2); gg.fillStyle = '#ffffff'; gg.fill();
-    text(gg, 'BUS', 128, 196, 48, '#ffffff');
+    text(gg, boardWord('bus'), 128, 196, 48, '#ffffff');
   });
   // 3 & 4 posters
   const poster = (gg: CanvasRenderingContext2D, hue: number, title: string, r: Rng) => {
@@ -94,8 +96,8 @@ export function textAtlas(): CanvasTexture {
     gg.fillStyle = 'rgba(255,255,255,0.85)';
     gg.fillRect(40, 205, 176, 8); gg.fillRect(60, 222, 136, 6);
   };
-  cell(3, (gg) => poster(gg, 200, 'MARKET', rng.fork('p1')));
-  cell(4, (gg) => poster(gg, 330, 'SUMMER', rng.fork('p2')));
+  cell(3, (gg) => poster(gg, 200, boardWord('market'), rng.fork('p1')));
+  cell(4, (gg) => poster(gg, 330, boardWord('summer'), rng.fork('p2')));
   // 5 newspaper fronts / magazines
   cell(5, (gg) => {
     gg.fillStyle = '#ddd'; gg.fillRect(0, 0, C, C);
@@ -114,7 +116,7 @@ export function textAtlas(): CanvasTexture {
   // 6 TELEPHONE header
   cell(6, (gg) => {
     gg.fillStyle = '#111'; gg.fillRect(0, 0, C, C);
-    text(gg, 'TELEPHONE', 128, 128, 40, '#f5f2e6', 'Georgia, serif', 'bold', 0.95);
+    text(gg, boardWord('telephone'), 128, 128, 40, '#f5f2e6', 'Georgia, serif', 'bold', 0.95);
   });
   // 7 pedestrian hand (mask, white on black) / 8 walking figure
   cell(7, (gg) => {
@@ -150,26 +152,20 @@ export function textAtlas(): CanvasTexture {
     gg.lineWidth = 10; gg.strokeStyle = '#4a4a4b';
     for (const r of [104, 60]) { gg.beginPath(); gg.arc(128, 128, r, 0, Math.PI * 2); gg.stroke(); }
     gg.beginPath(); gg.arc(128, 128, 54, 0, Math.PI * 2); gg.fillStyle = '#3a3a3b'; gg.fill();
-    text(gg, 'SEWER', 128, 130, 30, '#555556');
+    text(gg, boardWord('sewer'), 128, 130, 30, '#555556');
     for (const a of [0.4, 3.5]) { gg.beginPath(); gg.arc(128 + Math.cos(a) * 82, 128 + Math.sin(a) * 82, 6, 0, Math.PI * 2); gg.fillStyle = '#151515'; gg.fill(); }
   });
   // 10 kiosk sign band
   cell(10, (gg) => {
     gg.fillStyle = '#0f2f22'; gg.fillRect(0, 0, C, C);
-    text(gg, 'PRESSE', 128, 120, 60, '#f0e6c8', 'Georgia, serif', 'bold', 1.25);
+    text(gg, boardWord('news'), 128, 120, 60, '#f0e6c8', 'Georgia, serif', 'bold', 1.25);
     gg.fillStyle = '#c9a54a'; gg.fillRect(10, 30, 236, 6); gg.fillRect(10, 214, 236, 6);
   });
-  // 11 mailbox label / 12 post plate
-  cell(11, (gg) => {
-    gg.fillStyle = '#1b3a78'; gg.fillRect(0, 0, C, C);
-    gg.strokeStyle = '#ffffff'; gg.lineWidth = 6; gg.strokeRect(24, 40, 208, 176);
-    text(gg, 'MAIL', 128, 108, 70, '#ffffff');
-    gg.fillStyle = '#ffffff'; gg.fillRect(60, 160, 136, 10); gg.fillRect(80, 182, 96, 8);
-  });
+  // 11 (free: was a mail box label) / 12 post plate
   cell(12, (gg) => {
     gg.fillStyle = '#c8c4b8'; gg.fillRect(0, 0, C, C);
     gg.fillStyle = '#181818';
-    text(gg, 'POST', 128, 60, 52, '#181818', 'Georgia, serif');
+    text(gg, boardWord('post'), 128, 60, 52, '#181818', 'Georgia, serif');
     for (let k = 0; k < 5; k++) gg.fillRect(40, 110 + k * 24, 176, 6);
   });
   // 13 timetable
@@ -183,13 +179,13 @@ export function textAtlas(): CanvasTexture {
   // 14 station name plate
   cell(14, (gg) => {
     gg.fillStyle = '#1b2b5a'; gg.fillRect(0, 0, C, C);
-    text(gg, 'CENTRAL', 128, 128, 62, '#ffffff', 'Arial, Helvetica, sans-serif', 'bold', 0.9);
+    text(gg, boardWord('central'), 128, 128, 62, '#ffffff', 'Arial, Helvetica, sans-serif', 'bold', 0.9);
   });
-  // 15 street name blade
+  // 15 wayfinding blade on the traffic-light masts: the town's blade colours, an arrow to the town hall
   cell(15, (gg) => {
-    gg.fillStyle = '#1a6b3c'; gg.fillRect(0, 0, C, C);
-    gg.strokeStyle = '#ffffff'; gg.lineWidth = 6; gg.strokeRect(6, 90, 244, 76);
-    text(gg, 'MAIN ST', 128, 128, 54, '#ffffff', 'Arial, Helvetica, sans-serif', 'bold', 0.85);
+    gg.fillStyle = BLADE_GROUND; gg.fillRect(0, 0, C, C);
+    gg.strokeStyle = BLADE_INK; gg.lineWidth = 6; gg.strokeRect(6, 90, 244, 76);
+    text(gg, `${boardWord('townHall')} →`, 128, 128, 44, BLADE_INK, 'Arial, Helvetica, sans-serif', 'bold', 0.85);
   });
   const t = new CanvasTexture(cv);
   t.colorSpace = SRGBColorSpace;

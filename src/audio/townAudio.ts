@@ -82,6 +82,14 @@ export class TownAudio {
     for (const [k, h] of this.loops) if (!want.has(k)) { h.stop(); this.loops.delete(k); }
   }
 
+  /**
+   * A looping sound of another system (a level crossing's bells while it is closed): null until the clip is decoded
+   * (try again next frame); move it with `set`, end it with `stop`. Shares the mix like `play`.
+   */
+  loop(id: string, refDist = 6): LoopHandle | null {
+    return this.playing ? this.engine.loop(id, refDist) : null;
+  }
+
   /** A sound of another system (traffic, trains, people, doors) at a point; see the manifest for ids. */
   play(id: string, x: number, y: number, z: number, gain = 1, pitch = 1, refDist = 6): void {
     this.engine.play(id, x, y, z, gain, pitch, refDist);

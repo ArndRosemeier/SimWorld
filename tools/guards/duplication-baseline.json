@@ -44,6 +44,18 @@
     "reason": "Both implement Transport.stream (the real OpenRouter connection and the recorded/recording test transports); one interface method, different jobs."
   },
   {
+    "key": "same name: simworld/llm/decide.ts#build + simworld/llm/tasks.ts#build",
+    "reason": "Each is the request builder of its own task kind (DecisionSpec.build makes typed decision questions, TaskSpec.build makes chat messages); the same contract shape on purpose."
+  },
+  {
+    "key": "same name: simworld/llm/llm.ts#decide + simworld/llm/openrouter.ts#decide",
+    "reason": "Llm.decide (the task API: model fallback, usage ledger) and Transport.decide (one HTTP call), like run and stream."
+  },
+  {
+    "key": "same name: simworld/llm/openrouter.ts#decide + simworld/llm/recorded.ts#decide",
+    "reason": "Both implement Transport.decide (the real OpenRouter decisions endpoint and the recorded/recording test transports); one interface method, different jobs."
+  },
+  {
     "key": "same name: simworld/plan/cell.ts#add + simworld/plan/macro.ts#add",
     "reason": "Local closures ported from Scale's planner (cell.ts adds a building, macro.ts an arterial edge); unrelated jobs."
   },
@@ -132,10 +144,6 @@
     "reason": "Ported from Scale's vehicle Geo: a quad flipped on request and a quad whose two halves are each oriented to a normal (each half tested, as a half can be degenerate where a loft closes)."
   },
   {
-    "key": "idiom: [.ElseIf .assign] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
-    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
-  },
-  {
     "key": "idiom: [.mul .toVar] in simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vegetation.ts",
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
@@ -144,15 +152,7 @@
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
   {
-    "key": "idiom: [.and .greaterThan .lessThan] in simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vehicles.ts",
-    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
-  },
-  {
     "key": "idiom: [.assign .equal] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
-    "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
-  },
-  {
-    "key": "idiom: [.assign .mul] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
     "reason": "Ported TSL looks (Scale's facade, furniture, vehicle, ground, vegetation shaders): the shared shape is TSL's own If/ElseIf/assign/mul/toVar vocabulary for per-material branches, not a copied helper."
   },
   {
@@ -208,7 +208,7 @@
     "reason": "Callers of LandUse.sample (the one land-use query) asking it different questions: where forest grows, where places go, where farms are."
   },
   {
-    "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/fill/area.ts + simworld/interior/storey.ts",
+    "key": "idiom: [.ax .az .bx .bz .hypot Math] in simworld/build/interior.ts + simworld/interior/fill/area.ts + simworld/interior/indoors.ts + simworld/interior/storey.ts",
     "reason": "The length of a wall segment ({ax, az, bx, bz}, the interior's IWall and the filler's Edge) before walking along it."
   },
   {
@@ -364,10 +364,6 @@
     "reason": "TSL builder chaining (.add/.mul then .toVar) that every node-graph look uses; the finder regroups it as looks are added. Not a copy."
   },
   {
-    "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
-    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
-  },
-  {
     "key": "idiom: [.SNOW_ALBEDO .assign] in simworld/render/tsl/facade.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vegetation.ts",
     "reason": "Lying snow: each look mixes its own surface toward common.ts SNOW_ALBEDO by LIGHT.snow with its own mask (facade sills, ground slush, conifer sprays); the shared colour is the one seam, the mix is one TSL call."
   },
@@ -488,10 +484,6 @@
     "reason": "A person's sex for their pronouns or kin words (she/he, wife/husband) in three describers of different things: the NPC card, life events, the picker's card."
   },
   {
-    "key": "idiom: [.actors .cols .sex] in simworld/chat/card.ts + simworld/sim/profile.ts + simworld/talk/chatter.ts",
-    "reason": "A person's sex for their pronouns or kin words (she/he, wife/husband) in three describers of different things: the NPC card, life events, the picker's card."
-  },
-  {
     "key": "idiom: [.addEventListener .key] in simworld/app/chatPanel.ts + simworld/app/llmSettings.ts + simworld/app/picker.ts",
     "reason": "One-line key checks in different panels (Enter sends a chat line, Enter saves the key, Escape closes the picker); each with its own action."
   },
@@ -508,11 +500,79 @@
     "reason": "Looking up a place by id in the place graph inside a describer (card, belief, paper, profile); the one way to read a place, not a copy."
   },
   {
-    "key": "idiom: [.atan2 .x .z Math] in simworld/build/streetProps.ts + simworld/game/street.ts + simworld/plan/terrace.ts",
-    "reason": "A heading from one point to another (atan2 of the x/z difference) in three unrelated places: prop rotation, a person turning to face you, a terrace's orientation."
+    "key": "idiom: [.ax .az .bx .bz] in simworld/build/interior.ts + simworld/interior/indoors.ts + simworld/interior/storey.ts",
+    "reason": "A wall is a segment a→b with its own fields (Wall); reading its ends is the data shape, not a copied computation."
+  },
+  {
+    "key": "idiom: [.pool .run] in simworld/game/SimClient.ts + simworld/render/interiorView.ts + simworld/render/people/bodies.ts",
+    "reason": "WorkerPool.run is the one seam for worker requests; each caller asks its own op."
+  },
+  {
+    "key": "same name: simworld/render/interiorView.ts#enter + simworld/traffic/traffic.ts#enter",
+    "reason": "Unrelated: going inside a building vs. a vehicle joining the traffic."
   },
   {
     "key": "idiom: [.fillRect .fillStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
     "reason": "Canvas 2D's own grammar (set the fill colour, fill a rectangle): the map, the signs' painters and the atlas pictures each paint their own pictures; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.lineWidth .strokeStyle] in simworld/app/mapPanel.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
+    "reason": "Canvas 2D's own grammar (set the line colour and width, stroke): the map, the signs' painters and the atlas pictures each draw their own outlines; a wrapper would only rename the canvas API."
+  },
+  {
+    "key": "idiom: [.actors .count .row] in simworld/sim/chronicle.ts + simworld/sim/economy.ts + simworld/sim/life.ts",
+    "reason": "A pass over every actor reading their person row: the World's own column layout (actors → people rows), each pass doing its own work."
+  },
+  {
+    "key": "same name: simworld/app/chatPanel.ts#describe + simworld/game/street.ts#describe",
+    "reason": "Unrelated: the chat panel's line for a change a conversation made, and the street's HUD line about the person followed."
+  },
+  {
+    "key": "idiom: [.ElseIf .assign] in simworld/render/tsl/decor.ts + simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.ElseIf .assign] in simworld/render/tsl/decor.ts + simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.ElseIf .equal] in simworld/render/tsl/decor.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.actors .cols .kind] in simworld/sim/decor.ts + simworld/sim/life.ts + simworld/talk/refer.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+  },
+  {
+    "key": "idiom: [.add .mul] in simworld/render/tsl/common.ts + simworld/render/tsl/decor.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/precip.ts + simworld/render/tsl/vegetation.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.add .mul] in simworld/render/tsl/decor.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/sky.ts + simworld/render/tsl/vegetation.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.and .greaterThan .lessThan] in simworld/render/tsl/decor.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/ground.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.assign .lessThan] in simworld/render/tsl/decor.ts + simworld/render/tsl/facade.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.assign .mul .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vegetation.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.assign .mul] in simworld/render/tsl/decor.ts + simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.assign .toVar] in simworld/render/tsl/facade.ts + simworld/render/tsl/furniture.ts + simworld/render/tsl/vehicles.ts",
+    "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
+  },
+  {
+    "key": "idiom: [.households .length .members] in simworld/sim/decor.ts + simworld/sim/lostPets.ts + simworld/sim/media.ts",
+    "reason": "Skipping empty households in a loop over world.households (one guard line); each system goes on to read different columns of the household."
   }
 ]

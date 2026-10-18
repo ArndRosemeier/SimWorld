@@ -65,7 +65,7 @@ export interface StaffSlot {
   days: DayMask;
   start: DayMinute;
   end: DayMinute; // may exceed 1440 for night shifts
-  /** Minimum age for the role (16 for a shop assistant, 25 for a doctor). */
+  /** Minimum age for the role (16 for a sales assistant, 25 for a doctor). */
   minAge: number;
 }
 
