@@ -46,7 +46,7 @@ const BY_TOWN: ReadonlySet<PlaceKind> = new Set(['school', 'kindergarten', 'town
 const JOBS: Partial<Record<PlaceKind, number>> = { factory: 0.1, office: 0.08, workshop: 0.04 };
 
 /** A road polyline before it is cut into graph edges. */
-interface Line { pts: number[]; walk: number; street: number; cum: Float64Array; cuts: { s: number; node: number }[] }
+interface Line { pts: number[]; walk: number; street: number; cum: Float64Array; cuts: { s: number; node: number }[]; side: number }
 
 export function placeGraphOf(town: Town): PlaceGraph {
   const { macro, cells, rural, terrain } = town;
@@ -86,11 +86,11 @@ export function placeGraphOf(town: Town): PlaceGraph {
     return streets.length - 1;
   };
   const lines: Line[] = [];
-  const addLine = (pts: number[], walk: number, street: number) => {
+  const addLine = (pts: number[], walk: number, street: number, side: number) => {
     if (pts.length < 4) return;
     const n = pts.length >> 1, cum = new Float64Array(n);
     for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + Math.hypot(pts[i * 2] - pts[i * 2 - 2], pts[i * 2 + 1] - pts[i * 2 - 1]);
-    lines.push({ pts, walk, street, cum, cuts: [] });
+    lines.push({ pts, walk, street, cum, cuts: [], side: round1(side) });
     if (street >= 0) streets[street].lines.push(lines.length - 1);
   };
   const chain = arterialChains(macro);
@@ -98,15 +98,16 @@ export function placeGraphOf(town: Town): PlaceGraph {
   macro.edges.forEach((e, i) => {
     const c = chain[i];
     if (!chainStreet.has(c)) chainStreet.set(c, nameStreet(c, e.cls));
-    addLine(e.pts, 1, chainStreet.get(c)!);
+    addLine(e.pts, 1, chainStreet.get(c)!, e.width / 2 + e.sidewalk / 2);
   });
   cells.forEach((plan, ci) => plan.streets.forEach((s, si) => {
     if (s.arterial >= 0) return;
-    addLine(s.pts, s.cls === RoadClass.Path ? 0.95 : 1, s.cls === RoadClass.Path ? -1 : nameStreet(1_000_000 + ci * 1000 + si, s.cls));
+    addLine(s.pts, s.cls === RoadClass.Path ? 0.95 : 1, s.cls === RoadClass.Path ? -1 : nameStreet(1_000_000 + ci * 1000 + si, s.cls), s.cls === RoadClass.Path ? 0 : s.width / 2 + s.sidewalk / 2);
   }));
   rural.roads.forEach((r, ri) => {
-    if (r.kind === RoadKind.Track) addLine(r.pts, 0.85, -1);
-    else addLine(r.pts, 0.9, nameStreet(2_000_000 + ri, RoadClass.Street));
+    // Country roads have no sidewalk: people walk on the verge.
+    if (r.kind === RoadKind.Track) addLine(r.pts, 0.85, -1, 0);
+    else addLine(r.pts, 0.9, nameStreet(2_000_000 + ri, RoadClass.Street), r.hw + 0.7);
   });
 
   // Ends become nodes; an end that meets another line part way along cuts that line there.
@@ -185,8 +186,10 @@ export function placeGraphOf(town: Town): PlaceGraph {
       if (edgeSeen.has(key)) continue;
       edgeSeen.add(key);
       const length = b.s - a.s;
+      const pts = slice(L, a.s, b.s);
       const grade = Math.abs(terrain.height(nodes[b.node].x, nodes[b.node].z) - terrain.height(nodes[a.node].x, nodes[a.node].z)) / length;
-      edges.push({ a: a.node, b: b.node, length: Math.round(Math.max(length, Math.hypot(nodes[b.node].x - nodes[a.node].x, nodes[b.node].z - nodes[a.node].z)) * 10) / 10, walk: Math.round((L.walk / (1 + 4 * grade)) * 100) / 100 });
+      edges.push({ a: a.node, b: b.node, length: Math.round(Math.max(length, Math.hypot(nodes[b.node].x - nodes[a.node].x, nodes[b.node].z - nodes[a.node].z)) * 10) / 10, walk: Math.round((L.walk / (1 + 4 * grade)) * 100) / 100,
+        ...(pts.length > 4 ? { pts } : {}), side: L.side });
     }
   }
 
@@ -342,6 +345,14 @@ function along(L: Line, s: number): [number, number] {
   const i = Math.min(L.cum.length - 1, Math.max(1, upper(L.cum, s)));
   const t = clamp((s - L.cum[i - 1]) / Math.max(1e-6, L.cum[i] - L.cum[i - 1]), 0, 1);
   return [L.pts[i * 2 - 2] + (L.pts[i * 2] - L.pts[i * 2 - 2]) * t, L.pts[i * 2 - 1] + (L.pts[i * 2 + 1] - L.pts[i * 2 - 1]) * t];
+}
+
+/** The part of a line from arc length s0 to s1 (x, z, …, both ends included), rounded to 0.1 m. */
+function slice(L: Line, s0: number, s1: number): number[] {
+  const out = [...along(L, s0)];
+  for (let i = upper(L.cum, s0); i < L.cum.length && L.cum[i] < s1 - 0.05; i++) if (L.cum[i] > s0 + 0.05) out.push(L.pts[i * 2], L.pts[i * 2 + 1]);
+  out.push(...along(L, s1));
+  return out.map(round1);
 }
 
 /** First index whose value exceeds s (binary search over a sorted array). */

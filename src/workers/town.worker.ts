@@ -13,6 +13,7 @@ import { facadeSpecs, buildBuildings, buildLandmark } from '../build/massing';
 import { planTown, type Town } from '../plan/town';
 import { parcelParams } from '../world/landuse';
 import type { FromTown, ToTown } from './townProtocol';
+import { serve } from './serve';
 
 let town: Town | null = null;
 let water: WaterSources | null = null;
@@ -83,12 +84,4 @@ function meshesOf(r: FromTown): MeshData[] {
   }
 }
 
-self.onmessage = (ev: MessageEvent<ToTown & { job?: number }>) => {
-  const job = ev.data.job;
-  try {
-    const r = handle(ev.data);
-    (self as unknown as Worker).postMessage({ ...r, job }, meshesOf(r).flatMap(meshTransferables));
-  } catch (err) {
-    (self as unknown as Worker).postMessage({ type: 'error', job, message: err instanceof Error ? `${err.message}\n${err.stack}` : String(err) });
-  }
-};
+serve<ToTown, FromTown>(handle, (r) => meshesOf(r).flatMap(meshTransferables));

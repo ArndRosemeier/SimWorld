@@ -44,6 +44,12 @@ export const ACTOR_COLUMNS = {
   dest: i32(-1),
   /** Clock minute of arrival at `dest`. */
   arrive: i32(),
+  /** Where the current or last trip started (the place left), -1 before the first trip. The street layer walks it. */
+  from: i32(-1),
+  /** Clock minute the current or last trip started. */
+  depart: i32(),
+  /** 1 while the current trip is by car (the traffic layer drives it), 0 on foot. */
+  byCar: u8(),
   activity: u8(),
   /** Activity to start on arrival while travelling. */
   planned: u8(),

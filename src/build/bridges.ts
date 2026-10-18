@@ -24,7 +24,7 @@ export interface BridgeMeshes {
 }
 
 /** A bridge laid out along its edge: a straight line from a, the water span s0..s1, the deck height. */
-interface Profile {
+export interface Profile {
   ax: number; az: number; dx: number; dz: number;
   /** Length of the edge (the deck runs 0..L). */
   L: number;
@@ -36,7 +36,7 @@ interface Profile {
 /** Deck height above the ground at its land ends (just above the cell carriageway it meets). */
 const DECK_LIFT = 0.01;
 
-function profileOf(br: Bridge, terrain: Terrain): Profile | null {
+export function bridgeProfile(br: Bridge, terrain: Terrain): Profile | null {
   const p = br.pts;
   const ax = p[0], az = p[1], bx = p[p.length - 2], bz = p[p.length - 1];
   const L = Math.hypot(bx - ax, bz - az);
@@ -79,7 +79,7 @@ export function buildBridges(bridges: readonly Bridge[], terrain: Terrain, edges
   const mb = new MeshBuilder(facadeSpecs());
   mb.set('aSeed', 0.5);
   for (const br of bridges) {
-    const pr = profileOf(br, terrain);
+    const pr = bridgeProfile(br, terrain);
     if (pr) buildBridge(deck, mb, br, edges[br.edge], pr);
   }
   return { deck: deck.empty ? null : deck, structure: mb.empty ? null : mb };

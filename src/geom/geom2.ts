@@ -355,3 +355,55 @@ export function simplifyClosed(p: Poly, tol: number): Poly {
   for (let i = 0; i < n; i++) if (keep[i]) out.push(p[i * 2], p[i * 2 + 1]);
   return out;
 }
+
+/**
+ * An open polyline moved sideways by `d` (positive: to the left of its direction in an x-right / z-up frame,
+ * i.e. along (-dz, dx)). Corners are mitred, the mitre capped at 3·|d| so a hairpin does not shoot out.
+ */
+export function offsetPolyline(pts: number[], d: number): number[] {
+  const n = pts.length >> 1;
+  if (n < 2 || d === 0) return pts.slice();
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1);
+    // Normals of the segments before and after the vertex (the same one at the ends).
+    const n0 = segNormal(pts, a, a === i ? b : i), n1 = segNormal(pts, i === b ? a : i, b);
+    let mx = n0[0] + n1[0], mz = n0[1] + n1[1];
+    const ml = Math.hypot(mx, mz);
+    if (ml < 1e-6) { mx = n0[0]; mz = n0[1]; } else { mx /= ml; mz /= ml; }
+    const cos = mx * n0[0] + mz * n0[1];
+    const k = Math.min(3, 1 / Math.max(1e-3, cos));
+    out.push(pts[i * 2] + mx * d * k, pts[i * 2 + 1] + mz * d * k);
+  }
+  return out;
+}
+
+function segNormal(pts: number[], i: number, j: number): P2 {
+  const dx = pts[j * 2] - pts[i * 2], dz = pts[j * 2 + 1] - pts[i * 2 + 1], l = Math.hypot(dx, dz) || 1;
+  return [-dz / l, dx / l];
+}
+
+/** The point at arc length `s` along an open polyline (clamped to its ends). */
+export function pointOnPolyline(pts: number[], s: number): P2 {
+  for (let i = 0; i + 3 < pts.length; i += 2) {
+    const l = Math.hypot(pts[i + 2] - pts[i], pts[i + 3] - pts[i + 1]);
+    if (s <= l || i + 4 >= pts.length) {
+      const t = l > 0 ? Math.max(0, Math.min(1, s / l)) : 0;
+      return [pts[i] + (pts[i + 2] - pts[i]) * t, pts[i + 1] + (pts[i + 3] - pts[i + 1]) * t];
+    }
+    s -= l;
+  }
+  return [pts[0], pts[1]];
+}
+
+/** The part of an open polyline from arc length s0 to s1 (s0 < s1), both ends included. */
+export function slicePolyline(pts: number[], s0: number, s1: number): number[] {
+  const out = [...pointOnPolyline(pts, s0)];
+  let acc = 0;
+  for (let i = 2; i < pts.length; i += 2) {
+    acc += Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]);
+    if (acc > s0 + 1e-3 && acc < s1 - 1e-3) out.push(pts[i], pts[i + 1]);
+  }
+  out.push(...pointOnPolyline(pts, s1));
+  return out;
+}

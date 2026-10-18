@@ -5,6 +5,7 @@
  */
 import { generateFacadeLayer, generateGroundLayer } from '../build/texgen';
 import type { FromTex, ToTex } from './texProtocol';
+import { serve } from './serve';
 
 function handle(m: ToTex): FromTex {
   if (m.type === 'init') return { type: 'ready' };
@@ -13,12 +14,4 @@ function handle(m: ToTex): FromTex {
   return { type: 'layer', family: m.family, index: m.index, albedo: layer.albedo, normal: layer.normal, ms: Math.round(performance.now() - t0) };
 }
 
-self.onmessage = (ev: MessageEvent<ToTex & { job?: number }>) => {
-  const job = ev.data.job;
-  try {
-    const r = handle(ev.data);
-    (self as unknown as Worker).postMessage({ ...r, job }, r.type === 'layer' ? [r.albedo.buffer, r.normal.buffer] : []);
-  } catch (err) {
-    (self as unknown as Worker).postMessage({ type: 'error', job, message: err instanceof Error ? `${err.message}\n${err.stack}` : String(err) });
-  }
-};
+serve<ToTex, FromTex>(handle, (r) => (r.type === 'layer' ? [r.albedo.buffer, r.normal.buffer] : []));

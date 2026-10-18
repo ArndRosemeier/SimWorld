@@ -72,9 +72,13 @@ export function go(world: World, id: ActorId, place: PlaceId, activity: number, 
     a.activity[id] = activity;
     a.until[id] = Math.max(until, now + 5);
   } else {
-    const t = world.travel.minutes(from, place, hasCar(world, id));
+    const car = hasCar(world, id);
+    const t = world.travel.minutes(from, place, car);
     a.dest[id] = place;
     a.arrive[id] = now + t;
+    a.from[id] = from;
+    a.depart[id] = now;
+    a.byCar[id] = car && world.travel.drives(from, place) ? 1 : 0;
     const street = world.streetOf[place];
     a.place[id] = street >= 0 ? street : world.streetOf[from];
     a.activity[id] = A.travel;
@@ -95,6 +99,7 @@ function leadFollowers(world: World, leader: ActorId): void {
     if (a.with[f] !== leader) continue;
     if (!outing) { a.with[f] = -1; a.until[f] = world.clock; continue; }
     a.place[f] = a.place[leader]; a.dest[f] = a.dest[leader]; a.arrive[f] = a.arrive[leader];
+    a.from[f] = a.from[leader]; a.depart[f] = a.depart[leader]; a.byCar[f] = a.byCar[leader];
     a.activity[f] = a.activity[leader]; a.planned[f] = a.planned[leader]; a.until[f] = a.until[leader];
   }
 }
