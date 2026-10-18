@@ -127,14 +127,15 @@ export const FURNITURE = defineKind('furniture', FURNITURE_SPECS, () => {
 }, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iTint', size: 4 }]);
 
 /**
- * Vehicles (src/build/vehicles.ts: uv, aPart), instanced (INSTANCE_SPECS, and iPaint: the paint,
- * sRGB). Double-sided: the loft leaves open edges.
+ * Vehicles (src/build/vehicles.ts: uv, aPart), instanced (INSTANCE_SPECS, iPaint: the paint, sRGB,
+ * and iState: the lights, zero for a parked car; src/render/vehiclesView.ts). Double-sided: the loft
+ * leaves open edges.
  */
 export const VEHICLE = defineKind('vehicle', VEHICLE_SPECS, () => {
   const m = new MeshPhysicalNodeMaterial({ roughness: 0.5, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, side: DoubleSide });
   vehicleLook(m);
   return m;
-}, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iPaint', size: 3 }]);
+}, { cast: true, receive: true }, [...INSTANCE_SPECS, { name: 'iPaint', size: 3 }, { name: 'iState', size: 4 }]);
 
 /**
  * Tree and shrub wood (src/build/vegetation.ts `BARK_SPECS`: uv into the bark atlas, aWind,

@@ -15,9 +15,12 @@ import { StreetMap } from '../street/streetMap';
 import { sample, trackOf, signature, type Track } from '../street/tracks';
 import type { ActorInfo, FromSim, HeightGrid, ToSim, TrackMsg } from './simProtocol';
 import { serve } from './serve';
+import { TrafficFeed, trafficTransfers } from '../traffic/feed';
 
 let world: World | null = null;
 let map: StreetMap | null = null;
+/** The town's traffic, driven by the world's car trips and rounds. */
+let traffic: TrafficFeed | null = null;
 /** The track each actor has now, while they are out of doors (made lazily, kept until L0 changes or it runs out). */
 const tracks = new Map<number, Track>();
 /** Actors the main thread has a track of (id → the signature it was made from, its validity). */
@@ -38,14 +41,16 @@ function simJob(m: ToSim): FromSim {
     world = createWorld(graph, m.settings.seed, { region: regionOf(town), start: m.start, startDay: m.startDay });
     map = new StreetMap(town, world.graph);
     runTo(Math.max(m.clock, world.clock));
+    traffic = new TrafficFeed(town, world);
     sentAt = world.clock;
     return { type: 'ready', clock: world.clock, people: world.people.count, ground: heightGrid(map, town.terrain.profile.radius * 1.4, 4), view: viewOf(world), ms: took() };
   }
-  if (!world || !map) throw new Error('sim worker: not initialised');
+  if (!world || !map || !traffic) throw new Error('sim worker: not initialised');
   runTo(m.clock);
+  traffic.run(m.clock);
   const view = world.clock !== sentAt ? viewOf(world) : null;
   sentAt = world.clock;
-  return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), ms: took() };
+  return { type: 'street', clock: world.clock, view, ...street(world, map, m.clock, m.x, m.z, m.r), traffic: traffic.message(), ms: took() };
 }
 
 /** Tick the world up to the whole minute of `clock`. */
@@ -114,6 +119,6 @@ function heightGrid(map: StreetMap, half: number, step: number): HeightGrid {
 
 serve<ToSim, FromSim>(simJob, (r) => {
   if (r.type === 'ready') return [r.ground.h.buffer, ...viewTransfers(r.view)];
-  if (r.type === 'street') return [...r.tracks.map((t) => t.keys.buffer), ...(r.view ? viewTransfers(r.view) : [])];
+  if (r.type === 'street') return [...r.tracks.map((t) => t.keys.buffer), ...(r.view ? viewTransfers(r.view) : []), ...trafficTransfers(r.traffic)];
   return [];
 });

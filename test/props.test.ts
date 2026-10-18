@@ -97,6 +97,9 @@ test('the town\'s props become instance lists of buildable models, on the ground
     }
   }
   assert.ok(cars > 50, `${cars} parked cars`);
+  // Without the kerb cars (the traffic stands its household cars there) only the car parks' remain.
+  const lots = propInstances(town.cells, town.terrain, { kerbCars: false }).filter((g) => g.model.startsWith('v:')).reduce((n, g) => n + g.inst.length / PROP_STRIDE, 0);
+  assert.ok(lots < cars, `${lots} cars in the car parks of ${cars}`);
   assertSound(propModel('f:bench:0'), FURNITURE_SPECS, 'propModel');
   assertSound(propFar(keys.find((k) => k.startsWith('v:'))!)!, VEHICLE_SPECS, 'far vehicle');
   assert.equal(propFar('f:bench:0'), null);

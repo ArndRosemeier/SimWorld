@@ -79,6 +79,8 @@ export const enum PropType {
   Grave = 29,
   Tomb = 30,
   Yew = 31,
+  /** A car parked at the kerb of a street (ParkedCar is one in a car park): left out when the traffic draws the household cars in those bays. */
+  KerbCar = 32,
 }
 
 export interface CellPlan {
@@ -973,7 +975,7 @@ function placeProps(plan: CellPlan, cell: CellInfo, macro: MacroPlan, g: Grammar
           if (sr.chance(parking)) {
             const lane = s.cls === RoadClass.Avenue ? curb - 1.3 : curb - 1.2;
             const x = x1 + nx * lane, z = z1 + nz * lane;
-            if (inCell(x, z) && free(x, z, 2.2)) push(PropType.ParkedCar, x, z, side > 0 ? yaw : yaw + Math.PI, 1, sr.int(0, 1 << 20));
+            if (inCell(x, z) && free(x, z, 2.2)) push(PropType.KerbCar, x, z, side > 0 ? yaw : yaw + Math.PI, 1, sr.int(0, 1 << 20));
           }
         }
         if (acc >= nextMisc) {
