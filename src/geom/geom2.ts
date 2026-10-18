@@ -414,3 +414,26 @@ export function upperBound(a: Float64Array, s: number): number {
   while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= s) lo = m + 1; else hi = m; }
   return lo;
 }
+
+/**
+ * Polylines joined end to start into one, as offset lines meet at a corner: where the end of one crosses the
+ * start of the next (the inside of a corner) both are cut at the crossing, so the result has no spur that runs
+ * past the corner and back; elsewhere (the outside of a corner) the gap is bridged straight. `reach`: how many
+ * segments from each end are searched.
+ */
+export function joinPolylines(lines: readonly number[][], reach = 6): number[] {
+  if (!lines.length) return [];
+  let out = lines[0].slice();
+  for (let k = 1; k < lines.length; k++) {
+    const B = lines[k], na = out.length >> 1, nb = B.length >> 1;
+    let cut: [number, number, number, number] | null = null;
+    for (let i = na - 2; i >= Math.max(0, na - 1 - reach) && !cut; i--) {
+      for (let j = 0; j < Math.min(nb - 1, reach) && !cut; j++) {
+        const hit = segIntersect(out[i * 2], out[i * 2 + 1], out[i * 2 + 2], out[i * 2 + 3], B[j * 2], B[j * 2 + 1], B[j * 2 + 2], B[j * 2 + 3]);
+        if (hit) cut = [i, j, out[i * 2] + (out[i * 2 + 2] - out[i * 2]) * hit[0], out[i * 2 + 1] + (out[i * 2 + 3] - out[i * 2 + 1]) * hit[0]];
+      }
+    }
+    out = cut ? [...out.slice(0, cut[0] * 2 + 2), cut[2], cut[3], ...B.slice(cut[1] * 2 + 2)] : [...out, ...B];
+  }
+  return out;
+}

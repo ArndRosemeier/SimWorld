@@ -78,7 +78,7 @@ export function createWorld(planned: PlaceGraph, seed: number, opts: WorldOption
     actors: newActorTable(1024), people: new PersonTable(), animals: new AnimalTable(),
     households: [], jobs: [], relations: new Relations(), knowledge: newKnowledge(), memory: newMemories(),
     intentions: [], encounters: [], trips: [], agenda: newAgenda(), mind: newMindLedger(), life: newLife(), region: null,
-    economy: newEconomy(graph.places.length), groups: newGroups(), politics: newPolitics(), media: newMedia(),
+    economy: newEconomy(graph.places.length), groups: newGroups(), politics: newPolitics(), media: newMedia(), player: null,
   };
   const rng = new Rng(deriveSeed(seed, 'synth'));
   const today = Math.floor(world.clock / 1440);

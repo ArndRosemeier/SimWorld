@@ -8,12 +8,13 @@
  */
 import { WorkerPool } from '../workers/pool';
 import simWorkerUrl from '../workers/sim.worker.ts?worker&url';
-import type { ActorInfo, FromSim, HeightGrid, ToSim } from '../workers/simProtocol';
+import type { ActorInfo, FromSim, HeightGrid, PlayerOp, PlayerReply, ToSim } from '../workers/simProtocol';
+import type { PlayerStatus } from '../sim/player';
 import { DEFAULT_LATITUDE, daysOf, epochFor, weekdayOfDays, type CivilDate } from '../sim/calendar';
 import type { SimView } from '../sim/view';
 import type { TownSettings } from '../world/settings';
 import { sample } from '../street/tracks';
-import { readSave, storeSave } from '../persist/saves';
+import { dropSave, readSave, storeSave } from '../persist/saves';
 
 /** Real milliseconds between street updates (the plan's L1 rate, ~5 Hz). */
 const UPDATE_MS = 200;
@@ -99,6 +100,7 @@ export class SimClient {
     if (ready.type !== 'ready') throw new Error(ready.type === 'error' ? ready.message : 'the sim worker did not start');
     const c = new SimClient(pool, rate, ready.ground, ready.people, ready.view, key);
     c.restart(ready.clock);
+    if (save && !ready.resumed) void dropSave(key); // it no longer fits this build or town
     return c;
   }
 
@@ -131,6 +133,16 @@ export class SimClient {
     } finally {
       this.busy = false;
     }
+  }
+
+  /** The player's person as of the worker's last answer (src/sim/player.ts), null while nobody is picked. */
+  player: PlayerStatus | null = null;
+
+  /** A player request (cards, become, autopilot, actions, go, digest); updates `player`. */
+  async ask(op: PlayerOp): Promise<PlayerReply> {
+    const r = await this.pool.run<PlayerReply>({ type: 'player', op }, 0);
+    this.player = r.status;
+    return r;
   }
 
   /** The game clock reads `clock` now. */
@@ -166,6 +178,7 @@ export class SimClient {
     this.last = now;
     this.inflight = this.pool.run<Extract<FromSim, { type: 'street' }>>({ type: 'update', clock: this.clock, x, z, r: STREET_RADIUS }, 0).then((m) => {
       if (m.view) this.view = m.view;
+      this.player = m.player;
       for (const i of m.info) this.infos.set(i.id, i);
       for (const id of m.gone) this.walkers.delete(id);
       for (const t of m.tracks) {

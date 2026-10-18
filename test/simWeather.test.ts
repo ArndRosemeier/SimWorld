@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { dateOf, daysOf, gameDayOf, moonPhase, moonPosition, sunPosition, sunTimes } from '../src/sim/calendar';
-import { WeatherModel, describeWeather, weatherAt } from '../src/sim/weather';
+import { WeatherModel, describeWeather, heatingShare, weatherAt } from '../src/sim/weather';
+import { cropLook } from '../src/world/landuse';
 
 test('sky: the sun stands where the calendar says, the moon has its real phase', () => {
   const w = { epoch: daysOf(2025, 12, 29), seed: 1, latitude: 51 };
@@ -57,4 +58,29 @@ test('weather: keyed to the date, so a town started on any day sees the same Chr
   const wa = new WeatherModel(5, a).weather((xmas - a) * 1440 + 600), wb = new WeatherModel(5, b).weather((xmas - b) * 1440 + 600);
   assert.equal(wa.kind, wb.kind);
   assert.ok(Math.abs(wa.tempC - wb.tempC) < 1e-9 && Math.abs(wa.snowCm - wb.snowCm) < 1e-6 && Math.abs(wa.windDir - wb.windDir) < 1e-9);
+});
+
+test('weather: homes heat when it is cold, most in the morning and the evening', () => {
+  assert.equal(heatingShare(20, 8 * 60), 0);
+  assert.ok(heatingShare(0, 8 * 60) > 0.85);
+  assert.ok(heatingShare(8, 8 * 60) > heatingShare(12, 8 * 60));
+  assert.ok(heatingShare(0, 3 * 60) < heatingShare(0, 19 * 60) / 2);
+});
+
+test('seasons: the fields follow the farming calendar', () => {
+  const o = [0, 0, 0, 0];
+  const at = (crop: number, doy: number) => [...cropLook(crop as never, doy, o)];
+  const [wr, wg, , wJan] = at(0, 10);
+  assert.ok(wg > wr && wJan < 0.5, 'winter wheat: green shoots in January');
+  const [jr, jg, jb, jCover] = at(0, 205);
+  assert.ok(jr > jg && jg > jb && jCover > 0.8, 'ripe gold in late July');
+  assert.ok(at(0, 270)[3] < 0.08, 'ploughed in late September');
+  const rape = at(6, 125);
+  assert.ok(rape[0] > 0.7 && rape[1] > 0.65 && rape[2] < 0.3, 'rapeseed yellow in May');
+  assert.ok(at(3, 110)[3] < 0.08 && at(3, 240)[3] > 0.9, 'maize: ploughed in April, tall in August');
+  // Smooth through the year's end.
+  for (let c = 0; c < 8; c++) {
+    const a = at(c, 364.9), b = at(c, 0);
+    for (let i = 0; i < 4; i++) assert.ok(Math.abs(a[i] - b[i]) < 0.02, `crop ${c} wraps`);
+  }
 });
