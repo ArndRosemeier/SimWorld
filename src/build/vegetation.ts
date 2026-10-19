@@ -7,6 +7,7 @@
  *    (src/build/vegetationTex.ts), with spherical (crown-ellipsoid) normals for soft canopy
  *    lighting and baked crown occlusion;
  *  - far: a ≤150-triangle canopy hull (envelope-shaped, noise-dissolved edges in the shader).
+ *  - distant: the same hull at 20 faces without its trunk, for the far countryside.
  *
  * The meshes carry the attributes of their material kinds (src/render/materials.ts `BARK`,
  * `LEAVES`, `TREE_FAR`): `BARK_SPECS`, `LEAF_SPECS`, `FAR_SPECS`. Instances go in at any yaw and
@@ -51,7 +52,15 @@ export interface TreeModelData {
   crownRadius: number;
   wood: MeshData;
   leaves: MeshData;
+  /**
+   * The lighter tree for the middle distance (src/render/vegetationView.ts): the same skeleton's trunk and main
+   * limbs with fewer sides, and about a third of the leaf cards, each larger, over the same crown.
+   */
+  midWood: MeshData;
+  midLeaves: MeshData;
   far: MeshData;
+  /** The far hull at its coarsest (20 faces, no trunk), for the far countryside. */
+  distant: MeshData;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -582,10 +591,13 @@ function branchTube(mb: MeshBuilder, b: Branch, radial: number, strip: number, m
   }
 }
 
-function buildWood(cfg: SpeciesCfg, sk: TreeSkeleton, seed: number): MeshData {
+/** The tree's bark. `mid`: the middle distance's: the trunk and the first limbs only, with fewer sides. */
+function buildWood(cfg: SpeciesCfg, sk: TreeSkeleton, seed: number, mid = false): MeshData {
   const mb = new MeshBuilder(BARK_SPECS);
   sk.branches.forEach((b, i) => {
-    const radial = b.level === 0 ? (cfg.trunkR > 0.1 ? 10 : 6) : cfg.levels[b.level - 1].radial;
+    if (mid && b.level > 1) return;
+    const full = b.level === 0 ? (cfg.trunkR > 0.1 ? 10 : 6) : cfg.levels[b.level - 1].radial;
+    const radial = mid ? Math.max(3, Math.ceil(full / 2)) : full;
     branchTube(mb, b, radial, cfg.bark, sk.maxPath, b.level === 0 ? null : sk.env, b.level === 0 ? cfg : null, seed + i * 7);
   });
   return mb.build();
@@ -751,24 +763,30 @@ function farTrunk(mb: MeshBuilder, base: Vec3, top: Vec3, r: number, barkIdx: nu
   }
 }
 
-/** The far hull's directions: the unit icosphere subdivided once (prims.ts, 42 welded vertices, 80 outward faces). */
-const ICO = (() => {
-  const g = icosphere(1, 1), verts: Vec3[] = [], faces: [number, number, number][] = [];
+/**
+ * The far hull's directions: the unit icosphere subdivided once (prims.ts, 42 welded vertices, 80 outward faces);
+ * the distant hull's not at all (12, 20).
+ */
+const ico = (detail: number) => {
+  const g = icosphere(1, detail), verts: Vec3[] = [], faces: [number, number, number][] = [];
   for (let k = 0; k < g.pos.length; k += 3) verts.push([g.pos[k], g.pos[k + 1], g.pos[k + 2]]);
   for (let k = 0; k < g.idx.length; k += 3) faces.push([g.idx[k], g.idx[k + 1], g.idx[k + 2]]);
   return { verts, faces };
-})();
+};
+const ICO = ico(1), ICO_DISTANT = ico(0);
 
-function buildFar(cfg: SpeciesCfg, sk: TreeSkeleton): MeshData {
+/** The canopy hull (and its trunk); `distant`: the coarsest, the trunk left out (hidden at that distance). */
+function buildFar(cfg: SpeciesCfg, sk: TreeSkeleton, distant = false): MeshData {
   const mb = new MeshBuilder(FAR_SPECS);
   const env = sk.env;
   const trunk = sk.branches[0];
   const tt = trunk.pts[trunk.pts.length - 1];
-  farTrunk(mb, [0, -0.1, 0], [tt[0], Math.min(tt[1], env.base + (env.top - env.base) * 0.35), tt[2]], cfg.trunkR * 1.1, cfg.bark);
+  if (!distant) farTrunk(mb, [0, -0.1, 0], [tt[0], Math.min(tt[1], env.base + (env.top - env.base) * 0.35), tt[2]], cfg.trunkR * 1.1, cfg.bark);
+  const S = distant ? ICO_DISTANT : ICO;
   const c: Vec3 = [env.cx, env.cy, env.cz];
   const decid = cfg.evergreen ? 0 : 1;
   const i0 = mb.vcount;
-  for (const d of ICO.verts) {
+  for (const d of S.verts) {
     let e = env.extent(d) * 0.97;
     e *= 1 + 0.12 * woodNoise.n3(d[0] * 1.7 + 3.1, d[1] * 1.7, d[2] * 1.7);
     const p = v3madd(c, d, Math.max(0.3, e));
@@ -776,7 +794,7 @@ function buildFar(cfg: SpeciesCfg, sk: TreeSkeleton): MeshData {
     const shade = 0.75 + 0.25 * clamp(d[1] * 0.5 + 0.5, 0, 1);
     farVert(mb, p, n, 1, decid, cfg.farColor.map((x) => x * shade), cfg.autumn.map((x) => x * shade * 0.85), 0.75);
   }
-  for (const [a, b, cc] of ICO.faces) mb.tri(i0 + a, i0 + b, i0 + cc);
+  for (const [a, b, cc] of S.faces) mb.tri(i0 + a, i0 + b, i0 + cc);
   return mb.build();
 }
 
@@ -888,12 +906,17 @@ function buildPalm(variant: number): TreeModelData {
     for (const k of q) farVert(fb, k, UP, 0.5, 0, green, green, 0.8);
     for (const [a1, b1, c1] of [[0, 1, 4], [1, 3, 4], [1, 2, 3]]) fb.tri(i0 + a1, i0 + b1, i0 + c1);
   }
-  return { height: top[1] + 2.2, trunkRadius: 0.22, crownRadius: 4.2, wood: wood.build(), leaves: leaves.build(), far: fb.build() };
+  // (A palm is light already: its middle distance is itself.)
+  const w = wood.build(), l = leaves.build(), far = fb.build();
+  return { height: top[1] + 2.2, trunkRadius: 0.22, crownRadius: 4.2, wood: w, leaves: l, midWood: w, midLeaves: l, far, distant: far };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Generic trees and shrubs
 // ---------------------------------------------------------------------------------------------
+
+/** The middle distance's share of the leaf cards. */
+const MID_CARDS = 0.33;
 
 function buildGeneric(kind: TreeSpecies | 'shrub', variant: number): TreeModelData {
   const cfg = speciesCfg(kind, variant);
@@ -901,6 +924,10 @@ function buildGeneric(kind: TreeSpecies | 'shrub', variant: number): TreeModelDa
   const sk = buildSkeleton(cfg, rng.fork('skeleton'));
   const wood = buildWood(cfg, sk, variant * 131 + 7);
   const leaves = buildLeaves(cfg, sk, rng.fork('leaves'));
-  const far = buildFar(cfg, sk);
-  return { height: Math.max(sk.height, leaves.bounds[4]), trunkRadius: cfg.trunkR, crownRadius: Math.max(sk.env.rx, sk.env.rz), wood, leaves, far };
+  // The middle distance: a third of the cards, each larger by the root of three, so the crown keeps its cover.
+  const thin = (v: number | undefined) => (v === undefined ? undefined : v * MID_CARDS);
+  const midCfg: SpeciesCfg = { ...cfg, cards: thin(cfg.cards), density: cfg.density * MID_CARDS, trunkLeaves: thin(cfg.trunkLeaves), leafSize: cfg.leafSize / Math.sqrt(MID_CARDS) };
+  const midWood = buildWood(cfg, sk, variant * 131 + 7, true), midLeaves = buildLeaves(midCfg, sk, rng.fork('leaves'));
+  const far = buildFar(cfg, sk), distant = buildFar(cfg, sk, true);
+  return { height: Math.max(sk.height, leaves.bounds[4]), trunkRadius: cfg.trunkR, crownRadius: Math.max(sk.env.rx, sk.env.rz), wood, leaves, midWood, midLeaves, far, distant };
 }

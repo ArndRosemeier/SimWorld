@@ -33,7 +33,7 @@ import { DebugView } from './debugView';
 import { parseLook, parseStand } from './report';
 import { createRenderer, GraphicsUnavailable } from '../render/renderer';
 import { Stage } from '../render/stage';
-import { fitSunShadow, makeLights, placeLamps } from '../render/lights';
+import { fitSunShadow, makeLights, placeLamps, TOWN_SHADOW } from '../render/lights';
 import { DaySky } from '../render/sky';
 import { Precipitation } from '../render/precip';
 import { ChimneySmoke } from '../render/smoke';
@@ -182,8 +182,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
   const inside = new URLSearchParams(location.search).get('inside');
   if (inside) return showInside(inside, pool, stage, lights, renderer, camera, scene);
   const indoors = new URLSearchParams(location.search).get('indoors');
-  if (indoors) return showIndoors(indoors, pool, stage, renderer, camera, scene, () => { fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15); const v = showTown(stage, pool, town, () => {}, () => {}); return v.ready.then(() => v); });
-  fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
+  if (indoors) return showIndoors(indoors, pool, stage, renderer, camera, scene, () => { fitSunShadow(lights, town.x, town.y, town.z, town.radius * TOWN_SHADOW); const v = showTown(stage, pool, town, () => {}, () => {}); return v.ready.then(() => v); });
+  fitSunShadow(lights, town.x, town.y, town.z, town.radius * TOWN_SHADOW);
   // What the town sounds like where: one worker works it out alongside the meshes.
   void pool.run<Extract<FromTown, { type: 'sound' }>>({ type: 'sound' }, 0.5).then((r) => { time.region = { region: { coastal: r.map.coastal } }; audio.setTown(r.map); });
   const view = showTown(stage, pool, town, (done, total) => step(`Building the town (${done} of ${total})`, 0.15 + (0.85 * done) / total), (tops) => smoke.addChimneys(tops));
@@ -317,7 +317,7 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
     streetSounds.listen(dt, camera.position.x, camera.position.y, camera.position.z, sim.clock, sim.traffic, audio);
     // The sun's shadow covers the whole town from above, the streets around you down there.
     if (cam.mode !== 'drone') fitSunShadow(lights, camera.position.x, camera.position.y, camera.position.z, 70);
-    else if (shadowMode !== 'drone') fitSunShadow(lights, town.x, town.y, town.z, town.radius * 1.15);
+    else if (shadowMode !== 'drone') fitSunShadow(lights, town.x, town.y, town.z, town.radius * TOWN_SHADOW);
     shadowMode = cam.mode;
     view.vegetation?.update(camera);
     view.props?.update(camera);

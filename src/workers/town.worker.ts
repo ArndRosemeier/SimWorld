@@ -163,7 +163,7 @@ function meshesOf(r: FromTown): MeshData[] {
     case 'terrain': return [r.mesh];
     case 'water': case 'landmark': case 'interior': return r.mesh ? [r.mesh] : [];
     case 'indoors': return [...(r.mesh ? [r.mesh] : []), ...r.leaves];
-    case 'vegModel': return [r.model.wood, r.model.leaves, r.model.far];
+    case 'vegModel': return [...new Set([r.model.wood, r.model.leaves, r.model.midWood, r.model.midLeaves, r.model.far, r.model.distant])];
     // (propModel: copied, not transferred: the models stay cached in this worker)
     default: return [];
   }

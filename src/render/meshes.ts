@@ -84,6 +84,9 @@ export function splitByDistance(pose: Float32Array, n: number, cam: { x: number;
   return [a, b];
 }
 
+/** Whether two lists of instance indices (as `splitByDistance` makes them) are the same: nothing to repack. */
+export const sameSet = (a: readonly number[], b: readonly number[]): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
+
 /** A model's radius round its origin (m), from its geometry's bounding sphere: an instanced mesh's per instance, for `showInstances`. */
 export const radiusOf = (m: Mesh): number => { const s = m.geometry.boundingSphere!; return s.center.length() + s.radius; };
 
