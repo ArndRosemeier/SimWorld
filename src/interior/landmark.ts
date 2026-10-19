@@ -16,13 +16,17 @@ import { bodyOpenings, type WallWindows } from '../build/massing';
 import type { Terrain } from '../world/terrain';
 import type { PlaceUse } from './building';
 
-/** A landmark's walk-in body: the building the planner furnishes, the kind it is furnished as, its windows. */
-export interface LandmarkBody { b: BuildingDesc; place: PlaceUse; windows: WallWindows[] }
+/**
+ * A landmark's walk-in body: the building the planner furnishes, the kind it is furnished as, its windows, and where
+ * its plinth goes down to on sloping ground (`LmPart.foot`; the shell's plinth goes while one is inside, so the
+ * interior draws its own, src/build/interior.ts buildIndoors).
+ */
+export interface LandmarkBody { b: BuildingDesc; place: PlaceUse; windows: WallWindows[]; foot?: number }
 
 /** The walk-in body of `lm` (null when its kind has none: the sports ground). `place`: the sim's staff and capacity. */
 export function landmarkBody(lm: Landmark, terrain: Terrain, place?: PlaceUse): LandmarkBody | null {
   const parts = landmarkParts(lm, terrain), p = parts.find((q) => q.body);
-  return p ? { b: bodyDesc(lm, p), place: { ...place, kind: SITE_KIND[lm.kind] }, windows: bodyOpenings(parts) } : null;
+  return p ? { b: bodyDesc(lm, p), place: { ...place, kind: SITE_KIND[lm.kind] }, windows: bodyOpenings(parts), foot: p.foot } : null;
 }
 
 /** The body part as a building: its box (front: the -v side, towards the square or the street), storeys from its material. */

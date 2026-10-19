@@ -148,7 +148,7 @@ function handle(m: ToTown): FromTown {
       const [x0, z0, x1, z1] = polyBounds(b.poly), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
       const mb = new MeshBuilder(INTERIOR_SPECS);
       mb.setOrigin(cx, base, cz);
-      buildIndoors(mb, I, ind);
+      buildIndoors(mb, I, ind, body?.foot);
       const what = lm ? lm.name : `${b.style} ${b.use}${b.amenity ? ` (${b.amenity})` : ''}`;
       const about = `${what}, ${I.storeys.length} floor${I.storeys.length > 1 ? 's' : ''}, ${I.units.length} home${I.units.length === 1 ? '' : 's'}`;
       const leaves = ind.leaves.map((l) => { const lb = new MeshBuilder(INTERIOR_SPECS); buildDoorLeaf(lb, l); return lb.build(); });

@@ -40,6 +40,8 @@ const DOOR_H = 2.15;
 const SILL = 1.0, CUT = 1.3;
 const BASE: C3 = [0.93, 0.92, 0.89];
 const FRAME: C3 = [0.95, 0.94, 0.91];
+/** A public building's plinth, where the ground falls away under it (`buildIndoors`). */
+const PLINTH: C3 = [0.62, 0.6, 0.57];
 const FLOOR_LAYER: Record<FloorMat, number> = {
   wood: InteriorMat.WoodFloor, tile: InteriorMat.FloorTile, carpet: InteriorMat.Carpet, concrete: InteriorMat.Concrete, stone: InteriorMat.StoneFloor, marble: InteriorMat.Marble,
 };
@@ -191,9 +193,21 @@ export function buildCutaway(mb: MeshBuilder, I: Interior, floor: number, base: 
 /**
  * The whole building to walk around in: every storey furnished, with its ceiling and lamps, the
  * stairwells open, and the outer walls of `ind` (street doors cut in) on the inside of the facade.
+ * `foot`: a plinth under the outer walls down to there, for a public building shown without its
+ * shell (whose plinth meets the ground where it falls away), so it does not float.
  */
-export function buildIndoors(mb: MeshBuilder, I: Interior, ind: Indoors): void {
+export function buildIndoors(mb: MeshBuilder, I: Interior, ind: Indoors, foot?: number): void {
   const g = new Geo(mb);
+  if (foot !== undefined && foot < ind.base - 0.02 && I.storeys.length) {
+    const P = I.storeys[0].poly, n = P.length >> 1, sg = polyArea(P) > 0 ? 1 : -1, h = (ind.base - foot) / 2;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n, ax = P[i * 2], az = P[i * 2 + 1], bx = P[j * 2], bz = P[j * 2 + 1], L = Math.hypot(bx - ax, bz - az);
+      if (L < 0.02) continue;
+      // Under the outer wall (pushed out from the outline, as src/interior/indoors.ts lays it), a little longer to close the corners.
+      const dx = (bx - ax) / L, dz = (bz - az) / L, nx = dz * sg, nz = -dx * sg;
+      g.col(PLINTH, InteriorMat.Concrete).mb.box((ax + bx) / 2 + nx * 0.1, foot + h, (az + bz) / 2 + nz * 0.1, 0.1, h, L / 2 + 0.2, Math.atan2(dx, dz));
+    }
+  }
   I.storeys.forEach((s, f) => {
     const below = f > 0 ? I.storeys[f - 1].stairHole : null;
     buildStorey(mb, s, { base: ind.base, floorHoles: below ? [below] : [], ceiling: true });
