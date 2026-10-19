@@ -35,19 +35,29 @@ import type { RoomType } from '../types';
  *    bathroom, the rest bedrooms;
  *  - 'day': the ground floor of a house: living room, kitchen, a toilet, a second living room
  *    (a study) where there is room;
- *  - 'night': a house's upper storey: bedrooms and one bathroom.
+ *  - 'night': a house's upper storey: bedrooms (`beds` at most) and one bathroom; with no bedrooms
+ *    left in the house's budget (a tall house's top floor), a sitting room and a bathroom.
+ *
+ * About as many rooms as a home has (`Program.most`): a bigger floor makes them bigger, not more.
  */
 export type HomePart = 'flat' | 'day' | 'night';
 
-export function homeProgram(part: HomePart, ground: boolean): Program {
+/** Bedrooms a home has at most on one storey, and in all (`homeProgram`'s `beds`). */
+export const FLOOR_BEDS = 3, HOME_BEDS = 4;
+
+export function homeProgram(part: HomePart, ground: boolean, beds = FLOOR_BEDS): Program {
   const bath = { type: 'bath' as const, len: [2.2, 3] as [number, number], max: 1 };
-  const bed = { type: 'bedroom' as const, len: [3.4, 4.5] as [number, number] };
+  const bed = { type: 'bedroom' as const, len: [3.4, 4.5] as [number, number], max: Math.min(beds, FLOOR_BEDS) };
+  const living = { type: 'living' as const, len: [4.5, 6.5] as [number, number] };
+  const sitting = part === 'night' && bed.max === 0;
   const rooms: Program['rooms'] = part === 'day'
-    ? [{ type: 'living', len: [4.5, 6.5] }, { type: 'kitchen', len: [3, 4], max: 1 }, { ...bath, len: [1.7, 2.3] }]
+    ? [living, { type: 'kitchen', len: [3, 4], max: 1 }, { ...bath, len: [1.7, 2.3] }]
+    : sitting ? [{ ...living, max: 1 }, bath]
     : part === 'night' ? [bed, bath, bed]
-    : [{ type: 'living', len: [4.5, 6.5], max: 1 }, bed, { type: 'kitchen', len: [3, 4], max: 1 }, bath, bed];
-  const musts: RoomType[] = part === 'night' ? ['bedroom', 'bath'] : part === 'day' ? ['living', 'kitchen'] : ['living', 'bath', 'kitchen', 'bedroom'];
-  return { reserve: [], rooms, corridor: 1.6, corridorType: ground ? 'hall' : 'corridor', leaf: ['bath', 'bedroom'], musts, rank: ['living', 'bedroom', 'kitchen', 'bath'] };
+    : [{ ...living, max: 1 }, bed, { type: 'kitchen', len: [3, 4], max: 1 }, bath, bed];
+  const musts: RoomType[] = sitting ? ['living', 'bath'] : part === 'night' ? ['bedroom', 'bath'] : part === 'day' ? ['living', 'kitchen'] : ['living', 'bath', 'kitchen', 'bedroom'];
+  const most = part === 'day' ? 3 : part === 'night' ? (sitting ? 2 : bed.max + 1) : 3 + Math.max(1, bed.max - 1);
+  return { reserve: [], rooms, corridor: 1.6, corridorType: ground ? 'hall' : 'corridor', leaf: ['bath', 'bedroom'], musts, rank: ['living', 'bedroom', 'kitchen', 'bath'], most };
 }
 
 /** How a storey of flats is cut into homes (fill/split `units`), along a landing corridor where needed. */

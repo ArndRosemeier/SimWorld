@@ -5,7 +5,7 @@ import { dwellingsOf, flatsDoor, type BuildingDesc } from '../src/plan/building'
 import { PLACE_KIND_OF } from '../src/plan/amenities';
 import { defaultStaff } from '../src/sim/placeKinds';
 import { pointInPoly, polyArea } from '../src/geom/geom2';
-import { planInterior, peakStaff, storeyFacade, type Interior } from '../src/interior/building';
+import { planInterior, peakStaff, storeyFacade, workOf, type Interior } from '../src/interior/building';
 import { MeshBuilder } from '../src/build/meshBuilder';
 import { INTERIOR_SPECS, LAMP, buildCutaway, buildIndoors } from '../src/build/interior';
 import { indoorsOf, STREET_DOOR_H, type Box } from '../src/interior/indoors';
@@ -175,5 +175,15 @@ test('indoors: the outer walls open where the facade has its windows, every stor
     const mb = new MeshBuilder(INTERIOR_SPECS);
     buildIndoors(mb, I, ind);
     assert.ok(!mb.empty);
+  }
+});
+
+test('houses: a few big rooms, not many small ones (three bedrooms to a floor, four to a house at most)', () => {
+  const houses = all.filter((b) => !workOf(b) && dwellingsOf(b) === 1 && b.floors >= 2).slice(0, 16);
+  assert.ok(houses.length >= 10, `houses looked at (${houses.length})`);
+  for (const b of houses) {
+    const I = planInterior(b), beds = (rooms: { type: string }[]) => rooms.filter((r) => r.type === 'bedroom').length;
+    assert.ok(beds(I.storeys.flatMap((s) => s.rooms)) <= 4, `${b.id}: ${beds(I.storeys.flatMap((s) => s.rooms))} bedrooms`);
+    for (const s of I.storeys) assert.ok(beds(s.rooms) <= 3, `${b.id} floor ${s.floor}: ${beds(s.rooms)} bedrooms`);
   }
 });
