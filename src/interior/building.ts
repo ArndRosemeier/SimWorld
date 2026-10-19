@@ -21,7 +21,7 @@ import { coreFits, planCores } from './cores';
 import { spotsOfPiece } from './spots';
 import { stillCut } from './ways';
 import { planStorey, type StoreyBelow, type StoreyCores, type StoreyUse } from './storey';
-import { homeItems, homeProgram, type HomeRoom } from './fill/home';
+import { FLOOR_BEDS, HOME_BEDS, homeItems, homeProgram, type HomeRoom } from './fill/home';
 import { workItems, workProgram, type Need, type Work } from './fill/work';
 import type { FloorPlan, Furn, Spot } from './types';
 
@@ -161,8 +161,10 @@ function usesOf(b: BuildingDesc, place: PlaceUse | undefined): StoreyUse[] {
     const first = workFloors;
     if (homes === 1) {
       // One home over the building's storeys: living below, sleeping above.
+      // (The bedrooms shared out from the first floor up: a tall house's top floor is a sitting room.)
       const part = n - first <= 1 ? 'flat' : f === first ? 'day' : 'night';
-      uses.push({ kind: 'rooms', program: homeProgram(part, f === 0), unit: 0, part, items: (type, A) => homeItems(type as HomeRoom, A, new Rng(deriveSeed(b.seed, 'items', f, type))) ?? [] });
+      const beds = part === 'night' ? Math.max(0, Math.min(FLOOR_BEDS, HOME_BEDS - FLOOR_BEDS * (f - first - 1))) : FLOOR_BEDS;
+      uses.push({ kind: 'rooms', program: homeProgram(part, f === 0, beds), unit: 0, part, items: (type, A) => homeItems(type as HomeRoom, A, new Rng(deriveSeed(b.seed, 'items', f, type))) ?? [] });
       continue;
     }
     const per = b.style === 'house' ? 1 : b.units;

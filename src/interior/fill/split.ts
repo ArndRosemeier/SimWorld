@@ -87,6 +87,11 @@ export interface Program {
    */
   musts?: RoomType[];
   /**
+   * Rooms cut from the floor left over, at most about this many (SimWorld): on a bigger floor they grow (up to
+   * `GROW_MOST` times their length) instead of more being cut, so a big house has big rooms, not many small ones.
+   */
+  most?: number;
+  /**
    * Room types biggest first (a home: living room, bedrooms, kitchen, bathroom): once cut, the
    * rooms swap types so that the biggest room is the living room and the smallest the bathroom.
    */
@@ -113,6 +118,11 @@ const ccw = (ps: Poly[]) => ps.map((p) => (polyArea(p) < 0 ? ensureCCW(p.slice()
 const minusCCW = (a: Poly[], b: Poly[]) => differencePos(ccw(a), ccw(b));
 const andCCW = (a: Poly[], b: Poly[]) => intersectionPos(ccw(a), ccw(b));
 const joinCCW = (a: Poly[]) => unionPos(ccw(a));
+
+/** How much longer than their program says rooms grow on a floor with room for more than `Program.most` of them. */
+const GROW_MOST = 2;
+/** The strip depth (m) a home program's room lengths are meant for: on a shallower strip a room is longer. */
+const ROOM_DEPTH = 3.5;
 
 /** Smallest room: area (m²) and narrowest side (m). */
 const MIN_AREA = 2.5, MIN_SIDE = 1.2;
@@ -183,21 +193,68 @@ export function splitStorey(S: Storey, P: Program, r: Rng): Split {
       } else strips.push({ part, o, v0: -o.hv - 1, v1: o.hv + 1 });
     }
   }
+  // The next room in turn (`max` of a kind respected), counted in `count`; null when every kind has its `max`.
+  const full = (w: Program['rooms'][number], count: Map<RoomType, number>) => w.max !== undefined && (count.get(w.type) ?? 0) >= w.max;
+  const nextRoom = (count: Map<RoomType, number>) => {
+    let want = P.rooms[k % P.rooms.length];
+    for (let t = 0; t < P.rooms.length && full(want, count); t++) want = P.rooms[++k % P.rooms.length];
+    if (full(want, count) && P.most) return null;
+    count.set(want.type, (count.get(want.type) ?? 0) + 1);
+    k++;
+    return want;
+  };
+  /** The next room without taking it. */
+  const peek = () => { const k0 = k, w = nextRoom(new Map(count)); k = k0; return w; };
   // Flats: every strip's length shared out evenly (a strip gets at least one).
   const unitLen = P.units ? strips.reduce((a, q) => a + 2 * q.o.hu, 0) / P.units : 0;
-  for (const { part, o, v0, v1 } of strips) {
+  // At most about `most` rooms (a home): rooms keep their floor area on shallow strips (longer), the long strips are
+  // cut first, the first `most` rooms in turn grow to fill the floor when they would not, and once there are `most`,
+  // the rest of a strip goes to its last room and what is left joins a neighbour (unless the floor is so big that
+  // even grown rooms leave much over: then it has more rooms).
+  const most = P.most && !P.units && P.rooms.length ? P.most : 0;
+  const deep = (q: (typeof strips)[number]) => Math.min(q.v1, q.o.hv) - Math.max(q.v0, -q.o.hv);
+  const stretch = (q: (typeof strips)[number]) => (most ? Math.max(1, ROOM_DEPTH / deep(q)) : 1);
+  let grow = 1, cap = false;
+  if (most) {
+    strips.sort((p, q) => q.o.hu - p.o.hu);
+    const total = strips.reduce((a, q) => a + (2 * q.o.hu) / stretch(q), 0);
+    const k0 = k, trial = new Map(count), wanted = Array.from({ length: most }, () => nextRoom(trial)).reduce((a, w) => a + (w ? (w.len[0] + w.len[1]) / 2 : 0), 0);
+    k = k0;
+    grow = Math.min(GROW_MOST, Math.max(1, total / wanted));
+    cap = total / wanted <= GROW_MOST;
+  }
+  let cut = 0;
+  const spare: Space[] = [];
+  for (const q of strips) {
+    const { part, o, v0, v1 } = q;
+    if ((cap && cut >= most) || (most && !peek())) {
+      for (const p of shapesOf(andCCW([part], [o.rect(-o.hu - 1, v0, o.hu + 1, v1)]))) { const sp: Space = { type: 'storage', poly: p }; spare.push(sp); spaces.push(sp); }
+      continue;
+    }
     let u = -o.hu;
     while (u < o.hu - 0.3) {
-      let want = P.rooms[k % P.rooms.length];
-      for (let t = 0; t < P.rooms.length && want.max !== undefined && (count.get(want.type) ?? 0) >= want.max; t++) want = P.rooms[++k % P.rooms.length];
-      count.set(want.type, (count.get(want.type) ?? 0) + 1);
-      let u1 = Math.min(o.hu, u + (unitLen || r.range(want.len[0], want.len[1])));
-      // A sliver too narrow for a room of its own goes to this one.
-      if (o.hu - u1 < (unitLen ? unitLen * 0.5 : 2.4)) u1 = o.hu;
-      for (const q of shapesOf(andCCW([part], [o.rect(u === -o.hu ? u - 1 : u, v0, u1 === o.hu ? u1 + 1 : u1, v1)]))) spaces.push({ type: want.type, poly: q });
+      const want = nextRoom(count);
+      if (!want) {
+        for (const p of shapesOf(andCCW([part], [o.rect(u === -o.hu ? u - 1 : u, v0, o.hu + 1, v1)]))) { const sp: Space = { type: 'storage', poly: p }; spare.push(sp); spaces.push(sp); }
+        break;
+      }
+      let u1 = Math.min(o.hu, u + (unitLen || r.range(want.len[0], want.len[1]) * grow * stretch(q)));
+      // A sliver too narrow for a room of its own goes to this one, and so does the rest of the strip once there are enough rooms.
+      cut++;
+      if (o.hu - u1 < (unitLen ? unitLen * 0.5 : 2.4) || (cap && cut >= most)) u1 = o.hu;
+      for (const p of shapesOf(andCCW([part], [o.rect(u === -o.hu ? u - 1 : u, v0, u1 === o.hu ? u1 + 1 : u1, v1)]))) spaces.push({ type: want.type, poly: p });
       u = u1;
-      k++;
     }
+  }
+  // The pieces past `most` join the room beside them (else a hall), or are a box room (beside the stairs, say).
+  for (const sp of spare) {
+    const i = spaces.indexOf(sp);
+    if (i < 0) continue;
+    sp.poly = straight(sp.poly);
+    // (Into a room first, else a hall; never into another such piece.)
+    const others = spaces.flatMap((q, j) => (spare.includes(q) && j !== i ? [j] : []));
+    const hubs = new Set([...others, ...spaces.flatMap((q, j) => (q.hub ? [j] : []))]);
+    if (!joinToNeighbour(spaces, i, hubs) && !joinToNeighbour(spaces, i, new Set(others))) sp.odd = true;
   }
   // 3. Straight walls without extra corners (the filler stands furniture along whole edges);
   // rooms too small or too oddly cut to use join a neighbour. No room may reach into the stair
@@ -466,21 +523,26 @@ function mergeSmall(spaces: Space[]): void {
   }
 }
 
-/** Merges space i into the neighbour it shares the longest boundary with (a fixed one only with intoFixed); false if it has none. */
+/**
+ * Merges space i into the neighbour it shares the longest boundary with (a fixed one only with intoFixed), else the
+ * next longest, as long as the two make one piece without a hole; false if none does.
+ */
 function joinToNeighbour(spaces: Space[], i: number, notThrough?: Set<number>, intoFixed = false): boolean {
-  let best = -1, bl = 0.05;
+  const near: [number, number][] = [];
   for (let j = 0; j < spaces.length; j++) {
     if (j === i || !!spaces[j].fixed !== intoFixed || notThrough?.has(j)) continue;
     const l = shared(spaces[i].poly, spaces[j].poly, 0.05).reduce((a, s) => a + s.len, 0);
-    if (l > bl) { bl = l; best = j; }
+    if (l > 0.05) near.push([j, l]);
   }
-  if (best < 0) return false;
-  const u = joinCCW([spaces[best].poly, spaces[i].poly]).filter((s) => Math.abs(polyArea(s.outer)) > 0.5);
-  // One piece without a hole (a room wrapped round the stairs would cover them).
-  if (u.length !== 1 || u[0].holes.length) return false;
-  spaces[best] = { ...spaces[best], poly: straight(u[0].outer) };
-  spaces.splice(i, 1);
-  return true;
+  for (const [j] of near.sort((p, q) => q[1] - p[1])) {
+    const u = joinCCW([spaces[j].poly, spaces[i].poly]).filter((s) => Math.abs(polyArea(s.outer)) > 0.5);
+    // One piece without a hole (a room wrapped round the stairs would cover them).
+    if (u.length !== 1 || u[0].holes.length) continue;
+    spaces[j] = { ...spaces[j], poly: straight(u[0].outer) };
+    spaces.splice(i, 1);
+    return true;
+  }
+  return false;
 }
 
 interface Seg { ax: number; az: number; bx: number; bz: number; len: number }
