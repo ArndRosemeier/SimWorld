@@ -19,7 +19,7 @@
  * Once the town shows, the picker comes up over it (src/game/playing.ts): pick an inhabitant and the camera flies
  * down to them and stays with them while you play as them. `?be=<id>` starts as that inhabitant. `?still` keeps the
  * drone view without the title or the picker, for screenshots (the looks check, tools/looks/check.mjs): once the town is built the
- * page's root gets `data-town="built"`.
+ * page's root gets `data-town="built"`, and `data-gpu="lost"` if the WebGL context is lost.
  * T talks to the person nearest you (or the one you follow), out of doors or in the building you are in.
  *
  * A report's repro link (Shift+Ctrl+F12 → Report this spot, F8; src/game/report.ts, docs/REPORTS.md) adds `?clock=<world
@@ -363,6 +363,8 @@ async function start(audio: TownAudio, play: ReturnType<typeof playStart>, time:
       hud.textContent = `${sim.people} people, ${sim.walkers.size} out near you, ${n.shown} drawn · ${vehicles.counts.moving} vehicles on the road, ${vehicles.counts.parked} parked · ${town.dwellings} households · ${view.done < view.total ? `building ${view.done}/${view.total} · ` : ''}${stage.hudLine()}${whoTalk}`;
     }
   });
+  // A lost WebGL context draws nothing more: the screenshot tools check for it (software GPUs can give up on big views).
+  renderer.domElement.addEventListener('webglcontextlost', () => { document.documentElement.dataset.gpu = 'lost'; });
   await view.ready;
   document.documentElement.dataset.town = 'built';
   // Everything is built and its shaders compiled behind the title: offer the way in.

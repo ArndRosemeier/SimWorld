@@ -58,9 +58,18 @@ async function main() {
   try {
     const url = localUrl(link, server.url, save);
     console.log(`opening ${url}`);
-    const page = await browser.page(url);
+    let page = await browser.page(url);
     await page.waitFor("document.documentElement.dataset.town === 'built'", 15 * 60_000, 2000);
     await new Promise((r) => setTimeout(r, wait * 1000));
+    if (await page.gpuLost()) {
+      // Swiftshader's GPU process gave up (a black screen): once more, with a shorter wait.
+      console.log('the WebGL context was lost (black screen); opening the link again with a shorter wait');
+      await page.close();
+      page = await browser.page(url);
+      await page.waitFor("document.documentElement.dataset.town === 'built'", 15 * 60_000, 2000);
+      await new Promise((r) => setTimeout(r, Math.min(wait, 10) * 1000));
+      if (await page.gpuLost()) console.log('the WebGL context was lost again: repro.png is black');
+    }
     fs.writeFileSync(path.join(out, 'repro.png'), Buffer.from(await page.screenshot(), 'base64'));
     const report = await page.eval("window.debugReport ? window.debugReport() : 'no debugReport() on this build'");
     fs.writeFileSync(path.join(out, 'report.txt'), report);

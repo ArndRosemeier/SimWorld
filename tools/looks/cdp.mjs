@@ -72,6 +72,9 @@ export async function launch({ width = 1280, height = 720 } = {}) {
             await new Promise((r) => setTimeout(r, every));
           }
         },
+        /** Has the page's WebGL context been lost (the game sets data-gpu="lost")? Swiftshader's GPU process can crash on
+         *  big close-up views a minute or so after the town is built; everything after that comes out black. */
+        gpuLost() { return this.eval("document.documentElement.dataset.gpu === 'lost'"); },
         /** A PNG screenshot of the viewport, base64. */
         async screenshot() { return (await send('Page.captureScreenshot', { format: 'png' })).data; },
         close: () => browser.send('Target.closeTarget', { targetId }),

@@ -115,15 +115,23 @@ async function main() {
       const base = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : { shots: {} };
       for (const s of SHOTS) {
         const t0 = Date.now();
-        const page = await browser.page(`${server.url}?${s.query}`);
-        await page.waitFor("document.documentElement.dataset.town === 'built'", 10 * 60_000, 2000);
-        // A moment for the last pieces (vehicles, signs) to go in, then nothing but the 3D view.
-        await new Promise((r) => setTimeout(r, 8000));
-        await page.eval("document.head.append(Object.assign(document.createElement('style'), { textContent: 'body > :not(canvas) { display: none !important }' })); true");
-        await new Promise((r) => setTimeout(r, 500));
-        const png = await page.screenshot();
+        // A shot whose GPU gave up (black) is taken again once on a fresh page.
+        let page, png;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          page = await browser.page(`${server.url}?${s.query}`);
+          await page.waitFor("document.documentElement.dataset.town === 'built'", 10 * 60_000, 2000);
+          // A moment for the last pieces (vehicles, signs) to go in, then nothing but the 3D view.
+          await new Promise((r) => setTimeout(r, 8000));
+          await page.eval("document.head.append(Object.assign(document.createElement('style'), { textContent: 'body > :not(canvas) { display: none !important }' })); true");
+          await new Promise((r) => setTimeout(r, 500));
+          png = await page.screenshot();
+          if (!(await page.gpuLost())) break;
+          console.log(`shot "${s.name}": the WebGL context was lost${attempt ? '' : ', taking it again'}`);
+          if (!attempt) await page.close();
+        }
         const file = s.name.replace(/\W+/g, '-') + '.png';
         fs.writeFileSync(path.join(o.out, file), Buffer.from(png, 'base64'));
+        if (await page.gpuLost()) problems.push(`shot "${s.name}": the WebGL context was lost twice, the shot is black (see ${file})`);
         const stats = await page.eval(SHOT_STATS(png));
         report.shots[s.name] = stats;
         const drift = shotDrift(stats, o.update ? null : base.shots[s.name]);
