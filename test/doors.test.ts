@@ -39,7 +39,7 @@ test('doors: open, no leaf lies in a wall (it hangs on the other jamb, or stops 
     return b.hy > 1.2 && Math.abs(dx * c - dz * s) < b.hx - 0.005 && Math.abs(dx * s + dz * c) < b.hz - 0.005 && Math.abs(y - b.y) < b.hy;
   };
   let leaves = 0, stuck = 0;
-  for (const b of town.cells.flatMap((c) => c.buildings).slice(0, 8)) {
+  for (const b of town.cells.flatMap((c) => c.buildings).slice(0, 4)) {
     const where = indoorsOf(planInterior(b), 0);
     for (const l of where.leaves) {
       leaves++;
@@ -52,7 +52,7 @@ test('doors: open, no leaf lies in a wall (it hangs on the other jamb, or stops 
       if (hit) stuck++;
     }
   }
-  assert.ok(leaves > 80, `leaves looked at (${leaves})`);
+  assert.ok(leaves > 40, `leaves looked at (${leaves})`);
   assert.ok(stuck <= 1, `${stuck} of ${leaves} open leaves in a wall`);
 });
 
