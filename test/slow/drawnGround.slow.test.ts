@@ -24,7 +24,7 @@ import { meshHeights, onStep, wheelContacts } from '../groundCheck';
 /** How far below / above the meshes the drawn ground may say (m): paint lies 4 cm over the carriageway. */
 const BELOW = 0.05, ABOVE = 0.03;
 /** Off what is drawn, over seeds 1-3, when this was written: grid points (bridge parapets, overhanging paint), wheels. */
-const POINTS = 5, WHEELS = 400;
+const POINTS = 5, WHEELS = 0;
 /** Within this far of the town centre (m). */
 const R = 1500;
 
@@ -50,7 +50,7 @@ test('the drawn ground of three towns is what their meshes draw, under feet and 
       if (!(d >= -BELOW && d <= ABOVE)) badP.push(`seed ${seed} (${x.toFixed(1)}, ${z.toFixed(1)}) ${d.toFixed(3)} m`);
     }
     const net = new RoadNet(town), park = new Parking(net, cells.flatMap((c) => c.parking));
-    const st = { y: 0, pitch: 0, roll: 0 }, tmp = { x: 0, z: 0, dx: 0, dz: 0 };
+    const st = { y: 0, pitch: 0, roll: 0, twist: 0 }, tmp = { x: 0, z: 0, dx: 0, dz: 0 };
     const check = (x: number, z: number, yaw: number, [L, W]: [number, number], what: string) => {
       if (Math.hypot(x, z) > R) return;
       settle((px, pz) => net.groundAt(px, pz), x, z, yaw, L, W, st);

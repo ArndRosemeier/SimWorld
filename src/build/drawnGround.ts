@@ -117,27 +117,37 @@ export function groundOf(town: Town): (x: number, z: number) => number {
 /** Wheel contacts: half the wheelbase and half the track, as shares of the vehicle's length and width. */
 export const WHEELBASE = 0.31, TRACK = 0.42;
 
-/** A vehicle's height and tilt: pitch (nose up +) and roll (right side up +), radians. */
-export interface Stance { y: number; pitch: number; roll: number }
+/**
+ * A vehicle's height and tilt: pitch (nose up +) and roll (right side up +), radians, and the twist (m) its
+ * suspension takes up where the four wheel spots are not in one plane (a junction's crown, a ramp's edge): the front
+ * right and back left wheels rise by it (drop, when negative), the other two drop by it, so each touches the ground.
+ */
+export interface Stance { y: number; pitch: number; roll: number; twist: number }
+
+/** The most a wheel travels up or down on its suspension (m). */
+export const SUSPENSION = 0.12;
 
 /**
  * Settle a vehicle at (x, z) facing `yaw` (forward (−sin yaw, −cos yaw)), `length` × `width` m, on `ground`: the
  * drawn ground's height at (x, z) (src/build/drawnGround.ts). `width` 0: a single track
- * (a bicycle; no roll). Writes into out.
+ * (a bicycle; no roll, no twist). Writes into out.
  */
 export function settle(ground: (x: number, z: number) => number, x: number, z: number, yaw: number, length: number, width: number, out: Stance): Stance {
   const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = -fz, rz = fx;
   const hb = length * WHEELBASE, ht = width * TRACK;
-  let front: number, back: number, right = 0, left = 0;
+  let front: number, back: number, right = 0, left = 0, twist = 0;
   if (ht > 0) {
     const fr = ground(x + fx * hb + rx * ht, z + fz * hb + rz * ht), fl = ground(x + fx * hb - rx * ht, z + fz * hb - rz * ht);
     const br = ground(x - fx * hb + rx * ht, z - fz * hb + rz * ht), bl = ground(x - fx * hb - rx * ht, z - fz * hb - rz * ht);
     front = (fr + fl) / 2; back = (br + bl) / 2; right = (fr + br) / 2; left = (fl + bl) / 2;
+    // What the plane through the four misses at each wheel: +twist at front right and back left, -twist at the others.
+    twist = Math.max(-SUSPENSION, Math.min(SUSPENSION, (fr - fl - br + bl) / 4));
   } else {
     front = ground(x + fx * hb, z + fz * hb); back = ground(x - fx * hb, z - fz * hb);
   }
   out.y = (front + back) / 2;
   out.pitch = Math.atan2(front - back, 2 * hb);
   out.roll = ht > 0 ? Math.atan2(right - left, 2 * ht) : 0;
+  out.twist = twist;
   return out;
 }

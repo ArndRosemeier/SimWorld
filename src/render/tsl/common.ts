@@ -79,14 +79,15 @@ export const SEASON = {
  * attributes src/build/vegetation.ts `INSTANCE_SPECS`: iPose x, y, z, yaw and iSize across, up):
  * `p` scaled, turned by the yaw about +Y (as three's rotation) and moved; `scaled = false` turns
  * a direction only. `tilted`: first tipped by the instance's iTilt (x pitch about +X, nose (−Z) up
- * positive; y roll about the forward axis, right side (+X) up positive), as vehicles on a slope.
+ * positive; y roll about the forward axis, right side (+X) up positive), as vehicles on a slope (z, the
+ * wheels' twist, is the vehicle look's own).
  */
 export function posed(p, scaled = true, tilted = false) {
   const pose = attribute('iPose', 'vec4'), size = attribute('iSize', 'vec2');
   const c = cos(pose.w), s = sin(pose.w);
   let q = scaled ? p.mul(vec3(size.x, size.y, size.x)) : p;
   if (tilted) {
-    const tilt = attribute('iTilt', 'vec2');
+    const tilt = attribute('iTilt', 'vec3');
     const cp = cos(tilt.x), sp = sin(tilt.x), cr = cos(tilt.y), sr = sin(tilt.y);
     // Roll about the forward axis, then pitch about +X.
     const rx = q.x.mul(cr).sub(q.y.mul(sr)), ry = q.y.mul(cr).add(q.x.mul(sr));

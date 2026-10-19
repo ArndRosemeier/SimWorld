@@ -85,8 +85,8 @@ export interface Vehicle {
   speed: number;
   /** This driver's top speed relative to the limit. */
   pace: number;
-  /** World pose; forward is (−sin yaw, −cos yaw). Body attitude on the road: nose up +, right side up +. */
-  x: number; y: number; z: number; yaw: number; pitch: number; roll: number;
+  /** World pose; forward is (−sin yaw, −cos yaw). Body attitude on the road: nose up +, right side up +, and the twist its wheels take up (`Stance`). */
+  x: number; y: number; z: number; yaw: number; pitch: number; roll: number; twist: number;
   /**
    * Turning connector (quadratic Bezier) through a junction: progress 0..1, null on an edge.
    * `node` the junction, `enter` when the car drove in (who goes first), `from` the lane key it came from.
@@ -289,7 +289,7 @@ export class Traffic {
     const v: Vehicle = {
       id: this.nextId++, car, length: L, width: W, edge, fwd, lane: 0, s,
       route: { edges: [edge], fwd: [fwd] }, ri: 0, speed: 0, pace: car.kind === 'bicycle' ? r.range(0.7, 1.3) : r.range(0.9, 1.08),
-      x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, turn: null, brake: 0, indicator: 0, headlights: 0, wait: 0, jam: 0,
+      x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, twist: 0, turn: null, brake: 0, indicator: 0, headlights: 0, wait: 0, jam: 0,
       goal, spot: null, stopAt: NaN, halted: -1, siren: urgent(goal), pull: 0, drive: null, alive: true,
     };
     this.pose(v);

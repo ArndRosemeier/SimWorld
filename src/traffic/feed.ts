@@ -21,16 +21,16 @@ import { bikeTripsSince, carPlace, carTripsSince } from './trips';
 import { TRAIN_KEY, type TrainCar } from './trains';
 import { urgent, type Car } from './traffic';
 
-/** Floats per vehicle and moment in `TrafficMsg.poses`: x, y, z, yaw, pitch (nose up +), roll (right side up +). */
-export const POSE_STRIDE = 6;
+/** Floats per vehicle and moment in `TrafficMsg.poses`: x, y, z, yaw, pitch (nose up +), roll (right side up +), twist (m, `Stance`). */
+export const POSE_STRIDE = 7;
 /** Ints per vehicle in `TrafficMsg.cars` and `parkedCars`: key, kind (index in VEHICLE_KINDS), variant. */
 export const CAR_STRIDE = 3;
 /** Floats per vehicle in `TrafficMsg.state`: headlights, brake, indicator (−1 left, +1 right, ±2 hazards, 3 blue lights and siren, −3 blue lights only), engine running. */
 export const STATE_STRIDE = 4;
 /** Floats per barrier post in `TrafficMsg.posts` (src/traffic/trains.ts `CrossingPost`, then its crossing). */
 export const POST_STRIDE = 6;
-/** Floats per parked car in `TrafficMsg.parked`: its pose (POSE_STRIDE: x, y, z, yaw, pitch, roll), then its paint (sRGB). */
-export const PARKED_STRIDE = 9;
+/** Floats per parked car in `TrafficMsg.parked`: its pose (POSE_STRIDE: x, y, z, yaw, pitch, roll, twist), then its paint (sRGB). */
+export const PARKED_STRIDE = 10;
 /** Numbers per honk in `TrafficMsg.horns`: game clock (min), x, y, z, long (1: a driver who has waited long, 0: a tap). */
 export const HORN_STRIDE = 5;
 
@@ -152,12 +152,12 @@ export class TrafficFeed {
 
   private snapshot(): void {
     const poses = new Map<number, number[]>();
-    for (const v of this.town.traffic.vehicles) poses.set(v.id, [v.x, v.y, v.z, v.yaw, v.pitch, v.roll]);
+    for (const v of this.town.traffic.vehicles) poses.set(v.id, [v.x, v.y, v.z, v.yaw, v.pitch, v.roll, v.twist]);
     const t = this.town.clockAt();
     // The train cars (by negative ids: the road vehicles' are 0 and up).
     for (const c of this.town.trains?.cars(t) ?? []) {
       const id = -1 - (c.key - TRAIN_KEY);
-      poses.set(id, [c.x, c.y, c.z, c.yaw, c.pitch, 0]);
+      poses.set(id, [c.x, c.y, c.z, c.yaw, c.pitch, 0, 0]);
       this.trainCars.set(id, c);
     }
     this.hist.push({ t, poses });
@@ -167,12 +167,12 @@ export class TrafficFeed {
   message(): TrafficMsg {
     const K = this.hist.length;
     // The road vehicles, then the train cars in any recorded moment (a train's lights are always on).
-    const vs: { id: number; car: Car; state: number[]; pose: number[] }[] = this.town.traffic.vehicles.map((v) => ({ id: v.id, car: v.car, state: [v.headlights, v.brake, v.siren ? 3 : v.halted >= 0 && urgent(v.goal) ? -3 : v.indicator, 1], pose: [v.x, v.y, v.z, v.yaw, v.pitch, v.roll] }));
+    const vs: { id: number; car: Car; state: number[]; pose: number[] }[] = this.town.traffic.vehicles.map((v) => ({ id: v.id, car: v.car, state: [v.headlights, v.brake, v.siren ? 3 : v.halted >= 0 && urgent(v.goal) ? -3 : v.indicator, 1], pose: [v.x, v.y, v.z, v.yaw, v.pitch, v.roll, v.twist] }));
     const seen = new Set<number>();
     for (const h of this.hist) for (const id of h.poses.keys()) if (id < 0) seen.add(id);
     for (const [id, c] of this.trainCars) {
       if (!seen.has(id)) { this.trainCars.delete(id); continue; }
-      vs.push({ id, car: { key: c.key, kind: 'train', variant: c.variant }, state: [1, c.brake, 0, 1], pose: [c.x, c.y, c.z, c.yaw, c.pitch, 0] });
+      vs.push({ id, car: { key: c.key, kind: 'train', variant: c.variant }, state: [1, c.brake, 0, 1], pose: [c.x, c.y, c.z, c.yaw, c.pitch, 0, 0] });
     }
     const times = Float64Array.from(this.hist, (h) => h.t);
     const cars = new Int32Array(vs.length * CAR_STRIDE), poses = new Float32Array(vs.length * K * POSE_STRIDE), state = new Float32Array(vs.length * STATE_STRIDE), paint = new Float32Array(vs.length * 3);
@@ -200,7 +200,7 @@ export class TrafficFeed {
       parkedCars = new Int32Array(spots.length * CAR_STRIDE);
       spots.forEach((s, i) => {
         const car = this.town.carOf(s.car);
-        parked!.set([s.x, s.y, s.z, s.yaw, s.pitch, s.roll, ...paintColor(car.kind, car.key)], i * PARKED_STRIDE);
+        parked!.set([s.x, s.y, s.z, s.yaw, s.pitch, s.roll, s.twist, ...paintColor(car.kind, car.key)], i * PARKED_STRIDE);
         parkedCars!.set([car.key, VEHICLE_KINDS.indexOf(car.kind), car.variant], i * CAR_STRIDE);
       });
     }
@@ -222,7 +222,7 @@ export class TrafficFeed {
 export const trafficTransfers = (m: TrafficMsg): ArrayBuffer[] =>
   [m.times, m.cars, m.poses, m.state, m.paint, m.closed, m.horns, ...(m.parked ? [m.parked, m.parkedCars!] : []), ...(m.posts ? [m.posts] : [])].map((a) => a.buffer as ArrayBuffer);
 
-/** Moving vehicle `i`'s pose at game clock `clock`, between the recorded moments (held at the ends), into `out` (POSE_STRIDE: x, y, z, yaw, pitch, roll). */
+/** Moving vehicle `i`'s pose at game clock `clock`, between the recorded moments (held at the ends), into `out` (POSE_STRIDE: x, y, z, yaw, pitch, roll, twist). */
 export function vehiclePose(m: TrafficMsg, i: number, clock: number, out: Float32Array | number[], o = 0): void {
   const T = m.times, K = T.length, P = m.poses, base = i * K * POSE_STRIDE;
   let k = 0;

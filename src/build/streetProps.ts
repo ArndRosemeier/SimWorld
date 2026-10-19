@@ -62,7 +62,7 @@ export function propInstances(cells: readonly CellPlan[], ground: (x: number, z:
   const jitter = (x: number, z: number) => hashToFloat(hash32(Math.round(x * 10) * 7919 + Math.round(z * 10) * 104729)) * 50;
   const furn = (kind: FurnitureKind, v: number, x: number, z: number, yaw: number, scale: number, c?: [number, number, number]) =>
     put(`f:${kind}:${v & 1}`, x, ground(x, z), z, yaw, scale, c, jitter(x, z));
-  const ends = streetEnds(cells), stance = { y: 0, pitch: 0, roll: 0 };
+  const ends = streetEnds(cells), stance = { y: 0, pitch: 0, roll: 0, twist: 0 };
   const signalled = new Set<string>();
 
   for (const plan of cells) {
