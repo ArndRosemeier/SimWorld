@@ -304,7 +304,7 @@ function daySection(world: World, id: ActorId): DetailSection {
   else if (a.place[id] >= 0 && a.place[id] === a.home[id]) now = a.activity[id] === A.sleep ? 'Asleep at home' : `At home, ${activityWord(a.activity[id])}`;
   else if (a.place[id] >= 0) now = `${capitalize(activityWord(a.activity[id]))} at ${places[a.place[id]].name}`;
   else now = capitalize(activityWord(a.activity[id]));
-  const items: DetailItem[] = [{ text: now, note: a.until[id] > clock && a.until[id] - clock < MINUTES_PER_DAY ? `until about ${hhmm(a.until[id])}` : undefined }];
+  const items: DetailItem[] = [{ text: now }];
   for (const p of plansToday(world, id, clock)) items.push({ text: capitalize(p) });
   // Plans further ahead (a meeting tomorrow, a visit at the weekend).
   const end = (Math.floor(clock / MINUTES_PER_DAY) + 1) * MINUTES_PER_DAY;
@@ -333,10 +333,13 @@ function townSection(world: World, id: ActorId): DetailSection {
     const f = k.facts[bc.fact[r]];
     if (f && isAbout(f, id)) holders.set(bc.fact[r], (holders.get(bc.fact[r]) ?? 0) + 1);
   }
-  const told = [...holders].sort((x, y) => y[1] - x[1]).slice(0, 4);
-  for (const [f, n] of told) {
+  // The same story told as several facts (each one's own telling) counts once, by its widest reach.
+  const seen = new Set<string>();
+  for (const [f, n] of [...holders].sort((x, y) => y[1] - x[1])) {
     const text = factText(world, k.facts[f]);
-    if (!/[{}]/.test(text)) items.push({ text: `People say: ${text}`, note: `${n} ${n === 1 ? 'person knows' : 'people know'}${k.facts[f].secret ? ', a secret' : ''}` });
+    if (/[{}]/.test(text) || seen.has(text) || seen.size >= 4) continue;
+    seen.add(text);
+    items.push({ text: `People say: ${text}`, note: `${n} ${n === 1 ? 'person knows' : 'people know'}${k.facts[f].secret ? ', a secret' : ''}` });
   }
   return { title: 'Clubs, views and talk', intro: items.length ? undefined : 'Keeps out of town affairs, and nobody is talking about them.', items };
 }

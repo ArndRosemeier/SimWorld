@@ -292,7 +292,8 @@ function situationsOf(world: World, id: ActorId, ev: EventIndex, secrets: Map<Ac
     else if (office) out.push({ text: `${office} of ${group.name}`, weight: 0.4, tags: TAG_OFFICE });
   }
   // Secrets they keep about themselves.
-  for (const s of secrets.get(id) ?? []) out.push({ text: s, weight: 0.85, tags: TAG_SECRET, secret: true });
+  // (The pregnancy is already said above.)
+  for (const s of secrets.get(id) ?? []) if (!(preg && /^pregnant\b/.test(s))) out.push({ text: s, weight: 0.85, tags: TAG_SECRET, secret: true });
   return out.sort((x, y) => y.weight - x.weight);
 }
 
