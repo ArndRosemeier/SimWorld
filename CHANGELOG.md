@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.161 — Public buildings stand on the ground when you go in
+
+- Standing at or inside a public building on sloping ground (the medical practice, the school, the church…), it no longer floats: its walls reach the ground on a plinth, as they do from the street.
+
 ## v0.160 — Houses with fewer, bigger rooms
 
 - Houses are no longer cut into lots of tiny rooms: a bigger floor now gets bigger rooms instead of more of them.
