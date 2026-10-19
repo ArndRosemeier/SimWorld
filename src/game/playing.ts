@@ -17,6 +17,7 @@
  */
 import { Picker } from '../app/picker';
 import { PlayPanel } from '../app/playPanel';
+import { openPersonDetails } from '../app/personDetails';
 import type { InhabitantCard } from '../sim/profile';
 import { minutesUntil } from '../sim/time';
 import type { NearSolids } from '../workers/simProtocol';
@@ -153,6 +154,7 @@ export class Playing {
       clock: () => this.sim.nowClock,
       onAhead: (ahead) => this.showAhead(ahead),
       doing: async (id) => (await this.sim.ask({ op: 'doing', id })).doing,
+      details: async (id) => (await this.sim.ask({ op: 'details', id })).details,
       onPick: (c, ahead) => this.becomeLater(c, ahead),
       waits: async () => (await this.sim.ask({ op: 'waits' })).waits,
       onClose: current ? () => this.closePicker() : undefined,
@@ -227,6 +229,7 @@ export class Playing {
         if (this.panel === panel) panel.showDigest(s.title, r.digest);
       },
       switchPerson: () => void this.choose(),
+      details: () => openPersonDetails(card.name, 'now', async () => (await this.sim.ask({ op: 'details', id: card.id })).details),
     });
     this.panel = panel;
     document.body.append(panel.root);

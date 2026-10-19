@@ -18,6 +18,8 @@ export interface PlayHandlers {
   go: (a: PlayerAction) => void;
   skipTime: (s: SkipChoice) => Promise<void>;
   switchPerson: () => void;
+  /** Open everything about the person played (the "More about …" window). */
+  details: () => void;
 }
 
 /** A time skip: so many minutes on, or until a time of day (TIMES_OF_DAY); `title` heads what you hear afterwards. */
@@ -71,6 +73,7 @@ export class PlayPanel {
       this.auto,
       button('', 'What now?', () => void this.openActions()),
       button('', 'Skip time', () => this.openSkip()),
+      button('', 'About me', () => h.details()),
       button('', 'Someone else', () => h.switchPerson()),
     );
     this.root.append(name, el('p', 'pl-occ', card.occupation), this.doing, needs, buttons);

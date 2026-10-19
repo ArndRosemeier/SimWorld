@@ -7,6 +7,7 @@
  */
 import type { InsidePerson } from '../street/inside';
 import type { ChatRequest, ChatResponse } from '../chat/ops';
+import type { PersonDetails } from '../chat/details';
 import type { CivilDate } from '../sim/calendar';
 import type { DeckSpan } from '../world/ground';
 import type { DigestItem } from '../sim/chronicle';
@@ -70,7 +71,9 @@ export type PlayerOp =
   /** Who cannot be taken over now (in a car, on a bus, out of town: src/sim/player.ts `waitOf`), for the picker. */
   | { op: 'waits' }
   /** What inhabitant `id` is doing now, in words (the picker's open card). */
-  | { op: 'doing'; id: number };
+  | { op: 'doing'; id: number }
+  /** Everything about inhabitant `id` in plain words, at the town as shown (the picker's "More about …" window). */
+  | { op: 'details'; id: number };
 
 /** The answer to a `PlayerOp` (empty lists where the op asks for nothing), with the player's status after it. */
 export type { NearSolids };
@@ -85,6 +88,8 @@ export interface PlayerReply {
   located: { x: number; z: number; building: number; name: string } | null;
   /** `doing`'s answer ('' for any other op). */
   doing: string;
+  /** `details`' answer (null for any other op, or no such person). */
+  details: PersonDetails | null;
   /** The player's person's looks and name (after `become`), for drawing them while the player walks them. */
   info: ActorInfo | null;
   /** `waits`' answer: everyone who cannot be taken over now, why, and about when they are back (clock, null: not known). */

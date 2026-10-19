@@ -86,7 +86,7 @@ const RECENT = { widowed: 2 * DAYS_PER_YEAR, bereaved: DAYS_PER_YEAR, newlywed: 
 const PARTNERS = bondBit('partner') | bondBit('spouse');
 
 /** "wife", "brother", … for what `other` is to `id` (from id's side of the relation), '' when nothing family-like. */
-function kinWord(world: World, id: ActorId, other: ActorId): string {
+export function kinWord(world: World, id: ActorId, other: ActorId): string {
   const r = world.relations.row(id, other);
   if (r < 0) return '';
   const b = world.relations.t.cols.bonds[r];
@@ -104,7 +104,8 @@ function kinWord(world: World, id: ActorId, other: ActorId): string {
   return '';
 }
 
-const their = (world: World, id: ActorId): string => (world.actors.cols.sex[id] === FEMALE ? 'her' : 'his');
+/** "her" or "his" for `id`. */
+export const their = (world: World, id: ActorId): string => (world.actors.cols.sex[id] === FEMALE ? 'her' : 'his');
 
 /** "in March", "last week", "a year ago": when a day was, as people say it. */
 export function whenSaid(world: World, day: number): string {
@@ -186,11 +187,12 @@ export function householdText(world: World, id: ActorId, tags: { v: number } = {
     // A parent whose children have moved out still counts for the filter, if they live in town.
     if (bonded(world, id, bondBit('child')).length) tags.v |= TAG_PARENT;
   }
-  return `Lives with ${list(parts.filter(Boolean))}${on}${pet}`;
+  return `Lives with ${andList(parts.filter(Boolean))}${on}${pet}`;
 }
 
 const article = (w: string): string => (/^[aeiou]/.test(w) ? `an ${w}` : `a ${w}`);
-const list = (xs: string[]): string => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+/** "a, b and c". */
+export const andList = (xs: string[]): string => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
 /** Life events by the person they are about, and by the other party. */
 interface EventIndex { who: Map<ActorId, LifeEvent[]>; other: Map<ActorId, LifeEvent[]>; deathDay: Map<ActorId, number> }
@@ -290,7 +292,8 @@ function situationsOf(world: World, id: ActorId, ev: EventIndex, secrets: Map<Ac
     else if (office) out.push({ text: `${office} of ${group.name}`, weight: 0.4, tags: TAG_OFFICE });
   }
   // Secrets they keep about themselves.
-  for (const s of secrets.get(id) ?? []) out.push({ text: s, weight: 0.85, tags: TAG_SECRET, secret: true });
+  // (The pregnancy is already said above.)
+  for (const s of secrets.get(id) ?? []) if (!(preg && /^pregnant\b/.test(s))) out.push({ text: s, weight: 0.85, tags: TAG_SECRET, secret: true });
   return out.sort((x, y) => y.weight - x.weight);
 }
 
