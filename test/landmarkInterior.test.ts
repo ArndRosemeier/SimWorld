@@ -8,6 +8,8 @@ import { landmarkBody } from '../src/interior/landmark';
 import { buildingOf, buildingRef, eachFarmBuilding, isBarn, placeGraphOf } from '../src/plan/placeGraph';
 import { cutOff } from '../src/interior/reach';
 import { buildingBase, windowOpenings } from '../src/build/massing';
+import { MeshBuilder } from '../src/build/meshBuilder';
+import { INTERIOR_SPECS, buildIndoors } from '../src/build/interior';
 
 const town = planTown({ seed: 1, size: 0 });
 
@@ -79,4 +81,28 @@ test('farms: the farm works in its barn and the family lives in the farmhouse, e
   assert.ok(barns > 0 && barns === houses, `${barns} barns, ${houses} farmhouses`);
   const ref = buildingRef(g.places.find((p) => p.kind === 'farm')!.building);
   assert.ok(ref && 'farm' in ref && ref.index >= 0, 'a farm building code decodes to its farm and index');
+});
+
+test('public buildings: shown without their shell (one is inside), the walk-in body still stands on the ground', () => {
+  // (The three on the most sloping sites: where the ground falls furthest below the floor.)
+  const steep = town.macro.landmarks.slice().sort((p, q) => q.base - q.low - (p.base - p.low)).slice(0, 3);
+  assert.ok(steep[0].base - steep[0].low > 0.5, 'a site on a slope');
+  for (const lm of steep) {
+    const body = landmarkBody(lm, town.terrain);
+    if (!body) continue;
+    const I = planInterior(body.b, body.place), ind = indoorsOf(I, lm.base, body.windows);
+    const mb = new MeshBuilder(INTERIOR_SPECS);
+    buildIndoors(mb, I, ind, body.foot);
+    const d = mb.build(), pos = d.attrs.position.array;
+    let bottom = Infinity;
+    for (let i = 1; i < pos.length; i += 3) bottom = Math.min(bottom, pos[i] + d.origin[1]);
+    // The lowest ground under its outline (corners and the middles of its sides).
+    const P = I.storeys[0].poly, n = P.length >> 1;
+    let ground = Infinity;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      ground = Math.min(ground, town.terrain.height(P[i * 2], P[i * 2 + 1]), town.terrain.height((P[i * 2] + P[j * 2]) / 2, (P[i * 2 + 1] + P[j * 2 + 1]) / 2));
+    }
+    assert.ok(bottom <= ground + 0.15, `${lm.kind}: its walls end ${(bottom - ground).toFixed(2)} m above the ground`);
+  }
 });
