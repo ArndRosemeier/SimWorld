@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.159 — Doors that swing clear of the walls
+
+- An open door no longer sinks into the wall beside it, where it shimmered and flickered: each door hangs on the side where it can swing open freely, and stops short where a wall, a cupboard or another open door is in its way.
+- A door you open with E no longer leaves an invisible wall in the doorway.
+
 ## v0.158 — Everything about a person
 
 - In the "Who will you be?" picker, an open card now has a "More about …" button. It opens a window with everything the town knows about that person, in plain words: who they are, home and household, family, friends and people they can't stand, work or school and their routine, personality and how they talk, what is going on in their life, their life so far, their day at the time the start slider shows, clubs, views and what people say about them, and what is on their mind. Their secrets are marked as known only to you.
