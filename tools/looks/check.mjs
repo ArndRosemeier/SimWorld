@@ -26,6 +26,8 @@ const BASELINE = path.join(HERE, 'baseline.json');
 export const SHOTS = [
   { name: 'town at noon', query: 'still&mute&date=2026-06-21&time=12:00&wx=clear&a=0.6' },
   { name: 'streets at noon', query: 'still&mute&date=2026-06-21&time=12:00&wx=clear&a=2.2&r=140&h=45' },
+  // The parked car nearest the town centre, close up (vehicle paint, glass and wheels on the drawn ground).
+  { name: 'parked car close up', query: 'still&mute&date=2026-06-21&time=12:00&wx=clear&at=-0.95,-7.25&r=7&h=3&a=1' },
   { name: 'town at night', query: 'still&mute&date=2026-06-21&time=23:30&wx=clear&a=0.6' },
   { name: 'town in snow', query: 'still&mute&date=2027-01-14&time=12:00&wx=snow&a=0.6' },
 ];

@@ -25,6 +25,9 @@ export interface Lights {
   readonly lamps: PointLight[];
 }
 
+/** From the drone the sun's shadow covers the town: a square of half-side TOWN_SHADOW × its radius around its centre. */
+export const TOWN_SHADOW = 1.15;
+
 export function makeLights(scene: Scene): Lights {
   const sky = new HemisphereLight(0xbfd8ff, 0x5a5040, 0.9);
   const sun = new DirectionalLight(0xfff2dd, 2.2);

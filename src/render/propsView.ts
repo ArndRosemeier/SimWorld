@@ -14,7 +14,7 @@ import type { FromTown, ToTown } from '../workers/townProtocol';
 import { isVehicleModel, PROP_STRIDE, type PropGroup } from '../build/streetProps';
 import type { MeshData } from '../build/meshBuilder';
 import { FURNITURE, VEHICLE } from './materials';
-import { instancedFromData, radiusOf, showInstances, splitByDistance } from './meshes';
+import { instancedFromData, radiusOf, sameSet, showInstances, splitByDistance } from './meshes';
 import type { Stage } from './stage';
 
 /** Detailed parked cars up to this far from the camera (m, 3D), their stand-ins beyond, up to FAR_CAR. */
@@ -73,8 +73,8 @@ export async function showProps(stage: Stage, pool: WorkerPool<ToTown, FromTown>
     last.copy(cam);
     for (const p of models) {
       const [near, far] = splitByDistance(p.src.iPose, p.n, cam, p.range, p.far ? FAR_CAR : 0);
-      if (!same(near, p.nearSet)) { p.nearSet = near; showInstances([p.near], p.src, near, p.radius); }
-      if (p.far && !same(far, p.farSet)) { p.farSet = far; showInstances([p.far], p.src, far, p.farRadius); }
+      if (!sameSet(near, p.nearSet)) { p.nearSet = near; showInstances([p.near], p.src, near, p.radius); }
+      if (p.far && !sameSet(far, p.farSet)) { p.farSet = far; showInstances([p.far], p.src, far, p.farRadius); }
     }
   };
   reshow(stage.camera, true);
@@ -99,7 +99,6 @@ export function propModels(pool: WorkerPool<ToTown, FromTown>, groups: readonly 
   }));
 }
 
-const same = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, i) => v === b[i]);
 
 
 /** A model's instance attributes from its group (PROP_STRIDE: x, y, z, yaw, scale, c0..c3) and its meshes (empty until split). */

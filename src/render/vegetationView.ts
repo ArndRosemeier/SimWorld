@@ -18,18 +18,26 @@ import { FOREST_DETAIL, FOREST_STRIDE } from '../build/forest';
 import { VEG_MODELS, type TreeModelData } from '../build/vegetation';
 import type { WorkerPool } from '../workers/pool';
 import type { FromTown, ToTown, TownSummary } from '../workers/townProtocol';
+import { TOWN_SHADOW } from './lights';
 import { BARK, LEAVES, TREE_FAR } from './materials';
-import { instancedFromData, showInstances, splitByDistance } from './meshes';
+import { instancedFromData, sameSet, showInstances } from './meshes';
 import type { Stage } from './stage';
 
-/** Trees nearer the camera than this (3D, m) are drawn whole; shrubs nearer than SHRUB_NEAR. */
-const TREE_NEAR = 150, SHRUB_NEAR = 70;
+/**
+ * Trees nearer the camera than TREE_WHOLE (3D, m) are drawn whole, out to TREE_NEAR as the lighter middle-distance
+ * tree (`midWood`, `midLeaves`: a quarter of the triangles), farther as the canopy hull; shrubs likewise.
+ */
+const TREE_WHOLE = 45, TREE_NEAR = 150, SHRUB_WHOLE = 25, SHRUB_NEAR = 70;
 /** The camera moves this far (m) before the near / far split is redone. */
 const RESPLIT = 8;
 /** Real countryside trees reach this far beyond the town's radius (m), canopy clumps out to FAR_R from the centre. */
 const DETAIL_R = 900, FAR_R = 3600;
 /** Size of the clump tiles (m). */
 const FAR_TILE = 1024;
+/** Beyond the corners of the town's shadow square, by this much (m, for a low sun's long shadows), far hulls cast none. */
+const SHADOW_MARGIN = 60;
+/** Farther from the camera than this (m), trees are the coarse distant hull. */
+const DISTANT_R = 450;
 
 const FIRST_SHRUB = VEG_MODELS.findIndex((m) => m.species === 'shrub');
 
@@ -52,13 +60,20 @@ interface ModelBatch {
   /** Never drawn whole (a clump standing for a patch of forest). */
   farOnly: Uint8Array;
   n: number;
-  /** Wood and leaves share their instance attributes. */
+  /** Wood and leaves share their instance attributes (the whole tree's, the middle distance's). */
   whole: Mesh[];
+  mid: Mesh[];
   far: Mesh;
+  /** Far hulls outside the sun's shadow (`shades`): the same, left out of the shadow pass. */
+  farOut: Mesh;
+  shades: Uint8Array;
+  /** Beyond DISTANT_R: the coarse hull, casting no shadow. */
+  distant: Mesh;
   /** Model radius (m, at scale 1) for the bounding spheres. */
   radius: number;
-  /** Indices drawn whole now (signature of the last split). */
+  /** Indices drawn whole and as the middle-distance tree now (signature of the last split). */
   nearSet: number[];
+  midSet: number[];
 }
 
 /** Group the records (FOREST_STRIDE) by model. */
@@ -89,11 +104,12 @@ class Batches {
   count = 0;
   private last = new Vector3(Infinity, 0, 0);
 
-  constructor(recs: Float32Array[], models: (i: number) => TreeModelData) {
+  /** `shades(x, z)`: whether a far hull there can cast a shadow the sun's shadow map holds. */
+  constructor(recs: Float32Array[], models: (i: number) => TreeModelData, shades: (x: number, z: number) => boolean) {
     this.root.name = 'vegetation';
     for (const [model, parts] of group(recs)) {
       const n = parts.reduce((a, p) => a + p.idx.length, 0);
-      const pose = new Float32Array(n * 4), size = new Float32Array(n * 2), farOnly = new Uint8Array(n);
+      const pose = new Float32Array(n * 4), size = new Float32Array(n * 2), farOnly = new Uint8Array(n), shade = new Uint8Array(n);
       let k = 0;
       for (const { idx, recs: R } of parts) for (const o of idx) {
         const sc = R[o + 3], spread = R[o + 6];
@@ -101,20 +117,26 @@ class Batches {
         // A clump stands for a patch: wider, a little taller.
         size[k * 2] = sc * spread; size[k * 2 + 1] = sc * (1 + (spread - 1) * 0.25);
         farOnly[k] = spread > 1 ? 1 : 0;
+        shade[k] = shades(R[o], R[o + 2]) ? 1 : 0;
         k++;
       }
       const data = models(model);
-      const whole: Mesh[] = [];
-      if (farOnly.some((f) => !f)) {
-        if (data.wood.index.length) whole.push(instancedFromData(data.wood, BARK, 0, n));
-        if (data.leaves.index.length) whole.push(instancedFromData(data.leaves, LEAVES, 0, n));
-        // The whole tree's meshes share one set of instance attributes.
-        for (const m of whole.slice(1)) for (const a of ['iPose', 'iSize']) m.geometry.setAttribute(a, attr(whole[0], a));
-      }
-      const far = instancedFromData(data.far, TREE_FAR, 0, n);
-      for (const m of [...whole, far]) this.root.add(m);
+      const tree = (wood: typeof data.wood, leaves: typeof data.leaves): Mesh[] => {
+        const ms: Mesh[] = [];
+        if (!farOnly.some((f) => !f)) return ms;
+        if (wood.index.length) ms.push(instancedFromData(wood, BARK, 0, n));
+        if (leaves.index.length) ms.push(instancedFromData(leaves, LEAVES, 0, n));
+        // A tree's meshes share one set of instance attributes.
+        for (const m of ms.slice(1)) for (const a of ['iPose', 'iSize']) m.geometry.setAttribute(a, attr(ms[0], a));
+        return ms;
+      };
+      const whole = tree(data.wood, data.leaves), mid = tree(data.midWood, data.midLeaves);
+      const far = instancedFromData(data.far, TREE_FAR, 0, n), farOut = instancedFromData(data.far, TREE_FAR, 0, n);
+      const distant = instancedFromData(data.distant, TREE_FAR, 0, n);
+      farOut.castShadow = distant.castShadow = false;
+      for (const m of [...whole, ...mid, far, farOut, distant]) this.root.add(m);
       const radius = Math.max(data.crownRadius, data.height);
-      this.batches.push({ model, pose, size, farOnly, n, whole, far, radius, nearSet: [-1] });
+      this.batches.push({ model, pose, size, farOnly, n, whole, mid, far, farOut, shades: shade, distant, radius, nearSet: [-1], midSet: [-1] });
       this.count += n;
     }
   }
@@ -125,20 +147,27 @@ class Batches {
     this.last.copy(cam);
     let near = 0;
     for (const b of this.batches) {
-      const r = b.model >= FIRST_SHRUB ? SHRUB_NEAR : TREE_NEAR;
-      const [set, far] = splitByDistance(b.pose, b.n, cam, b.whole.length ? r : 0, Infinity, (i) => !b.farOnly[i]);
-      near += set.length;
-      if (set.length === b.nearSet.length && set.every((v, i) => v === b.nearSet[i])) continue;
-      b.nearSet = set;
+      const shrub = b.model >= FIRST_SHRUB, w = b.whole.length ? (shrub ? SHRUB_WHOLE : TREE_WHOLE) : 0, r = b.whole.length ? (shrub ? SHRUB_NEAR : TREE_NEAR) : 0;
+      const set: number[] = [], mid: number[] = [], far: number[] = [], farOut: number[] = [], distant: number[] = [];
+      for (let i = 0; i < b.n; i++) {
+        const dx = b.pose[i * 4] - cam.x, dy = b.pose[i * 4 + 1] - cam.y, dz = b.pose[i * 4 + 2] - cam.z, d2 = dx * dx + dy * dy + dz * dz;
+        (d2 >= DISTANT_R * DISTANT_R ? distant : b.farOnly[i] || d2 >= r * r ? (b.shades[i] ? far : farOut) : d2 < w * w ? set : mid).push(i);
+      }
+      near += set.length + mid.length;
+      if (sameSet(set, b.nearSet) && sameSet(mid, b.midSet)) continue;
       const src = { iPose: b.pose, iSize: b.size };
-      if (b.whole.length) showInstances(b.whole, src, set, b.radius);
+      if (b.whole.length && !sameSet(set, b.nearSet)) showInstances(b.whole, src, set, b.radius);
+      if (b.mid.length && !sameSet(mid, b.midSet)) showInstances(b.mid, src, mid, b.radius);
+      b.nearSet = set; b.midSet = mid;
       showInstances([b.far], src, far, b.radius);
+      showInstances([b.farOut], src, farOut, b.radius);
+      showInstances([b.distant], src, distant, b.radius);
     }
     return near;
   }
 
   meshes(): Mesh[] {
-    return this.batches.flatMap((b) => [...b.whole, b.far]);
+    return this.batches.flatMap((b) => [...b.whole, ...b.mid, b.far, b.farOut, b.distant]);
   }
 }
 
@@ -160,11 +189,14 @@ export async function showVegetation(stage: Stage, pool: WorkerPool<ToTown, From
     if (!p) models.set(i, (p = pool.run<Extract<FromTown, { type: 'vegModel' }>>({ type: 'vegModel', index: i }, priority + 1).then((r) => r.model)));
     return p;
   };
+  // The sun's shadow never reaches past the drone's square round the town (a circle through its corners, and a margin).
+  const reach = town.radius * TOWN_SHADOW * Math.SQRT2 + SHADOW_MARGIN;
+  const shades = (x: number, z: number) => Math.hypot(x - town.x, z - town.z) < reach;
   const placeRecords = async (recs: Float32Array[]) => {
     const used = [...new Set(recs.flatMap((R) => { const s: number[] = []; for (let o = 5; o < R.length; o += FOREST_STRIDE) s.push(R[o]); return s; }))];
     const data = new Map<number, TreeModelData>();
     await Promise.all(used.map(async (i) => { data.set(i, await model(i)); }));
-    return new Batches(recs, (i) => data.get(i)!);
+    return new Batches(recs, (i) => data.get(i)!, shades);
   };
 
   // The town's own trees first.

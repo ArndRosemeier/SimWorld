@@ -22,6 +22,35 @@ export function findChrome() {
   return hit;
 }
 
+/**
+ * Put into every page before its own scripts: frame pacing. Software WebGL needs seconds a frame for a whole town
+ * (about 5.5 s at 1280×720, spread over everything on screen), and frames started back to back make swiftshader's
+ * GPU process overrun its time limit and die a minute or so in (data-gpu="lost", black shots). So a frame starts only
+ * after the GPU has been idle for as long as the last frame took (measured from its start to the next animation
+ * frame). On a real GPU that is a frame every other vsync.
+ */
+const PACE_FRAMES = `(() => {
+  const raf = window.requestAnimationFrame.bind(window), caf = window.cancelAnimationFrame.bind(window);
+  const live = new Map();
+  let start = -1e9, cost = 0, measuring = false, cur = -1, ids = 0;
+  window.requestAnimationFrame = (cb) => {
+    const id = ++ids;
+    const run = (t) => {
+      const now = performance.now();
+      if (t !== cur) {
+        if (measuring) { cost = now - start; measuring = false; }
+        if (now - start < 2 * cost) { live.set(id, raf(run)); return; }
+        cur = t; start = now; measuring = true;
+      }
+      live.delete(id);
+      cb(t);
+    };
+    live.set(id, raf(run));
+    return id;
+  };
+  window.cancelAnimationFrame = (id) => { caf(live.get(id)); live.delete(id); };
+})();`;
+
 /** Start headless Chromium (software WebGL 2, as on CI) and connect to it. */
 export async function launch({ width = 1280, height = 720 } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'looks-'));
@@ -53,6 +82,7 @@ export async function launch({ width = 1280, height = 720 } = {}) {
         if (process.env.LOOKS_CONSOLE && m.method === 'Runtime.consoleAPICalled') console.log(...m.params.args.map((a) => a.value));
         if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails?.exception?.description ?? m.params.exceptionDetails?.text);
       });
+      await send('Page.addScriptToEvaluateOnNewDocument', { source: PACE_FRAMES });
       await send('Page.navigate', { url });
       return {
         errors,
@@ -72,8 +102,8 @@ export async function launch({ width = 1280, height = 720 } = {}) {
             await new Promise((r) => setTimeout(r, every));
           }
         },
-        /** Has the page's WebGL context been lost (the game sets data-gpu="lost")? Swiftshader's GPU process can crash on
-         *  big close-up views a minute or so after the town is built; everything after that comes out black. */
+        /** Has the page's WebGL context been lost (the game sets data-gpu="lost")? Swiftshader's GPU process could die a
+         *  minute or so after the town was built (now paced, PACE_FRAMES); everything after that comes out black. */
         gpuLost() { return this.eval("document.documentElement.dataset.gpu === 'lost'"); },
         /** A PNG screenshot of the viewport, base64. */
         async screenshot() { return (await send('Page.captureScreenshot', { format: 'png' })).data; },
