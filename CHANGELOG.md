@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.160 — Houses with fewer, bigger rooms
+
+- Houses are no longer cut into lots of tiny rooms: a bigger floor now gets bigger rooms instead of more of them.
+- At most three bedrooms to a floor and four to a house; a tall house's top floor becomes a sitting room with a bathroom.
+- Fewer leftover closets: an odd corner joins the room beside it where it can.
+
 ## v0.159 — Doors that swing clear of the walls
 
 - An open door no longer sinks into the wall beside it, where it shimmered and flickered: each door hangs on the side where it can swing open freely, and stops short where a wall, a cupboard or another open door is in its way.
