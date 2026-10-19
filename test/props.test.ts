@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { groundOf } from '../src/build/drawnGround';
 import { planTown } from '../src/plan/town';
 import type { MeshData } from '../src/build/meshBuilder';
 import { VEHICLE_SPECS } from '../src/build/vehicles';
@@ -88,8 +89,8 @@ test('every furniture kind and variant builds a sound mesh with valid material i
 const town = planTown({ seed: 3, size: 0 });
 
 test('the town\'s props become instance lists of buildable models, on the ground, deterministic', () => {
-  const groups = propInstances(town.cells, town.terrain);
-  assert.deepEqual(propInstances(town.cells, town.terrain), groups);
+  const groups = propInstances(town.cells, groundOf(town));
+  assert.deepEqual(propInstances(town.cells, groundOf(town)), groups);
   const keys = groups.map((g) => g.model);
   assert.equal(new Set(keys).size, keys.length, 'one list per model');
   for (const k of ['f:lampModern:0', 'f:trafficLight:', 'v:sedan:'] as const) assert.ok(keys.some((m) => m.startsWith(k)), `${k} in ${keys.join(' ')}`);
@@ -106,7 +107,7 @@ test('the town\'s props become instance lists of buildable models, on the ground
   }
   assert.ok(cars > 50, `${cars} parked cars`);
   // Without the kerb cars (the traffic stands its household cars there) only the car parks' remain.
-  const lots = propInstances(town.cells, town.terrain, { kerbCars: false }).filter((g) => g.model.startsWith('v:')).reduce((n, g) => n + g.inst.length / PROP_STRIDE, 0);
+  const lots = propInstances(town.cells, groundOf(town), { kerbCars: false }).filter((g) => g.model.startsWith('v:')).reduce((n, g) => n + g.inst.length / PROP_STRIDE, 0);
   assert.ok(lots < cars, `${lots} cars in the car parks of ${cars}`);
   assertSound(propModel('f:bench:0'), FURNITURE_SPECS, 'propModel');
   assertSound(propFar(keys.find((k) => k.startsWith('v:'))!)!, VEHICLE_SPECS, 'far vehicle');

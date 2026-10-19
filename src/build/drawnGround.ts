@@ -108,6 +108,12 @@ export function drawnGround(town: Town): DrawnGround {
   return g;
 }
 
+/** The town's drawn ground as a height function (`heightAt`), for what stands on it: props, trees, signs, decorations. */
+export function groundOf(town: Town): (x: number, z: number) => number {
+  const g = drawnGround(town);
+  return (x, z) => g.heightAt(x, z);
+}
+
 /** Wheel contacts: half the wheelbase and half the track, as shares of the vehicle's length and width. */
 export const WHEELBASE = 0.31, TRACK = 0.42;
 
