@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.155 — Screenshot tools notice a lost GPU
+
+- The game marks the page `data-gpu="lost"` when its WebGL context is lost, so headless shots no longer come out black without a word.
+- The looks check takes a shot again once when the GPU gave up, and fails with a clear message if it happens twice.
+- Opening a repro link headless tries once more with a shorter wait when the GPU gave up, and says so.
+
 ## v0.154 — Main roads on the town's edge drawn across their whole width; things stand on the ground
 
 - The main roads round the edge of the town were drawn only up to their middle: the outer half was grass with lane paint floating over it. They now have both carriageway halves and a sidewalk on the outer side, so cars there drive on the road.
