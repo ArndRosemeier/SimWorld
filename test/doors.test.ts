@@ -23,12 +23,37 @@ test('doors: a leaf in every street door and the room doorways, closing the gap 
     };
     assert.ok(!ind.colliders.some(inBox), 'the doorway is open in the walls');
     assert.ok(inBox(leafBox(l)), 'the shut leaf fills it');
-    // Open, it has swung a quarter turn to the side it opens to.
-    const [ox, oz] = leafWay(l, 1);
-    assert.ok(Math.abs(ox * l.dx + oz * l.dz) < 1e-6 && ox * l.nx + oz * l.nz > 0.999);
+    // Open, it has swung to the side it opens to, a quarter turn unless a wall stops it.
+    const [ox, oz] = leafWay(l, 1), turn = (l.reach * Math.PI) / 2;
+    assert.ok(Math.abs(ox * l.dx + oz * l.dz - Math.cos(turn)) < 1e-6 && Math.abs(ox * l.nx + oz * l.nz - Math.sin(turn)) < 1e-6);
   }
+  assert.ok(ind.leaves.filter((l) => l.reach === 1).length > ind.leaves.length * 0.9, 'most swing a full quarter turn');
   // Street doors open inwards.
   for (const l of street) { const d = ind.doors[l.street]; assert.ok(l.nx * d.nx + l.nz * d.nz < -0.99); }
+});
+
+test('doors: open, no leaf lies in a wall (it hangs on the other jamb, or stops short)', () => {
+  // Every building of the town: the open leaf's faces (and panels) stay out of the wall colliders.
+  const inWall = (b: { x: number; y: number; z: number; hx: number; hy: number; hz: number; yaw: number }, x: number, y: number, z: number) => {
+    const dx = x - b.x, dz = z - b.z, c = Math.cos(b.yaw), s = Math.sin(b.yaw);
+    return b.hy > 1.2 && Math.abs(dx * c - dz * s) < b.hx - 0.005 && Math.abs(dx * s + dz * c) < b.hz - 0.005 && Math.abs(y - b.y) < b.hy;
+  };
+  let leaves = 0, stuck = 0;
+  for (const b of town.cells.flatMap((c) => c.buildings).slice(0, 8)) {
+    const where = indoorsOf(planInterior(b), 0);
+    for (const l of where.leaves) {
+      leaves++;
+      const [wx, wz] = leafWay(l, 1), px = -wz, pz = wx;
+      // (Past the doorway's own wall: 0.2 m of facade for a street door, half an inner wall for a room door.)
+      let hit = false;
+      for (let u = l.street >= 0 ? 0.27 : 0.12; u < l.w && !hit; u += 0.05) {
+        for (const v of [-0.05, 0.05]) if (where.colliders.some((q) => inWall(q, l.x + wx * u + px * v, l.y + 1, l.z + wz * u + pz * v))) hit = true;
+      }
+      if (hit) stuck++;
+    }
+  }
+  assert.ok(leaves > 80, `leaves looked at (${leaves})`);
+  assert.ok(stuck <= 1, `${stuck} of ${leaves} open leaves in a wall`);
 });
 
 test('doors: walking into one opens it, it shuts behind you; a locked street door opens only from inside or with keys', () => {
@@ -54,4 +79,14 @@ test('doors: walking into one opens it, it shuts behind you; a locked street doo
   assert.equal(useDoor(leaves, st, at(0.4), locked), 0);
   stepDoors(leaves, st, [at(0.4)], 0.05, locked);
   assert.equal(st[0].to, 0);
+});
+
+test('doors: a door opened with E stops being solid as soon as it moves', () => {
+  const l: DoorLeaf = ind.leaves.find((q) => q.street < 0)!, leaves = [l], st = shutDoors(leaves);
+  const me = { x: l.x + l.dx * l.w / 2 + l.nx * 1.2, y: l.y, z: l.z + l.dz * l.w / 2 + l.nz * 1.2 };
+  assert.equal(useDoor(leaves, st, me, () => false), 0);
+  assert.equal(st[0].a, 0, 'not moved yet: still solid');
+  assert.ok(stepDoors(leaves, st, [me], 0.05, () => false), 'the first step says the solids changed');
+  assert.ok(st[0].a > 0);
+  assert.ok(!stepDoors(leaves, st, [me], 0.05, () => false), 'and not again while it swings on');
 });

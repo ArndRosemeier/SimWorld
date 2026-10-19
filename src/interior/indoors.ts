@@ -118,7 +118,7 @@ export function indoorsOf(I: Interior, base: number, windows: readonly WallWindo
     doors: I.doors.map((d) => ({ ...d, y: base })),
     colliders, ramps, slabs, outer,
     spots: I.spots.map((p) => ({ use: p.use, floor: p.floor, x: p.x, y: base + I.storeys[p.floor].y, z: p.z, yaw: p.yaw, seat: p.seat, unit: p.unit })),
-    leaves: doorLeavesOf(I, base),
+    leaves: doorLeavesOf(I, base, colliders),
   };
 }
 
