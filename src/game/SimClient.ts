@@ -306,7 +306,7 @@ export class SimClient {
   /** The ground round the player's body (the `near` op's, src/game/standing.ts), finer to have than the town's grid out in the fields. */
   groundNear: HeightGrid | null = null;
 
-  /** Ground height (sidewalk level) at (x, z) as the physics world has it (src/physics/solids.ts `heightOnGrid`): the ground round the body where it reaches, else the town's grid. */
+  /** Ground height (the drawn ground) at (x, z) as the physics world has it (src/physics/solids.ts `heightOnGrid`): the ground round the body where it reaches, else the town's grid. */
   standHeight(x: number, z: number): number {
     const g = this.groundNear && onGrid(this.groundNear, x, z) ? this.groundNear : this.ground;
     return heightOnGrid(g, x, z);

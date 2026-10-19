@@ -22,6 +22,7 @@ import { A } from '../src/sim/actors';
 import { go } from '../src/sim/schedule';
 import { pointInPoly, polyCentroid } from '../src/geom/geom2';
 import { TrafficFeed } from '../src/traffic/feed';
+import { drawnGround } from '../src/build/drawnGround';
 import type { Footprints } from '../src/plan/footprints';
 import { PropType } from '../src/plan/cell';
 import { SEAT_REACH } from '../src/street/seats';
@@ -73,6 +74,32 @@ test('street: trips walk from door to door over the trip time, on dry ground or 
   const median = pace[pace.length >> 1];
   assert.ok(median > 55 && median < 100, `median pace ${median.toFixed(0)} m/min`);
   assert.ok(pace[pace.length - 1] < 160, `fastest ${pace[pace.length - 1].toFixed(0)} m/min`);
+});
+
+test('street: people and animals stand on the drawn ground: pavements, down kerbs, across carriageways, up slopes, in fields', () => {
+  const ground = drawnGround(town), T = town.terrain;
+  const near = (x: number, z: number, h: number) => [[0.08, 0], [-0.08, 0], [0, 0.08], [0, -0.08]].some(([dx, dz]) => Math.abs(ground.heightAt(x + dx, z + dz) - h) > 0.04);
+  const seen = { kerb: 0, slope: 0, raised: 0, low: 0, animal: 0 };
+  let n = 0;
+  const bad: string[] = [];
+  for (const t of tracks.values()) {
+    const k = t.keys, t0 = k[0], t1 = Math.min(k[k.length - 4], t0 + 20);
+    if (k.length < 8) continue;
+    for (let c = t0; c <= t1; c += 0.05) {
+      const [x, y, z] = sample(k, c);
+      if (T.isWater(x, z, 0)) continue;
+      const h = ground.heightAt(x, z);
+      n++;
+      if (near(x, z, h)) { seen.kerb++; continue; }
+      if (Math.abs(T.height(x + 1, z) - T.height(x - 1, z)) + Math.abs(T.height(x, z + 1) - T.height(x, z - 1)) > 0.12) seen.slope++;
+      if (h - T.height(x, z) > 0.1) seen.raised++; else seen.low++;
+      if (!isPerson(world, t.id)) seen.animal++;
+      if (Math.abs(y - h) > 0.03) bad.push(`${t.id} at (${x.toFixed(1)}, ${z.toFixed(1)}): ${(y - h).toFixed(3)} m`);
+    }
+  }
+  assert.ok(n > 20000, `${n} footfalls`);
+  assert.ok(seen.kerb > 50 && seen.slope > 500 && seen.raised > 2000 && seen.low > 2000, `a broad sample: ${JSON.stringify(seen)}`);
+  assert.ok(bad.length === 0, `${bad.length} of ${n} off the ground (more than 3 cm): ${bad.slice(0, 8).join(', ')}`);
 });
 
 test('street: someone going along keeps beside the one they are with', () => {

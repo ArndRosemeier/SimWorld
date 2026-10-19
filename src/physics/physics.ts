@@ -1,6 +1,6 @@
 /**
  * The one physics world (Rapier, as in Scale: src/physics/Physics.ts there). For now it holds what the player's
- * body walks against: the ground as one heightfield (the sim worker's sidewalk-level grid, the same heights the
+ * body walks against: the ground as one heightfield (the sim worker's grid of the drawn ground, the same heights the
  * people of the town walk on), and static solids in named sets (a building's walls, the props of a stretch of
  * street, a house's interior) that come and go as the player moves. `Physics.create()` loads the WASM; nothing
  * else in the game imports Rapier (guarded).
