@@ -77,7 +77,7 @@ export class VehiclesView {
   }
 
   /**
-   * Add car `i` of `cars` at `pose` (POSE_STRIDE: x, y, z, yaw, pitch, roll), its paint from `paint` at `po`, its lights from `state` at `so`
+   * Add car `i` of `cars` at `pose` (POSE_STRIDE: x, y, z, yaw, pitch, roll, twist), its paint from `paint` at `po`, its lights from `state` at `so`
    * (none: parked) to its model's instances; false while the model loads.
    */
   private addInstance(cars: Int32Array, i: number, pose: Float32Array, paint: Float32Array, po: number, state: Float32Array | null, so: number): boolean {
@@ -86,7 +86,7 @@ export class VehiclesView {
     if (m.n === m.room) this.grow(m);
     const j = m.n++;
     m.src.iPose.set(pose.subarray(0, 4), j * 4);
-    m.src.iTilt.set(pose.subarray(4, 6), j * 2);
+    m.src.iTilt.set(pose.subarray(4, 7), j * 3);
     m.src.iSize[j * 2] = m.src.iSize[j * 2 + 1] = 1;
     m.src.iPaint.set(paint.subarray(po, po + 3), j * 3);
     if (state) m.src.iState.set(state.subarray(so, so + STATE_STRIDE), j * 4);
@@ -128,4 +128,4 @@ export class VehiclesView {
 }
 
 /** Instance arrays with room for `n`. */
-const room = (n: number): Model['src'] => ({ iPose: new Float32Array(n * 4), iSize: new Float32Array(n * 2), iPaint: new Float32Array(n * 3), iState: new Float32Array(n * 4), iTilt: new Float32Array(n * 2) });
+const room = (n: number): Model['src'] => ({ iPose: new Float32Array(n * 4), iSize: new Float32Array(n * 2), iPaint: new Float32Array(n * 3), iState: new Float32Array(n * 4), iTilt: new Float32Array(n * 3) });

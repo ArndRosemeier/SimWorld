@@ -25,9 +25,10 @@ export interface Spot {
   y: number;
   z: number;
   yaw: number;
-  /** Its tilt on the ground there (`settle`): pitch nose up +, roll right side up +. */
+  /** Its tilt on the ground there (`settle`): pitch nose up +, roll right side up +, the twist its wheels take up. */
   pitch: number;
   roll: number;
+  twist: number;
   /** Car key standing here, or reserved for, or -1. */
   car: number;
   /**
@@ -130,8 +131,8 @@ export class Parking {
   /** A spot for a car at (x, z) facing yaw, standing on the drawn ground (a car's size: the stance of the usual car). */
   private addSpot(net: RoadNet, edge: number, s: number, side: number, x: number, z: number, yaw: number): void {
     const id = this.spots.length;
-    const [L, W] = DIMS.sedan, st = settle((px, pz) => net.groundAt(px, pz), x, z, yaw, L, W, { y: 0, pitch: 0, roll: 0 });
-    this.spots.push({ id, edge, s, side, x, y: st.y, z, yaw, pitch: st.pitch, roll: st.roll, car: -1 });
+    const [L, W] = DIMS.sedan, st = settle((px, pz) => net.groundAt(px, pz), x, z, yaw, L, W, { y: 0, pitch: 0, roll: 0, twist: 0 });
+    this.spots.push({ id, edge, s, side, x, y: st.y, z, yaw, pitch: st.pitch, roll: st.roll, twist: st.twist, car: -1 });
     const k = gkey(Math.floor(x / G), Math.floor(z / G));
     let l = this.grid.get(k);
     if (!l) this.grid.set(k, (l = []));

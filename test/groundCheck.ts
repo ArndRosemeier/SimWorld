@@ -57,7 +57,9 @@ export function wheelContacts(x: number, z: number, yaw: number, length: number,
   const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = -fz, rz = fx, hb = length * WHEELBASE, ht = width * TRACK;
   const out: [number, number, number][] = [];
   for (const a of [hb, -hb]) for (const r of [ht, -ht]) {
-    out.push([x + fx * a + rx * r, st.y + Math.sin(st.pitch) * a + Math.sin(st.roll) * r * Math.cos(st.pitch), z + fz * a + rz * r]);
+    // The wheels ride the twist: front right and back left up by it, the others down (src/render/tsl/vehicles.ts).
+    const sprung = (a > 0) === (r > 0) ? st.twist : -st.twist;
+    out.push([x + fx * a + rx * r, st.y + Math.sin(st.pitch) * a + Math.sin(st.roll) * r * Math.cos(st.pitch) + sprung, z + fz * a + rz * r]);
   }
   return out;
 }

@@ -177,7 +177,7 @@ test('the drawn ground is the height the ground meshes draw: town cells, country
 
 test('every vehicle stands with its wheels on the drawn road: lanes, bays, driveways, country roads', () => {
   const net = new RoadNet(town), park = new Parking(net, cells.flatMap((c) => c.parking));
-  const st = { y: 0, pitch: 0, roll: 0 }, tmp = { x: 0, z: 0, dx: 0, dz: 0 };
+  const st = { y: 0, pitch: 0, roll: 0, twist: 0 }, tmp = { x: 0, z: 0, dx: 0, dz: 0 };
   let n = 0;
   const bad: string[] = [];
   // Only where the meshes built here draw the ground: the two cells, the countryside off every cell.
@@ -206,5 +206,5 @@ test('every vehicle stands with its wheels on the drawn road: lanes, bays, drive
   }
   for (const s of park.spots) check(s.x, s.z, s.yaw, DIMS.sedan, s.drive ? 'driveway car' : 'parked car');
   assert.ok(n > 3000, `${n} wheels`);
-  assert.ok(bad.length <= n / 500, `${bad.length} of ${n} wheels off the road: ${bad.slice(0, 8).join(', ')}`);
+  assert.equal(bad.length, 0, `${bad.length} of ${n} wheels off the road: ${bad.slice(0, 8).join(', ')}`);
 });

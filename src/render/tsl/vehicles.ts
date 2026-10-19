@@ -10,11 +10,12 @@
  */
 import type { MeshPhysicalNodeMaterial } from 'three/webgpu';
 import {
-  Fn, float, int, vec2, vec3, mix, min, max, abs, fract, floor, smoothstep, sub, add, mul, dot, step, pow, clamp, select,
+  Fn, float, int, vec2, vec3, mix, min, max, abs, fract, floor, smoothstep, sub, add, mul, dot, step, pow, clamp, select, sign,
   If, struct, attribute, varying, positionGeometry, time,
 } from 'three/tsl';
 import { h_hash13 as vhHash, h_noise3 as vhNoise } from '@futuremagic/humanoid/three/nodes/peopleNoise';
-import { LIGHT, poseByInstance } from './common';
+import { LIGHT, posed, poseByInstance } from './common';
+import { WHEEL_PART } from '../../build/vehicles';
 import { setDiffuse } from './ground';
 
 const VhSurf = struct({ col: 'vec3', rough: 'float', metal: 'float', cc: 'float', ccr: 'float', emis: 'vec3' }, 'VehicleSurf');
@@ -23,10 +24,16 @@ const vhToLinear = Fn(([c]) => mix(c.div(12.92), pow(c.add(0.055).div(1.055), ve
 
 export function vehicleLook(mat: MeshPhysicalNodeMaterial): void {
   const uNight = LIGHT.night, uTime = time;
-  const vPart = attribute('aPart', 'float');
+  const aPart = attribute('aPart', 'float');
+  // Wheels carry WHEEL_PART (src/build/vehicles.ts) on top of their part: they ride the suspension by the twist
+  // (iTilt.z, src/build/drawnGround.ts `Stance`): front right (+X, −Z) and back left up by it, the other two down.
+  const wheel = step(WHEEL_PART - 0.5, aPart);
+  const vPart = aPart.sub(wheel.mul(WHEEL_PART));
   const vObjPos = varying(positionGeometry, 'vObjPos');
   const vVUv = attribute('uv', 'vec2');
-  poseByInstance(mat, undefined, true);
+  const corner = sign(positionGeometry.x).mul(sign(positionGeometry.z)).negate();
+  const sprung = positionGeometry.add(vec3(0.0, wheel.mul(corner).mul(attribute('iTilt', 'vec3').z), 0.0));
+  poseByInstance(mat, posed(sprung, true, true), true);
   const vPaint = varying(vhToLinear(clamp(attribute('iPaint', 'vec3'), 0.0, 1.0)), 'vPaint');
   const vState = varying(attribute('iState', 'vec4'), 'vState');
   const LUM = vec3(0.2126, 0.7152, 0.0722);

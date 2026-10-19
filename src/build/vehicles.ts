@@ -79,6 +79,12 @@ export const enum VPart {
   AdsLamp = 16,
 }
 
+/**
+ * Added to a wheel's aPart (tyre, rim, hub): the vehicle look lets those vertices ride their suspension, up or down
+ * by the vehicle's twist (src/build/drawnGround.ts `Stance`), so all four touch an uneven road.
+ */
+export const WHEEL_PART = 32;
+
 // ---------------------------------------------------------------- math helpers
 
 type V2 = [number, number];
@@ -1744,10 +1750,10 @@ function toMeshData(s: Soup): MeshData {
 }
 
 /** `s` into `mb`, moved by (x, y, z); `sx` = -1 mirrors it in x (winding and normals follow). */
-function addSoup(mb: MeshBuilder, s: Soup, x: number, y: number, z: number, sx: number): void {
+function addSoup(mb: MeshBuilder, s: Soup, x: number, y: number, z: number, sx: number, partAdd = 0): void {
   const base = mb.vcount;
   for (let i = 0; i < s.part.length; i++) {
-    mb.set('aPart', s.part[i]);
+    mb.set('aPart', s.part[i] + partAdd);
     mb.v(x + sx * s.pos[i * 3], y + s.pos[i * 3 + 1], z + s.pos[i * 3 + 2], sx * s.nrm[i * 3], s.nrm[i * 3 + 1], s.nrm[i * 3 + 2], s.uv[i * 2], s.uv[i * 2 + 1]);
   }
   const I = s.idx;
@@ -1819,7 +1825,7 @@ export function standingVehicle(kind: VehicleKind, variant = 0): MeshData {
   const { built: b } = entry(kind, variant);
   const mb = new MeshBuilder(VEHICLE_SPECS);
   addSoup(mb, b.body, 0, 0, 0, 1);
-  for (const [x, y, z] of b.wheels) addSoup(mb, b.wheel, x, y, z, x < 0 ? -1 : 1);
+  for (const [x, y, z] of b.wheels) addSoup(mb, b.wheel, x, y, z, x < 0 ? -1 : 1, WHEEL_PART);
   return mb.build();
 }
 
@@ -1834,7 +1840,7 @@ export function farVehicle(min: [number, number, number], max: [number, number, 
   const w = max[0] - min[0], h = max[1] - min[1], l = max[2] - min[2], cx = (min[0] + max[0]) / 2, cz = (min[2] + max[2]) / 2;
   // In a unit box (x and z −0.5..0.5, y 0..1), stretched to the bounds.
   const box = (x: number, y: number, z: number, hx: number, hy: number, hz: number) => mb.box(cx + x * w, min[1] + y * h, cz + z * l, hx * w, hy * h, hz * l, 0, NO_BOTTOM);
-  mb.set('aPart', 3);
+  mb.set('aPart', VPart.Rubber + WHEEL_PART);
   for (const x of [-0.4, 0.4]) for (const z of [-0.32, 0.32]) box(x, 0.12, z, 0.08, 0.12, 0.11);
   mb.set('aPart', 0);
   box(0, 0.33, 0, 0.5, 0.21, 0.5);

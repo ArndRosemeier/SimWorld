@@ -12,7 +12,7 @@
 import { InstancedBufferGeometry, Vector3, type InstancedBufferAttribute, type Mesh } from 'three/webgpu';
 import { MeshBuilder, type MeshData } from '../build/meshBuilder';
 import { FF } from '../build/massing';
-import { buildVehicle, paintColor, standingVehicle, VEHICLE_KINDS } from '../build/vehicles';
+import { buildVehicle, paintColor, standingVehicle, VEHICLE_KINDS, WHEEL_PART } from '../build/vehicles';
 import { VEG_MODELS } from '../build/vegetation';
 import { isVehicleModel, PROP_STRIDE } from '../build/streetProps';
 import type { WorkerPool } from '../workers/pool';
@@ -63,7 +63,7 @@ export const VARIANTS: Readonly<Record<string, (d: MeshData, i: number) => strin
     return `layer ${Math.round(attr(d, 'aLayer', i))}${f & FF.Roof ? ' roof' : ''}${f & FF.Shop ? ' shop' : ''}${f & FF.Glow ? ' glass' : ''}`;
   },
   furniture: (d, i) => `mat ${Math.round(attr(d, 'aFurn', i))} sub ${Math.round(attr(d, 'aFurn', i, 2))}`,
-  vehicle: (d, i) => `part ${Math.round(attr(d, 'aPart', i))}`,
+  vehicle: (d, i) => `part ${Math.round(attr(d, 'aPart', i)) % WHEEL_PART}`,
   bark: () => 'all',
   leaves: () => 'all',
   treeFar: () => 'all',

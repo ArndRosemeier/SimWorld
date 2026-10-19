@@ -203,7 +203,7 @@ test('street sounds: a car rushes past once, a bus hisses as it stands, a siren 
   const msg = (siren: boolean): TrafficMsg => ({
     times: Float64Array.from([10, 10.1]),
     cars: Int32Array.from([1, kind('sedan'), 0, 2, kind('ambulance'), 0, 3, kind('bus'), 0]),
-    poses: Float32Array.from([[-100, 0, 5, 0], [100, 0, 5, 0], [300, 0, 0, 0], [300, 0, 50, 0], [20, 0, 20, 0], [20, 0, 20, 0]].flatMap((p) => [...p, 0, 0])),
+    poses: Float32Array.from([[-100, 0, 5, 0], [100, 0, 5, 0], [300, 0, 0, 0], [300, 0, 50, 0], [20, 0, 20, 0], [20, 0, 20, 0]].flatMap((p) => [...p, 0, 0, 0])),
     state: Float32Array.from([1, 0, 0, 1, 1, 0, siren ? 3 : -3, 1, 1, 0, 2, 1]),
     paint: new Float32Array(9), parked: null, parkedCars: null, posts: null, closed: new Uint8Array(0),
     horns: Float64Array.from([10.05, 10, 1, 10, 1]),
