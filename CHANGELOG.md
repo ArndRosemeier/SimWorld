@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.158 — Everything about a person
+
+- In the "Who will you be?" picker, an open card now has a "More about …" button. It opens a window with everything the town knows about that person, in plain words: who they are, home and household, family, friends and people they can't stand, work or school and their routine, personality and how they talk, what is going on in their life, their life so far, their day at the time the start slider shows, clubs, views and what people say about them, and what is on their mind. Their secrets are marked as known only to you.
+- While playing, "About me" on the panel at the bottom left opens the same window for the person you are.
+
 ## v0.157 — Lighter distant trees, and headless shots that stay lit
 
 - Trees between 45 and 150 m are now drawn as a lighter tree with the same shape (about a quarter of the triangles), and countryside forest far away as a simpler canopy. Forest outside the town no longer goes through the shadow pass, since its shadows fall outside the shadow map anyway. All together that halves the triangles of a view over the town.

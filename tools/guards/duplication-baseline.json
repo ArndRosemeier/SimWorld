@@ -28,8 +28,8 @@
     "reason": "One designer per public building (the Designer contract from Scale): the same closure shape, each with its own sizes and parameters for its parts; a table would hide the drawing rules."
   },
   {
-    "key": "idiom: [.actors .cols .people] in simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/politics.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts",
-    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops."
+    "key": "idiom: [.actors .cols .people] in simworld/chat/details.ts + simworld/sim/actions.ts + simworld/sim/chronicle.ts + simworld/sim/politics.ts + simworld/sim/schedule.ts + simworld/sim/synth.ts",
+    "reason": "The column-access prologue of data-oriented sim systems (actor columns, person columns, the person's row). Each system names the tables it reads (plan R3); a helper returning them would hide that and cost a call in hot loops (the person details window, src/chat/details.ts, reads the same fields)."
   },
   {
     "key": "idiom: [.angle .cos .sin Math] in simworld/geom/geom2.ts + simworld/plan/cell.ts + simworld/world/rural.ts + simworld/world/terrain.ts",
@@ -432,12 +432,12 @@
     "reason": "TSL's own grammar (scale or offset a node, assign it, keep it as a variable): every node-material look is written in it; the looks share nothing beyond the node API."
   },
   {
-    "key": "idiom: [.filter .known] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/synth.ts",
-    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+    "key": "idiom: [.filter .known] in simworld/chat/details.ts + simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/synth.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions (the person details window, src/chat/details.ts, reads the same fields)."
   },
   {
-    "key": "idiom: [.known .to] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
-    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+    "key": "idiom: [.known .to] in simworld/chat/details.ts + simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/profile.ts + simworld/sim/schedule.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions (the person details window, src/chat/details.ts, reads the same fields)."
   },
   {
     "key": "idiom: [.add .mul] in simworld/render/tsl/furniture.ts + simworld/render/tsl/smoke.ts + simworld/render/tsl/vegetation.ts",
@@ -452,16 +452,16 @@
     "reason": "The town views' once-a-frame camera hook (PropsShown.update, SignsShown.update, VegetationShown.update): the same name on purpose, so the main loop calls them alike."
   },
   {
-    "key": "idiom: [.actors .cols .home] in simworld/sim/life.ts + simworld/sim/profile.ts + simworld/sim/synth.ts + simworld/talk/refer.ts",
-    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions."
+    "key": "idiom: [.actors .cols .home] in simworld/chat/details.ts + simworld/sim/life.ts + simworld/sim/profile.ts + simworld/sim/synth.ts + simworld/talk/refer.ts",
+    "reason": "Reads of the sim tables (relations rows, household members, actor columns, place names) that every sim system makes; the shared part is the table API itself, and the inhabitant card and the player menu read them for their own questions (the person details window, src/chat/details.ts, reads the same fields)."
   },
   {
     "key": "idiom: [.actors .cols .kind] in simworld/sim/world.ts + simworld/talk/chatter.ts + simworld/workers/sim.worker.ts",
     "reason": "Column access prologue (world.<table>.cols.<column>[row]): each reader reads the sim's own columns; nothing to fold."
   },
   {
-    "key": "idiom: [.actors .cols .people .row .school] in simworld/sim/economy.ts + simworld/sim/profile.ts + simworld/talk/chatter.ts",
-    "reason": "Column access prologue (world.<table>.cols.<column>[row]): each reader reads the sim's own columns; nothing to fold."
+    "key": "idiom: [.actors .cols .people .row .school] in simworld/chat/details.ts + simworld/sim/economy.ts + simworld/sim/profile.ts + simworld/talk/chatter.ts",
+    "reason": "Column access prologue (world.<table>.cols.<column>[row]): each reader reads the sim's own columns; nothing to fold (the person details window, src/chat/details.ts, reads the same fields)."
   },
   {
     "key": "idiom: [.beliefs .cols .knowledge] in simworld/sim/knowledge.ts + simworld/talk/chatter.ts + simworld/talk/realise.ts",
@@ -476,8 +476,8 @@
     "reason": "Different words for different readers: the profile card names the relation plainly (mother, housemate); talk says it in the speaker's voice (mum, little girl, flatmate)."
   },
   {
-    "key": "idiom: [.actors .cols .graph .places] in simworld/chat/card.ts + simworld/chat/context.ts + simworld/sim/media.ts + simworld/sim/player.ts + simworld/street/takeover.ts",
-    "reason": "Reading an actor's columns and the place graph at the top of a function that describes someone or picks a place in words; each describes a different thing (NPC card, prompt context, paper, the player's options, where the player takes someone over)."
+    "key": "idiom: [.actors .cols .graph .places] in simworld/chat/card.ts + simworld/chat/context.ts + simworld/chat/details.ts + simworld/sim/media.ts + simworld/sim/player.ts + simworld/street/takeover.ts",
+    "reason": "Reading an actor's columns and the place graph at the top of a function that describes someone or picks a place in words; each describes a different thing (NPC card, prompt context, paper, the player's options, where the player takes someone over) (the person details window, src/chat/details.ts, reads the same fields)."
   },
   {
     "key": "idiom: [.actors .cols .sex] in simworld/chat/card.ts + simworld/sim/life.ts + simworld/sim/profile.ts",
@@ -612,8 +612,8 @@
     "reason": "Canvas 2D's own grammar for rings and dots (arc to Math.PI * 2, stroke): the map's marks, the signs' dials and the atlas pictures each draw their own shapes; a wrapper would only rename the canvas API."
   },
   {
-    "key": "idiom: [.cols .relations .t] in simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/schedule.ts",
-    "reason": "Reads of the relations table's columns that every sim system makes for its own question (the player's ties for the minimap here); the shared part is the table API itself."
+    "key": "idiom: [.cols .relations .t] in simworld/chat/details.ts + simworld/sim/life.ts + simworld/sim/player.ts + simworld/sim/schedule.ts",
+    "reason": "Reads of the relations table's columns that every sim system makes for its own question (the player's ties for the minimap here); the shared part is the table API itself (the person details window, src/chat/details.ts, reads the same fields)."
   },
   {
     "key": "idiom: [.addColorStop .createLinearGradient] in simworld/app/title.ts + simworld/render/signPaint.ts + simworld/render/textAtlas.ts",
@@ -670,5 +670,25 @@
   {
     "key": "same name: simworld/interior/reach.ts#near + simworld/world/rural.ts#near",
     "reason": "FloorGrid.near (nearest free cell) and a rural distance helper; different concepts."
+  },
+  {
+    "key": "idiom: [.actors .cols .home] in simworld/chat/card.ts + simworld/chat/details.ts + simworld/sim/player.ts",
+    "reason": "The person details window (src/chat/details.ts) reads the same sim tables as the chat card, the chronicle and the knowledge layer (actor homes, life events, beliefs and their facts); each reads a field to write its own text, not a copied step."
+  },
+  {
+    "key": "idiom: [.beliefs .cols .knowledge] in simworld/chat/details.ts + simworld/sim/chronicle.ts + simworld/sim/knowledge.ts",
+    "reason": "The person details window (src/chat/details.ts) reads the same sim tables as the chat card, the chronicle and the knowledge layer (actor homes, life events, beliefs and their facts); each reads a field to write its own text, not a copied step."
+  },
+  {
+    "key": "idiom: [.events .length .life] in simworld/chat/card.ts + simworld/chat/details.ts + simworld/sim/economy.ts",
+    "reason": "The person details window (src/chat/details.ts) reads the same sim tables as the chat card, the chronicle and the knowledge layer (actor homes, life events, beliefs and their facts); each reads a field to write its own text, not a copied step."
+  },
+  {
+    "key": "idiom: [.events .life] in simworld/chat/card.ts + simworld/chat/details.ts + simworld/sim/economy.ts",
+    "reason": "The person details window (src/chat/details.ts) reads the same sim tables as the chat card, the chronicle and the knowledge layer (actor homes, life events, beliefs and their facts); each reads a field to write its own text, not a copied step."
+  },
+  {
+    "key": "idiom: [.fact .facts] in simworld/chat/details.ts + simworld/sim/chronicle.ts + simworld/sim/knowledge.ts",
+    "reason": "The person details window (src/chat/details.ts) reads the same sim tables as the chat card, the chronicle and the knowledge layer (actor homes, life events, beliefs and their facts); each reads a field to write its own text, not a copied step."
   }
 ]

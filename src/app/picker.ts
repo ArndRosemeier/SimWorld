@@ -2,15 +2,17 @@
  * The character picker (D4, plan R2): who will you be? A panel over the live town from above, listing every
  * inhabitant's card (src/sim/profile.ts) with a search, the filters (in love, has a secret, new in town, …), an age
  * band and a sort. Picking someone shows their whole card (secrets marked as known only to you); "Be …" plays as
- * them. A slider starts play later (up to a day ahead, Arnd): the town behind lives on to then as it moves (and
+ * them; "More about …" opens everything the town knows about them (src/app/personDetails.ts). A slider starts play later (up to a day ahead, Arnd): the town behind lives on to then as it moves (and
  * back), the open card says what its person is doing then, and you take over wherever they are at that time.
  * Someone in a car, on a bus or out of town at that time is not offered (Arnd, 21:20: "Hide them"): they are never
  * put where the sim does not have them. The loading screen hands over to it once the town is up; it comes back when the player wants to be
  * someone else.
  */
 import { deriveSeed, Rng } from '@futuremagic/core';
+import type { PersonDetails } from '../chat/details';
 import { CARD_FILTERS, type InhabitantCard } from '../sim/profile';
 import { el } from './dom';
+import { openPersonDetails } from './personDetails';
 import { weekdayName } from '../sim/calendar';
 import { dayOf, hhmm, minuteOfDay, partOfDay, weekdayOf } from '../sim/time';
 
@@ -50,6 +52,8 @@ export interface PickerOptions {
   onAhead?: (ahead: number) => Promise<void>;
   /** What inhabitant `id` is doing in the town as it is shown now ("work at Café Plover"), for the open card. */
   doing?: (id: number) => Promise<string>;
+  /** Everything about inhabitant `id` in the town as shown, for the open card's "More about …" window. */
+  details?: (id: number) => Promise<PersonDetails | null>;
   /** Play as `card`, `ahead` minutes from now (0: now); resolves once play has begun. */
   onPick: (card: InhabitantCard, ahead: number) => void | Promise<void>;
   /** Who cannot be taken over in the town as shown (in a car, on a bus, out of town): their cards are left out. */
@@ -250,7 +254,20 @@ export class Picker {
         if (this.ahead && this.catching) { be.textContent = 'Moving the clock on…'; be.disabled = true; }
         void Promise.resolve(this.opts.onPick(c, this.ahead)).finally(() => { this.picking = false; });
       });
-      card.append(be);
+      const buttons = el('div', 'pk-buttons');
+      buttons.append(be);
+      const details = this.opts.details;
+      if (details) {
+        const more = el('button', 'pk-details', `More about ${first}`);
+        more.type = 'button';
+        more.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const when = this.ahead ? `at ${hhmm(Math.floor(minuteOfDay(this.opts.clock() + this.ahead)))}, ${Math.round(this.ahead / 30) / 2} h from now` : 'now';
+          openPersonDetails(c.name, when, () => details(c.id));
+        });
+        buttons.append(more);
+      }
+      card.append(buttons);
     }
     const toggle = (): void => { this.open = open ? null : c.id; this.render(); };
     card.addEventListener('click', toggle);

@@ -170,6 +170,9 @@ export function activityOf(world: World, id: ActorId): string {
   return at ? `${what} at ${at.kind === 'street' ? at.street || at.name : at.name}` : what;
 }
 
+/** An activity in plain words ("working", "out for some free time"); ACTIVITIES' own name when it has none. */
+export const activityWord = (activity: number): string => ACTIVITY_WORDS[activity] ?? ACTIVITIES[activity];
+
 const ACTIVITY_WORDS: Partial<Record<number, string>> = {
   [A.idle]: 'passing the time', [A.work]: 'working', [A.school]: 'at school', [A.eat]: 'eating', [A.shop]: 'shopping',
   [A.socialize]: 'chatting', [A.leisure]: 'out for some free time', [A.errand]: 'on an errand', [A.worship]: 'at worship',

@@ -14,6 +14,7 @@ import { dayOf, MINUTES_PER_DAY } from '../sim/time';
 import { tick, isPerson, nameOf, jobOf, householdOf, type World } from '../sim/world';
 import { becomePlayer, doingOf, waitOf, playerActions, playerGo, playerStatus, setAutopilot, steerPlayer } from '../sim/player';
 import { cardsOf } from '../sim/profile';
+import { detailsOf, hasDetails } from '../chat/details';
 import { ACTOR_PERSON } from '../sim/actors';
 import { viewOf, viewTransfers } from '../sim/view';
 import { GROUND_STEP, OUTDOOR, StreetMap } from '../street/streetMap';
@@ -132,7 +133,7 @@ function simJob(m: ToSim): FromSim {
 
 /** A player request (src/sim/player.ts), answered with their status after it. */
 function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
-  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], near: null, located: null, doing: '', info: null, waits: [], status: null, ms: 0 };
+  const out: PlayerReply = { type: 'player', cards: [], actions: [], digest: [], near: null, located: null, doing: '', details: null, info: null, waits: [], status: null, ms: 0 };
   if (op.op === 'cards') out.cards = cardsOf(w);
   else if (op.op === 'become') { becomePlayer(w, op.id, op.autopilot); out.info = infoOf(w, op.id); known.add(op.id); }
   else if (op.op === 'autopilot') setAutopilot(w, op.on);
@@ -143,10 +144,11 @@ function playerJob(w: World, op: PlayerOp, took: () => number): PlayerReply {
   else if (op.op === 'locate') out.located = locate(w, map!, op.id);
   else if (op.op === 'waits') for (let id = 0; id < w.actors.count; id++) { const k = isPerson(w, id) ? waitOf(w, id) : null; if (k) out.waits.push({ id, why: k.why, back: k.back }); }
   else if (op.op === 'doing' && op.id >= 0 && op.id < w.actors.count) out.doing = doingOf(w, op.id);
+  else if (op.op === 'details' && hasDetails(w, op.id)) out.details = detailsOf(w, op.id);
   // The menu is wanted after a move too (what is there to do where they are going).
   if (op.op === 'actions' || op.op === 'go' || op.op === 'become') out.actions = playerActions(w);
   // Their track changes at once: drop it, so the next street update makes and sends the new one.
-  if (op.op !== 'cards' && op.op !== 'digest' && op.op !== 'near' && op.op !== 'locate' && op.op !== 'waits' && op.op !== 'doing' && w.player) tracks.delete(w.player.id);
+  if (op.op !== 'cards' && op.op !== 'digest' && op.op !== 'near' && op.op !== 'locate' && op.op !== 'waits' && op.op !== 'doing' && op.op !== 'details' && w.player) tracks.delete(w.player.id);
   out.status = playerOut(w, map!, w.clock);
   out.ms = took();
   return out;
